@@ -26,6 +26,19 @@ export interface OfertaRelampago {
   selo: string;
 }
 
+export interface TrilhaRecompensa {
+  cotas: number;
+  recompensa: string;
+  icone?: string;
+}
+
+export interface RoletaItem {
+  id?: string;
+  titulo: string;
+  cor: string;
+  chancePct: number;
+}
+
 export interface Campanha {
   id: string;
   ownerId?: string; // uid do organizador (Firebase Auth) dono da campanha
@@ -35,6 +48,7 @@ export interface Campanha {
   subtitulo?: string;
   descricao: string; // regulamento / detalhes
   bannerUrl: string;
+  fotosCarrossel?: string[]; // fotos adicionais para carrossel
   youtubeUrl: string | null;
   modelo: 'aleatorio' | 'manual';
   totalCotas: number; // ex: 10000 ou 100000
@@ -49,6 +63,16 @@ export interface Campanha {
   ofertasRelampago: OfertaRelampago[];
   selo: string | null; // ex: "Corre que essa vai rápido! 🔥"
   tempoReservaMin: number; // ex: 7 ou 15
+  filtroInicialCotas?: 'todas' | 'disponiveis' | 'reservadas';
+  ebookUrl?: string | null; // link do brinde digital pós-pagamento
+  ebookTitulo?: string | null;
+  roletaPremiada?: {
+    ativa: boolean;
+    itens: RoletaItem[];
+  } | null;
+  trilhaPremios?: TrilhaRecompensa[];
+  afiliadosAtivo?: boolean;
+  comissaoAfiliadoPct?: number;
   exibirRanking: boolean;
   exibirBarraProgresso: boolean;
   exibirPaginaGanhadores: boolean;
@@ -98,6 +122,10 @@ export interface ConfigOrganizador {
   // Pagamento (Mercado Pago)
   mpAccessToken: string | null; // segredo — nunca enviado de volta ao cliente
   mpPublicKey: string | null;   // pública — pode ser exibida
+  // Conexão Mercado Pago (OAuth ou manual)
+  mpUserId?: string | number | null;
+  mpConexaoTipo?: 'oauth' | 'manual' | null;
+  mpConectadoEm?: string | null;
   // Marca / personalização
   marca?: MarcaConfig;
   redes?: RedesSociais;

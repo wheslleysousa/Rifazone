@@ -7,12 +7,27 @@ export function mergeConfig(ownerId: string, existente: ConfigOrganizador | null
   const soSeInformado = (novo: string | null | undefined, atual: string | null | undefined) =>
     novo !== undefined && novo !== '' ? (novo ? String(novo).trim() : null) : (atual ?? null);
 
+  // Token do Mercado Pago: '' ou null explicito = desconectar; undefined = manter
+  let mpAccessToken: string | null = existente?.mpAccessToken ?? null;
+  if (dados.mpAccessToken !== undefined) {
+    mpAccessToken = dados.mpAccessToken && String(dados.mpAccessToken).trim() ? String(dados.mpAccessToken).trim() : null;
+  }
+  // Ao conectar manualmente um token novo, marca tipo/data se não vierem explícitos
+  const conectouAgora = !!mpAccessToken && mpAccessToken !== (existente?.mpAccessToken ?? null);
+
   return {
     ownerId,
-    mpAccessToken: soSeInformado(dados.mpAccessToken, existente?.mpAccessToken),
+    mpAccessToken,
     mpPublicKey: dados.mpPublicKey !== undefined
       ? (dados.mpPublicKey ? String(dados.mpPublicKey).trim() : null)
       : (existente?.mpPublicKey ?? null),
+    mpUserId: dados.mpUserId !== undefined ? (dados.mpUserId ?? null) : (existente?.mpUserId ?? null),
+    mpConexaoTipo: dados.mpConexaoTipo !== undefined
+      ? dados.mpConexaoTipo
+      : (existente?.mpConexaoTipo ?? (conectouAgora ? 'manual' : null)),
+    mpConectadoEm: dados.mpConectadoEm !== undefined
+      ? dados.mpConectadoEm
+      : (conectouAgora && !existente?.mpConectadoEm ? new Date().toISOString() : (existente?.mpConectadoEm ?? null)),
     metaAccessToken: soSeInformado(dados.metaAccessToken, existente?.metaAccessToken),
     metaAdAccountId: dados.metaAdAccountId !== undefined
       ? (dados.metaAdAccountId ? String(dados.metaAdAccountId).trim() : null)
@@ -37,6 +52,9 @@ export function configParaPainel(config: ConfigOrganizador | null) {
     mpConfigurado: !!config?.mpAccessToken,
     mpTokenMascara: mascarar(config?.mpAccessToken),
     mpPublicKey: config?.mpPublicKey || null,
+    mpConexaoTipo: config?.mpConexaoTipo || null,
+    mpUserId: config?.mpUserId ?? null,
+    mpConectadoEm: config?.mpConectadoEm || null,
     metaConfigurado: !!config?.metaAccessToken,
     metaTokenMascara: mascarar(config?.metaAccessToken),
     metaAdAccountId: config?.metaAdAccountId || null,

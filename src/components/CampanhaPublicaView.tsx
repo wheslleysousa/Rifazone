@@ -3,11 +3,13 @@ import { CampanhaPublicaResponse, Promocao, OfertaRelampago } from '../types';
 import { 
   Trophy, Flame, Sparkles, ShieldCheck, Ticket, Users, HelpCircle, 
   ChevronDown, ChevronUp, Plus, Minus, Check, Gift, Search, Info,
-  Smartphone, Share2, Instagram
+  Smartphone, Share2, Instagram, AlertTriangle, Copy, XCircle, CheckCircle2,
+  User, Edit
 } from 'lucide-react';
 import { UpsellModal } from './UpsellModal';
 import { PixPaymentModal } from './PixPaymentModal';
 import { MeusNumerosModal } from './MeusNumerosModal';
+import { MeusDadosModal } from './MeusDadosModal';
 
 interface Props {
   codigo: string;
@@ -30,8 +32,22 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
   const [whatsapp, setWhatsapp] = useState('');
   const [cpf, setCpf] = useState('');
   const [email, setEmail] = useState('');
+  const [maiorIdade, setMaiorIdade] = useState(true);
+  const [compradorSalvo, setCompradorSalvo] = useState<{ nome: string; whatsapp: string } | null>(null);
   const [formErro, setFormErro] = useState('');
   const [enviandoPedido, setEnviandoPedido] = useState(false);
+
+  // Modal Meus Dados
+  const [meusDadosAberto, setMeusDadosAberto] = useState(false);
+
+  // Modal de Diagnóstico de Erro (para copiar para o suporte)
+  const [erroDiagnostico, setErroDiagnostico] = useState<{
+    titulo: string;
+    mensagem: string;
+    detalhes?: any;
+    isTestToken?: boolean;
+  } | null>(null);
+  const [erroCopiado, setErroCopiado] = useState(false);
 
   // Oferta Relâmpago / Upsell
   const [upsellAberto, setUpsellAberto] = useState(false);
@@ -46,10 +62,30 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
     quantidade: number;
     expiraEm: string;
     isMock?: boolean;
+    compradorNome?: string;
+    compradorWhatsapp?: string;
   } | null>(null);
 
   // Meus Números Modal
   const [meusNumerosAberto, setMeusNumerosAberto] = useState(false);
+
+  // Inicializar dados do comprador do localStorage
+  useEffect(() => {
+    try {
+      const savedNome = localStorage.getItem('rifapix_comprador_nome');
+      const savedPhone = localStorage.getItem('rifapix_comprador_whatsapp');
+      const savedCpf = localStorage.getItem('rifapix_comprador_cpf');
+      const savedEmail = localStorage.getItem('rifapix_comprador_email');
+
+      if (savedNome) setNome(savedNome);
+      if (savedPhone) {
+        setWhatsapp(formatWhatsapp(savedPhone));
+        setCompradorSalvo({ nome: savedNome || 'Participante', whatsapp: savedPhone });
+      }
+      if (savedCpf) setCpf(savedCpf);
+      if (savedEmail) setEmail(savedEmail);
+    } catch (e) {}
+  }, []);
 
   // Carregar dados da campanha
   const carregarCampanha = async () => {
@@ -162,6 +198,11 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
       return;
     }
 
+    if (!maiorIdade) {
+      setFormErro('É obrigatório declarar ter no mínimo 18 anos para participar.');
+      return;
+    }
+
     if (campanha.exigirCpf && (!cpf || cpf.replace(/\D/g, '').length !== 11)) {
       setFormErro('Informe um CPF válido com 11 dígitos.');
       return;
@@ -196,10 +237,24 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
 
       if (!res.ok) {
         setFormErro(pedidoJson.error || 'Erro ao gerar pedido e Pix.');
+        setErroDiagnostico({
+          titulo: pedidoJson.isMpError ? 'Erro na API do Mercado Pago' : 'Falha ao Gerar Pix',
+          mensagem: pedidoJson.error || 'Não foi possível gerar a cobrança Pix.',
+          detalhes: pedidoJson.detalhes || pedidoJson,
+          isTestToken: pedidoJson.isTestToken
+        });
         return;
       }
 
       setCheckoutAberto(false);
+      try {
+        localStorage.setItem('rifapix_comprador_nome', nome.trim());
+        localStorage.setItem('rifapix_comprador_whatsapp', cleanWhatsapp);
+        if (cpf) localStorage.setItem('rifapix_comprador_cpf', cpf.trim());
+        if (email) localStorage.setItem('rifapix_comprador_email', email.trim());
+        setCompradorSalvo({ nome: nome.trim(), whatsapp: cleanWhatsapp });
+      } catch (e) {}
+
       setPixModalData({
         pedidoId: pedidoJson.pedidoId,
         pixCopiaCola: pedidoJson.pixCopiaCola,
@@ -207,11 +262,18 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
         valorTotal: pedidoJson.valorTotal,
         quantidade: pedidoJson.quantidade,
         expiraEm: pedidoJson.expiraEm,
-        isMock: pedidoJson.isMock
+        isMock: pedidoJson.isMock,
+        compradorNome: nome.trim(),
+        compradorWhatsapp: cleanWhatsapp
       });
 
     } catch (err: any) {
       setFormErro('Erro de conexão com o servidor. Tente novamente.');
+      setErroDiagnostico({
+        titulo: 'Erro de Conexão com o Servidor',
+        mensagem: err.message || 'Falha ao enviar requisição para o servidor.',
+        detalhes: err.stack || String(err)
+      });
     } finally {
       setEnviandoPedido(false);
     }
@@ -228,7 +290,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
     >
 
       {/* Top Navbar */}
-      <header className="sticky top-0 z-40 bg-slate-950/80 backdrop-blur-md border-b border-slate-800">
+      <header className="sticky top-0 z-40 bg-slate-950/90 backdrop-blur-md border-b border-slate-800">
         <div className="max-w-xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2">
             {data?.marca?.logoUrl ? (
@@ -250,22 +312,55 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
 
           <div className="flex items-center gap-2">
             <button
-              id="btn-ver-meus-numeros"
-              onClick={() => setMeusNumerosAberto(true)}
-              className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 transition"
+              id="btn-abrir-meus-dados"
+              type="button"
+              onClick={() => setMeusDadosAberto(true)}
+              className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700 transition"
+              title="Ver e preencher meus dados para o sorteio (+18 anos)"
             >
-              <Ticket className="w-3.5 h-3.5" />
-              Meus Números
+              <User className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Meus Dados</span>
             </button>
 
             <button
-              onClick={onNavigateAdmin}
-              className="text-[11px] font-medium text-slate-400 hover:text-white px-2 py-1 rounded transition"
+              id="btn-ver-meus-numeros"
+              type="button"
+              onClick={() => setMeusNumerosAberto(true)}
+              className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 transition"
             >
-              Admin
+              <Ticket className="w-3.5 h-3.5" />
+              <span>Meus Números</span>
             </button>
           </div>
         </div>
+
+        {/* Banner sutil se o comprador já possui dados salvos no navegador */}
+        {compradorSalvo && (
+          <div className="bg-emerald-950/40 border-t border-b border-emerald-500/20 px-4 py-1.5">
+            <div className="max-w-xl mx-auto flex items-center justify-between text-[11px]">
+              <span className="text-emerald-300 font-medium truncate">
+                👋 Olá, <strong>{compradorSalvo.nome}</strong>! Seus dados e bilhetes estão salvos.
+              </span>
+              <div className="flex items-center gap-2 ml-2 flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setMeusDadosAberto(true)}
+                  className="text-slate-400 hover:text-slate-200 underline font-medium"
+                >
+                  Editar dados
+                </button>
+                <span className="text-slate-600">•</span>
+                <button
+                  type="button"
+                  onClick={() => setMeusNumerosAberto(true)}
+                  className="text-emerald-400 hover:text-emerald-300 font-bold underline"
+                >
+                  Ver cotas
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </header>
 
       {/* Main Container */}
@@ -640,6 +735,23 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
                 </div>
               )}
 
+              {/* Confirmação Idade Mínima (+18 anos) */}
+              <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl">
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                  <input
+                    id="checkout-check-maior-idade"
+                    type="checkbox"
+                    checked={maiorIdade}
+                    onChange={e => setMaiorIdade(e.target.checked)}
+                    className="w-4 h-4 mt-0.5 rounded text-emerald-500 bg-slate-900 border-slate-700 focus:ring-emerald-500"
+                  />
+                  <span className="text-xs text-slate-200 font-medium leading-tight">
+                    <strong className="text-emerald-400 block">Idade mínima 18 anos:</strong>
+                    Declaro que tenho 18 anos ou mais e estou de acordo com o regulamento do sorteio.
+                  </span>
+                </label>
+              </div>
+
               {/* Resumo */}
               <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-3 text-xs space-y-1">
                 <div className="flex justify-between text-slate-300">
@@ -691,12 +803,19 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
           quantidade={pixModalData.quantidade}
           expiraEm={pixModalData.expiraEm}
           isMock={pixModalData.isMock}
+          compradorNome={pixModalData.compradorNome || nome}
+          compradorWhatsapp={pixModalData.compradorWhatsapp || whatsapp.replace(/\D/g, '')}
+          tituloCampanha={campanha.titulo}
           onSuccess={() => {
-            // Atualiza dados da campanha
             carregarCampanha();
           }}
           onClose={() => {
             setPixModalData(null);
+            carregarCampanha();
+          }}
+          onVerMeusNumeros={() => {
+            setPixModalData(null);
+            setMeusNumerosAberto(true);
             carregarCampanha();
           }}
         />
@@ -708,6 +827,111 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
           campanha={campanha}
           onBack={() => setMeusNumerosAberto(false)}
         />
+      )}
+
+      {/* Modal Meus Dados / Identificação do Comprador */}
+      {meusDadosAberto && (
+        <MeusDadosModal
+          onClose={() => setMeusDadosAberto(false)}
+          exigirCpf={campanha.exigirCpf}
+          exigirEmail={campanha.exigirEmail}
+          onSalvarSucesso={(dados) => {
+            setNome(dados.nome);
+            setWhatsapp(dados.whatsapp);
+            if (dados.cpf) setCpf(dados.cpf);
+            if (dados.email) setEmail(dados.email);
+            setMaiorIdade(dados.maiorIdade);
+            setCompradorSalvo({ nome: dados.nome, whatsapp: dados.whatsapp });
+          }}
+        />
+      )}
+
+      {/* Modal Diagnóstico de Erro para Suporte */}
+      {erroDiagnostico && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md overflow-y-auto">
+          <div className="relative w-full max-w-lg bg-slate-900 border border-red-500/40 rounded-2xl p-6 shadow-2xl text-white my-8 animate-in zoom-in-95">
+            <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-800 mb-4">
+              <div className="flex items-center gap-2.5 text-red-400">
+                <AlertTriangle className="w-6 h-6 flex-shrink-0" />
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-red-400/80 block">
+                    Diagnóstico de Integração
+                  </span>
+                  <h3 className="text-base font-bold text-white">
+                    {erroDiagnostico.titulo}
+                  </h3>
+                </div>
+              </div>
+              <button
+                onClick={() => setErroDiagnostico(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3.5">
+              <div className="bg-red-950/30 border border-red-800/40 rounded-xl p-3.5 text-xs text-red-200 leading-relaxed">
+                {erroDiagnostico.mensagem}
+              </div>
+
+              {erroDiagnostico.isTestToken && (
+                <div className="bg-amber-950/40 border border-amber-600/40 rounded-xl p-3 text-xs text-amber-200">
+                  <span className="font-bold block mb-1">⚠️ Atenção sobre Credenciais de Teste:</span>
+                  Você está usando um Access Token de teste (<code className="font-mono text-amber-300">TEST-...</code>). O Banco Central e os aplicativos de bancos reais (Nubank, Itaú, Bradesco, etc.) <strong>rejeitam pagamentos de tokens de teste</strong>. Para receber dinheiro real, você deve cadastrar seu <strong>Access Token de Produção</strong> (<code className="font-mono text-amber-300">APP_USR-...</code>).
+                </div>
+              )}
+
+              <div>
+                <label className="text-[11px] font-semibold text-slate-400 block mb-1">
+                  Log técnico para envio ao suporte:
+                </label>
+                <div className="max-h-40 overflow-y-auto bg-slate-950 border border-slate-800 rounded-xl p-3 text-[11px] font-mono text-slate-300 break-all select-all">
+                  {typeof erroDiagnostico.detalhes === 'object'
+                    ? JSON.stringify(erroDiagnostico.detalhes, null, 2)
+                    : String(erroDiagnostico.detalhes || erroDiagnostico.mensagem)}
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const textoParaCopiar = `--- DIAGNÓSTICO ERRO PIX RIFAZONE ---\nData: ${new Date().toISOString()}\nTítulo: ${erroDiagnostico.titulo}\nMensagem: ${erroDiagnostico.mensagem}\nDetalhes:\n${typeof erroDiagnostico.detalhes === 'object' ? JSON.stringify(erroDiagnostico.detalhes, null, 2) : String(erroDiagnostico.detalhes || '')}\n--------------------------------------`;
+                    navigator.clipboard.writeText(textoParaCopiar);
+                    setErroCopiado(true);
+                    setTimeout(() => setErroCopiado(false), 3500);
+                  }}
+                  className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition ${
+                    erroCopiado
+                      ? 'bg-emerald-500 text-slate-950'
+                      : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/20'
+                  }`}
+                >
+                  {erroCopiado ? (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" />
+                      Copiado! Envie para o assistente
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-4 h-4" />
+                      Copiar Detalhes do Erro
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setErroDiagnostico(null)}
+                  className="px-4 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
     </div>

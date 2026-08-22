@@ -4,6 +4,9 @@ import { Campanha, Pedido, Comprador, RankingItem, CotaPremiada, ConfigOrganizad
 export interface DadosConfig {
   mpAccessToken?: string | null;
   mpPublicKey?: string | null;
+  mpUserId?: string | number | null;
+  mpConexaoTipo?: 'oauth' | 'manual' | null;
+  mpConectadoEm?: string | null;
   marca?: MarcaConfig;
   redes?: RedesSociais;
   metaPixelId?: string | null;

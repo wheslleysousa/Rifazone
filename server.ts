@@ -240,7 +240,12 @@ app.post('/api/pedidos', async (req, res) => {
     });
   } catch (err: any) {
     console.error('Erro ao criar pedido:', err);
-    return res.status(500).json({ error: 'Erro interno ao processar pedido e gerar Pix.' });
+    return res.status(400).json({
+      error: err.message || 'Erro ao processar pedido e gerar Pix.',
+      detalhes: err.details || err.cause || err.stack || null,
+      isMpError: !!err.mpError,
+      isTestToken: !!err.isTestToken
+    });
   }
 });
 
@@ -260,7 +265,14 @@ app.get('/api/pedidos/:id/status', async (req, res) => {
       const consulta = await mpService.consultarPagamento(pedido.mpPaymentId, mpToken);
       if (consulta && consulta.approved) {
         await db.confirmarPedido(pedido.id, pedido.mpPaymentId);
-        return res.json({ status: 'pago', pagoEm: new Date().toISOString() });
+        const pedidoAtualizado = (await db.getPedido(pedido.id)) || pedido;
+        return res.json({
+          status: 'pago',
+          pagoEm: pedidoAtualizado.pagoEm || new Date().toISOString(),
+          numeros: pedidoAtualizado.numeros || pedido.numeros || [],
+          quantidade: pedidoAtualizado.quantidade,
+          comprador: pedidoAtualizado.comprador
+        });
       }
     }
 
@@ -273,7 +285,9 @@ app.get('/api/pedidos/:id/status', async (req, res) => {
     return res.json({
       status: pedido.status,
       pagoEm: pedido.pagoEm,
-      numeros: pedido.status === 'pago' ? pedido.numeros : []
+      numeros: pedido.status === 'pago' ? (pedido.numeros || []) : [],
+      quantidade: pedido.quantidade,
+      comprador: pedido.comprador
     });
   } catch (err: any) {
     console.error('Erro ao verificar status do pedido:', err);
@@ -381,11 +395,15 @@ app.post('/api/webhooks/mercadopago', async (req, res) => {
 
     // 3) Localiza o pedido para descobrir o organizador (e o token MP dele)
     const todosPedidos = await db.getTodosPedidos();
-    const pedidoEncontrado = todosPedidos.find(p => p.mpPaymentId === String(paymentId));
-    const mpToken = pedidoEncontrado ? await db.getMpTokenPorCampanha(pedidoEncontrado.campanhaId) : null;
+    let pedidoEncontrado = todosPedidos.find(p => p.mpPaymentId === String(paymentId));
+    let mpToken = pedidoEncontrado ? await db.getMpTokenPorCampanha(pedidoEncontrado.campanhaId) : null;
 
     // 4) Busca o pagamento REAL na API do Mercado Pago (Fonte da Verdade)
     const pagamento = await mpService.consultarPagamento(String(paymentId), mpToken);
+    if (!pedidoEncontrado && pagamento?.external_reference) {
+      pedidoEncontrado = todosPedidos.find(p => p.id === pagamento.external_reference);
+    }
+
     if (pagamento && pagamento.approved && pedidoEncontrado) {
       await db.confirmarPedido(pedidoEncontrado.id, String(paymentId));
       console.log(`Pedido ${pedidoEncontrado.id} confirmado via Webhook MP!`);
@@ -414,10 +432,136 @@ app.get('/api/admin/me', firebaseAuthMiddleware, (req, res) => {
 // GET /api/admin/configuracoes -> Configurações do organizador (segredos mascarados)
 app.get('/api/admin/configuracoes', firebaseAuthMiddleware, async (req, res) => {
   const config = await db.getConfig((req as any).userId);
-  return res.json(configParaPainel(config));
+  const baseUrl = (process.env.BASE_URL || process.env.APP_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+  const redirectUri = `${baseUrl}/api/auth/mercadopago/callback`;
+
+  return res.json({
+    ...configParaPainel(config),
+    oauthConfiguradoNoServidor: Boolean(process.env.MP_CLIENT_ID && process.env.MP_CLIENT_SECRET),
+    oauthRedirectUri: redirectUri,
+    mpClientIdConfigurado: Boolean(process.env.MP_CLIENT_ID)
+  });
 });
 
-// PUT /api/admin/configuracoes -> Salva configurações (pagamento, marca, redes, pixel, Meta Ads)
+// GET /api/auth/mercadopago/url -> Gera o link oficial para conexão OAuth do Mercado Pago
+app.get('/api/auth/mercadopago/url', firebaseAuthMiddleware, async (req, res) => {
+  const clientId = (process.env.MP_CLIENT_ID || '').trim();
+  const clientSecret = (process.env.MP_CLIENT_SECRET || '').trim();
+  const baseUrl = (process.env.BASE_URL || process.env.APP_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+  const redirectUri = `${baseUrl}/api/auth/mercadopago/callback`;
+
+  if (!clientId || !clientSecret) {
+    return res.status(400).json({
+      configured: false,
+      error: 'MP_CLIENT_ID ou MP_CLIENT_SECRET não configurados nas variáveis de ambiente do servidor.',
+      redirectUri
+    });
+  }
+
+  // Gera o state seguro codificando o userId do organizador
+  const statePayload = {
+    uid: (req as any).userId,
+    email: (req as any).userEmail,
+    ts: Date.now()
+  };
+  const state = Buffer.from(JSON.stringify(statePayload)).toString('base64url');
+
+  const authUrl = `https://auth.mercadopago.com.br/authorization?client_id=${encodeURIComponent(clientId)}&response_type=code&platform_id=mp&state=${encodeURIComponent(state)}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+
+  return res.json({
+    configured: true,
+    url: authUrl,
+    redirectUri
+  });
+});
+
+// GET /api/auth/mercadopago/callback -> Recebe a autorização do Mercado Pago após o organizador aprovar
+app.get('/api/auth/mercadopago/callback', async (req, res) => {
+  const { code, state, error: mpError, error_description } = req.query;
+
+  if (mpError) {
+    console.error('Erro retornado pelo Mercado Pago OAuth:', mpError, error_description);
+    return res.redirect(`/?mp_oauth=erro&msg=${encodeURIComponent(String(error_description || mpError))}`);
+  }
+
+  if (!code || !state) {
+    return res.redirect('/?mp_oauth=erro&msg=Codigo+ou+state+ausente');
+  }
+
+  try {
+    // Decodifica o state para identificar o organizador
+    const decoded = JSON.parse(Buffer.from(String(state), 'base64url').toString('utf-8'));
+    const userId = decoded.uid;
+
+    if (!userId) {
+      throw new Error('Identificação do usuário organizador não encontrada no state.');
+    }
+
+    const clientId = (process.env.MP_CLIENT_ID || '').trim();
+    const clientSecret = (process.env.MP_CLIENT_SECRET || '').trim();
+    const baseUrl = (process.env.BASE_URL || process.env.APP_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+    const redirectUri = `${baseUrl}/api/auth/mercadopago/callback`;
+
+    // Troca o authorization code pelo access token permanente
+    const tokenRes = await fetch('https://api.mercadopago.com/oauth/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({
+        client_secret: clientSecret,
+        client_id: clientId,
+        grant_type: 'authorization_code',
+        code: String(code),
+        redirect_uri: redirectUri
+      })
+    });
+
+    const tokenData = await tokenRes.json();
+
+    if (!tokenRes.ok || !tokenData.access_token) {
+      console.error('Erro na resposta do token OAuth Mercado Pago:', tokenData);
+      const errMsg = tokenData.message || tokenData.error || 'Falha ao trocar código pelo token do Mercado Pago';
+      return res.redirect(`/?mp_oauth=erro&msg=${encodeURIComponent(errMsg)}`);
+    }
+
+    // Salva as credenciais do organizador
+    await db.saveConfig(userId, {
+      mpAccessToken: tokenData.access_token,
+      mpPublicKey: tokenData.public_key || null,
+      mpUserId: tokenData.user_id || null,
+      mpConexaoTipo: 'oauth',
+      mpConectadoEm: new Date().toISOString()
+    });
+
+    console.log(`Organizador ${userId} conectou Mercado Pago com sucesso via OAuth! MP User ID: ${tokenData.user_id}`);
+    return res.redirect('/?mp_oauth=sucesso');
+  } catch (err: any) {
+    console.error('Erro no callback OAuth Mercado Pago:', err);
+    return res.redirect(`/?mp_oauth=erro&msg=${encodeURIComponent(err.message || 'Erro inesperado')}`);
+  }
+});
+
+// POST /api/admin/configuracoes/desconectar -> Desconecta a conta do Mercado Pago
+app.post('/api/admin/configuracoes/desconectar', firebaseAuthMiddleware, async (req, res) => {
+  try {
+    await db.saveConfig((req as any).userId, {
+      mpAccessToken: '',
+      mpPublicKey: '',
+      mpUserId: null,
+      mpConexaoTipo: null,
+      mpConectadoEm: null
+    });
+
+    return res.json({ success: true, mpConfigurado: false });
+  } catch (err: any) {
+    console.error('Erro ao desconectar Mercado Pago:', err);
+    return res.status(500).json({ error: 'Erro ao desconectar conta do Mercado Pago.' });
+  }
+});
+
+// PUT /api/admin/configuracoes -> Salva configurações (pagamento manual, marca, redes, pixel, Meta Ads)
 app.put('/api/admin/configuracoes', firebaseAuthMiddleware, async (req, res) => {
   try {
     const b = req.body || {};
@@ -432,6 +576,8 @@ app.put('/api/admin/configuracoes', firebaseAuthMiddleware, async (req, res) => 
     const config = await db.saveConfig((req as any).userId, {
       mpAccessToken: b.mpAccessToken !== undefined ? String(b.mpAccessToken || '') : undefined,
       mpPublicKey: b.mpPublicKey !== undefined ? String(b.mpPublicKey || '') : undefined,
+      // token manual informado aqui marca a conexão como 'manual'
+      mpConexaoTipo: b.mpAccessToken ? 'manual' : undefined,
       metaAccessToken: b.metaAccessToken !== undefined ? String(b.metaAccessToken || '') : undefined,
       metaAdAccountId: b.metaAdAccountId !== undefined ? String(b.metaAdAccountId || '') : undefined,
       metaPixelId: b.metaPixelId !== undefined ? String(b.metaPixelId || '') : undefined,
@@ -601,6 +747,20 @@ app.delete('/api/admin/campanhas/:id', firebaseAuthMiddleware, async (req, res) 
   }
   const deleted = await db.deleteCampanha(id);
   return res.json({ success: deleted });
+});
+
+// GET /api/admin/pedidos -> Lista todos os pedidos das campanhas do organizador
+app.get('/api/admin/pedidos', firebaseAuthMiddleware, async (req, res) => {
+  try {
+    const campanhas = await db.getCampanhas((req as any).userId);
+    const campanhaIds = new Set(campanhas.map(c => c.id));
+    const todosPedidos = await db.getTodosPedidos();
+    const meusPedidos = todosPedidos.filter(p => campanhaIds.has(p.campanhaId));
+    return res.json(meusPedidos);
+  } catch (err: any) {
+    console.error('Erro ao buscar pedidos do organizador:', err);
+    return res.status(500).json({ error: 'Erro ao buscar pedidos.' });
+  }
 });
 
 // GET /api/admin/campanhas/:id/pedidos -> Lista pedidos e compradores (somente o dono)

@@ -1,0 +1,29 @@
+# Blueprint do Render para o RifaZone.
+# No Render: New > Blueprint > conecte este repositório.
+# Depois preencha as variáveis marcadas com sync:false em Environment.
+services:
+  - type: web
+    name: rifazone
+    runtime: node
+    plan: free
+    branch: main
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Credenciais do Firebase Admin (Firestore) — cole o JSON da service account.
+      - key: FIREBASE_SERVICE_ACCOUNT
+        sync: false
+      # URL pública do serviço (usada na notification_url do Mercado Pago).
+      # Ex.: https://rifazone.onrender.com
+      - key: BASE_URL
+        sync: false
+      # Chave da IA (Gemini) — opcional; sem ela o assistente roda em simulação.
+      - key: GEMINI_API_KEY
+        sync: false
+      # Segurança: NÃO ligue o bypass de autenticação em produção.
+      - key: AUTH_DEV_BYPASS
+        value: "false"

@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { Campanha, Cota, Pedido, Comprador, RankingItem, CotaPremiada, ConfigOrganizador } from '../src/types.js';
+import { Storage, EstatisticasCampanha, MeusNumerosResult, ConfirmarPedidoResult, SorteioResult } from './storage-interface.js';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 if (!fs.existsSync(DATA_DIR)) {
@@ -100,7 +101,8 @@ const seedCampanhas: Campanha[] = [
   }
 ];
 
-export class StorageService {
+// Backend de armazenamento em ARQUIVO local (fallback para dev/preview sem Firestore).
+export class FileStorage implements Storage {
   private campanhas: Map<string, Campanha> = new Map();
   // Map key: `${campanhaId}:${numero}` -> Cota
   private cotas: Map<string, Cota> = new Map();
@@ -168,7 +170,7 @@ export class StorageService {
 
   // --- Campanhas ---
   // Lista campanhas. Se ownerId for informado, retorna apenas as do organizador.
-  public getCampanhas(ownerId?: string): Campanha[] {
+  public async getCampanhas(ownerId?: string): Promise<Campanha[]> {
     return Array.from(this.campanhas.values())
       .filter(c => !ownerId || c.ownerId === ownerId)
       .sort((a, b) =>
@@ -176,11 +178,11 @@ export class StorageService {
       );
   }
 
-  public getCampanhaById(id: string): Campanha | null {
+  public async getCampanhaById(id: string): Promise<Campanha | null> {
     return this.campanhas.get(id) || null;
   }
 
-  public getCampanhaByCodigo(codigo: string): Campanha | null {
+  public async getCampanhaByCodigo(codigo: string): Promise<Campanha | null> {
     const normalized = codigo.toLowerCase().trim();
     for (const c of this.campanhas.values()) {
       if (c.codigo.toLowerCase() === normalized) {
@@ -190,7 +192,7 @@ export class StorageService {
     return null;
   }
 
-  public saveCampanha(campanha: Campanha): Campanha {
+  public async saveCampanha(campanha: Campanha): Promise<Campanha> {
     if (!campanha.id) {
       campanha.id = 'camp-' + crypto.randomUUID().slice(0, 8);
     }
@@ -203,7 +205,7 @@ export class StorageService {
     return campanha;
   }
 
-  public deleteCampanha(id: string): boolean {
+  public async deleteCampanha(id: string): Promise<boolean> {
     const deleted = this.campanhas.delete(id);
     if (deleted) {
       this.saveCampanhas();
@@ -212,7 +214,7 @@ export class StorageService {
   }
 
   // --- Cotas & Estatísticas ---
-  public getEstatisticasCampanha(campanhaId: string, totalCotas: number) {
+  public async getEstatisticasCampanha(campanhaId: string, totalCotas: number): Promise<EstatisticasCampanha> {
     const agora = Date.now();
     let vendidas = 0;
     let reservadas = 0;
@@ -241,7 +243,7 @@ export class StorageService {
     };
   }
 
-  public getRankingCampanha(campanhaId: string): RankingItem[] {
+  public async getRankingCampanha(campanhaId: string): Promise<RankingItem[]> {
     const mapaRanking: Record<string, { nome: string; whatsapp: string; quantidade: number }> = {};
 
     for (const pedido of this.pedidos.values()) {
@@ -293,7 +295,7 @@ export class StorageService {
     return true;
   }
 
-  public getCotasOcupadas(campanhaId: string): Record<string, { status: 'reservado' | 'vendido' }> {
+  public async getCotasOcupadas(campanhaId: string): Promise<Record<string, { status: 'reservado' | 'vendido' }>> {
     const agora = Date.now();
     const result: Record<string, { status: 'reservado' | 'vendido' }> = {};
 
@@ -313,13 +315,13 @@ export class StorageService {
   }
 
   // --- Reserva Atômica ---
-  public reservarCotas(
+  public async reservarCotas(
     campanha: Campanha,
     numerosDesejados: string[],
     pedidoId: string,
     compradorId: string,
     compradorNome: string
-  ): void {
+  ): Promise<void> {
     const agora = Date.now();
     const reservadoAte = new Date(agora + campanha.tempoReservaMin * 60 * 1000).toISOString();
 
@@ -351,7 +353,7 @@ export class StorageService {
   }
 
   // Sorteia cotas livres aleatoriamente
-  public sortearCotasLivres(campanha: Campanha, quantidade: number): string[] {
+  public async sortearCotasLivres(campanha: Campanha, quantidade: number): Promise<string[]> {
     const total = campanha.totalCotas;
     const padding = String(total - 1).length;
     const agora = Date.now();
@@ -388,29 +390,29 @@ export class StorageService {
   }
 
   // --- Pedidos ---
-  public savePedido(pedido: Pedido): Pedido {
+  public async savePedido(pedido: Pedido): Promise<Pedido> {
     this.pedidos.set(pedido.id, pedido);
     this.savePedidos();
     return pedido;
   }
 
-  public getPedido(id: string): Pedido | null {
+  public async getPedido(id: string): Promise<Pedido | null> {
     return this.pedidos.get(id) || null;
   }
 
-  public getPedidosPorCampanha(campanhaId: string): Pedido[] {
+  public async getPedidosPorCampanha(campanhaId: string): Promise<Pedido[]> {
     return Array.from(this.pedidos.values())
       .filter(p => p.campanhaId === campanhaId)
       .sort((a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime());
   }
 
-  public getTodosPedidos(): Pedido[] {
+  public async getTodosPedidos(): Promise<Pedido[]> {
     return Array.from(this.pedidos.values())
       .sort((a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime());
   }
 
   // Confirmação atômica e idempotente
-  public confirmarPedido(pedidoId: string, mpPaymentId?: string): { success: boolean; cotasPremiadasEncontradas: CotaPremiada[] } {
+  public async confirmarPedido(pedidoId: string, mpPaymentId?: string): Promise<ConfirmarPedidoResult> {
     const pedido = this.pedidos.get(pedidoId);
     if (!pedido) return { success: false, cotasPremiadasEncontradas: [] };
 
@@ -454,7 +456,7 @@ export class StorageService {
         }
       });
       if (mudouCampanha) {
-        this.saveCampanha(campanha);
+        await this.saveCampanha(campanha);
       }
     }
 
@@ -462,7 +464,7 @@ export class StorageService {
   }
 
   // Meus números por WhatsApp
-  public getMeusNumeros(campanhaId: string, rawWhatsapp: string): { comprador: Comprador | null; cotas: string[]; pedidos: Pedido[] } {
+  public async getMeusNumeros(campanhaId: string, rawWhatsapp: string): Promise<MeusNumerosResult> {
     const cleanPhone = rawWhatsapp.replace(/\D/g, '');
     const pedidosPagos = Array.from(this.pedidos.values()).filter(p => 
       p.campanhaId === campanhaId &&
@@ -485,7 +487,7 @@ export class StorageService {
   }
 
   // --- Comprador ---
-  public saveComprador(comprador: Comprador): Comprador {
+  public async saveComprador(comprador: Comprador): Promise<Comprador> {
     const cleanId = comprador.whatsapp.replace(/\D/g, '');
     comprador.id = cleanId;
     this.compradores.set(cleanId, comprador);
@@ -494,11 +496,11 @@ export class StorageService {
   }
 
   // --- Configurações de pagamento por organizador ---
-  public getConfig(ownerId: string): ConfigOrganizador | null {
+  public async getConfig(ownerId: string): Promise<ConfigOrganizador | null> {
     return this.configs.get(ownerId) || null;
   }
 
-  public saveConfig(ownerId: string, dados: { mpAccessToken?: string | null; mpPublicKey?: string | null }): ConfigOrganizador {
+  public async saveConfig(ownerId: string, dados: { mpAccessToken?: string | null; mpPublicKey?: string | null }): Promise<ConfigOrganizador> {
     const existente = this.configs.get(ownerId);
     const config: ConfigOrganizador = {
       ownerId,
@@ -517,7 +519,7 @@ export class StorageService {
   }
 
   // Retorna o Access Token do Mercado Pago do organizador dono da campanha.
-  public getMpTokenPorCampanha(campanhaId: string): string | null {
+  public async getMpTokenPorCampanha(campanhaId: string): Promise<string | null> {
     const campanha = this.campanhas.get(campanhaId);
     if (!campanha || !campanha.ownerId) return null;
     const config = this.configs.get(campanha.ownerId);
@@ -525,7 +527,7 @@ export class StorageService {
   }
 
   // --- Limpeza de reservas expiradas ---
-  public limparReservasExpiradas(): number {
+  public async limparReservasExpiradas(): Promise<number> {
     const agora = Date.now();
     let limpos = 0;
 
@@ -551,10 +553,7 @@ export class StorageService {
   }
 
   // --- Apuração / Sorteio de Campanha ---
-  public realizarSorteio(campanhaId: string, numeroSorteado: string): { 
-    campanha: Campanha; 
-    ganhador: { nome: string; whatsapp: string; cota: string; pedidoId: string } | null 
-  } {
+  public async realizarSorteio(campanhaId: string, numeroSorteado: string): Promise<SorteioResult> {
     const campanha = this.campanhas.get(campanhaId);
     if (!campanha) throw new Error('Campanha não encontrada');
 
@@ -575,10 +574,8 @@ export class StorageService {
     campanha.status = 'encerrada';
     campanha.numeroSorteado = numeroSorteado;
     campanha.ganhador = ganhador;
-    this.saveCampanha(campanha);
+    await this.saveCampanha(campanha);
 
     return { campanha, ganhador };
   }
 }
-
-export const db = new StorageService();

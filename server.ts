@@ -2,14 +2,15 @@ import express, { Request, Response, NextFunction } from 'express';
 import path from 'path';
 import crypto from 'crypto';
 import { createServer as createViteServer } from 'vite';
-import { db } from './server/storage.js';
+import { db, usandoFirestore } from './server/db.js';
 import { mpService } from './server/mercadopago.js';
 import { geminiService } from './server/gemini.js';
 import { verifyFirebaseToken } from './server/auth.js';
 import { Campanha } from './src/types.js';
 
 const app = express();
-const PORT = 3000;
+// Render/Cloud Run injetam a porta via variável PORT.
+const PORT = Number(process.env.PORT) || 3000;
 
 // Body parsers
 app.use(express.json({
@@ -54,27 +55,28 @@ app.get('/api/health', (_req, res) => {
     status: 'ok',
     mpConfigured: mpService.isConfigured(),
     iaConfigured: geminiService.isConfigured(),
+    storage: usandoFirestore ? 'firestore' : 'file',
     timestamp: new Date().toISOString()
   });
 });
 
 // GET /api/campanhas/:codigo -> Dados da campanha para página pública + estatísticas + ranking
-app.get('/api/campanhas/:codigo', (req, res) => {
+app.get('/api/campanhas/:codigo', async (req, res) => {
   try {
     const { codigo } = req.params;
-    const campanha = db.getCampanhaByCodigo(codigo);
+    const campanha = await db.getCampanhaByCodigo(codigo);
 
     if (!campanha) {
       return res.status(404).json({ error: 'Campanha não encontrada.' });
     }
 
-    const estatisticas = db.getEstatisticasCampanha(campanha.id, campanha.totalCotas);
-    const ranking = campanha.exibirRanking ? db.getRankingCampanha(campanha.id) : [];
+    const estatisticas = await db.getEstatisticasCampanha(campanha.id, campanha.totalCotas);
+    const ranking = campanha.exibirRanking ? await db.getRankingCampanha(campanha.id) : [];
 
     // Cotas ocupadas caso seja modelo manual
     let cotasOcupadas: Record<string, { status: 'reservado' | 'vendido' }> = {};
     if (campanha.modelo === 'manual') {
-      cotasOcupadas = db.getCotasOcupadas(campanha.id);
+      cotasOcupadas = await db.getCotasOcupadas(campanha.id);
     }
 
     // Não expor dados do organizador (uid/email) na resposta pública
@@ -110,7 +112,7 @@ app.post('/api/pedidos', async (req, res) => {
       return res.status(400).json({ error: 'Preencha todos os campos obrigatórios (nome, whatsapp, quantidade).' });
     }
 
-    const campanha = db.getCampanhaById(campanhaId);
+    const campanha = await db.getCampanhaById(campanhaId);
     if (!campanha) {
       return res.status(404).json({ error: 'Campanha não encontrada.' });
     }
@@ -128,7 +130,7 @@ app.post('/api/pedidos', async (req, res) => {
     }
 
     // Salva ou atualiza comprador
-    const compradorSalvo = db.saveComprador({
+    const compradorSalvo = await db.saveComprador({
       id: comprador.whatsapp.replace(/\D/g, ''),
       nome: comprador.nome.trim(),
       whatsapp: comprador.whatsapp.trim(),
@@ -169,7 +171,7 @@ app.post('/api/pedidos', async (req, res) => {
     } else {
       // Modelo aleatório (sorteia cotas livres)
       try {
-        cotasAReservar = db.sortearCotasLivres(campanha, totalQtd);
+        cotasAReservar = await db.sortearCotasLivres(campanha, totalQtd);
       } catch (err: any) {
         return res.status(400).json({ error: err.message || 'Não há cotas suficientes disponíveis para reserva.' });
       }
@@ -181,13 +183,13 @@ app.post('/api/pedidos', async (req, res) => {
 
     // 1) Reserva atômica das cotas no banco
     try {
-      db.reservarCotas(campanha, cotasAReservar, pedidoId, compradorSalvo.id, compradorSalvo.nome);
+      await db.reservarCotas(campanha, cotasAReservar, pedidoId, compradorSalvo.id, compradorSalvo.nome);
     } catch (err: any) {
       return res.status(409).json({ error: err.message || 'Um ou mais números escolhidos acabaram de ser reservados por outro comprador. Tente novamente.' });
     }
 
     // 2) Gerar o Pix no Mercado Pago usando o token do organizador dono da campanha
-    const mpToken = db.getMpTokenPorCampanha(campanha.id);
+    const mpToken = await db.getMpTokenPorCampanha(campanha.id);
     const pixResult = await mpService.criarPix({
       pedidoId,
       valorTotal,
@@ -197,7 +199,7 @@ app.post('/api/pedidos', async (req, res) => {
     }, mpToken);
 
     // 3) Salvar pedido
-    const novoPedido = db.savePedido({
+    const novoPedido = await db.savePedido({
       id: pedidoId,
       campanhaId: campanha.id,
       compradorId: compradorSalvo.id,
@@ -240,7 +242,7 @@ app.post('/api/pedidos', async (req, res) => {
 app.get('/api/pedidos/:id/status', async (req, res) => {
   try {
     const { id } = req.params;
-    const pedido = db.getPedido(id);
+    const pedido = await db.getPedido(id);
 
     if (!pedido) {
       return res.status(404).json({ status: 'nao_encontrado' });
@@ -248,10 +250,10 @@ app.get('/api/pedidos/:id/status', async (req, res) => {
 
     // Reconciliação se estiver pendente e tiver mpPaymentId
     if (pedido.status === 'pendente' && pedido.mpPaymentId) {
-      const mpToken = db.getMpTokenPorCampanha(pedido.campanhaId);
+      const mpToken = await db.getMpTokenPorCampanha(pedido.campanhaId);
       const consulta = await mpService.consultarPagamento(pedido.mpPaymentId, mpToken);
       if (consulta && consulta.approved) {
-        db.confirmarPedido(pedido.id, pedido.mpPaymentId);
+        await db.confirmarPedido(pedido.id, pedido.mpPaymentId);
         return res.json({ status: 'pago', pagoEm: new Date().toISOString() });
       }
     }
@@ -259,7 +261,7 @@ app.get('/api/pedidos/:id/status', async (req, res) => {
     // Checar se já expirou
     if (pedido.status === 'pendente' && new Date(pedido.expiraEm).getTime() < Date.now()) {
       pedido.status = 'expirado';
-      db.savePedido(pedido);
+      await db.savePedido(pedido);
     }
 
     return res.json({
@@ -274,16 +276,16 @@ app.get('/api/pedidos/:id/status', async (req, res) => {
 });
 
 // POST /api/pedidos/:id/simular-pagamento -> Facilidade para testes imediatos no preview
-app.post('/api/pedidos/:id/simular-pagamento', (req, res) => {
+app.post('/api/pedidos/:id/simular-pagamento', async (req, res) => {
   try {
     const { id } = req.params;
-    const pedido = db.getPedido(id);
+    const pedido = await db.getPedido(id);
 
     if (!pedido) {
       return res.status(404).json({ error: 'Pedido não encontrado.' });
     }
 
-    const { cotasPremiadasEncontradas } = db.confirmarPedido(pedido.id, 'simulado_' + Date.now());
+    const { cotasPremiadasEncontradas } = await db.confirmarPedido(pedido.id, 'simulado_' + Date.now());
     return res.json({
       success: true,
       status: 'pago',
@@ -296,7 +298,7 @@ app.post('/api/pedidos/:id/simular-pagamento', (req, res) => {
 });
 
 // GET /api/campanhas/:codigo/meus-numeros?whatsapp=... -> Cotas pagas por WhatsApp
-app.get('/api/campanhas/:codigo/meus-numeros', (req, res) => {
+app.get('/api/campanhas/:codigo/meus-numeros', async (req, res) => {
   try {
     const { codigo } = req.params;
     const whatsapp = String(req.query.whatsapp || '').trim();
@@ -305,12 +307,12 @@ app.get('/api/campanhas/:codigo/meus-numeros', (req, res) => {
       return res.status(400).json({ error: 'Informe o número do WhatsApp com DDD.' });
     }
 
-    const campanha = db.getCampanhaByCodigo(codigo);
+    const campanha = await db.getCampanhaByCodigo(codigo);
     if (!campanha) {
       return res.status(404).json({ error: 'Campanha não encontrada.' });
     }
 
-    const resultado = db.getMeusNumeros(campanha.id, whatsapp);
+    const resultado = await db.getMeusNumeros(campanha.id, whatsapp);
     return res.json({
       campanha: {
         id: campanha.id,
@@ -372,14 +374,14 @@ app.post('/api/webhooks/mercadopago', async (req, res) => {
     }
 
     // 3) Localiza o pedido para descobrir o organizador (e o token MP dele)
-    const todosPedidos = db.getTodosPedidos();
+    const todosPedidos = await db.getTodosPedidos();
     const pedidoEncontrado = todosPedidos.find(p => p.mpPaymentId === String(paymentId));
-    const mpToken = pedidoEncontrado ? db.getMpTokenPorCampanha(pedidoEncontrado.campanhaId) : null;
+    const mpToken = pedidoEncontrado ? await db.getMpTokenPorCampanha(pedidoEncontrado.campanhaId) : null;
 
     // 4) Busca o pagamento REAL na API do Mercado Pago (Fonte da Verdade)
     const pagamento = await mpService.consultarPagamento(String(paymentId), mpToken);
     if (pagamento && pagamento.approved && pedidoEncontrado) {
-      db.confirmarPedido(pedidoEncontrado.id, String(paymentId));
+      await db.confirmarPedido(pedidoEncontrado.id, String(paymentId));
       console.log(`Pedido ${pedidoEncontrado.id} confirmado via Webhook MP!`);
     }
 
@@ -405,8 +407,8 @@ app.get('/api/admin/me', firebaseAuthMiddleware, (req, res) => {
 
 // GET /api/admin/configuracoes -> Status das credenciais de pagamento do organizador
 // (NUNCA retorna o Access Token completo — apenas se está configurado + máscara)
-app.get('/api/admin/configuracoes', firebaseAuthMiddleware, (req, res) => {
-  const config = db.getConfig((req as any).userId);
+app.get('/api/admin/configuracoes', firebaseAuthMiddleware, async (req, res) => {
+  const config = await db.getConfig((req as any).userId);
   const token = config?.mpAccessToken || '';
   return res.json({
     mpConfigurado: !!token,
@@ -418,7 +420,7 @@ app.get('/api/admin/configuracoes', firebaseAuthMiddleware, (req, res) => {
 
 // PUT /api/admin/configuracoes -> Salva as credenciais do Mercado Pago do organizador
 // Assim, os Pix das campanhas dele caem na conta Mercado Pago dele.
-app.put('/api/admin/configuracoes', firebaseAuthMiddleware, (req, res) => {
+app.put('/api/admin/configuracoes', firebaseAuthMiddleware, async (req, res) => {
   try {
     const { mpAccessToken, mpPublicKey } = req.body || {};
 
@@ -429,7 +431,7 @@ app.put('/api/admin/configuracoes', firebaseAuthMiddleware, (req, res) => {
       });
     }
 
-    const config = db.saveConfig((req as any).userId, {
+    const config = await db.saveConfig((req as any).userId, {
       mpAccessToken: mpAccessToken !== undefined ? String(mpAccessToken || '') : undefined,
       mpPublicKey: mpPublicKey !== undefined ? String(mpPublicKey || '') : undefined
     });
@@ -473,10 +475,10 @@ app.post('/api/admin/ia/gerar-campanha', firebaseAuthMiddleware, async (req, res
 });
 
 // GET /api/admin/campanhas -> Apenas as campanhas do organizador logado
-app.get('/api/admin/campanhas', firebaseAuthMiddleware, (req, res) => {
-  const campanhas = db.getCampanhas((req as any).userId);
-  const comEstatisticas = campanhas.map(c => {
-    const stats = db.getEstatisticasCampanha(c.id, c.totalCotas);
+app.get('/api/admin/campanhas', firebaseAuthMiddleware, async (req, res) => {
+  const campanhas = await db.getCampanhas((req as any).userId);
+  const comEstatisticas = await Promise.all(campanhas.map(async c => {
+    const stats = await db.getEstatisticasCampanha(c.id, c.totalCotas);
     return {
       ...c,
       estatisticas: {
@@ -484,12 +486,12 @@ app.get('/api/admin/campanhas', firebaseAuthMiddleware, (req, res) => {
         arrecadado: Number((stats.vendidas * c.valorCota).toFixed(2))
       }
     };
-  });
+  }));
   return res.json(comEstatisticas);
 });
 
 // POST /api/admin/campanhas -> Criar campanha (vinculada ao organizador logado)
-app.post('/api/admin/campanhas', firebaseAuthMiddleware, (req, res) => {
+app.post('/api/admin/campanhas', firebaseAuthMiddleware, async (req, res) => {
   try {
     const data: Partial<Campanha> = req.body;
 
@@ -512,7 +514,7 @@ app.post('/api/admin/campanhas', firebaseAuthMiddleware, (req, res) => {
     // Garantir código único
     let finalCodigo = codigo;
     let contador = 1;
-    while (db.getCampanhaByCodigo(finalCodigo)) {
+    while (await db.getCampanhaByCodigo(finalCodigo)) {
       finalCodigo = `${codigo}-${contador++}`;
     }
 
@@ -550,7 +552,7 @@ app.post('/api/admin/campanhas', firebaseAuthMiddleware, (req, res) => {
       criadaEm: new Date().toISOString()
     };
 
-    const salva = db.saveCampanha(novaCampanha);
+    const salva = await db.saveCampanha(novaCampanha);
     return res.status(201).json(salva);
   } catch (err: any) {
     console.error('Erro ao criar campanha:', err);
@@ -559,10 +561,10 @@ app.post('/api/admin/campanhas', firebaseAuthMiddleware, (req, res) => {
 });
 
 // PUT /api/admin/campanhas/:id -> Editar campanha (somente o dono)
-app.put('/api/admin/campanhas/:id', firebaseAuthMiddleware, (req, res) => {
+app.put('/api/admin/campanhas/:id', firebaseAuthMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
-    const existente = db.getCampanhaById(id);
+    const existente = await db.getCampanhaById(id);
 
     if (!existente) {
       return res.status(404).json({ error: 'Campanha não encontrada.' });
@@ -583,7 +585,7 @@ app.put('/api/admin/campanhas/:id', firebaseAuthMiddleware, (req, res) => {
       atualizadaEm: new Date().toISOString()
     };
 
-    const salva = db.saveCampanha(atualizada);
+    const salva = await db.saveCampanha(atualizada);
     return res.json(salva);
   } catch (err: any) {
     console.error('Erro ao atualizar campanha:', err);
@@ -592,35 +594,35 @@ app.put('/api/admin/campanhas/:id', firebaseAuthMiddleware, (req, res) => {
 });
 
 // DELETE /api/admin/campanhas/:id (somente o dono)
-app.delete('/api/admin/campanhas/:id', firebaseAuthMiddleware, (req, res) => {
+app.delete('/api/admin/campanhas/:id', firebaseAuthMiddleware, async (req, res) => {
   const { id } = req.params;
-  const existente = db.getCampanhaById(id);
+  const existente = await db.getCampanhaById(id);
   if (!existente) {
     return res.status(404).json({ error: 'Campanha não encontrada.' });
   }
   if (existente.ownerId !== (req as any).userId) {
     return res.status(403).json({ error: 'Você não tem permissão para excluir esta campanha.' });
   }
-  const deleted = db.deleteCampanha(id);
+  const deleted = await db.deleteCampanha(id);
   return res.json({ success: deleted });
 });
 
 // GET /api/admin/campanhas/:id/pedidos -> Lista pedidos e compradores (somente o dono)
-app.get('/api/admin/campanhas/:id/pedidos', firebaseAuthMiddleware, (req, res) => {
+app.get('/api/admin/campanhas/:id/pedidos', firebaseAuthMiddleware, async (req, res) => {
   const { id } = req.params;
-  const existente = db.getCampanhaById(id);
+  const existente = await db.getCampanhaById(id);
   if (!existente) {
     return res.status(404).json({ error: 'Campanha não encontrada.' });
   }
   if (existente.ownerId !== (req as any).userId) {
     return res.status(403).json({ error: 'Você não tem permissão para ver os pedidos desta campanha.' });
   }
-  const pedidos = db.getPedidosPorCampanha(id);
+  const pedidos = await db.getPedidosPorCampanha(id);
   return res.json(pedidos);
 });
 
 // POST /api/admin/campanhas/:id/sortear -> Apuração e definição do ganhador (somente o dono)
-app.post('/api/admin/campanhas/:id/sortear', firebaseAuthMiddleware, (req, res) => {
+app.post('/api/admin/campanhas/:id/sortear', firebaseAuthMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
     const { numeroSorteado } = req.body;
@@ -629,7 +631,7 @@ app.post('/api/admin/campanhas/:id/sortear', firebaseAuthMiddleware, (req, res) 
       return res.status(400).json({ error: 'Informe o número sorteado.' });
     }
 
-    const existente = db.getCampanhaById(id);
+    const existente = await db.getCampanhaById(id);
     if (!existente) {
       return res.status(404).json({ error: 'Campanha não encontrada.' });
     }
@@ -637,7 +639,7 @@ app.post('/api/admin/campanhas/:id/sortear', firebaseAuthMiddleware, (req, res) 
       return res.status(403).json({ error: 'Você não tem permissão para apurar esta campanha.' });
     }
 
-    const resultado = db.realizarSorteio(id, String(numeroSorteado).trim());
+    const resultado = await db.realizarSorteio(id, String(numeroSorteado).trim());
     return res.json(resultado);
   } catch (err: any) {
     console.error('Erro ao realizar apuração:', err);
@@ -646,8 +648,8 @@ app.post('/api/admin/campanhas/:id/sortear', firebaseAuthMiddleware, (req, res) 
 });
 
 // POST /api/admin/limpar-reservas -> Limpa reservas vencidas
-app.post('/api/admin/limpar-reservas', firebaseAuthMiddleware, (_req, res) => {
-  const limpos = db.limparReservasExpiradas();
+app.post('/api/admin/limpar-reservas', firebaseAuthMiddleware, async (_req, res) => {
+  const limpos = await db.limparReservasExpiradas();
   return res.json({ success: true, cotasLiberadas: limpos });
 });
 
@@ -671,7 +673,8 @@ async function startServer() {
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`\n🚀 Servidor RifaZone rodando com sucesso em http://0.0.0.0:${PORT}`);
-    console.log(`💳 Mercado Pago API: ${mpService.isConfigured() ? 'ATIVO (Chave de produção/teste conectada)' : 'MODO SIMULAÇÃO ATIVO'}\n`);
+    console.log(`🗄️  Armazenamento: ${usandoFirestore ? 'FIRESTORE (dados reais)' : 'ARQUIVO local (fallback dev)'}`);
+    console.log(`💳 Mercado Pago API global: ${mpService.isConfigured() ? 'token env presente' : 'sem token global (cada organizador usa o próprio)'}\n`);
   });
 }
 

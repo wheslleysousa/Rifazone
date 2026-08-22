@@ -1,0 +1,51 @@
+name: Keep Render Awake
+
+# Mantém o serviço do Render acordado: faz uma requisição ao /api/health
+# a cada 10 minutos (o free tier do Render dorme após ~15 min sem tráfego),
+# e também logo após cada push. Dá pra rodar manualmente pela aba Actions.
+on:
+  schedule:
+    - cron: '*/10 * * * *'   # a cada 10 minutos (horário UTC)
+  push:
+    branches: [ main ]
+  workflow_dispatch: {}
+
+# Evita execuções sobrepostas
+concurrency:
+  group: keep-alive
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping do health check
+        env:
+          # Defina em: Settings > Secrets and variables > Actions > Variables
+          # com o nome RENDER_URL (ex.: https://rifazone.onrender.com)
+          RENDER_URL: ${{ vars.RENDER_URL }}
+        run: |
+          if [ -z "$RENDER_URL" ]; then
+            echo "⚠️  Variável RENDER_URL não configurada."
+            echo "Crie em Settings > Secrets and variables > Actions > Variables (nome: RENDER_URL)."
+            echo "Ex.: https://rifazone.onrender.com"
+            exit 0
+          fi
+
+          URL="${RENDER_URL%/}/api/health"
+          echo "Pingando: $URL"
+
+          # Tenta algumas vezes: o Render pode levar ~30-60s para acordar se estava dormindo
+          for i in 1 2 3 4 5; do
+            code=$(curl -s -m 30 -o /tmp/resp.txt -w "%{http_code}" "$URL" || echo 000)
+            echo "Tentativa $i -> HTTP $code"
+            if [ "$code" = "200" ]; then
+              echo "✅ Serviço acordado. Resposta:"
+              cat /tmp/resp.txt
+              exit 0
+            fi
+            sleep 20
+          done
+
+          echo "❌ Não consegui um 200 do serviço após várias tentativas."
+          exit 1

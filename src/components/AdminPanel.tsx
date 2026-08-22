@@ -567,7 +567,6 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
       titulo: 'Operação',
       itens: [
         { id: 'campanhas', label: 'Campanhas', icon: <LayoutGrid className="w-4 h-4" />, count: campanhas.length },
-        { id: 'nova', label: 'Nova Campanha', icon: <Plus className="w-4 h-4" />, onClick: handleNovaCampanha },
         { id: 'clientes', label: 'Histórico de Clientes', icon: <Users className="w-4 h-4" /> },
         { id: 'pedidos', label: 'Pedidos & Transações', icon: <Ticket className="w-4 h-4" /> },
       ]
@@ -791,103 +790,142 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
                 <div>
                   <h1 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
                     <LayoutGrid className="w-5 h-5 text-emerald-400" />
-                    Todas as Campanhas
+                    Campanhas ({campanhas.length})
                   </h1>
                   <p className="text-slate-400 text-xs mt-0.5">
-                    Visualize, edite ou acompanhe o status de arrecadação de todas as suas rifas.
+                    Visualize suas rifas, pegue o link de divulgação oficial ou crie novas ações.
                   </p>
                 </div>
 
-                <button
-                  onClick={handleNovaCampanha}
-                  className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl flex items-center gap-1.5 transition shadow-md shadow-emerald-500/20 self-start sm:self-auto"
-                >
-                  <Plus className="w-4 h-4" />
-                  Criar Nova Campanha
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {campanhas.map(c => (
-                  <div
-                    key={c.id}
-                    className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg flex flex-col justify-between space-y-4"
+                {campanhas.length > 0 && (
+                  <button
+                    onClick={handleNovaCampanha}
+                    className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl flex items-center gap-1.5 transition shadow-md shadow-emerald-500/20 self-start sm:self-auto"
                   >
-                    <div>
-                      <div className="flex items-start justify-between gap-3 mb-3">
-                        <div>
-                          <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider mb-1.5 ${
-                            c.status === 'publicada'
-                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                              : 'bg-amber-500/20 text-amber-300'
-                          }`}>
-                            {c.status}
-                          </span>
-                          <h4 className="text-base font-black text-white leading-snug">
-                            {c.titulo}
-                          </h4>
-                        </div>
-                        <span className="text-xs font-mono font-bold text-slate-400 bg-slate-800 px-2 py-1 rounded">
-                          /c/{c.codigo}
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-3 gap-2 bg-slate-950 p-3 rounded-xl border border-slate-800/80 text-xs">
-                        <div>
-                          <span className="text-slate-500 block text-[10px]">Arrecadado</span>
-                          <span className="font-extrabold text-emerald-400">
-                            R$ {c.estatisticas?.arrecadado?.toFixed(2)?.replace('.', ',') || '0,00'}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-slate-500 block text-[10px]">Vendidas</span>
-                          <span className="font-extrabold text-white">
-                            {c.estatisticas?.vendidas || 0} / {c.totalCotas}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-slate-500 block text-[10px]">Progresso</span>
-                          <span className="font-extrabold text-amber-400">
-                            {c.estatisticas?.percentualVendido || 0}%
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 pt-3 border-t border-slate-800">
-                      <button
-                        onClick={() => onSelectCampanha(c.codigo)}
-                        className="flex-1 py-2 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                        Ver Rifa Pública
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          setForm(c);
-                          setAbaAtiva('nova');
-                        }}
-                        className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition"
-                        title="Editar Campanha"
-                      >
-                        <Edit3 className="w-4 h-4" />
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          setCampanhaSelecionada(c);
-                          setAbaAtiva('pedidos');
-                        }}
-                        className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition"
-                        title="Ver Pedidos"
-                      >
-                        <Users className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                    <Plus className="w-4 h-4" />
+                    Criar Nova Campanha
+                  </button>
+                )}
               </div>
+
+              {campanhas.length === 0 ? (
+                /* Estado Vazio - Apenas o botão de criar primeira campanha */
+                <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 sm:p-12 text-center max-w-xl mx-auto my-6 space-y-5 shadow-2xl">
+                  <div className="w-16 h-16 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mx-auto">
+                    <LayoutGrid className="w-8 h-8" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg sm:text-xl font-black text-white mb-1.5">
+                      Nenhuma campanha criada ainda
+                    </h3>
+                    <p className="text-xs text-slate-400 leading-relaxed">
+                      Crie sua primeira rifa profissional com pagamentos instantâneos via Pix no Mercado Pago e comece a arrecadar agora mesmo!
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleNovaCampanha}
+                    className="px-6 py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-sm rounded-xl inline-flex items-center gap-2 transition shadow-lg shadow-emerald-500/25 active:scale-95"
+                  >
+                    <Plus className="w-5 h-5" />
+                    Criar Primeira Campanha
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {campanhas.map(c => (
+                    <div
+                      key={c.id}
+                      className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg flex flex-col justify-between space-y-4"
+                    >
+                      <div>
+                        <div className="flex items-start justify-between gap-3 mb-3">
+                          <div>
+                            <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider mb-1.5 ${
+                              c.status === 'publicada'
+                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                : 'bg-amber-500/20 text-amber-300'
+                            }`}>
+                              {c.status}
+                            </span>
+                            <h4 className="text-base font-black text-white leading-snug">
+                              {c.titulo}
+                            </h4>
+                          </div>
+                          <span className="text-xs font-mono font-bold text-slate-400 bg-slate-800 px-2 py-1 rounded">
+                            /c/{c.codigo}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-2 bg-slate-950 p-3 rounded-xl border border-slate-800/80 text-xs">
+                          <div>
+                            <span className="text-slate-500 block text-[10px]">Arrecadado</span>
+                            <span className="font-extrabold text-emerald-400">
+                              R$ {c.estatisticas?.arrecadado?.toFixed(2)?.replace('.', ',') || '0,00'}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-slate-500 block text-[10px]">Vendidas</span>
+                            <span className="font-extrabold text-white">
+                              {c.estatisticas?.vendidas || 0} / {c.totalCotas}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-slate-500 block text-[10px]">Progresso</span>
+                            <span className="font-extrabold text-amber-400">
+                              {c.estatisticas?.percentualVendido || 0}%
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-slate-800">
+                        <button
+                          onClick={() => onSelectCampanha(c.codigo)}
+                          className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition"
+                          title="Ver como os compradores enxergam a página da rifa"
+                        >
+                          <Eye className="w-3.5 h-3.5 text-slate-400" />
+                          Ver Prévia
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setLinkCampanha({ codigo: c.codigo, titulo: c.titulo });
+                            setLinkCopiado(false);
+                          }}
+                          className="flex-1 py-2 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition"
+                          title="Obter link oficial permanente para divulgar aos compradores"
+                        >
+                          <Link2 className="w-3.5 h-3.5 text-emerald-400" />
+                          Publicar / Link
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setForm(c);
+                            setAbaAtiva('nova');
+                          }}
+                          className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition"
+                          title="Editar Campanha"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setCampanhaSelecionada(c);
+                            setAbaAtiva('pedidos');
+                          }}
+                          className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition"
+                          title="Ver Pedidos e Bilhetes"
+                        >
+                          <Users className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -902,6 +940,7 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
               onCancelar={() => setAbaAtiva('campanhas')}
               onAbrirIA={handleGerarComIA}
               iaAviso={iaAviso}
+              onVerPrevia={form.codigo ? () => onSelectCampanha(form.codigo!) : undefined}
             />
           )}
 

@@ -52,13 +52,28 @@ export const PixPaymentModal: React.FC<Props> = ({
     confettiDisparadoRef.current = true;
     try {
       confetti({
-        particleCount: 100,
+        particleCount: 80,
         spread: 60,
-        origin: { y: 0.6 }
+        origin: { y: 0.6 },
+        ticks: 200,
+        disableForReducedMotion: true
       });
+      // Limpa os confetes após 2.5s para não poluir a tela
+      setTimeout(() => {
+        try { confetti.reset(); } catch (e) {}
+      }, 2500);
     } catch (e) {
       console.warn('Efeito confetti ignorado:', e);
     }
+  }, []);
+
+  // Limpa confetes ao desmontar
+  useEffect(() => {
+    return () => {
+      try {
+        confetti.reset();
+      } catch (e) {}
+    };
   }, []);
 
   useEffect(() => {

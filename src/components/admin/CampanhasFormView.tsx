@@ -1,10 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
-  Save, Sparkles, Plus, Trash2, Trophy, Gift, Zap, Image, 
+  Save, Sparkles, Plus, Trash2, Trophy, Gift, Zap, Image as ImageIcon, 
   Youtube, FileText, CheckCircle2, AlertCircle, ArrowLeft,
-  LayoutGrid, HelpCircle, Flame, Lock, Eye, Star, Info
+  LayoutGrid, HelpCircle, Flame, Lock, Eye, Star, Info, Rocket,
+  Upload, Camera, Link as LinkIcon, RefreshCw, ChevronRight, ChevronLeft,
+  DollarSign, Clock, MapPin, Tag, Check, Sparkle
 } from 'lucide-react';
 import { Campanha, Premio, CotaPremiada, Promocao, OfertaRelampago } from '../../types';
+import { compressAndReadImage } from '../../lib/image-upload';
 
 interface Props {
   form: Partial<Campanha>;
@@ -15,7 +18,10 @@ interface Props {
   onCancelar: () => void;
   onAbrirIA: () => void;
   iaAviso: string;
+  onVerPrevia?: () => void;
 }
+
+type TabType = 'basico' | 'midia' | 'premios' | 'promocoes' | 'upsell' | 'extras';
 
 export const CampanhasFormView: React.FC<Props> = ({
   form,
@@ -25,10 +31,20 @@ export const CampanhasFormView: React.FC<Props> = ({
   erro,
   onCancelar,
   onAbrirIA,
-  iaAviso
+  iaAviso,
+  onVerPrevia
 }) => {
   const [novaFotoUrl, setNovaFotoUrl] = useState('');
-  const [abaInterna, setAbaInterna] = useState<'basico' | 'midia' | 'premios' | 'promocoes' | 'upsell' | 'extras'>('basico');
+  const [abaInterna, setAbaInterna] = useState<TabType>('basico');
+  const [carregandoBanner, setCarregandoBanner] = useState(false);
+  const [carregandoCarrossel, setCarregandoCarrossel] = useState(false);
+  const [dragActiveBanner, setDragActiveBanner] = useState(false);
+  const [dragActiveCarrossel, setDragActiveCarrossel] = useState(false);
+  const [modoUrlBanner, setModoUrlBanner] = useState(false);
+
+  const bannerFileInputRef = useRef<HTMLInputElement>(null);
+  const bannerCameraInputRef = useRef<HTMLInputElement>(null);
+  const carrosselFileInputRef = useRef<HTMLInputElement>(null);
 
   const selosPredefinidos = [
     '🔥 Corre que essa vai rápido!',
@@ -40,15 +56,106 @@ export const CampanhasFormView: React.FC<Props> = ({
     '🏆 Sorteio Confirmado'
   ];
 
-  // Adicionar foto ao carrossel
-  const handleAdicionarFoto = () => {
+  const tabsConfig: { id: TabType; label: string; icon: any; desc: string }[] = [
+    { id: 'basico', label: '1. Informações & Cotas', icon: DollarSign, desc: 'Título, valor da cota e regras' },
+    { id: 'midia', label: '2. Fotos & Mídia', icon: Camera, desc: 'Banner principal do celular e carrossel' },
+    { id: 'premios', label: '3. Prêmios & Bilhetes Premiados', icon: Trophy, desc: 'Prêmio principal e cotas instantâneas' },
+    { id: 'promocoes', label: '4. Pacotes & Descontos', icon: Zap, desc: 'Combos de cotas promocionais' },
+    { id: 'upsell', label: '5. Ofertas Relâmpago', icon: Flame, desc: 'Aumente o ticket no checkout' },
+    { id: 'extras', label: '6. Brindes & Roleta', icon: Gift, desc: 'E-book digital e roleta bônus' }
+  ];
+
+  // Upload handlers
+  const processarArquivoBanner = async (file: File) => {
+    setCarregandoBanner(true);
+    try {
+      const base64 = await compressAndReadImage(file, 1200, 1200, 0.82);
+      setForm(prev => ({ ...prev, bannerUrl: base64 }));
+    } catch (err: any) {
+      alert(err.message || 'Erro ao carregar a foto.');
+    } finally {
+      setCarregandoBanner(false);
+    }
+  };
+
+  const handleBannerFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      await processarArquivoBanner(file);
+    }
+    if (e.target) e.target.value = '';
+  };
+
+  const processarArquivosCarrossel = async (files: File[]) => {
+    if (files.length === 0) return;
+    setCarregandoCarrossel(true);
+    try {
+      const novasFotos = await Promise.all(
+        files.map(f => compressAndReadImage(f, 1200, 1200, 0.82))
+      );
+      const fotosAtuais = form.fotosCarrossel || [];
+      setForm(prev => ({ ...prev, fotosCarrossel: [...fotosAtuais, ...novasFotos] }));
+    } catch (err: any) {
+      alert(err.message || 'Erro ao carregar as fotos do carrossel.');
+    } finally {
+      setCarregandoCarrossel(false);
+    }
+  };
+
+  const handleCarrosselFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []) as File[];
+    await processarArquivosCarrossel(files);
+    if (e.target) e.target.value = '';
+  };
+
+  // Drag & Drop
+  const handleDragBanner = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === 'dragenter' || e.type === 'dragover') {
+      setDragActiveBanner(true);
+    } else if (e.type === 'dragleave') {
+      setDragActiveBanner(false);
+    }
+  };
+
+  const handleDropBanner = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActiveBanner(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      await processarArquivoBanner(e.dataTransfer.files[0]);
+    }
+  };
+
+  const handleDragCarrossel = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === 'dragenter' || e.type === 'dragover') {
+      setDragActiveCarrossel(true);
+    } else if (e.type === 'dragleave') {
+      setDragActiveCarrossel(false);
+    }
+  };
+
+  const handleDropCarrossel = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActiveCarrossel(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      await processarArquivosCarrossel(Array.from(e.dataTransfer.files) as File[]);
+    }
+  };
+
+  // Adicionar foto via URL manual
+  const handleAdicionarFotoUrl = () => {
     if (!novaFotoUrl.trim()) return;
     const fotos = form.fotosCarrossel || [];
     setForm(prev => ({ ...prev, fotosCarrossel: [...fotos, novaFotoUrl.trim()] }));
     setNovaFotoUrl('');
   };
 
-  const handleRemoverFoto = (idx: number) => {
+  const handleRemoverFotoCarrossel = (idx: number) => {
     const fotos = (form.fotosCarrossel || []).filter((_, i) => i !== idx);
     setForm(prev => ({ ...prev, fotosCarrossel: fotos }));
   };
@@ -107,12 +214,10 @@ export const CampanhasFormView: React.FC<Props> = ({
     setForm(prev => ({ ...prev, cotasPremiadas: cps }));
   };
 
-  // Apagar todas as cotas premiadas (todos os números cadastrados)
   const handleLimparTodasCotasPremiadas = () => {
     setForm(prev => ({ ...prev, cotasPremiadas: [] }));
   };
 
-  // Gerar cotas premiadas automáticas / aleatórias
   const handleGerarCotasPremiadasAleatorias = (qtd: number = 5) => {
     const total = form.totalCotas || 10000;
     const digitos = Math.max(2, (total - 1).toString().length);
@@ -147,12 +252,10 @@ export const CampanhasFormView: React.FC<Props> = ({
     setForm(prev => ({ ...prev, promocoes: promos }));
   };
 
-  // Apagar todas as promoções de uma vez
   const handleLimparTodasPromocoes = () => {
     setForm(prev => ({ ...prev, promocoes: [] }));
   };
 
-  // Gerar promoções automáticas inteligentes com base no valor da cota
   const handleGerarPromocoesSugeridas = () => {
     const val = Number(form.valorCota) || 0.50;
     const pacotes: Promocao[] = [
@@ -189,60 +292,122 @@ export const CampanhasFormView: React.FC<Props> = ({
     setForm(prev => ({ ...prev, ofertasRelampago: ofertas }));
   };
 
-  // Apagar todas as ofertas de upsell
   const handleLimparTodasOfertas = () => {
     setForm(prev => ({ ...prev, ofertasRelampago: [] }));
   };
 
+  // Cálculo financeiro estimado
+  const totalCotasNum = Number(form.totalCotas || 0);
+  const valorCotaNum = Number(form.valorCota || 0);
+  const arrecadacaoEstimada = totalCotasNum * valorCotaNum;
+
+  // Navegação pelos passos
+  const tabKeys: TabType[] = ['basico', 'midia', 'premios', 'promocoes', 'upsell', 'extras'];
+  const currentIndex = tabKeys.indexOf(abaInterna);
+
+  const irProximo = () => {
+    if (currentIndex < tabKeys.length - 1) {
+      setAbaInterna(tabKeys[currentIndex + 1]);
+    }
+  };
+
+  const irAnterior = () => {
+    if (currentIndex > 0) {
+      setAbaInterna(tabKeys[currentIndex - 1]);
+    }
+  };
+
   return (
-    <div className="space-y-6">
-      
-      {/* Header do Form */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-6 pb-12">
+      {/* Inputs oculta para upload de arquivos */}
+      <input
+        ref={bannerFileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleBannerFileChange}
+      />
+      <input
+        ref={bannerCameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={handleBannerFileChange}
+      />
+      <input
+        ref={carrosselFileInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        className="hidden"
+        onChange={handleCarrosselFileChange}
+      />
+
+      {/* Header com Design Redesenhado */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg relative overflow-hidden">
+        {/* Glow decorativo de fundo */}
+        <div className="absolute -top-24 -right-24 w-60 h-60 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 relative z-10">
           <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={onCancelar}
-              className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition"
-              title="Voltar"
+              className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition border border-slate-700 shrink-0"
+              title="Voltar para a Lista de Campanhas"
             >
-              <ArrowLeft className="w-4 h-4" />
+              <ArrowLeft className="w-5 h-5" />
             </button>
             <div>
-              <h1 className="text-xl sm:text-2xl font-black text-white">
-                {form.id ? 'Editar Campanha' : 'Criar Nova Campanha Completa'}
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-bold text-[10px] uppercase rounded-md tracking-wider">
+                  {form.id ? 'Edição Ativa' : 'Nova Campanha'}
+                </span>
+                <span className="text-slate-500 text-xs">• Passo {currentIndex + 1} de {tabKeys.length}</span>
+              </div>
+              <h1 className="text-2xl font-black text-white tracking-tight mt-0.5">
+                {form.id ? (form.titulo || 'Editar Campanha') : 'Criar Nova Campanha'}
               </h1>
-              <p className="text-slate-400 text-xs mt-0.5">
-                Configure regulamento, fotos, cotas premiadas, promoções e IA.
-              </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {onVerPrevia && (
+              <button
+                type="button"
+                onClick={onVerPrevia}
+                className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold rounded-xl text-xs flex items-center gap-2 transition shadow-sm"
+              >
+                <Eye className="w-4 h-4 text-emerald-400" />
+                <span>Ver Prévia</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={onAbrirIA}
-              className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-md shadow-purple-600/20 transition"
+              className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow-md shadow-purple-600/20 transition active:scale-95"
             >
-              <Sparkles className="w-4 h-4" />
-              Assistente com IA (Gemini)
+              <Sparkles className="w-4 h-4 text-purple-200" />
+              <span>Gerar com IA</span>
             </button>
 
             <button
               type="button"
               onClick={onSalvar}
               disabled={salvando}
-              className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs flex items-center gap-1.5 shadow-md shadow-emerald-500/20 transition"
+              className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs flex items-center gap-2 shadow-lg shadow-emerald-500/20 transition active:scale-95"
             >
-              <Save className="w-4 h-4" />
-              {salvando ? 'Salvando...' : 'Publicar Campanha'}
+              <Rocket className="w-4 h-4" />
+              <span>{salvando ? 'Salvando...' : 'Publicar Campanha'}</span>
             </button>
           </div>
         </div>
 
+        {/* Notificações e Avisos */}
         {iaAviso && (
-          <div className="mt-4 p-3 bg-purple-950/50 border border-purple-500/30 rounded-xl text-xs text-purple-200 flex items-center gap-2">
+          <div className="mt-4 p-3 bg-purple-950/60 border border-purple-500/30 rounded-xl text-xs text-purple-200 flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-purple-400 shrink-0" />
             <span>{iaAviso}</span>
           </div>
@@ -255,42 +420,80 @@ export const CampanhasFormView: React.FC<Props> = ({
           </div>
         )}
 
-        {/* Sub-abas de Navegação no Formulário */}
-        <div className="flex flex-wrap gap-1.5 mt-5 pt-4 border-t border-slate-800">
-          {[
-            { id: 'basico', label: '1. Dados Básicos & Cotas' },
-            { id: 'midia', label: '2. Banner, Carrossel & Vídeo' },
-            { id: 'premios', label: '3. Prêmios & Cotas Premiadas' },
-            { id: 'promocoes', label: '4. Promoções & Descontos' },
-            { id: 'upsell', label: '5. Ofertas Relâmpago (Até 2)' },
-            { id: 'extras', label: '6. E-book, Roleta & Extras' },
-          ].map(tab => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setAbaInterna(tab.id as any)}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition ${
-                abaInterna === tab.id
-                  ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                  : 'bg-slate-800/80 text-slate-400 hover:text-white hover:bg-slate-800'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+        {/* NAVEGAÇÃO POR ETAPAS PASSO A PASSO (REDESIGN) */}
+        <div className="mt-6 pt-4 border-t border-slate-800/80">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+            {tabsConfig.map((tab, idx) => {
+              const Icon = tab.icon;
+              const isAtiva = abaInterna === tab.id;
+              const isConcluida = idx < currentIndex;
+
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setAbaInterna(tab.id)}
+                  className={`p-3 rounded-xl transition text-left relative overflow-hidden border ${
+                    isAtiva
+                      ? 'bg-slate-800 border-emerald-500/60 text-white shadow-md shadow-emerald-500/5 ring-1 ring-emerald-500/30'
+                      : isConcluida
+                      ? 'bg-slate-950/80 border-slate-800/80 text-slate-300 hover:bg-slate-800/50'
+                      : 'bg-slate-950/40 border-slate-800/50 text-slate-400 hover:bg-slate-800/40 hover:text-slate-200'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black ${
+                      isAtiva 
+                        ? 'bg-emerald-500 text-slate-950 shadow-sm' 
+                        : isConcluida
+                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                        : 'bg-slate-800 text-slate-400'
+                    }`}>
+                      {isConcluida ? <Check className="w-4 h-4" /> : idx + 1}
+                    </span>
+                    <Icon className={`w-4 h-4 ${isAtiva ? 'text-emerald-400' : 'text-slate-500'}`} />
+                  </div>
+                  <div className="font-bold text-xs truncate">{tab.label.split('. ')[1]}</div>
+                  <div className="text-[10px] text-slate-500 truncate mt-0.5">{tab.desc}</div>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
       <form onSubmit={onSalvar} className="space-y-6">
         
-        {/* ABA 1: DADOS BÁSICOS */}
+        {/* ABA 1: INFORMACÕES & COTAS */}
         {abaInterna === 'basico' && (
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm space-y-4 animate-in fade-in">
-            <h3 className="text-sm font-black text-white mb-2">Informações da Campanha</h3>
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm space-y-5 animate-in fade-in">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div>
+                <h3 className="text-base font-black text-white flex items-center gap-2">
+                  <Tag className="w-5 h-5 text-emerald-400" />
+                  Informações Básicas do Sorteio
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Defina o título principal, preço por cota e regulamento.
+                </p>
+              </div>
+
+              {/* CARD PREVISÃO DE ARRECADAÇÃO */}
+              {arrecadacaoEstimada > 0 && (
+                <div className="hidden sm:flex items-center gap-3 px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+                  <div className="text-right">
+                    <div className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Arrecadação Bruta Total</div>
+                    <div className="text-base font-mono font-black text-emerald-400">
+                      R$ {arrecadacaoEstimada.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="text-xs font-semibold text-slate-300 block mb-1">
+                <label className="text-xs font-bold text-slate-200 block mb-1">
                   Título da Rifa / Sorteio *
                 </label>
                 <input
@@ -298,85 +501,76 @@ export const CampanhasFormView: React.FC<Props> = ({
                   placeholder="Ex: iPhone 16 Pro Max 256GB Lacrado"
                   value={form.titulo || ''}
                   onChange={e => setForm(prev => ({ ...prev, titulo: e.target.value }))}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-emerald-500 focus:outline-none"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white focus:border-emerald-500 focus:outline-none"
                   required
                 />
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-300 block mb-1">
-                  Subtítulo / Chamada rápida
+                <label className="text-xs font-bold text-slate-200 block mb-1">
+                  Subtítulo / Chamada chamativa
                 </label>
                 <input
                   type="text"
-                  placeholder="Ex: Por apenas R$ 0,50! Entrega grátis para todo o Brasil."
+                  placeholder="Ex: Por apenas R$ 0,50! Frete grátis para todo o Brasil."
                   value={form.subtitulo || ''}
                   onChange={e => setForm(prev => ({ ...prev, subtitulo: e.target.value }))}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-emerald-500 focus:outline-none"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white focus:border-emerald-500 focus:outline-none"
                 />
               </div>
             </div>
 
-            {/* Modelo e Valores */}
-            <div className="pt-2 space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-slate-950/80 border border-slate-800 rounded-xl">
-                <div className="flex items-center gap-1.5 text-xs text-slate-300">
-                  <Zap className="w-3.5 h-3.5 text-amber-400" />
-                  <span className="font-bold">Ações Rápidas de Valores:</span>
+            {/* Atalhos Rápidos e Presets */}
+            <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-xl space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-300">
+                  <Zap className="w-4 h-4 text-amber-400" />
+                  <span>Atalhos Rápidos de Valor de Cota:</span>
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-[11px] text-slate-400">Atalhos de Cota:</span>
                   {[0.10, 0.25, 0.50, 1.00, 2.50, 5.00].map(v => (
                     <button
                       key={v}
                       type="button"
                       onClick={() => setForm(prev => ({ ...prev, valorCota: v }))}
-                      className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-emerald-400 rounded-lg text-[11px] font-mono font-bold transition border border-slate-700"
+                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-emerald-400 rounded-lg text-xs font-mono font-bold transition border border-slate-700"
                     >
                       R$ {v.toFixed(2).replace('.', ',')}
                     </button>
                   ))}
                   <button
                     type="button"
-                    onClick={handleLimparTodosValores}
-                    className="px-2.5 py-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg text-[11px] font-bold transition ml-1"
-                    title="Apaga todos os números dos campos de valores e cotas"
-                  >
-                    🧹 Apagar Valores
-                  </button>
-                  <button
-                    type="button"
                     onClick={handleRestaurarValoresPadrao}
-                    className="px-2.5 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg text-[11px] font-bold transition"
+                    className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg text-xs font-bold transition ml-1"
                   >
-                    🔄 Padrões
+                    🔄 Padrões Sugeridos
                   </button>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 pt-2">
                 <div>
-                  <label className="text-xs font-semibold text-slate-300 block mb-1">
+                  <label className="text-xs font-bold text-slate-300 block mb-1">
                     Modelo de Escolha
                   </label>
                   <select
                     value={form.modelo || 'aleatorio'}
                     onChange={e => setForm(prev => ({ ...prev, modelo: e.target.value as any }))}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white focus:border-emerald-500 focus:outline-none font-medium"
                   >
-                    <option value="aleatorio">Aleatório (Automático pelo sistema)</option>
-                    <option value="manual">Manual (Cliente escolhe no grid)</option>
+                    <option value="aleatorio">🎲 Aleatório (Automático pelo sistema)</option>
+                    <option value="manual">🔢 Manual (Cliente escolhe no grid)</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="text-xs font-semibold text-slate-300 block mb-1">
+                  <label className="text-xs font-bold text-slate-300 block mb-1">
                     Total de Cotas *
                   </label>
                   <select
                     value={form.totalCotas || 10000}
                     onChange={e => setForm(prev => ({ ...prev, totalCotas: Number(e.target.value) }))}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs font-mono text-white focus:border-emerald-500 focus:outline-none"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-xs font-mono font-bold text-white focus:border-emerald-500 focus:outline-none"
                   >
                     <option value="100">100 cotas (00 a 99)</option>
                     <option value="500">500 cotas (000 a 499)</option>
@@ -389,139 +583,91 @@ export const CampanhasFormView: React.FC<Props> = ({
                 </div>
 
                 <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-xs font-semibold text-slate-300">
-                      Valor por Cota (R$) *
-                    </label>
-                    {form.valorCota !== undefined && (
-                      <button
-                        type="button"
-                        onClick={() => setForm(prev => ({ ...prev, valorCota: undefined }))}
-                        className="text-[10px] text-slate-500 hover:text-red-400"
-                        title="Limpar campo"
-                      >
-                        Limpar
-                      </button>
-                    )}
-                  </div>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0.01"
-                      placeholder="0.00"
-                      value={form.valorCota !== undefined && form.valorCota !== null ? form.valorCota : ''}
-                      onChange={e => setForm(prev => ({ ...prev, valorCota: e.target.value === '' ? undefined : Number(e.target.value) }))}
-                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs font-mono text-emerald-400 font-bold focus:border-emerald-500 focus:outline-none"
-                      required
-                    />
-                  </div>
+                  <label className="text-xs font-bold text-slate-300 block mb-1">
+                    Valor por Cota (R$) *
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    placeholder="0.50"
+                    value={form.valorCota !== undefined && form.valorCota !== null ? form.valorCota : ''}
+                    onChange={e => setForm(prev => ({ ...prev, valorCota: e.target.value === '' ? undefined : Number(e.target.value) }))}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-xs font-mono text-emerald-400 font-black focus:border-emerald-500 focus:outline-none"
+                    required
+                  />
                 </div>
 
                 <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-xs font-semibold text-slate-300">
-                      Tempo Reserva (Min)
-                    </label>
-                    {form.tempoReservaMin !== undefined && (
-                      <button
-                        type="button"
-                        onClick={() => setForm(prev => ({ ...prev, tempoReservaMin: undefined }))}
-                        className="text-[10px] text-slate-500 hover:text-red-400"
-                        title="Limpar campo"
-                      >
-                        Limpar
-                      </button>
-                    )}
-                  </div>
+                  <label className="text-xs font-bold text-slate-300 block mb-1">
+                    Tempo Reserva Pix (Min)
+                  </label>
                   <input
                     type="number"
                     min="3"
                     max="60"
-                    placeholder="Minutos..."
+                    placeholder="10 min"
                     value={form.tempoReservaMin !== undefined && form.tempoReservaMin !== null ? form.tempoReservaMin : ''}
                     onChange={e => setForm(prev => ({ ...prev, tempoReservaMin: e.target.value === '' ? undefined : Number(e.target.value) }))}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs font-mono text-white focus:border-emerald-500 focus:outline-none"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-xs font-mono text-white focus:border-emerald-500 focus:outline-none"
                   />
                 </div>
               </div>
             </div>
 
-            {/* Mínimo e Máximo por Compra */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+            {/* Regras adicionais */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-semibold text-slate-300">
-                    Mínimo por Pedido
-                  </label>
-                  {form.minPorCompra !== undefined && (
-                    <button
-                      type="button"
-                      onClick={() => setForm(prev => ({ ...prev, minPorCompra: undefined }))}
-                      className="text-[10px] text-slate-500 hover:text-red-400"
-                    >
-                      Limpar
-                    </button>
-                  )}
-                </div>
+                <label className="text-xs font-bold text-slate-300 block mb-1">
+                  Mínimo de Cotas por Pedido
+                </label>
                 <input
                   type="number"
                   min="1"
                   placeholder="Ex: 5"
                   value={form.minPorCompra !== undefined && form.minPorCompra !== null ? form.minPorCompra : ''}
                   onChange={e => setForm(prev => ({ ...prev, minPorCompra: e.target.value === '' ? undefined : Number(e.target.value) }))}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-white focus:border-emerald-500 focus:outline-none"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-mono text-white focus:border-emerald-500 focus:outline-none"
                 />
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-semibold text-slate-300">
-                    Máximo por Pedido
-                  </label>
-                  {form.maxPorCompra !== undefined && (
-                    <button
-                      type="button"
-                      onClick={() => setForm(prev => ({ ...prev, maxPorCompra: undefined }))}
-                      className="text-[10px] text-slate-500 hover:text-red-400"
-                    >
-                      Limpar
-                    </button>
-                  )}
-                </div>
+                <label className="text-xs font-bold text-slate-300 block mb-1">
+                  Máximo de Cotas por Pedido
+                </label>
                 <input
                   type="number"
                   min="1"
                   placeholder="Ex: 1000"
                   value={form.maxPorCompra !== undefined && form.maxPorCompra !== null ? form.maxPorCompra : ''}
                   onChange={e => setForm(prev => ({ ...prev, maxPorCompra: e.target.value === '' ? undefined : Number(e.target.value) }))}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-white focus:border-emerald-500 focus:outline-none"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-mono text-white focus:border-emerald-500 focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-300 block mb-1">
-                  Local do Sorteio
+                <label className="text-xs font-bold text-slate-300 block mb-1">
+                  Local / Origem do Sorteio
                 </label>
                 <select
                   value={form.localSorteio || 'Loteria Federal'}
                   onChange={e => setForm(prev => ({ ...prev, localSorteio: e.target.value }))}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:border-emerald-500 focus:outline-none font-medium"
                 >
-                  <option value="Loteria Federal">Loteria Federal</option>
-                  <option value="Deu no Poste">Deu no Poste</option>
-                  <option value="Sorteio ao Vivo Instagram">Sorteio ao Vivo Instagram</option>
-                  <option value="Sorteador Eletrônico">Sorteador Eletrônico Oficial</option>
+                  <option value="Loteria Federal">🏛️ Loteria Federal</option>
+                  <option value="Deu no Poste">🎲 Deu no Poste</option>
+                  <option value="Sorteio ao Vivo Instagram">📱 Sorteio ao Vivo Instagram</option>
+                  <option value="Sorteador Eletrônico">💻 Sorteador Eletrônico Oficial</option>
                 </select>
               </div>
             </div>
 
-            {/* Selo / Flag de Exibição */}
-            <div className="pt-2">
-              <label className="text-xs font-semibold text-slate-300 block mb-1">
-                Selo de Destaque / Flag Promocional
+            {/* Selo e Flag Promocional */}
+            <div>
+              <label className="text-xs font-bold text-slate-300 block mb-1">
+                Selo de Destaque Visual (Badge Promocional)
               </label>
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <select
                   value={selosPredefinidos.includes(form.selo || '') ? form.selo || '' : 'outro'}
                   onChange={e => {
@@ -529,9 +675,9 @@ export const CampanhasFormView: React.FC<Props> = ({
                       setForm(prev => ({ ...prev, selo: e.target.value }));
                     }
                   }}
-                  className="w-1/2 bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                  className="sm:w-1/2 bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:border-emerald-500 focus:outline-none"
                 >
-                  <option value="">Nenhum selo</option>
+                  <option value="">Nenhum selo de destaque</option>
                   {selosPredefinidos.map((s, idx) => (
                     <option key={idx} value={s}>{s}</option>
                   ))}
@@ -540,110 +686,285 @@ export const CampanhasFormView: React.FC<Props> = ({
 
                 <input
                   type="text"
-                  placeholder="Ou digite um selo customizado..."
+                  placeholder="Ou digite uma frase curta promocional..."
                   value={form.selo || ''}
                   onChange={e => setForm(prev => ({ ...prev, selo: e.target.value }))}
-                  className="w-1/2 bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                  className="sm:w-1/2 bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:border-emerald-500 focus:outline-none"
                 />
               </div>
             </div>
 
-            {/* Descrição / Regulamento */}
-            <div className="pt-2">
-              <label className="text-xs font-semibold text-slate-300 block mb-1">
+            {/* Descrição e Regulamento */}
+            <div>
+              <label className="text-xs font-bold text-slate-300 block mb-1">
                 Regulamento & Detalhes da Entrega
               </label>
               <textarea
                 rows={4}
                 value={form.descricao || ''}
                 onChange={e => setForm(prev => ({ ...prev, descricao: e.target.value }))}
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-slate-200 font-sans focus:border-emerald-500 focus:outline-none leading-relaxed"
-                placeholder="Regras do sorteio, prazos de envio e especificações do prêmio..."
+                className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3.5 text-xs text-slate-200 font-sans focus:border-emerald-500 focus:outline-none leading-relaxed"
+                placeholder="Explique detalhadamente as regras do sorteio, prazos de entrega, envio grátis ou condições gerais..."
               />
             </div>
           </div>
         )}
 
-        {/* ABA 2: MÍDIA (BANNER, CARROSSEL E YOUTUBE) */}
+        {/* ABA 2: FOTOS & MÍDIA (UPLOAD DIRETO DO CELULAR E CARROSSEL) */}
         {abaInterna === 'midia' && (
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm space-y-6 animate-in fade-in">
+            {/* BANNER PRINCIPAL */}
             <div>
-              <h3 className="text-sm font-black text-white mb-1">Banner Principal</h3>
-              <p className="text-xs text-slate-400 mb-3">
-                URL da imagem principal de destaque (proporção 16:9 recomendada).
-              </p>
-              <input
-                type="url"
-                placeholder="https://exemplo.com/foto-premio.jpg"
-                value={form.bannerUrl || ''}
-                onChange={e => setForm(prev => ({ ...prev, bannerUrl: e.target.value }))}
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:border-emerald-500 focus:outline-none"
-              />
-              {form.bannerUrl && (
-                <div className="mt-3 w-full max-w-md aspect-[16/9] rounded-xl overflow-hidden border border-slate-800 bg-slate-950">
-                  <img src={form.bannerUrl} alt="Preview" className="w-full h-full object-cover" />
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+                <div>
+                  <h3 className="text-base font-black text-white flex items-center gap-2">
+                    <Camera className="w-5 h-5 text-emerald-400" />
+                    Banner / Foto Principal da Campanha
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Envie a foto de capa direto da câmera do seu celular, galeria de fotos ou link de imagem.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setModoUrlBanner(!modoUrlBanner)}
+                  className="text-xs text-slate-400 hover:text-emerald-400 flex items-center gap-1 font-medium transition self-start sm:self-auto"
+                >
+                  <LinkIcon className="w-3.5 h-3.5" />
+                  {modoUrlBanner ? 'Usar Upload de Foto' : 'Inserir por Link (URL)'}
+                </button>
+              </div>
+
+              {modoUrlBanner ? (
+                <div className="space-y-2 mt-3">
+                  <input
+                    type="url"
+                    placeholder="https://exemplo.com/sua-foto.jpg"
+                    value={form.bannerUrl || ''}
+                    onChange={e => setForm(prev => ({ ...prev, bannerUrl: e.target.value }))}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                  />
+                  {form.bannerUrl && (
+                    <div className="relative w-full max-w-md aspect-video rounded-xl overflow-hidden border border-slate-800 bg-slate-950">
+                      <img src={form.bannerUrl} alt="Preview Banner" className="w-full h-full object-cover" />
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* UPLOAD DROPZONE DIRETO DO CELULAR */
+                <div
+                  onDragEnter={handleDragBanner}
+                  onDragOver={handleDragBanner}
+                  onDragLeave={handleDragBanner}
+                  onDrop={handleDropBanner}
+                  className={`mt-3 p-6 border-2 border-dashed rounded-2xl text-center transition flex flex-col items-center justify-center relative overflow-hidden ${
+                    dragActiveBanner
+                      ? 'border-emerald-500 bg-emerald-500/10'
+                      : form.bannerUrl
+                      ? 'border-slate-800 bg-slate-950/80'
+                      : 'border-slate-700 hover:border-emerald-500/60 bg-slate-950/40'
+                  }`}
+                >
+                  {carregandoBanner ? (
+                    <div className="py-8 flex flex-col items-center gap-2">
+                      <RefreshCw className="w-8 h-8 text-emerald-400 animate-spin" />
+                      <span className="text-xs text-slate-300 font-bold">Otimizando e carregando foto...</span>
+                    </div>
+                  ) : form.bannerUrl ? (
+                    <div className="w-full max-w-md space-y-3">
+                      <div className="relative aspect-video rounded-xl overflow-hidden border border-slate-800 bg-slate-950 group">
+                        <img src={form.bannerUrl} alt="Banner da Campanha" className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-slate-950/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => bannerFileInputRef.current?.click()}
+                            className="px-3 py-1.5 bg-emerald-500 text-slate-950 font-bold rounded-lg text-xs"
+                          >
+                            Trocar Foto
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setForm(prev => ({ ...prev, bannerUrl: '' }))}
+                            className="px-3 py-1.5 bg-red-600 text-white font-bold rounded-lg text-xs"
+                          >
+                            Remover
+                          </button>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-center gap-2">
+                        <span className="text-[11px] text-emerald-400 font-bold flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          Foto do Banner pronta!
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => bannerFileInputRef.current?.click()}
+                          className="text-[11px] text-slate-400 hover:text-white underline"
+                        >
+                          Trocar foto
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="py-6 space-y-3">
+                      <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20">
+                        <Upload className="w-7 h-7" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-white">
+                          Selecione ou tire uma foto do prêmio
+                        </p>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          Formatos aceitos: JPG, PNG, WEBP ou HEIC (Celular)
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+                        <button
+                          type="button"
+                          onClick={() => bannerCameraInputRef.current?.click()}
+                          className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-md shadow-emerald-500/20 transition active:scale-95"
+                        >
+                          <Camera className="w-4 h-4" />
+                          <span>Tirar Foto na Hora</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => bannerFileInputRef.current?.click()}
+                          className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold rounded-xl text-xs flex items-center gap-1.5 transition active:scale-95"
+                        >
+                          <ImageIcon className="w-4 h-4 text-emerald-400" />
+                          <span>Escolher da Galeria</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
 
-            {/* Carrossel de Fotos Adicionais */}
-            <div className="pt-4 border-t border-slate-800">
-              <h3 className="text-sm font-black text-white mb-1">Carrossel de Fotos Adicionais</h3>
-              <p className="text-xs text-slate-400 mb-3">
-                Adicione mais ângulos e detalhes do prêmio para aumentar a confiança do comprador.
-              </p>
+            {/* CARROSSEL DE FOTOS ADICIONAIS */}
+            <div className="pt-6 border-t border-slate-800">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                <div>
+                  <h3 className="text-base font-black text-white flex items-center gap-2">
+                    <ImageIcon className="w-5 h-5 text-indigo-400" />
+                    Carrossel de Fotos Adicionais
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Mostre mais ângulos, especificações e detalhes do prêmio.
+                  </p>
+                </div>
 
-              <div className="flex gap-2 mb-3">
-                <input
-                  type="url"
-                  placeholder="URL da foto adicional..."
-                  value={novaFotoUrl}
-                  onChange={e => setNovaFotoUrl(e.target.value)}
-                  className="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={handleAdicionarFoto}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-emerald-400 font-bold rounded-xl text-xs flex items-center gap-1 border border-slate-700"
-                >
-                  <Plus className="w-4 h-4" />
-                  Adicionar
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => carrosselFileInputRef.current?.click()}
+                    className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-md shadow-indigo-600/20 transition active:scale-95"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Upload Várias Fotos do Celular</span>
+                  </button>
+                </div>
               </div>
 
-              {form.fotosCarrossel && form.fotosCarrossel.length > 0 && (
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  {form.fotosCarrossel.map((foto, idx) => (
-                    <div key={idx} className="relative group rounded-xl overflow-hidden border border-slate-800 aspect-video bg-slate-950">
-                      <img src={foto} alt={`Foto ${idx + 1}`} className="w-full h-full object-cover" />
+              {/* Upload Dropzone para Fotos Adicionais */}
+              <div
+                onDragEnter={handleDragCarrossel}
+                onDragOver={handleDragCarrossel}
+                onDragLeave={handleDragCarrossel}
+                onDrop={handleDropCarrossel}
+                className={`p-4 border-2 border-dashed rounded-xl mb-4 text-center transition ${
+                  dragActiveCarrossel ? 'border-indigo-500 bg-indigo-500/10' : 'border-slate-800 bg-slate-950/50'
+                }`}
+              >
+                {carregandoCarrossel ? (
+                  <div className="py-4 flex items-center justify-center gap-2">
+                    <RefreshCw className="w-5 h-5 text-indigo-400 animate-spin" />
+                    <span className="text-xs text-slate-300 font-bold">Processando imagens da galeria...</span>
+                  </div>
+                ) : (
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <div className="text-left">
+                      <p className="text-xs font-bold text-slate-200">
+                        Adicionar mais fotos ao carrossel
+                      </p>
+                      <p className="text-[11px] text-slate-400">
+                        Selecione múltiplas fotos de uma vez do celular ou computador
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                      <input
+                        type="url"
+                        placeholder="Ou cole o Link (URL) aqui..."
+                        value={novaFotoUrl}
+                        onChange={e => setNovaFotoUrl(e.target.value)}
+                        className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none"
+                      />
                       <button
                         type="button"
-                        onClick={() => handleRemoverFoto(idx)}
-                        className="absolute top-1 right-1 p-1 bg-red-600/90 text-white rounded-lg opacity-0 group-hover:opacity-100 transition"
+                        onClick={handleAdicionarFotoUrl}
+                        className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-indigo-300 font-bold rounded-lg text-xs border border-slate-700 shrink-0"
+                      >
+                        + Add URL
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Grid de Fotos Carregadas */}
+              {form.fotosCarrossel && form.fotosCarrossel.length > 0 ? (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {form.fotosCarrossel.map((foto, idx) => (
+                    <div key={idx} className="relative group rounded-xl overflow-hidden border border-slate-800 aspect-video bg-slate-950 shadow-sm">
+                      <img src={foto} alt={`Foto ${idx + 1}`} className="w-full h-full object-cover" />
+                      <div className="absolute top-1 left-1 px-1.5 py-0.5 bg-slate-950/80 rounded text-[10px] font-mono text-slate-300">
+                        #{idx + 1}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoverFotoCarrossel(idx)}
+                        className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-lg opacity-0 group-hover:opacity-100 transition shadow"
+                        title="Remover foto"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   ))}
                 </div>
+              ) : (
+                <div className="p-6 bg-slate-950/30 border border-dashed border-slate-800/80 rounded-xl text-center">
+                  <p className="text-xs text-slate-400">Nenhuma foto adicional no carrossel ainda.</p>
+                  <button
+                    type="button"
+                    onClick={() => carrosselFileInputRef.current?.click()}
+                    className="mt-2 text-xs text-indigo-400 font-bold hover:underline"
+                  >
+                    + Clique para selecionar fotos do seu dispositivo
+                  </button>
+                </div>
               )}
             </div>
 
             {/* Vídeo do YouTube */}
-            <div className="pt-4 border-t border-slate-800">
-              <h3 className="text-sm font-black text-white mb-1 flex items-center gap-2">
-                <Youtube className="w-4 h-4 text-red-500" />
+            <div className="pt-6 border-t border-slate-800">
+              <h3 className="text-base font-black text-white mb-1 flex items-center gap-2">
+                <Youtube className="w-5 h-5 text-red-500" />
                 Vídeo de Demonstração (YouTube)
               </h3>
               <p className="text-xs text-slate-400 mb-3">
-                Cole o link do YouTube do vídeo mostrando o produto/prêmio em detalhes.
+                Cole o link do vídeo demonstrando o prêmio para aumentar ainda mais as vendas.
               </p>
               <input
                 type="url"
                 placeholder="https://www.youtube.com/watch?v=XXXXX ou https://youtu.be/XXXXX"
                 value={form.youtubeUrl || ''}
                 onChange={e => setForm(prev => ({ ...prev, youtubeUrl: e.target.value }))}
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:border-red-500 focus:outline-none"
               />
             </div>
           </div>
@@ -656,18 +977,18 @@ export const CampanhasFormView: React.FC<Props> = ({
             <div>
               <div className="flex items-center justify-between mb-3">
                 <div>
-                  <h3 className="text-sm font-black text-white flex items-center gap-2">
-                    <Trophy className="w-4 h-4 text-amber-400" />
+                  <h3 className="text-base font-black text-white flex items-center gap-2">
+                    <Trophy className="w-5 h-5 text-amber-400" />
                     Prêmios Principais do Sorteio
                   </h3>
-                  <p className="text-xs text-slate-400">1º, 2º, 3º lugar, etc.</p>
+                  <p className="text-xs text-slate-400">1º lugar, 2º lugar, 3º lugar, etc.</p>
                 </div>
                 <button
                   type="button"
                   onClick={handleAddPremio}
-                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold rounded-xl text-xs flex items-center gap-1 border border-slate-700"
+                  className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold rounded-xl text-xs flex items-center gap-1 border border-slate-700 transition"
                 >
-                  <Plus className="w-3.5 h-3.5" />
+                  <Plus className="w-4 h-4" />
                   Adicionar Prêmio
                 </button>
               </div>
@@ -675,7 +996,7 @@ export const CampanhasFormView: React.FC<Props> = ({
               <div className="space-y-2">
                 {(form.premios || []).map((p, idx) => (
                   <div key={idx} className="flex items-center gap-2">
-                    <span className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-300 flex items-center justify-center font-black text-xs shrink-0">
+                    <span className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-300 flex items-center justify-center font-black text-xs shrink-0">
                       {p.posicao}º
                     </span>
                     <input
@@ -687,7 +1008,7 @@ export const CampanhasFormView: React.FC<Props> = ({
                         arr[idx].descricao = e.target.value;
                         setForm(prev => ({ ...prev, premios: arr }));
                       }}
-                      className="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-amber-500 focus:outline-none"
+                      className="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-xs text-white focus:border-amber-500 focus:outline-none"
                       required
                     />
                     <button
@@ -703,24 +1024,24 @@ export const CampanhasFormView: React.FC<Props> = ({
             </div>
 
             {/* Cotas Premiadas Instantâneas */}
-            <div className="pt-4 border-t border-slate-800">
+            <div className="pt-6 border-t border-slate-800">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
                 <div>
-                  <h3 className="text-sm font-black text-white flex items-center gap-2">
-                    <Gift className="w-4 h-4 text-emerald-400" />
-                    Cotas Premiadas (Instantâneas no Pix)
+                  <h3 className="text-base font-black text-white flex items-center gap-2">
+                    <Gift className="w-5 h-5 text-emerald-400" />
+                    Cotas Premiadas (Ganha na Hora no Pix)
                   </h3>
                   <p className="text-xs text-slate-400">
-                    O comprador que comprar o número especificado ganha o prêmio na hora!
+                    Se o comprador tirar o número premiado, ganha o valor instantaneamente!
                   </p>
                 </div>
+
                 <div className="flex flex-wrap items-center gap-2">
                   {(form.cotasPremiadas || []).length > 0 && (
                     <button
                       type="button"
                       onClick={handleLimparTodasCotasPremiadas}
-                      className="px-2.5 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 font-bold rounded-xl text-xs flex items-center gap-1 border border-red-500/30 transition"
-                      title="Apagar todos os números e cotas premiadas"
+                      className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 font-bold rounded-xl text-xs flex items-center gap-1 border border-red-500/30 transition"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                       Apagar Todas
@@ -729,8 +1050,7 @@ export const CampanhasFormView: React.FC<Props> = ({
                   <button
                     type="button"
                     onClick={() => handleGerarCotasPremiadasAleatorias(5)}
-                    className="px-2.5 py-1.5 bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 font-bold rounded-xl text-xs flex items-center gap-1 border border-purple-500/30 transition"
-                    title="Gera 5 cotas premiadas com números aleatórios"
+                    className="px-3 py-1.5 bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 font-bold rounded-xl text-xs flex items-center gap-1 border border-purple-500/30 transition"
                   >
                     <Sparkles className="w-3.5 h-3.5" />
                     Gerar 5 Aleatórias
@@ -748,7 +1068,7 @@ export const CampanhasFormView: React.FC<Props> = ({
 
               <div className="space-y-2">
                 {(form.cotasPremiadas || []).length === 0 ? (
-                  <div className="p-4 bg-slate-950/40 border border-dashed border-slate-800 rounded-xl text-center">
+                  <div className="p-6 bg-slate-950/40 border border-dashed border-slate-800 rounded-xl text-center">
                     <p className="text-xs text-slate-400 mb-2">Nenhuma cota premiada cadastrada no momento.</p>
                     <button
                       type="button"
@@ -760,7 +1080,7 @@ export const CampanhasFormView: React.FC<Props> = ({
                   </div>
                 ) : (
                   (form.cotasPremiadas || []).map((cp, idx) => (
-                    <div key={idx} className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-3 bg-slate-950/60 border border-slate-800 rounded-xl">
+                    <div key={idx} className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-3 bg-slate-950/80 border border-slate-800 rounded-xl items-center">
                       <input
                         type="text"
                         placeholder="Número da Cota (ex: 0421)"
@@ -770,7 +1090,7 @@ export const CampanhasFormView: React.FC<Props> = ({
                           arr[idx].numero = e.target.value;
                           setForm(prev => ({ ...prev, cotasPremiadas: arr }));
                         }}
-                        className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs font-mono font-bold text-emerald-400 focus:outline-none"
+                        className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono font-bold text-emerald-400 focus:outline-none"
                         required
                       />
                       <input
@@ -782,7 +1102,7 @@ export const CampanhasFormView: React.FC<Props> = ({
                           arr[idx].premio = e.target.value;
                           setForm(prev => ({ ...prev, cotasPremiadas: arr }));
                         }}
-                        className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none"
+                        className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none"
                         required
                       />
                       <div className="flex items-center justify-between">
@@ -805,23 +1125,26 @@ export const CampanhasFormView: React.FC<Props> = ({
           </div>
         )}
 
-        {/* ABA 4: PROMOÇÕES */}
+        {/* ABA 4: PROMOÇÕES & PACOTES */}
         {abaInterna === 'promocoes' && (
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm space-y-4 animate-in fade-in">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
               <div>
-                <h3 className="text-sm font-black text-white">Pacotes Promocionais de Cotas</h3>
+                <h3 className="text-base font-black text-white flex items-center gap-2">
+                  <Zap className="w-5 h-5 text-amber-400" />
+                  Pacotes Promocionais por Volume
+                </h3>
                 <p className="text-xs text-slate-400">
-                  Descontos por volume para acelerar o fechamento das cotas.
+                  Aumente suas vendas oferecendo descontos para quem compra em maior quantidade.
                 </p>
               </div>
+
               <div className="flex flex-wrap items-center gap-2">
                 {(form.promocoes || []).length > 0 && (
                   <button
                     type="button"
                     onClick={handleLimparTodasPromocoes}
-                    className="px-2.5 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 font-bold rounded-xl text-xs flex items-center gap-1 border border-red-500/30 transition"
-                    title="Apagar todos os pacotes promocionais"
+                    className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 font-bold rounded-xl text-xs flex items-center gap-1 border border-red-500/30 transition"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                     Apagar Pacotes
@@ -830,8 +1153,7 @@ export const CampanhasFormView: React.FC<Props> = ({
                 <button
                   type="button"
                   onClick={handleGerarPromocoesSugeridas}
-                  className="px-2.5 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 font-bold rounded-xl text-xs flex items-center gap-1 border border-emerald-500/30 transition"
-                  title="Gera pacotes inteligentes (10, 25, 50, 100 cotas com desconto progressivo)"
+                  className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 font-bold rounded-xl text-xs flex items-center gap-1 border border-emerald-500/30 transition"
                 >
                   <Zap className="w-3.5 h-3.5 text-amber-400" />
                   Gerar Pacotes Inteligentes
@@ -839,17 +1161,17 @@ export const CampanhasFormView: React.FC<Props> = ({
                 <button
                   type="button"
                   onClick={handleAddPromo}
-                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 font-bold rounded-xl text-xs flex items-center gap-1 border border-slate-700 transition"
+                  className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 font-bold rounded-xl text-xs flex items-center gap-1 border border-slate-700 transition"
                 >
-                  <Plus className="w-3.5 h-3.5" />
+                  <Plus className="w-4 h-4" />
                   Adicionar Pacote
                 </button>
               </div>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-3 pt-2">
               {(form.promocoes || []).length === 0 ? (
-                <div className="p-4 bg-slate-950/40 border border-dashed border-slate-800 rounded-xl text-center">
+                <div className="p-6 bg-slate-950/40 border border-dashed border-slate-800 rounded-xl text-center">
                   <p className="text-xs text-slate-400 mb-2">Nenhum pacote promocional cadastrado.</p>
                   <button
                     type="button"
@@ -861,71 +1183,41 @@ export const CampanhasFormView: React.FC<Props> = ({
                 </div>
               ) : (
                 (form.promocoes || []).map((promo, idx) => (
-                  <div key={idx} className="p-4 bg-slate-950/70 border border-slate-800 rounded-xl grid grid-cols-1 sm:grid-cols-4 gap-3 items-center">
+                  <div key={idx} className="p-4 bg-slate-950/80 border border-slate-800 rounded-xl grid grid-cols-1 sm:grid-cols-4 gap-3 items-center">
                     <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="text-[10px] text-slate-400">Qtd de Cotas</label>
-                        {promo.quantidade !== undefined && promo.quantidade > 0 && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const arr = [...(form.promocoes || [])];
-                              arr[idx].quantidade = 0;
-                              setForm(prev => ({ ...prev, promocoes: arr }));
-                            }}
-                            className="text-[9px] text-slate-500 hover:text-red-400"
-                          >
-                            Limpar
-                          </button>
-                        )}
-                      </div>
+                      <label className="text-[10px] text-slate-400 block mb-1">Qtd de Cotas</label>
                       <input
                         type="number"
                         min="1"
                         placeholder="Ex: 20"
-                        value={promo.quantidade !== undefined && promo.quantidade !== null && promo.quantidade > 0 ? promo.quantidade : ''}
+                        value={promo.quantidade !== undefined && promo.quantidade > 0 ? promo.quantidade : ''}
                         onChange={e => {
                           const arr = [...(form.promocoes || [])];
                           arr[idx].quantidade = e.target.value === '' ? 0 : Number(e.target.value);
                           setForm(prev => ({ ...prev, promocoes: arr }));
                         }}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs font-mono text-white focus:outline-none"
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono font-bold text-white focus:outline-none"
                       />
                     </div>
 
                     <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="text-[10px] text-slate-400">Valor do Pacote (R$)</label>
-                        {promo.valor !== undefined && promo.valor > 0 && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const arr = [...(form.promocoes || [])];
-                              arr[idx].valor = 0;
-                              setForm(prev => ({ ...prev, promocoes: arr }));
-                            }}
-                            className="text-[9px] text-slate-500 hover:text-red-400"
-                          >
-                            Limpar
-                          </button>
-                        )}
-                      </div>
+                      <label className="text-[10px] text-slate-400 block mb-1">Valor do Pacote (R$)</label>
                       <input
                         type="number"
                         step="0.01"
                         min="0.01"
                         placeholder="0.00"
-                        value={promo.valor !== undefined && promo.valor !== null && promo.valor > 0 ? promo.valor : ''}
+                        value={promo.valor !== undefined && promo.valor > 0 ? promo.valor : ''}
                         onChange={e => {
                           const arr = [...(form.promocoes || [])];
                           arr[idx].valor = e.target.value === '' ? 0 : Number(e.target.value);
                           setForm(prev => ({ ...prev, promocoes: arr }));
                         }}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs font-mono text-emerald-400 font-bold focus:outline-none"
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono text-emerald-400 font-bold focus:outline-none"
                       />
                     </div>
 
-                    <div className="flex items-center gap-2 pt-3 sm:pt-0">
+                    <div className="flex items-center gap-2 pt-2 sm:pt-0">
                       <input
                         type="checkbox"
                         id={`promo-destaque-${idx}`}
@@ -935,9 +1227,9 @@ export const CampanhasFormView: React.FC<Props> = ({
                           arr[idx].destaque = e.target.checked;
                           setForm(prev => ({ ...prev, promocoes: arr }));
                         }}
-                        className="w-4 h-4 rounded text-emerald-500 bg-slate-900 border-slate-700"
+                        className="w-4 h-4 rounded text-emerald-500 bg-slate-900 border-slate-700 cursor-pointer"
                       />
-                      <label htmlFor={`promo-destaque-${idx}`} className="text-xs text-slate-300">
+                      <label htmlFor={`promo-destaque-${idx}`} className="text-xs text-slate-300 font-medium cursor-pointer">
                         Selo "Mais Popular"
                       </label>
                     </div>
@@ -946,7 +1238,7 @@ export const CampanhasFormView: React.FC<Props> = ({
                       <button
                         type="button"
                         onClick={() => handleRemovePromo(idx)}
-                        className="p-1.5 text-slate-500 hover:text-red-400 transition"
+                        className="p-2 text-slate-500 hover:text-red-400 transition"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -958,17 +1250,17 @@ export const CampanhasFormView: React.FC<Props> = ({
           </div>
         )}
 
-        {/* ABA 5: UPSELL / OFERTAS RELÂMPAGO */}
+        {/* ABA 5: OFERTAS RELÂMPAGO (UPSELL NO CHECKOUT) */}
         {abaInterna === 'upsell' && (
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm space-y-4 animate-in fade-in">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
               <div>
-                <h3 className="text-sm font-black text-white flex items-center gap-2">
-                  <Zap className="w-4 h-4 text-amber-400" />
+                <h3 className="text-base font-black text-white flex items-center gap-2">
+                  <Flame className="w-5 h-5 text-amber-400" />
                   Ofertas Relâmpago (Upsell no Checkout)
                 </h3>
                 <p className="text-xs text-slate-400">
-                  Apresente até 2 ofertas irresistíveis antes do pagamento para aumentar o ticket médio.
+                  Ofereça até 2 oportunidades extras de adicionar cotas com super desconto antes do pagamento.
                 </p>
               </div>
 
@@ -977,7 +1269,7 @@ export const CampanhasFormView: React.FC<Props> = ({
                   <button
                     type="button"
                     onClick={handleLimparTodasOfertas}
-                    className="px-2.5 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 font-bold rounded-xl text-xs flex items-center gap-1 border border-red-500/30 transition"
+                    className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 font-bold rounded-xl text-xs flex items-center gap-1 border border-red-500/30 transition"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                     Apagar Ofertas
@@ -987,21 +1279,22 @@ export const CampanhasFormView: React.FC<Props> = ({
                   <button
                     type="button"
                     onClick={handleAddOferta}
-                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold rounded-xl text-xs flex items-center gap-1 border border-slate-700"
+                    className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold rounded-xl text-xs flex items-center gap-1 border border-slate-700 transition"
                   >
-                    <Plus className="w-3.5 h-3.5" />
+                    <Plus className="w-4 h-4" />
                     Adicionar Oferta ({(form.ofertasRelampago || []).length}/2)
                   </button>
                 )}
               </div>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-4 pt-2">
               {(form.ofertasRelampago || []).map((of, idx) => (
-                <div key={idx} className="p-4 bg-slate-950/70 border border-slate-800 rounded-2xl space-y-3">
+                <div key={idx} className="p-4 bg-slate-950/80 border border-slate-800 rounded-2xl space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-black text-amber-400 uppercase tracking-wider">
-                      Oferta #{idx + 1}
+                    <span className="text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-1">
+                      <Flame className="w-3.5 h-3.5" />
+                      Oferta Relâmpago #{idx + 1}
                     </span>
                     <button
                       type="button"
@@ -1022,7 +1315,7 @@ export const CampanhasFormView: React.FC<Props> = ({
                         arr[idx].titulo = e.target.value;
                         setForm(prev => ({ ...prev, ofertasRelampago: arr }));
                       }}
-                      className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+                      className="bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none"
                     />
 
                     <input
@@ -1034,7 +1327,7 @@ export const CampanhasFormView: React.FC<Props> = ({
                         arr[idx].subtitulo = e.target.value;
                         setForm(prev => ({ ...prev, ofertasRelampago: arr }));
                       }}
-                      className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+                      className="bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none"
                     />
                   </div>
 
@@ -1050,7 +1343,7 @@ export const CampanhasFormView: React.FC<Props> = ({
                           arr[idx].cotasExtras = Number(e.target.value);
                           setForm(prev => ({ ...prev, ofertasRelampago: arr }));
                         }}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs font-mono text-white focus:outline-none"
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono font-bold text-white focus:outline-none"
                       />
                     </div>
 
@@ -1066,7 +1359,7 @@ export const CampanhasFormView: React.FC<Props> = ({
                           arr[idx].preco = Number(e.target.value);
                           setForm(prev => ({ ...prev, ofertasRelampago: arr }));
                         }}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs font-mono text-amber-400 focus:outline-none"
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-amber-400 font-bold focus:outline-none"
                       />
                     </div>
 
@@ -1081,7 +1374,7 @@ export const CampanhasFormView: React.FC<Props> = ({
                           arr[idx].selo = e.target.value;
                           setForm(prev => ({ ...prev, ofertasRelampago: arr }));
                         }}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none"
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
                       />
                     </div>
                   </div>
@@ -1096,8 +1389,8 @@ export const CampanhasFormView: React.FC<Props> = ({
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm space-y-6 animate-in fade-in">
             {/* Brinde Digital / E-book */}
             <div>
-              <h3 className="text-sm font-black text-white flex items-center gap-2 mb-1">
-                <FileText className="w-4 h-4 text-emerald-400" />
+              <h3 className="text-base font-black text-white flex items-center gap-2 mb-1">
+                <FileText className="w-5 h-5 text-emerald-400" />
                 Entrega de Brinde Digital / E-book (Pós-Pagamento)
               </h3>
               <p className="text-xs text-slate-400 mb-3">
@@ -1110,7 +1403,7 @@ export const CampanhasFormView: React.FC<Props> = ({
                   placeholder="Nome do Brinde (Ex: E-book Guia de Investimentos 2026)"
                   value={form.ebookTitulo || ''}
                   onChange={e => setForm(prev => ({ ...prev, ebookTitulo: e.target.value }))}
-                  className="bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                  className="bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:border-emerald-500 focus:outline-none"
                 />
 
                 <input
@@ -1118,17 +1411,17 @@ export const CampanhasFormView: React.FC<Props> = ({
                   placeholder="Link de Download (Google Drive, Dropbox, PDF...)"
                   value={form.ebookUrl || ''}
                   onChange={e => setForm(prev => ({ ...prev, ebookUrl: e.target.value }))}
-                  className="bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                  className="bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:border-emerald-500 focus:outline-none"
                 />
               </div>
             </div>
 
             {/* Roleta Premiada Bônus */}
-            <div className="pt-4 border-t border-slate-800">
+            <div className="pt-6 border-t border-slate-800">
               <div className="flex items-center justify-between mb-3">
                 <div>
-                  <h3 className="text-sm font-black text-white flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-purple-400" />
+                  <h3 className="text-base font-black text-white flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-purple-400" />
                     Roleta Premiada Interativa
                   </h3>
                   <p className="text-xs text-slate-400">
@@ -1163,19 +1456,19 @@ export const CampanhasFormView: React.FC<Props> = ({
             </div>
 
             {/* Exigências de Cadastro */}
-            <div className="pt-4 border-t border-slate-800">
-              <h3 className="text-sm font-black text-white mb-2">Campos Obrigatórios no Checkout</h3>
-              <div className="space-y-2">
+            <div className="pt-6 border-t border-slate-800">
+              <h3 className="text-base font-black text-white mb-2">Campos Obrigatórios no Checkout</h3>
+              <div className="space-y-3">
                 <div className="flex items-center gap-2">
                   <input
                     type="checkbox"
                     id="chk-cpf"
                     checked={form.exigirCpf || false}
                     onChange={e => setForm(prev => ({ ...prev, exigirCpf: e.target.checked }))}
-                    className="w-4 h-4 rounded text-emerald-500 bg-slate-900 border-slate-700"
+                    className="w-4 h-4 rounded text-emerald-500 bg-slate-900 border-slate-700 cursor-pointer"
                   />
-                  <label htmlFor="chk-cpf" className="text-xs text-slate-300">
-                    Exigir CPF do comprador para participar
+                  <label htmlFor="chk-cpf" className="text-xs text-slate-300 font-medium cursor-pointer">
+                    Exigir CPF do comprador para participar do sorteio
                   </label>
                 </div>
 
@@ -1185,16 +1478,56 @@ export const CampanhasFormView: React.FC<Props> = ({
                     id="chk-email"
                     checked={form.exigirEmail || false}
                     onChange={e => setForm(prev => ({ ...prev, exigirEmail: e.target.checked }))}
-                    className="w-4 h-4 rounded text-emerald-500 bg-slate-900 border-slate-700"
+                    className="w-4 h-4 rounded text-emerald-500 bg-slate-900 border-slate-700 cursor-pointer"
                   />
-                  <label htmlFor="chk-email" className="text-xs text-slate-300">
-                    Exigir E-mail do comprador
+                  <label htmlFor="chk-email" className="text-xs text-slate-300 font-medium cursor-pointer">
+                    Exigir E-mail do comprador para confirmação
                   </label>
                 </div>
               </div>
             </div>
           </div>
         )}
+
+        {/* NAVEGAÇÃO DE RODAPÉ (AVANÇAR E VOLTAR) */}
+        <div className="flex items-center justify-between gap-4 pt-4 border-t border-slate-800">
+          <button
+            type="button"
+            onClick={irAnterior}
+            disabled={currentIndex === 0}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition ${
+              currentIndex === 0
+                ? 'opacity-40 cursor-not-allowed text-slate-600 bg-slate-900'
+                : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
+            }`}
+          >
+            <ChevronLeft className="w-4 h-4" />
+            <span>Passo Anterior</span>
+          </button>
+
+          <div className="flex items-center gap-2">
+            {currentIndex < tabKeys.length - 1 ? (
+              <button
+                type="button"
+                onClick={irProximo}
+                className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 font-bold rounded-xl text-xs flex items-center gap-1.5 transition"
+              >
+                <span>Próximo Passo</span>
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={onSalvar}
+                disabled={salvando}
+                className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs flex items-center gap-2 shadow-lg shadow-emerald-500/20 transition active:scale-95"
+              >
+                <Rocket className="w-4 h-4" />
+                <span>{salvando ? 'Salvando...' : 'Concluir & Publicar'}</span>
+              </button>
+            )}
+          </div>
+        </div>
 
       </form>
     </div>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Gift, Sparkles, Trophy, X, PartyPopper, CheckCircle2, RotateCw } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { RoletaItem } from '../types';
@@ -14,6 +14,17 @@ export const RoletaPremiadaModal: React.FC<Props> = ({ itens, compradorNome, onC
   const [rotacao, setRotacao] = useState(0);
   const [itemGanhado, setItemGanhado] = useState<RoletaItem | null>(null);
   const [jaGirou, setJaGirou] = useState(false);
+
+  // Limpa confetes ao desmontar o componente
+  useEffect(() => {
+    return () => {
+      try {
+        confetti.reset();
+      } catch (e) {
+        // Ignora se indisponível
+      }
+    };
+  }, []);
 
   // Lista padrão de itens caso nenhum venha configurado
   const itensRoleta: RoletaItem[] = itens && itens.length > 0 ? itens : [

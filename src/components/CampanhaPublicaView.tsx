@@ -3,11 +3,13 @@ import { CampanhaPublicaResponse, Promocao, OfertaRelampago } from '../types';
 import { 
   Trophy, Flame, Sparkles, ShieldCheck, Ticket, Users, HelpCircle, 
   ChevronDown, ChevronUp, Plus, Minus, Check, Gift, Search, Info,
-  Smartphone, Share2, Instagram, AlertTriangle, Copy, XCircle, CheckCircle2
+  Smartphone, Share2, Instagram, AlertTriangle, Copy, XCircle, CheckCircle2,
+  User, Edit
 } from 'lucide-react';
 import { UpsellModal } from './UpsellModal';
 import { PixPaymentModal } from './PixPaymentModal';
 import { MeusNumerosModal } from './MeusNumerosModal';
+import { MeusDadosModal } from './MeusDadosModal';
 
 interface Props {
   codigo: string;
@@ -30,9 +32,13 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
   const [whatsapp, setWhatsapp] = useState('');
   const [cpf, setCpf] = useState('');
   const [email, setEmail] = useState('');
+  const [maiorIdade, setMaiorIdade] = useState(true);
   const [compradorSalvo, setCompradorSalvo] = useState<{ nome: string; whatsapp: string } | null>(null);
   const [formErro, setFormErro] = useState('');
   const [enviandoPedido, setEnviandoPedido] = useState(false);
+
+  // Modal Meus Dados
+  const [meusDadosAberto, setMeusDadosAberto] = useState(false);
 
   // Modal de Diagnóstico de Erro (para copiar para o suporte)
   const [erroDiagnostico, setErroDiagnostico] = useState<{
@@ -192,6 +198,11 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
       return;
     }
 
+    if (!maiorIdade) {
+      setFormErro('É obrigatório declarar ter no mínimo 18 anos para participar.');
+      return;
+    }
+
     if (campanha.exigirCpf && (!cpf || cpf.replace(/\D/g, '').length !== 11)) {
       setFormErro('Informe um CPF válido com 11 dígitos.');
       return;
@@ -272,7 +283,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
     <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-emerald-500 selection:text-slate-950">
       
       {/* Top Navbar */}
-      <header className="sticky top-0 z-40 bg-slate-950/80 backdrop-blur-md border-b border-slate-800">
+      <header className="sticky top-0 z-40 bg-slate-950/90 backdrop-blur-md border-b border-slate-800">
         <div className="max-w-xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center font-black text-slate-950 text-lg shadow-md shadow-emerald-500/20">
@@ -285,19 +296,24 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
 
           <div className="flex items-center gap-2">
             <button
-              id="btn-ver-meus-numeros"
-              onClick={() => setMeusNumerosAberto(true)}
-              className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 transition"
+              id="btn-abrir-meus-dados"
+              type="button"
+              onClick={() => setMeusDadosAberto(true)}
+              className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700 transition"
+              title="Ver e preencher meus dados para o sorteio (+18 anos)"
             >
-              <Ticket className="w-3.5 h-3.5" />
-              Meus Números
+              <User className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Meus Dados</span>
             </button>
 
             <button
-              onClick={onNavigateAdmin}
-              className="text-[11px] font-medium text-slate-400 hover:text-white px-2 py-1 rounded transition"
+              id="btn-ver-meus-numeros"
+              type="button"
+              onClick={() => setMeusNumerosAberto(true)}
+              className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 transition"
             >
-              Admin
+              <Ticket className="w-3.5 h-3.5" />
+              <span>Meus Números</span>
             </button>
           </div>
         </div>
@@ -309,13 +325,23 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
               <span className="text-emerald-300 font-medium truncate">
                 👋 Olá, <strong>{compradorSalvo.nome}</strong>! Seus dados e bilhetes estão salvos.
               </span>
-              <button
-                type="button"
-                onClick={() => setMeusNumerosAberto(true)}
-                className="text-emerald-400 hover:text-emerald-300 font-bold underline ml-2 flex-shrink-0"
-              >
-                Ver cotas
-              </button>
+              <div className="flex items-center gap-2 ml-2 flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setMeusDadosAberto(true)}
+                  className="text-slate-400 hover:text-slate-200 underline font-medium"
+                >
+                  Editar dados
+                </button>
+                <span className="text-slate-600">•</span>
+                <button
+                  type="button"
+                  onClick={() => setMeusNumerosAberto(true)}
+                  className="text-emerald-400 hover:text-emerald-300 font-bold underline"
+                >
+                  Ver cotas
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -693,6 +719,23 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
                 </div>
               )}
 
+              {/* Confirmação Idade Mínima (+18 anos) */}
+              <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl">
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                  <input
+                    id="checkout-check-maior-idade"
+                    type="checkbox"
+                    checked={maiorIdade}
+                    onChange={e => setMaiorIdade(e.target.checked)}
+                    className="w-4 h-4 mt-0.5 rounded text-emerald-500 bg-slate-900 border-slate-700 focus:ring-emerald-500"
+                  />
+                  <span className="text-xs text-slate-200 font-medium leading-tight">
+                    <strong className="text-emerald-400 block">Idade mínima 18 anos:</strong>
+                    Declaro que tenho 18 anos ou mais e estou de acordo com o regulamento do sorteio.
+                  </span>
+                </label>
+              </div>
+
               {/* Resumo */}
               <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-3 text-xs space-y-1">
                 <div className="flex justify-between text-slate-300">
@@ -766,6 +809,23 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
         <MeusNumerosModal
           campanha={campanha}
           onBack={() => setMeusNumerosAberto(false)}
+        />
+      )}
+
+      {/* Modal Meus Dados / Identificação do Comprador */}
+      {meusDadosAberto && (
+        <MeusDadosModal
+          onClose={() => setMeusDadosAberto(false)}
+          exigirCpf={campanha.exigirCpf}
+          exigirEmail={campanha.exigirEmail}
+          onSalvarSucesso={(dados) => {
+            setNome(dados.nome);
+            setWhatsapp(dados.whatsapp);
+            if (dados.cpf) setCpf(dados.cpf);
+            if (dados.email) setEmail(dados.email);
+            setMaiorIdade(dados.maiorIdade);
+            setCompradorSalvo({ nome: dados.nome, whatsapp: dados.whatsapp });
+          }}
         />
       )}
 

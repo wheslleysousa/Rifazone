@@ -3,20 +3,25 @@ import { CampanhaPublicaView } from './components/CampanhaPublicaView';
 import { AdminPanel } from './components/AdminPanel';
 
 export default function App() {
-  const [currentRoute, setCurrentRoute] = useState<string>('publica');
-  const [codigoCampanha, setCodigoCampanha] = useState<string>('iphone-16-pro');
+  // A tela inicial (/) é o painel (login/cadastro -> dashboard).
+  // A página pública de uma campanha só aparece em /c/{codigo}.
+  const [currentRoute, setCurrentRoute] = useState<string>('admin');
+  const [codigoCampanha, setCodigoCampanha] = useState<string>('');
 
   useEffect(() => {
     const handleUrlChange = () => {
       const pathname = window.location.pathname;
-      if (pathname.startsWith('/admin')) {
-        setCurrentRoute('admin');
-      } else if (pathname.startsWith('/c/')) {
+      if (pathname.startsWith('/c/')) {
         const codigo = pathname.replace('/c/', '').split('/')[0];
-        if (codigo) setCodigoCampanha(codigo);
-        setCurrentRoute('publica');
+        if (codigo) {
+          setCodigoCampanha(codigo);
+          setCurrentRoute('publica');
+        } else {
+          setCurrentRoute('admin');
+        }
       } else {
-        setCurrentRoute('publica');
+        // Raiz (/), /admin e qualquer outra rota -> painel do organizador
+        setCurrentRoute('admin');
       }
     };
 
@@ -26,7 +31,7 @@ export default function App() {
   }, []);
 
   const navigateToAdmin = () => {
-    window.history.pushState({}, '', '/admin');
+    window.history.pushState({}, '', '/');
     setCurrentRoute('admin');
   };
 
@@ -36,14 +41,14 @@ export default function App() {
     setCurrentRoute('publica');
   };
 
-  if (currentRoute === 'admin') {
-    return <AdminPanel onSelectCampanha={navigateToCampanha} />;
+  if (currentRoute === 'publica' && codigoCampanha) {
+    return (
+      <CampanhaPublicaView
+        codigo={codigoCampanha}
+        onNavigateAdmin={navigateToAdmin}
+      />
+    );
   }
 
-  return (
-    <CampanhaPublicaView
-      codigo={codigoCampanha}
-      onNavigateAdmin={navigateToAdmin}
-    />
-  );
+  return <AdminPanel onSelectCampanha={navigateToCampanha} />;
 }

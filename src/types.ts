@@ -75,12 +75,48 @@ export interface Cota {
   compradorNome?: string;
 }
 
-// Configurações de pagamento por organizador (credenciais do Mercado Pago dele)
+// Redes sociais do organizador (exibidas na página pública)
+export interface RedesSociais {
+  whatsapp?: string | null;
+  telegram?: string | null;
+  instagram?: string | null;
+  tiktok?: string | null;
+  youtube?: string | null;
+}
+
+// Marca do organizador (personalização da página pública)
+export interface MarcaConfig {
+  nomeMarca?: string | null;
+  logoUrl?: string | null;
+  corPrincipal?: string | null; // ex: #2563eb
+  corDestaque?: string | null;  // ex: #10b981
+}
+
+// Configurações por organizador
 export interface ConfigOrganizador {
   ownerId: string;
+  // Pagamento (Mercado Pago)
   mpAccessToken: string | null; // segredo — nunca enviado de volta ao cliente
   mpPublicKey: string | null;   // pública — pode ser exibida
+  // Marca / personalização
+  marca?: MarcaConfig;
+  redes?: RedesSociais;
+  // Pixels & Anúncios
+  metaPixelId?: string | null;      // público — injetado na página pública
+  // Meta Ads (Marketing API) — para a aba de Analytics
+  metaAccessToken?: string | null;  // segredo — nunca retornado ao cliente
+  metaAdAccountId?: string | null;  // ex: act_1234567890
   atualizadaEm: string;
+}
+
+// Dados de marca seguros para expor na página pública (sem segredos)
+export interface MarcaPublica {
+  nomeMarca: string | null;
+  logoUrl: string | null;
+  corPrincipal: string | null;
+  corDestaque: string | null;
+  redes: RedesSociais;
+  metaPixelId: string | null;
 }
 
 export interface Comprador {
@@ -132,4 +168,6 @@ export interface CampanhaPublicaResponse {
     arrecadado: number;
   };
   ranking: RankingItem[];
+  marca?: MarcaPublica;
+  cotasOcupadas?: Record<string, { status: 'reservado' | 'vendido' }>;
 }

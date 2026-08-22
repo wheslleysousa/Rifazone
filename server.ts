@@ -6,6 +6,7 @@ import { db, usandoFirestore } from './server/db.js';
 import { mpService } from './server/mercadopago.js';
 import { geminiService } from './server/gemini.js';
 import { verifyFirebaseToken } from './server/auth.js';
+import { configParaPainel, configParaMarcaPublica } from './server/config-utils.js';
 import { Campanha } from './src/types.js';
 
 const app = express();
@@ -82,8 +83,13 @@ app.get('/api/campanhas/:codigo', async (req, res) => {
     // Não expor dados do organizador (uid/email) na resposta pública
     const { ownerId, ownerEmail, ...campanhaPublica } = campanha;
 
+    // Marca pública do organizador (cores, logo, redes, pixel) — sem segredos
+    const configDono = ownerId ? await db.getConfig(ownerId) : null;
+    const marca = configParaMarcaPublica(configDono);
+
     return res.json({
       campanha: campanhaPublica,
+      marca,
       estatisticas: {
         ...estatisticas,
         arrecadado: Number((estatisticas.vendidas * campanha.valorCota).toFixed(2))
@@ -405,48 +411,38 @@ app.get('/api/admin/me', firebaseAuthMiddleware, (req, res) => {
   });
 });
 
-// GET /api/admin/configuracoes -> Status das credenciais de pagamento do organizador
-// (NUNCA retorna o Access Token completo — apenas se está configurado + máscara)
+// GET /api/admin/configuracoes -> Configurações do organizador (segredos mascarados)
 app.get('/api/admin/configuracoes', firebaseAuthMiddleware, async (req, res) => {
   const config = await db.getConfig((req as any).userId);
-  const token = config?.mpAccessToken || '';
-  return res.json({
-    mpConfigurado: !!token,
-    mpTokenMascara: token ? `${token.slice(0, 8)}••••••${token.slice(-4)}` : null,
-    mpPublicKey: config?.mpPublicKey || null,
-    atualizadaEm: config?.atualizadaEm || null
-  });
+  return res.json(configParaPainel(config));
 });
 
-// PUT /api/admin/configuracoes -> Salva as credenciais do Mercado Pago do organizador
-// Assim, os Pix das campanhas dele caem na conta Mercado Pago dele.
+// PUT /api/admin/configuracoes -> Salva configurações (pagamento, marca, redes, pixel, Meta Ads)
 app.put('/api/admin/configuracoes', firebaseAuthMiddleware, async (req, res) => {
   try {
-    const { mpAccessToken, mpPublicKey } = req.body || {};
+    const b = req.body || {};
 
-    // Validação básica do formato do Access Token do Mercado Pago
-    if (mpAccessToken && !/^(APP_USR-|TEST-)/.test(String(mpAccessToken).trim())) {
+    // Validação do Access Token do Mercado Pago
+    if (b.mpAccessToken && !/^(APP_USR-|TEST-)/.test(String(b.mpAccessToken).trim())) {
       return res.status(400).json({
-        error: 'Access Token inválido. Ele deve começar com "APP_USR-" (produção) ou "TEST-" (teste).'
+        error: 'Access Token do Mercado Pago inválido (deve começar com "APP_USR-" ou "TEST-").'
       });
     }
 
     const config = await db.saveConfig((req as any).userId, {
-      mpAccessToken: mpAccessToken !== undefined ? String(mpAccessToken || '') : undefined,
-      mpPublicKey: mpPublicKey !== undefined ? String(mpPublicKey || '') : undefined
+      mpAccessToken: b.mpAccessToken !== undefined ? String(b.mpAccessToken || '') : undefined,
+      mpPublicKey: b.mpPublicKey !== undefined ? String(b.mpPublicKey || '') : undefined,
+      metaAccessToken: b.metaAccessToken !== undefined ? String(b.metaAccessToken || '') : undefined,
+      metaAdAccountId: b.metaAdAccountId !== undefined ? String(b.metaAdAccountId || '') : undefined,
+      metaPixelId: b.metaPixelId !== undefined ? String(b.metaPixelId || '') : undefined,
+      marca: b.marca !== undefined ? b.marca : undefined,
+      redes: b.redes !== undefined ? b.redes : undefined
     });
 
-    const token = config.mpAccessToken || '';
-    return res.json({
-      success: true,
-      mpConfigurado: !!token,
-      mpTokenMascara: token ? `${token.slice(0, 8)}••••••${token.slice(-4)}` : null,
-      mpPublicKey: config.mpPublicKey || null,
-      atualizadaEm: config.atualizadaEm
-    });
+    return res.json({ success: true, ...configParaPainel(config) });
   } catch (err: any) {
     console.error('Erro ao salvar configurações:', err);
-    return res.status(500).json({ error: 'Erro ao salvar configurações de pagamento.' });
+    return res.status(500).json({ error: 'Erro ao salvar configurações.' });
   }
 });
 

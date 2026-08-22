@@ -4,7 +4,8 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { Campanha, Cota, Pedido, Comprador, RankingItem, CotaPremiada, ConfigOrganizador } from '../src/types.js';
-import { Storage, EstatisticasCampanha, MeusNumerosResult, ConfirmarPedidoResult, SorteioResult } from './storage-interface.js';
+import { Storage, EstatisticasCampanha, MeusNumerosResult, ConfirmarPedidoResult, SorteioResult, DadosConfig } from './storage-interface.js';
+import { mergeConfig } from './config-utils.js';
 
 // Lê o databaseId (Firestore nomeado) do config do Firebase.
 function getDatabaseId(): string | undefined {
@@ -391,19 +392,11 @@ export class FirestoreStorage implements Storage {
     return doc.exists ? (doc.data() as ConfigOrganizador) : null;
   }
 
-  public async saveConfig(ownerId: string, dados: { mpAccessToken?: string | null; mpPublicKey?: string | null }): Promise<ConfigOrganizador> {
+  public async saveConfig(ownerId: string, dados: DadosConfig): Promise<ConfigOrganizador> {
     const existente = await this.getConfig(ownerId);
-    const config: ConfigOrganizador = {
-      ownerId,
-      mpAccessToken: dados.mpAccessToken !== undefined && dados.mpAccessToken !== ''
-        ? (dados.mpAccessToken ? dados.mpAccessToken.trim() : null)
-        : (existente?.mpAccessToken ?? null),
-      mpPublicKey: dados.mpPublicKey !== undefined
-        ? (dados.mpPublicKey ? dados.mpPublicKey.trim() : null)
-        : (existente?.mpPublicKey ?? null),
-      atualizadaEm: new Date().toISOString()
-    };
-    await this.configsCol().doc(ownerId).set(config, { merge: false });
+    const config = mergeConfig(ownerId, existente, dados);
+    // Firestore não aceita undefined; serializa removendo-os
+    await this.configsCol().doc(ownerId).set(JSON.parse(JSON.stringify(config)), { merge: false });
     return config;
   }
 

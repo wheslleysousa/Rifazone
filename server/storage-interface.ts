@@ -1,4 +1,15 @@
-import { Campanha, Pedido, Comprador, RankingItem, CotaPremiada, ConfigOrganizador } from '../src/types.js';
+import { Campanha, Pedido, Comprador, RankingItem, CotaPremiada, ConfigOrganizador, MarcaConfig, RedesSociais } from '../src/types.js';
+
+// Campos que o organizador pode salvar nas configurações
+export interface DadosConfig {
+  mpAccessToken?: string | null;
+  mpPublicKey?: string | null;
+  marca?: MarcaConfig;
+  redes?: RedesSociais;
+  metaPixelId?: string | null;
+  metaAccessToken?: string | null;
+  metaAdAccountId?: string | null;
+}
 
 export interface EstatisticasCampanha {
   totalCotas: number;
@@ -56,7 +67,7 @@ export interface Storage {
 
   // Configurações de pagamento (Mercado Pago por organizador)
   getConfig(ownerId: string): Promise<ConfigOrganizador | null>;
-  saveConfig(ownerId: string, dados: { mpAccessToken?: string | null; mpPublicKey?: string | null }): Promise<ConfigOrganizador>;
+  saveConfig(ownerId: string, dados: DadosConfig): Promise<ConfigOrganizador>;
   getMpTokenPorCampanha(campanhaId: string): Promise<string | null>;
 
   // Manutenção / apuração

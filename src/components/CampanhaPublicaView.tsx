@@ -218,18 +218,34 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-emerald-500 selection:text-slate-950">
-      
+    <div
+      className="min-h-screen bg-slate-950 text-slate-100 selection:bg-emerald-500 selection:text-slate-950"
+      style={{
+        // Cores da marca do organizador (com fallback), disponíveis via var CSS
+        ['--brand' as any]: data?.marca?.corPrincipal || '#10b981',
+        ['--brand-2' as any]: data?.marca?.corDestaque || '#f59e0b'
+      }}
+    >
+
       {/* Top Navbar */}
       <header className="sticky top-0 z-40 bg-slate-950/80 backdrop-blur-md border-b border-slate-800">
         <div className="max-w-xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center font-black text-slate-950 text-lg shadow-md shadow-emerald-500/20">
-              R
-            </div>
-            <span className="font-extrabold text-white text-base tracking-tight">
-              Rifa<span className="text-emerald-400">Pix</span>
-            </span>
+            {data?.marca?.logoUrl ? (
+              <img src={data.marca.logoUrl} alt={data.marca.nomeMarca || 'Logo'} className="h-8 max-w-[140px] object-contain" />
+            ) : (
+              <>
+                <div
+                  className="w-8 h-8 rounded-lg flex items-center justify-center font-black text-slate-950 text-lg shadow-md"
+                  style={{ background: data?.marca?.corPrincipal || '#10b981' }}
+                >
+                  {(data?.marca?.nomeMarca || 'RifaZone').charAt(0).toUpperCase()}
+                </div>
+                <span className="font-extrabold text-white text-base tracking-tight">
+                  {data?.marca?.nomeMarca || 'RifaZone'}
+                </span>
+              </>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
@@ -648,7 +664,8 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
                 id="btn-confirmar-gerar-pix"
                 type="submit"
                 disabled={enviandoPedido}
-                className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-sm shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 transition active:scale-[0.98]"
+                style={{ background: 'var(--brand, #10b981)' }}
+                className="w-full py-3.5 text-slate-950 font-black rounded-xl text-sm shadow-lg flex items-center justify-center gap-2 transition active:scale-[0.98] hover:brightness-110"
               >
                 {enviandoPedido ? (
                   <span className="flex items-center gap-2">

@@ -42,7 +42,7 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
 
   // Painel State
   const [campanhas, setCampanhas] = useState<any[]>([]);
-  const [abaAtiva, setAbaAtiva] = useState<'lista' | 'nova' | 'pedidos' | 'apuracao' | 'pagamento'>('lista');
+  const [abaAtiva, setAbaAtiva] = useState<'lista' | 'nova' | 'pedidos' | 'apuracao' | 'pagamento' | 'personalizacao'>('lista');
   const [carregando, setCarregando] = useState(false);
   const [campanhaSelecionada, setCampanhaSelecionada] = useState<any | null>(null);
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
@@ -137,6 +137,16 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
   const [configMsg, setConfigMsg] = useState('');
   const [configErro, setConfigErro] = useState('');
 
+  // Personalização (marca + redes sociais)
+  const [marca, setMarca] = useState<{ nomeMarca: string; logoUrl: string; corPrincipal: string; corDestaque: string }>({
+    nomeMarca: '', logoUrl: '', corPrincipal: '#10b981', corDestaque: '#f59e0b'
+  });
+  const [redes, setRedes] = useState<{ whatsapp: string; telegram: string; instagram: string; tiktok: string; youtube: string }>({
+    whatsapp: '', telegram: '', instagram: '', tiktok: '', youtube: ''
+  });
+  const [salvandoMarca, setSalvandoMarca] = useState(false);
+  const [marcaMsg, setMarcaMsg] = useState('');
+
   const carregarConfig = async () => {
     try {
       const res = await authFetch('/api/admin/configuracoes');
@@ -144,9 +154,51 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
         const data = await res.json();
         setConfigPagamento(data);
         setMpPublicKeyInput(data.mpPublicKey || '');
+        if (data.marca) {
+          setMarca({
+            nomeMarca: data.marca.nomeMarca || '',
+            logoUrl: data.marca.logoUrl || '',
+            corPrincipal: data.marca.corPrincipal || '#10b981',
+            corDestaque: data.marca.corDestaque || '#f59e0b'
+          });
+        }
+        if (data.redes) {
+          setRedes({
+            whatsapp: data.redes.whatsapp || '',
+            telegram: data.redes.telegram || '',
+            instagram: data.redes.instagram || '',
+            tiktok: data.redes.tiktok || '',
+            youtube: data.redes.youtube || ''
+          });
+        }
       }
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  const handleSalvarMarca = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMarcaMsg('');
+    setSalvandoMarca(true);
+    try {
+      const res = await authFetch('/api/admin/configuracoes', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ marca, redes })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setConfigPagamento(data);
+        setMarcaMsg('Personalização salva! Ela aparece na página pública das suas campanhas.');
+      } else {
+        const d = await res.json();
+        setMarcaMsg(d.error || 'Erro ao salvar.');
+      }
+    } catch {
+      setMarcaMsg('Falha de conexão ao salvar.');
+    } finally {
+      setSalvandoMarca(false);
     }
   };
 
@@ -538,7 +590,8 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
     { chave: 'nova', label: 'Nova Campanha', icon: <Plus className="w-4 h-4" />, onClick: iniciarNovaCampanha },
     { chave: 'pedidos', label: 'Pedidos & Compradores', icon: <Users className="w-4 h-4" />, onClick: () => { if (campanhaSelecionada) carregarPedidos(campanhaSelecionada.id); setAbaAtiva('pedidos'); } },
     { chave: 'apuracao', label: 'Apuração / Sorteio', icon: <Trophy className="w-4 h-4" /> },
-    { chave: 'pagamento', label: 'Pagamento', icon: <DollarSign className="w-4 h-4" />, alerta: !!(configPagamento && !configPagamento.mpConfigurado) }
+    { chave: 'pagamento', label: 'Pagamento', icon: <DollarSign className="w-4 h-4" />, alerta: !!(configPagamento && !configPagamento.mpConfigurado) },
+    { chave: 'personalizacao', label: 'Personalização', icon: <Settings className="w-4 h-4" /> }
   ];
 
   const irPara = (item: typeof navItems[number]) => {
@@ -1303,6 +1356,100 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
               <p>• O Mercado Pago cobra uma taxa por Pix recebido — considere isso no valor da cota.</p>
             </div>
           </div>
+        )}
+
+        {/* ABA: PERSONALIZAÇÃO (marca + redes sociais) */}
+        {abaAtiva === 'personalizacao' && (
+          <form onSubmit={handleSalvarMarca} className="max-w-2xl mx-auto space-y-6">
+            <div>
+              <h3 className="text-xl font-black text-white">Personalização da marca</h3>
+              <p className="text-xs text-slate-400">
+                Defina o nome, logo, cores e redes sociais que aparecem na página pública das suas campanhas.
+              </p>
+            </div>
+
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl">
+              <div>
+                <label className="text-xs font-bold text-slate-300 block mb-1">Nome da marca</label>
+                <input
+                  type="text"
+                  value={marca.nomeMarca}
+                  onChange={e => setMarca({ ...marca, nomeMarca: e.target.value })}
+                  placeholder="Ex: Grupo Sorte Premiada"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-300 block mb-1">URL do logo</label>
+                <input
+                  type="url"
+                  value={marca.logoUrl}
+                  onChange={e => setMarca({ ...marca, logoUrl: e.target.value })}
+                  placeholder="https://.../logo.png"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-slate-300 block mb-1">Cor principal</label>
+                  <div className="flex items-center gap-2">
+                    <input type="color" value={marca.corPrincipal} onChange={e => setMarca({ ...marca, corPrincipal: e.target.value })} className="w-10 h-10 rounded-lg bg-slate-950 border border-slate-700" />
+                    <input type="text" value={marca.corPrincipal} onChange={e => setMarca({ ...marca, corPrincipal: e.target.value })} className="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-white" />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-300 block mb-1">Cor de destaque</label>
+                  <div className="flex items-center gap-2">
+                    <input type="color" value={marca.corDestaque} onChange={e => setMarca({ ...marca, corDestaque: e.target.value })} className="w-10 h-10 rounded-lg bg-slate-950 border border-slate-700" />
+                    <input type="text" value={marca.corDestaque} onChange={e => setMarca({ ...marca, corDestaque: e.target.value })} className="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-white" />
+                  </div>
+                </div>
+              </div>
+              {/* Prévia do gradiente */}
+              <div className="rounded-xl h-12 flex items-center justify-center text-white text-xs font-bold" style={{ background: `linear-gradient(90deg, ${marca.corPrincipal}, ${marca.corDestaque})` }}>
+                Prévia do gradiente
+              </div>
+            </div>
+
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl">
+              <h4 className="text-sm font-black text-white">Redes sociais</h4>
+              {([
+                ['whatsapp', 'Grupo no WhatsApp'],
+                ['telegram', 'Grupo no Telegram'],
+                ['instagram', 'Instagram'],
+                ['tiktok', 'TikTok'],
+                ['youtube', 'YouTube']
+              ] as const).map(([campo, label]) => (
+                <div key={campo}>
+                  <label className="text-xs font-bold text-slate-300 block mb-1">{label}</label>
+                  <input
+                    type="url"
+                    value={(redes as any)[campo]}
+                    onChange={e => setRedes({ ...redes, [campo]: e.target.value })}
+                    placeholder="https://..."
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none"
+                  />
+                </div>
+              ))}
+            </div>
+
+            {marcaMsg && (
+              <p className="text-xs text-emerald-300 font-medium flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                {marcaMsg}
+              </p>
+            )}
+
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                disabled={salvandoMarca}
+                className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 text-slate-950 text-xs font-black rounded-xl shadow-lg shadow-emerald-500/20"
+              >
+                {salvandoMarca ? 'Salvando...' : 'Salvar personalização'}
+              </button>
+            </div>
+          </form>
         )}
 
         </div>

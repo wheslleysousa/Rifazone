@@ -2,7 +2,8 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { Campanha, Cota, Pedido, Comprador, RankingItem, CotaPremiada, ConfigOrganizador } from '../src/types.js';
-import { Storage, EstatisticasCampanha, MeusNumerosResult, ConfirmarPedidoResult, SorteioResult } from './storage-interface.js';
+import { Storage, EstatisticasCampanha, MeusNumerosResult, ConfirmarPedidoResult, SorteioResult, DadosConfig } from './storage-interface.js';
+import { mergeConfig } from './config-utils.js';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 if (!fs.existsSync(DATA_DIR)) {
@@ -500,19 +501,8 @@ export class FileStorage implements Storage {
     return this.configs.get(ownerId) || null;
   }
 
-  public async saveConfig(ownerId: string, dados: { mpAccessToken?: string | null; mpPublicKey?: string | null }): Promise<ConfigOrganizador> {
-    const existente = this.configs.get(ownerId);
-    const config: ConfigOrganizador = {
-      ownerId,
-      // Só sobrescreve o token se um novo valor não-vazio foi enviado (evita apagar por engano)
-      mpAccessToken: dados.mpAccessToken !== undefined && dados.mpAccessToken !== ''
-        ? (dados.mpAccessToken ? dados.mpAccessToken.trim() : null)
-        : (existente?.mpAccessToken ?? null),
-      mpPublicKey: dados.mpPublicKey !== undefined
-        ? (dados.mpPublicKey ? dados.mpPublicKey.trim() : null)
-        : (existente?.mpPublicKey ?? null),
-      atualizadaEm: new Date().toISOString()
-    };
+  public async saveConfig(ownerId: string, dados: DadosConfig): Promise<ConfigOrganizador> {
+    const config = mergeConfig(ownerId, this.configs.get(ownerId) || null, dados);
     this.configs.set(ownerId, config);
     this.saveConfigs();
     return config;

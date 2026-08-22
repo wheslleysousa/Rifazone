@@ -399,19 +399,6 @@ export const PixPaymentModal: React.FC<Props> = ({
               <span>Aguardando confirmação do banco... Seus números serão liberados automaticamente nesta tela!</span>
             </div>
 
-            {/* Botão de teste rápido em modo dev / preview */}
-            <div className="pt-2 border-t border-slate-800/80">
-              <button
-                id="btn-simular-aprovacao"
-                onClick={handleSimularPagamento}
-                disabled={simulando}
-                className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-emerald-400 font-semibold text-xs rounded-xl flex items-center justify-center gap-1.5 transition"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                {simulando ? 'Processando simulação...' : '⚡ Simular Aprovação Imediata (Ambiente de Testes)'}
-              </button>
-            </div>
-
             <button
               onClick={onClose}
               className="w-full mt-3 py-2 text-slate-400 hover:text-white text-xs font-medium text-center transition"

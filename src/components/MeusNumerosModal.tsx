@@ -45,9 +45,9 @@ export const MeusNumerosModal: React.FC<Props> = ({ campanha, onBack }) => {
         setPedidos(data.pedidos || []);
         setComprador(data.comprador || null);
         try {
-          localStorage.setItem('rifapix_comprador_whatsapp', cleanPhone);
+          localStorage.setItem('rifazone_comprador_whatsapp', cleanPhone);
           if (data.comprador?.nome) {
-            localStorage.setItem('rifapix_comprador_nome', data.comprador.nome);
+            localStorage.setItem('rifazone_comprador_nome', data.comprador.nome);
           }
         } catch (e) {}
       }

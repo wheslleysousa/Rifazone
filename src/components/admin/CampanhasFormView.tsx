@@ -38,6 +38,7 @@ export const CampanhasFormView: React.FC<Props> = ({
   const [abaInterna, setAbaInterna] = useState<TabType>('basico');
   const [carregandoBanner, setCarregandoBanner] = useState(false);
   const [carregandoCarrossel, setCarregandoCarrossel] = useState(false);
+  const [carregandoOrganizadorFoto, setCarregandoOrganizadorFoto] = useState(false);
   const [dragActiveBanner, setDragActiveBanner] = useState(false);
   const [dragActiveCarrossel, setDragActiveCarrossel] = useState(false);
   const [modoUrlBanner, setModoUrlBanner] = useState(false);
@@ -45,6 +46,20 @@ export const CampanhasFormView: React.FC<Props> = ({
   const bannerFileInputRef = useRef<HTMLInputElement>(null);
   const bannerCameraInputRef = useRef<HTMLInputElement>(null);
   const carrosselFileInputRef = useRef<HTMLInputElement>(null);
+  const organizadorFileInputRef = useRef<HTMLInputElement>(null);
+  const organizadorCameraInputRef = useRef<HTMLInputElement>(null);
+
+  const handleOrganizadorFotoUpload = async (file: File) => {
+    try {
+      setCarregandoOrganizadorFoto(true);
+      const dataUrl = await compressAndReadImage(file, 400, 400, 0.85);
+      setForm(prev => ({ ...prev, organizadorFoto: dataUrl }));
+    } catch (err: any) {
+      alert(err.message || 'Erro ao carregar foto do organizador.');
+    } finally {
+      setCarregandoOrganizadorFoto(false);
+    }
+  };
 
   const selosPredefinidos = [
     '🔥 Corre que essa vai rápido!',
@@ -528,12 +543,12 @@ export const CampanhasFormView: React.FC<Props> = ({
                   <span>Atalhos Rápidos de Valor de Cota:</span>
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5">
-                  {[0.10, 0.25, 0.50, 1.00, 2.50, 5.00].map(v => (
+                  {[0.05, 0.10, 0.25, 0.50, 1.00, 2.50, 5.00, 10.00].map(v => (
                     <button
                       key={v}
                       type="button"
                       onClick={() => setForm(prev => ({ ...prev, valorCota: v }))}
-                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-emerald-400 rounded-lg text-xs font-mono font-bold transition border border-slate-700"
+                      className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-emerald-400 rounded-lg text-xs font-mono font-bold transition border border-slate-700"
                     >
                       R$ {v.toFixed(2).replace('.', ',')}
                     </button>
@@ -563,23 +578,63 @@ export const CampanhasFormView: React.FC<Props> = ({
                   </select>
                 </div>
 
-                <div>
-                  <label className="text-xs font-bold text-slate-300 block mb-1">
-                    Total de Cotas *
-                  </label>
-                  <select
-                    value={form.totalCotas || 10000}
-                    onChange={e => setForm(prev => ({ ...prev, totalCotas: Number(e.target.value) }))}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-xs font-mono font-bold text-white focus:border-emerald-500 focus:outline-none"
-                  >
-                    <option value="100">100 cotas (00 a 99)</option>
-                    <option value="500">500 cotas (000 a 499)</option>
-                    <option value="1000">1.000 cotas (000 a 999)</option>
-                    <option value="5000">5.000 cotas (0000 a 4999)</option>
-                    <option value="10000">10.000 cotas (0000 a 9999)</option>
-                    <option value="50000">50.000 cotas (00000 a 49999)</option>
-                    <option value="100000">100.000 cotas (00000 a 99999)</option>
-                  </select>
+                <div className="sm:col-span-2">
+                  <div className="flex flex-wrap items-center justify-between gap-1 mb-1">
+                    <label className="text-xs font-bold text-slate-300 block">
+                      Total de Cotas (Sorteio) *
+                    </label>
+                    {form.totalCotas && form.totalCotas > 0 && (
+                      <span className="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+                        {(() => {
+                          const max = form.totalCotas - 1;
+                          let dig = String(max).length;
+                          if (dig < 2) dig = 2;
+                          const ini = '0'.padStart(dig, '0');
+                          const fim = String(max).padStart(dig, '0');
+                          return `Sorteio: ${ini} a ${fim}`;
+                        })()}
+                      </span>
+                    )}
+                  </div>
+
+                  <input
+                    type="number"
+                    min="1"
+                    max="10000000"
+                    placeholder="Ex: 10000"
+                    value={form.totalCotas !== undefined && form.totalCotas !== null ? form.totalCotas : ''}
+                    onChange={e => setForm(prev => ({ ...prev, totalCotas: e.target.value === '' ? 10000 : Number(e.target.value) }))}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono font-bold text-white focus:border-emerald-500 focus:outline-none"
+                    required
+                  />
+
+                  {/* Botões Rápidos de Opções de Cotas (100 a 10 Milhões) */}
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {[
+                      { label: '100', val: 100 },
+                      { label: '200', val: 200 },
+                      { label: '300', val: 300 },
+                      { label: '500', val: 500 },
+                      { label: '1 MIL', val: 1000 },
+                      { label: '10 MIL', val: 10000 },
+                      { label: '100 MIL', val: 100000 },
+                      { label: '1 MILHÃO', val: 1000000 },
+                      { label: '10 MILHÕES', val: 10000000 },
+                    ].map(item => (
+                      <button
+                        key={item.val}
+                        type="button"
+                        onClick={() => setForm(prev => ({ ...prev, totalCotas: item.val }))}
+                        className={`px-2 py-1 rounded text-[10px] font-mono font-bold transition border ${
+                          form.totalCotas === item.val
+                            ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow'
+                            : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+                        }`}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 <div>
@@ -691,6 +746,217 @@ export const CampanhasFormView: React.FC<Props> = ({
                   onChange={e => setForm(prev => ({ ...prev, selo: e.target.value }))}
                   className="sm:w-1/2 bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:border-emerald-500 focus:outline-none"
                 />
+              </div>
+            </div>
+
+            {/* Datas da Campanha e Contador Regressivo */}
+            <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-xl space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-bold text-emerald-400 flex items-center gap-1.5 uppercase tracking-wider">
+                    <Clock className="w-4 h-4 text-emerald-400" />
+                    Agendamento & Contador Regressivo
+                  </h4>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Ative caso deseje definir uma data de início e de término com contador regressivo em tempo real.
+                  </p>
+                </div>
+
+                <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={!!form.agendamentoAtivo}
+                    onChange={e => setForm(prev => ({ ...prev, agendamentoAtivo: e.target.checked }))}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                </label>
+              </div>
+
+              {form.agendamentoAtivo && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-800/80">
+                  <div>
+                    <label className="text-xs font-bold text-slate-300 block mb-1">
+                      Data e Hora de Início
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={form.dataInicio || ''}
+                      onChange={e => setForm(prev => ({ ...prev, dataInicio: e.target.value }))}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                    />
+                    <span className="text-[10px] text-slate-500 block mt-1">
+                      Antes desta data, aparecerá o contador "Faltam X dias/horas para o início".
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-300 block mb-1">
+                      Data e Hora de Término
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={form.dataTermino || ''}
+                      onChange={e => setForm(prev => ({ ...prev, dataTermino: e.target.value }))}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                    />
+                    <span className="text-[10px] text-slate-500 block mt-1">
+                      Enquanto ativa, mostra "Encerra em X dias/horas". Após o término, o sorteio/vendas se encerram.
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Dados do Organizador e Redes Sociais */}
+            <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-xl space-y-3">
+              <h4 className="text-xs font-bold text-emerald-400 flex items-center gap-1.5 uppercase tracking-wider">
+                <Tag className="w-4 h-4 text-emerald-400" />
+                Perfil do Organizador & Redes Sociais
+              </h4>
+              <p className="text-[11px] text-slate-400">
+                Estas informações aparecem no topo, no menu lateral `[ ≡ MENU ]` e nos direitos autorais da campanha.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="text-xs font-bold text-slate-300 block mb-1">
+                    Nome do Organizador / Marca
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Wheslley Sousa"
+                    value={form.organizadorNome || ''}
+                    onChange={e => setForm(prev => ({ ...prev, organizadorNome: e.target.value }))}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-300 block mb-1">
+                    Foto / Logo do Organizador
+                  </label>
+                  
+                  <input
+                    type="file"
+                    ref={organizadorFileInputRef}
+                    accept="image/*"
+                    className="hidden"
+                    onChange={e => {
+                      const file = e.target.files?.[0];
+                      if (file) handleOrganizadorFotoUpload(file);
+                    }}
+                  />
+                  <input
+                    type="file"
+                    ref={organizadorCameraInputRef}
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={e => {
+                      const file = e.target.files?.[0];
+                      if (file) handleOrganizadorFotoUpload(file);
+                    }}
+                  />
+
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      {form.organizadorFoto ? (
+                        <div className="relative group shrink-0">
+                          <img
+                            src={form.organizadorFoto}
+                            alt="Preview Organizador"
+                            className="w-10 h-10 rounded-full object-cover border-2 border-emerald-500 shadow-md"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setForm(prev => ({ ...prev, organizadorFoto: '' }))}
+                            className="absolute -top-1 -right-1 w-4 h-4 bg-red-600 text-white rounded-full text-[10px] font-bold flex items-center justify-center shadow"
+                            title="Remover foto"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0 text-slate-400">
+                          <Camera className="w-5 h-5" />
+                        </div>
+                      )}
+
+                      <div className="flex-1 flex gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => organizadorFileInputRef.current?.click()}
+                          disabled={carregandoOrganizadorFoto}
+                          className="flex-1 px-2.5 py-2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 font-bold rounded-xl text-[11px] flex items-center justify-center gap-1 transition active:scale-95"
+                        >
+                          {carregandoOrganizadorFoto ? (
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-400" />
+                          ) : (
+                            <Upload className="w-3.5 h-3.5 text-emerald-400" />
+                          )}
+                          <span>Upload Foto / Logo</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => organizadorCameraInputRef.current?.click()}
+                          disabled={carregandoOrganizadorFoto}
+                          className="px-2.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 font-bold rounded-xl text-[11px] flex items-center justify-center gap-1 transition active:scale-95"
+                          title="Tirar foto com a Câmera"
+                        >
+                          <Camera className="w-3.5 h-3.5 text-emerald-400" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <input
+                      type="url"
+                      placeholder="Ou cole o Link (URL) aqui..."
+                      value={form.organizadorFoto || ''}
+                      onChange={e => setForm(prev => ({ ...prev, organizadorFoto: e.target.value }))}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-300 block mb-1">
+                    WhatsApp de Suporte
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="(99) 99999-9999"
+                    value={form.organizadorWhatsapp || ''}
+                    onChange={e => setForm(prev => ({ ...prev, organizadorWhatsapp: e.target.value }))}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-300 block mb-1">
+                    Instagram (@usuario)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="@wheslley.sousa"
+                    value={form.organizadorInstagram || ''}
+                    onChange={e => setForm(prev => ({ ...prev, organizadorInstagram: e.target.value }))}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-300 block mb-1">
+                    TikTok (@usuario)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="@wheslley.sousa"
+                    value={form.organizadorTiktok || ''}
+                    onChange={e => setForm(prev => ({ ...prev, organizadorTiktok: e.target.value }))}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                  />
+                </div>
               </div>
             </div>
 
@@ -967,6 +1233,44 @@ export const CampanhasFormView: React.FC<Props> = ({
                 className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-xs text-white focus:border-red-500 focus:outline-none"
               />
             </div>
+
+            {/* PRÉVIA DO CARD DO WHATSAPP */}
+            <div className="pt-6 border-t border-slate-800 space-y-3">
+              <h3 className="text-base font-black text-white flex items-center gap-2">
+                <LinkIcon className="w-5 h-5 text-emerald-400" />
+                Prévia de Compartilhamento no WhatsApp
+              </h3>
+              <p className="text-xs text-slate-400">
+                Assim é como a imagem e os textos do seu link aparecerão quando você ou seus clientes enviarem a rifa no WhatsApp.
+              </p>
+
+              <div className="max-w-sm bg-[#0b141a] border border-slate-800 rounded-2xl p-3 space-y-2 text-white shadow-xl">
+                <div className="bg-[#1f2c34] rounded-xl overflow-hidden border border-slate-700/50">
+                  <div className="aspect-[1.91/1] w-full bg-slate-900 overflow-hidden relative">
+                    {form.bannerUrl ? (
+                      <img src={form.bannerUrl} alt="WhatsApp Preview" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-slate-600 text-xs font-mono">
+                        [ Sem imagem de capa ]
+                      </div>
+                    )}
+                  </div>
+                  <div className="p-3 space-y-1 bg-[#111b21]">
+                    <span className="text-[10px] text-slate-400 uppercase font-mono block">RIFAZONE.ONRENDER.COM</span>
+                    <h4 className="text-xs font-bold text-slate-100 truncate">
+                      {form.titulo || 'Título da Campanha'}
+                    </h4>
+                    <p className="text-[11px] text-slate-400 line-clamp-2">
+                      {form.subtitulo || 'Participe do sorteio oficial e concorra a prêmios incríveis com pagamento Pix imediato!'}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between text-[10px] text-slate-400 px-1">
+                  <span>rifazone.onrender.com/c/{form.codigo || 'sua-campanha'}</span>
+                  <span>12:00</span>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -1183,17 +1487,21 @@ export const CampanhasFormView: React.FC<Props> = ({
                 </div>
               ) : (
                 (form.promocoes || []).map((promo, idx) => (
-                  <div key={idx} className="p-4 bg-slate-950/80 border border-slate-800 rounded-xl grid grid-cols-1 sm:grid-cols-4 gap-3 items-center">
+                  <div key={idx} className="p-4 bg-slate-950/80 border border-slate-800 rounded-xl grid grid-cols-1 sm:grid-cols-5 gap-3 items-center">
                     <div>
                       <label className="text-[10px] text-slate-400 block mb-1">Qtd de Cotas</label>
                       <input
                         type="number"
                         min="1"
-                        placeholder="Ex: 20"
+                        placeholder="Ex: 50"
                         value={promo.quantidade !== undefined && promo.quantidade > 0 ? promo.quantidade : ''}
                         onChange={e => {
+                          const valQtd = e.target.value === '' ? 0 : Number(e.target.value);
+                          const unitPrice = Number(form.valorCota) || 1.00;
                           const arr = [...(form.promocoes || [])];
-                          arr[idx].quantidade = e.target.value === '' ? 0 : Number(e.target.value);
+                          arr[idx].quantidade = valQtd;
+                          // Cálculo automático do valor do pacote com base no número de cotas
+                          arr[idx].valor = Number((valQtd * unitPrice).toFixed(2));
                           setForm(prev => ({ ...prev, promocoes: arr }));
                         }}
                         className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono font-bold text-white focus:outline-none"
@@ -1201,7 +1509,7 @@ export const CampanhasFormView: React.FC<Props> = ({
                     </div>
 
                     <div>
-                      <label className="text-[10px] text-slate-400 block mb-1">Valor do Pacote (R$)</label>
+                      <label className="text-[10px] text-slate-400 block mb-1">Valor Total (Auto/Editável)</label>
                       <input
                         type="number"
                         step="0.01"
@@ -1234,6 +1542,42 @@ export const CampanhasFormView: React.FC<Props> = ({
                       </label>
                     </div>
 
+                    {/* Reordenar Ordem (⬆️ e ⬇️) */}
+                    <div className="flex items-center justify-center gap-1">
+                      <button
+                        type="button"
+                        disabled={idx === 0}
+                        onClick={() => {
+                          if (idx === 0) return;
+                          const arr = [...(form.promocoes || [])];
+                          const temp = arr[idx];
+                          arr[idx] = arr[idx - 1];
+                          arr[idx - 1] = temp;
+                          setForm(prev => ({ ...prev, promocoes: arr }));
+                        }}
+                        className="p-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 text-slate-300 rounded-lg text-xs font-bold transition"
+                        title="Mover para cima"
+                      >
+                        ⬆️
+                      </button>
+                      <button
+                        type="button"
+                        disabled={idx === (form.promocoes || []).length - 1}
+                        onClick={() => {
+                          const arr = [...(form.promocoes || [])];
+                          if (idx >= arr.length - 1) return;
+                          const temp = arr[idx];
+                          arr[idx] = arr[idx + 1];
+                          arr[idx + 1] = temp;
+                          setForm(prev => ({ ...prev, promocoes: arr }));
+                        }}
+                        className="p-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 text-slate-300 rounded-lg text-xs font-bold transition"
+                        title="Mover para baixo"
+                      >
+                        ⬇️
+                      </button>
+                    </div>
+
                     <div className="text-right">
                       <button
                         type="button"
@@ -1246,6 +1590,86 @@ export const CampanhasFormView: React.FC<Props> = ({
                   </div>
                 ))
               )}
+            </div>
+
+            {/* SEÇÃO: DESCONTO PROGRESSIVO POR VALOR TOTAL DE COMPRA */}
+            <div className="pt-6 border-t border-slate-800 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-sm font-black text-white flex items-center gap-2">
+                    <DollarSign className="w-4 h-4 text-emerald-400" />
+                    Desconto Progressivo por Valor Total de Compra
+                  </h4>
+                  <p className="text-xs text-slate-400">
+                    Configuração ex: "A partir de R$ 30,00 de compra, cada cota sai por R$ 0,80".
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const regras = form.descontoPorValorTotal || [];
+                    setForm(prev => ({
+                      ...prev,
+                      descontoPorValorTotal: [
+                        ...regras,
+                        { aPartirDeValor: 30, valorCotaComDesconto: 0.80 }
+                      ]
+                    }));
+                  }}
+                  className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 font-bold rounded-xl text-xs flex items-center gap-1 border border-emerald-500/30 transition"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Adicionar Regra de Desconto
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                {(form.descontoPorValorTotal || []).length === 0 ? (
+                  <p className="text-xs text-slate-500 italic">Nenhuma regra de desconto por valor configurada.</p>
+                ) : (
+                  (form.descontoPorValorTotal || []).map((regra, idx) => (
+                    <div key={idx} className="p-3 bg-slate-950/80 border border-slate-800 rounded-xl flex items-center gap-3">
+                      <span className="text-xs font-bold text-slate-300">A partir de R$</span>
+                      <input
+                        type="number"
+                        step="1"
+                        min="1"
+                        value={regra.aPartirDeValor}
+                        onChange={e => {
+                          const arr = [...(form.descontoPorValorTotal || [])];
+                          arr[idx].aPartirDeValor = Number(e.target.value);
+                          setForm(prev => ({ ...prev, descontoPorValorTotal: arr }));
+                        }}
+                        className="w-24 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-white focus:outline-none"
+                      />
+                      <span className="text-xs font-bold text-slate-300">cada cota fica por R$</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        value={regra.valorCotaComDesconto}
+                        onChange={e => {
+                          const arr = [...(form.descontoPorValorTotal || [])];
+                          arr[idx].valorCotaComDesconto = Number(e.target.value);
+                          setForm(prev => ({ ...prev, descontoPorValorTotal: arr }));
+                        }}
+                        className="w-24 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-emerald-400 focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const arr = (form.descontoPorValorTotal || []).filter((_, i) => i !== idx);
+                          setForm(prev => ({ ...prev, descontoPorValorTotal: arr }));
+                        }}
+                        className="p-1.5 text-slate-500 hover:text-red-400 transition ml-auto"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           </div>
         )}

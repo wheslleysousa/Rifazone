@@ -32,10 +32,23 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
   const [whatsapp, setWhatsapp] = useState('');
   const [cpf, setCpf] = useState('');
   const [email, setEmail] = useState('');
+  const [dataNascimento, setDataNascimento] = useState('');
   const [maiorIdade, setMaiorIdade] = useState(true);
   const [compradorSalvo, setCompradorSalvo] = useState<{ nome: string; whatsapp: string } | null>(null);
   const [formErro, setFormErro] = useState('');
   const [enviandoPedido, setEnviandoPedido] = useState(false);
+
+  // Menu Lateral Drawer
+  const [menuAberto, setMenuAberto] = useState(false);
+
+  // Contador Regressivo (Aguardando Início / Em Andamento / Encerrada)
+  const [tempoRestante, setTempoRestante] = useState<{ 
+    dias: number; 
+    horas: number; 
+    minutos: number; 
+    segundos: number; 
+    status: 'aguardando_inicio' | 'em_andamento' | 'encerrada';
+  } | null>(null);
 
   // Modal Meus Dados
   const [meusDadosAberto, setMeusDadosAberto] = useState(false);
@@ -72,10 +85,10 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
   // Inicializar dados do comprador do localStorage
   useEffect(() => {
     try {
-      const savedNome = localStorage.getItem('rifapix_comprador_nome');
-      const savedPhone = localStorage.getItem('rifapix_comprador_whatsapp');
-      const savedCpf = localStorage.getItem('rifapix_comprador_cpf');
-      const savedEmail = localStorage.getItem('rifapix_comprador_email');
+      const savedNome = localStorage.getItem('rifazone_comprador_nome') || localStorage.getItem('rifapix_comprador_nome');
+      const savedPhone = localStorage.getItem('rifazone_comprador_whatsapp') || localStorage.getItem('rifapix_comprador_whatsapp');
+      const savedCpf = localStorage.getItem('rifazone_comprador_cpf') || localStorage.getItem('rifapix_comprador_cpf');
+      const savedEmail = localStorage.getItem('rifazone_comprador_email') || localStorage.getItem('rifapix_comprador_email');
 
       if (savedNome) setNome(savedNome);
       if (savedPhone) {
@@ -116,6 +129,64 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
     carregarCampanha();
   }, [codigo]);
 
+  // Efeito do Contador Regressivo (Início e Término)
+  useEffect(() => {
+    const camp = data?.campanha;
+    if (!camp) return;
+
+    // Se o agendamento não estiver ativo, reseta o contador
+    if (camp.agendamentoAtivo === false) {
+      setTempoRestante(null);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      const agora = new Date().getTime();
+      const inicio = camp.dataInicio ? new Date(camp.dataInicio).getTime() : null;
+      const fim = camp.dataTermino ? new Date(camp.dataTermino).getTime() : null;
+
+      if (inicio && agora < inicio) {
+        // Ainda não iniciou
+        const diff = inicio - agora;
+        const dias = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const horas = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutos = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const segundos = Math.floor((diff % (1000 * 60)) / 1000);
+        setTempoRestante({ dias, horas, minutos, segundos, status: 'aguardando_inicio' });
+      } else if (fim && agora < fim) {
+        // Em andamento
+        const diff = fim - agora;
+        const dias = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const horas = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutos = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const segundos = Math.floor((diff % (1000 * 60)) / 1000);
+        setTempoRestante({ dias, horas, minutos, segundos, status: 'em_andamento' });
+      } else if (fim && agora >= fim) {
+        // Já encerrou
+        setTempoRestante({ dias: 0, horas: 0, minutos: 0, segundos: 0, status: 'encerrada' });
+        clearInterval(interval);
+      } else {
+        setTempoRestante(null);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [data?.campanha?.agendamentoAtivo, data?.campanha?.dataInicio, data?.campanha?.dataTermino]);
+
+  // Função para calcular idade pela data de nascimento
+  const calcularIdade = (dataNascStr: string): number | null => {
+    if (!dataNascStr) return null;
+    const nasc = new Date(dataNascStr);
+    if (isNaN(nasc.getTime())) return null;
+    const hoje = new Date();
+    let idade = hoje.getFullYear() - nasc.getFullYear();
+    const m = hoje.getMonth() - nasc.getMonth();
+    if (m < 0 || (m === 0 && hoje.getDate() < nasc.getDate())) {
+      idade--;
+    }
+    return idade;
+  };
+
   if (carregando) {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-white p-4">
@@ -147,13 +218,21 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
 
   const { campanha, estatisticas, ranking } = data;
 
-  // Cálculo de valor
+  // Cálculo de valor com suporte a pacotes e desconto progressivo
   const calcularValorTotal = (qtd: number) => {
     if (campanha.promocoes && campanha.promocoes.length > 0) {
       const promo = campanha.promocoes.find(p => p.quantidade === qtd);
       if (promo) return promo.valor;
     }
-    return Number((qtd * campanha.valorCota).toFixed(2));
+    const valorBase = qtd * campanha.valorCota;
+    if (campanha.descontoPorValorTotal && campanha.descontoPorValorTotal.length > 0) {
+      const regrasOrdenadas = [...campanha.descontoPorValorTotal].sort((a, b) => b.aPartirDeValor - a.aPartirDeValor);
+      const regraValida = regrasOrdenadas.find(r => valorBase >= r.aPartirDeValor);
+      if (regraValida) {
+        return Number((qtd * regraValida.valorCotaComDesconto).toFixed(2));
+      }
+    }
+    return Number(valorBase.toFixed(2));
   };
 
   const valorTotalAtual = calcularValorTotal(quantidade);
@@ -192,6 +271,16 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
     e.preventDefault();
     setFormErro('');
 
+    if (tempoRestante?.status === 'aguardando_inicio') {
+      setFormErro('Esta campanha ainda não iniciou as vendas. Por favor, aguarde o horário de início.');
+      return;
+    }
+
+    if (tempoRestante?.status === 'encerrada') {
+      setFormErro('Esta campanha já foi encerrada e não está aceitando novos pedidos.');
+      return;
+    }
+
     const cleanWhatsapp = whatsapp.replace(/\D/g, '');
     if (cleanWhatsapp.length < 10) {
       setFormErro('Informe um WhatsApp válido com DDD.');
@@ -201,6 +290,14 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
     if (!maiorIdade) {
       setFormErro('É obrigatório declarar ter no mínimo 18 anos para participar.');
       return;
+    }
+
+    if (dataNascimento) {
+      const idad = calcularIdade(dataNascimento);
+      if (idad !== null && idad < 18) {
+        setFormErro(`Pela sua data de nascimento, você tem ${idad} anos. É necessário ter 18 anos ou mais para participar.`);
+        return;
+      }
     }
 
     if (campanha.exigirCpf && (!cpf || cpf.replace(/\D/g, '').length !== 11)) {
@@ -248,10 +345,10 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
 
       setCheckoutAberto(false);
       try {
-        localStorage.setItem('rifapix_comprador_nome', nome.trim());
-        localStorage.setItem('rifapix_comprador_whatsapp', cleanWhatsapp);
-        if (cpf) localStorage.setItem('rifapix_comprador_cpf', cpf.trim());
-        if (email) localStorage.setItem('rifapix_comprador_email', email.trim());
+        localStorage.setItem('rifazone_comprador_nome', nome.trim());
+        localStorage.setItem('rifazone_comprador_whatsapp', cleanWhatsapp);
+        if (cpf) localStorage.setItem('rifazone_comprador_cpf', cpf.trim());
+        if (email) localStorage.setItem('rifazone_comprador_email', email.trim());
         setCompradorSalvo({ nome: nome.trim(), whatsapp: cleanWhatsapp });
       } catch (e) {}
 
@@ -280,56 +377,53 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
   };
 
   return (
-    <div
-      className="min-h-screen bg-slate-950 text-slate-100 selection:bg-emerald-500 selection:text-slate-950"
-      style={{
-        // Cores da marca do organizador (com fallback), disponíveis via var CSS
-        ['--brand' as any]: data?.marca?.corPrincipal || '#10b981',
-        ['--brand-2' as any]: data?.marca?.corDestaque || '#f59e0b'
-      }}
-    >
-
-      {/* Top Navbar */}
-      <header className="sticky top-0 z-40 bg-slate-950/90 backdrop-blur-md border-b border-slate-800">
-        <div className="max-w-xl mx-auto px-4 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {data?.marca?.logoUrl ? (
-              <img src={data.marca.logoUrl} alt={data.marca.nomeMarca || 'Logo'} className="h-8 max-w-[140px] object-contain" />
+    <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-emerald-500 selection:text-slate-950">
+      
+      {/* Top Navbar com Menu Lateral conforme layout solicitado */}
+      <header className="sticky top-0 z-40 bg-slate-950/95 backdrop-blur-md border-b border-slate-800">
+        <div className="max-w-xl mx-auto px-4 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            {campanha.organizadorFoto ? (
+              <img
+                src={campanha.organizadorFoto}
+                alt={campanha.organizadorNome || 'Organizador'}
+                className="w-9 h-9 rounded-full object-cover border border-emerald-500/50 shadow-md"
+              />
             ) : (
-              <>
-                <div
-                  className="w-8 h-8 rounded-lg flex items-center justify-center font-black text-slate-950 text-lg shadow-md"
-                  style={{ background: data?.marca?.corPrincipal || '#10b981' }}
-                >
-                  {(data?.marca?.nomeMarca || 'RifaZone').charAt(0).toUpperCase()}
-                </div>
-                <span className="font-extrabold text-white text-base tracking-tight">
-                  {data?.marca?.nomeMarca || 'RifaZone'}
-                </span>
-              </>
+              <div className="w-9 h-9 rounded-full bg-emerald-500 flex items-center justify-center font-black text-slate-950 text-base shadow-md shadow-emerald-500/20">
+                {(campanha.organizadorNome || 'Rifa')[0].toUpperCase()}
+              </div>
             )}
+            <div>
+              <span className="font-extrabold text-white text-sm tracking-tight block truncate max-w-[160px] sm:max-w-[200px]">
+                {campanha.titulo}
+              </span>
+              <span className="text-[10px] text-slate-400 font-medium block">
+                {campanha.organizadorNome || 'Wheslley Sousa'}
+              </span>
+            </div>
           </div>
 
           <div className="flex items-center gap-2">
             <button
-              id="btn-abrir-meus-dados"
-              type="button"
-              onClick={() => setMeusDadosAberto(true)}
-              className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700 transition"
-              title="Ver e preencher meus dados para o sorteio (+18 anos)"
-            >
-              <User className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Meus Dados</span>
-            </button>
-
-            <button
               id="btn-ver-meus-numeros"
               type="button"
               onClick={() => setMeusNumerosAberto(true)}
-              className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 transition"
+              className="flex items-center gap-1.5 text-xs font-bold px-2.5 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 transition"
             >
               <Ticket className="w-3.5 h-3.5" />
-              <span>Meus Números</span>
+              <span className="hidden sm:inline">Meus Números</span>
+            </button>
+
+            {/* Três botões do lado direito / Menu */}
+            <button
+              id="btn-abrir-menu-lateral"
+              type="button"
+              onClick={() => setMenuAberto(true)}
+              className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 transition shadow"
+            >
+              <span className="text-emerald-400 font-extrabold text-sm">≡</span>
+              <span>MENU</span>
             </button>
           </div>
         </div>
@@ -363,9 +457,208 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
         )}
       </header>
 
+      {/* DRAWER MENU LATERAL */}
+      {menuAberto && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-xs bg-slate-900 border-l border-slate-800 h-full p-5 flex flex-col justify-between shadow-2xl animate-in slide-in-from-right">
+            <div className="space-y-5">
+              <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+                <div className="flex items-center gap-3">
+                  {campanha.organizadorFoto ? (
+                    <img src={campanha.organizadorFoto} alt="Perfil" className="w-10 h-10 rounded-full object-cover border border-emerald-500/50" />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center font-black text-slate-950">
+                      {(campanha.organizadorNome || 'O')[0]}
+                    </div>
+                  )}
+                  <div>
+                    <h4 className="text-sm font-bold text-white leading-tight">
+                      {campanha.organizadorNome || 'Wheslley Sousa'}
+                    </h4>
+                    <span className="text-[11px] text-slate-400">Organizador Oficial</span>
+                  </div>
+                </div>
+                <button onClick={() => setMenuAberto(false)} className="p-1 text-slate-400 hover:text-white rounded-lg">
+                  ✕
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                <button
+                  onClick={() => { setMenuAberto(false); setMeusNumerosAberto(true); }}
+                  className="w-full p-3 bg-slate-800 hover:bg-slate-700/80 rounded-xl text-xs font-bold text-slate-200 flex items-center gap-2.5 transition"
+                >
+                  <Ticket className="w-4 h-4 text-emerald-400" />
+                  <span>Meus Números / Buscar Cotas</span>
+                </button>
+
+                <button
+                  onClick={() => { setMenuAberto(false); setMeusDadosAberto(true); }}
+                  className="w-full p-3 bg-slate-800 hover:bg-slate-700/80 rounded-xl text-xs font-bold text-slate-200 flex items-center gap-2.5 transition"
+                >
+                  <User className="w-4 h-4 text-emerald-400" />
+                  <span>Meus Dados Cadastrados</span>
+                </button>
+
+                {campanha.organizadorWhatsapp && (
+                  <a
+                    href={`https://wa.me/55${campanha.organizadorWhatsapp.replace(/\D/g, '')}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="w-full p-3 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 rounded-xl text-xs font-bold text-emerald-300 flex items-center gap-2.5 transition"
+                  >
+                    <Smartphone className="w-4 h-4 text-emerald-400" />
+                    <span>Suporte WhatsApp</span>
+                  </a>
+                )}
+
+                {campanha.organizadorInstagram && (
+                  <a
+                    href={`https://instagram.com/${campanha.organizadorInstagram.replace('@', '')}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="w-full p-3 bg-pink-600/20 hover:bg-pink-600/30 border border-pink-500/30 rounded-xl text-xs font-bold text-pink-300 flex items-center gap-2.5 transition"
+                  >
+                    <Instagram className="w-4 h-4 text-pink-400" />
+                    <span>Instagram do Organizador</span>
+                  </a>
+                )}
+
+                {campanha.organizadorTiktok && (
+                  <a
+                    href={`https://tiktok.com/@${campanha.organizadorTiktok.replace('@', '')}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="w-full p-3 bg-slate-800 hover:bg-slate-700/80 border border-slate-700 rounded-xl text-xs font-bold text-slate-200 flex items-center gap-2.5 transition"
+                  >
+                    <Share2 className="w-4 h-4 text-cyan-400" />
+                    <span>TikTok do Organizador</span>
+                  </a>
+                )}
+              </div>
+            </div>
+
+            {/* DIREITOS AUTORAIS NO FINAL DO MENU */}
+            <div className="pt-4 border-t border-slate-800 text-center">
+              <p className="text-[11px] text-slate-500 font-medium">
+                {campanha.organizadorNome || 'Wheslley Sousa'} - todos os direitos reservados
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 3 BOTÕES FLUTUANTES NO CANTO DIREITO */}
+      <div className="fixed bottom-20 right-3 z-30 flex flex-col gap-2">
+        {campanha.organizadorWhatsapp && (
+          <a
+            href={`https://wa.me/55${campanha.organizadorWhatsapp.replace(/\D/g, '')}`}
+            target="_blank"
+            rel="noreferrer"
+            className="w-11 h-11 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/30 transition hover:scale-105"
+            title="WhatsApp de Suporte"
+          >
+            <Smartphone className="w-5 h-5 fill-slate-950" />
+          </a>
+        )}
+        {campanha.organizadorInstagram && (
+          <a
+            href={`https://instagram.com/${campanha.organizadorInstagram.replace('@', '')}`}
+            target="_blank"
+            rel="noreferrer"
+            className="w-11 h-11 bg-gradient-to-tr from-amber-500 via-pink-500 to-purple-600 text-white rounded-full flex items-center justify-center shadow-lg transition hover:scale-105"
+            title="Instagram"
+          >
+            <Instagram className="w-5 h-5" />
+          </a>
+        )}
+        <button
+          onClick={() => {
+            if (navigator.share) {
+              navigator.share({ title: campanha.titulo, url: window.location.href });
+            } else {
+              navigator.clipboard.writeText(window.location.href);
+              alert('Link da campanha copiado com sucesso!');
+            }
+          }}
+          className="w-11 h-11 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-full flex items-center justify-center shadow-lg transition hover:scale-105"
+          title="Compartilhar Link"
+        >
+          <Share2 className="w-5 h-5" />
+        </button>
+      </div>
+
       {/* Main Container */}
       <main className="max-w-xl mx-auto px-4 pb-28 pt-3 space-y-4">
         
+        {/* CONTADOR REGRESSIVO DA CAMPANHA */}
+        {tempoRestante && (
+          <div className={`bg-gradient-to-r ${
+            tempoRestante.status === 'aguardando_inicio'
+              ? 'from-amber-950/90 via-slate-900 to-amber-950/90 border-amber-500/40'
+              : tempoRestante.status === 'encerrada'
+              ? 'from-red-950/90 via-slate-900 to-red-950/90 border-red-500/40'
+              : 'from-emerald-950/90 via-slate-900 to-emerald-950/90 border-emerald-500/30'
+          } border rounded-2xl p-4 text-center shadow-lg animate-in fade-in`}>
+            <span className={`text-[10px] font-bold uppercase tracking-widest block mb-2 ${
+              tempoRestante.status === 'aguardando_inicio'
+                ? 'text-amber-400'
+                : tempoRestante.status === 'encerrada'
+                ? 'text-red-400'
+                : 'text-emerald-400'
+            }`}>
+              {tempoRestante.status === 'aguardando_inicio' && '⏳ Faltam para o INÍCIO da campanha:'}
+              {tempoRestante.status === 'em_andamento' && '⏳ A campanha ENCERRA em:'}
+              {tempoRestante.status === 'encerrada' && '🏁 Campanha Encerrada'}
+            </span>
+
+            <div className="grid grid-cols-4 gap-2 max-w-xs mx-auto">
+              <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-2">
+                <span className="text-lg font-black text-white font-mono block leading-none">
+                  {String(tempoRestante.dias).padStart(2, '0')}
+                </span>
+                <span className="text-[9px] text-slate-400 uppercase font-medium mt-1 block">Dias</span>
+              </div>
+              <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-2">
+                <span className="text-lg font-black text-white font-mono block leading-none">
+                  {String(tempoRestante.horas).padStart(2, '0')}
+                </span>
+                <span className="text-[9px] text-slate-400 uppercase font-medium mt-1 block">Horas</span>
+              </div>
+              <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-2">
+                <span className="text-lg font-black text-white font-mono block leading-none">
+                  {String(tempoRestante.minutos).padStart(2, '0')}
+                </span>
+                <span className="text-[9px] text-slate-400 uppercase font-medium mt-1 block">Min</span>
+              </div>
+              <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-2">
+                <span className={`text-lg font-black font-mono block leading-none ${
+                  tempoRestante.status === 'aguardando_inicio'
+                    ? 'text-amber-400'
+                    : tempoRestante.status === 'encerrada'
+                    ? 'text-red-400'
+                    : 'text-emerald-400'
+                }`}>
+                  {String(tempoRestante.segundos).padStart(2, '0')}
+                </span>
+                <span className="text-[9px] text-slate-400 uppercase font-medium mt-1 block">Seg</span>
+              </div>
+            </div>
+
+            {tempoRestante.status === 'aguardando_inicio' && (
+              <p className="text-[11px] text-amber-300 font-medium mt-2.5">
+                🔒 Vendas bloqueadas até a data/hora de início definida.
+              </p>
+            )}
+
+            {tempoRestante.status === 'encerrada' && (
+              <p className="text-[11px] text-red-300 font-medium mt-2.5">
+                ⛔ Período de vendas encerrado para esta campanha.
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Banner + Selo */}
         <div className="relative rounded-2xl overflow-hidden border border-slate-800 shadow-2xl bg-slate-900">
           <img
@@ -469,28 +762,39 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
             </div>
           )}
 
-          {/* Seletor Manual (- / +) */}
-          <div className="flex items-center justify-between p-3 bg-slate-950 border border-slate-800 rounded-xl">
+          {/* Seletor Manual / Digitação Direta (- / +) */}
+          <div className="flex items-center justify-between p-3 bg-slate-950 border border-slate-800 rounded-xl gap-3">
             <button
-              onClick={() => setQuantidade(q => Math.max(campanha.minPorCompra || 1, q - 5))}
-              className="w-10 h-10 rounded-lg bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center font-bold transition active:scale-95"
+              onClick={() => setQuantidade(q => Math.max(campanha.minPorCompra || 1, q - 1))}
+              className="w-10 h-10 rounded-lg bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center font-bold transition active:scale-95 shrink-0"
               aria-label="Diminuir cotas"
             >
               <Minus className="w-4 h-4" />
             </button>
 
-            <div className="text-center">
-              <span className="text-xl font-black text-white block">
-                {quantidade} cotas
-              </span>
-              <span className="text-xs text-slate-400">
+            <div className="flex-1 text-center space-y-1">
+              <div className="flex items-center justify-center gap-1.5">
+                <input
+                  type="number"
+                  min={campanha.minPorCompra || 1}
+                  max={campanha.maxPorCompra || 500000}
+                  value={quantidade}
+                  onChange={e => {
+                    const v = Number(e.target.value);
+                    setQuantidade(isNaN(v) || v < 1 ? 1 : v);
+                  }}
+                  className="w-20 bg-slate-900 border border-slate-700 rounded-lg py-1 px-2 text-center text-lg font-black text-white focus:border-emerald-500 focus:outline-none font-mono"
+                />
+                <span className="text-sm font-bold text-slate-200">cotas</span>
+              </div>
+              <span className="text-xs text-emerald-400 font-extrabold block">
                 Total: R$ {valorTotalAtual.toFixed(2).replace('.', ',')}
               </span>
             </div>
 
             <button
-              onClick={() => setQuantidade(q => Math.min(campanha.maxPorCompra || 5000, q + 5))}
-              className="w-10 h-10 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 flex items-center justify-center font-bold transition active:scale-95"
+              onClick={() => setQuantidade(q => Math.min(campanha.maxPorCompra || 500000, q + 1))}
+              className="w-10 h-10 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 flex items-center justify-center font-bold transition active:scale-95 shrink-0"
               aria-label="Aumentar cotas"
             >
               <Plus className="w-4 h-4" />
@@ -614,6 +918,36 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
           </div>
         )}
 
+        {/* Seção: Ganhadores da Campanha */}
+        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-3">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+            <Trophy className="w-4 h-4 text-amber-400" />
+            Ganhadores da Campanha
+          </h3>
+
+          {campanha.ganhador ? (
+            <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center font-black text-lg">
+                🏆
+              </div>
+              <div>
+                <h4 className="text-sm font-extrabold text-white">
+                  {campanha.ganhador.nome}
+                </h4>
+                <p className="text-xs text-emerald-400 font-mono font-bold">
+                  Cota Contemplada: #{campanha.ganhador.cota}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="p-4 bg-slate-950/60 border border-dashed border-slate-800 rounded-xl text-center">
+              <p className="text-xs text-slate-400">
+                Ainda não há ganhadores para a campanha
+              </p>
+            </div>
+          )}
+        </div>
+
       </main>
 
       {/* Barra Fixa Inferior de Compra Instantânea */}
@@ -631,10 +965,25 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
           <button
             id="btn-finalizar-compra"
             onClick={handleIniciarCompra}
-            className="flex-1 py-3 px-5 bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-black rounded-xl text-sm shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2 transition active:scale-[0.98]"
+            disabled={tempoRestante?.status === 'aguardando_inicio' || tempoRestante?.status === 'encerrada'}
+            className={`flex-1 py-3 px-5 font-black rounded-xl text-sm shadow-lg flex items-center justify-center gap-2 transition active:scale-[0.98] ${
+              tempoRestante?.status === 'aguardando_inicio'
+                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40 cursor-not-allowed shadow-none'
+                : tempoRestante?.status === 'encerrada'
+                ? 'bg-red-500/20 text-red-400 border border-red-500/40 cursor-not-allowed shadow-none'
+                : 'bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 shadow-emerald-500/25'
+            }`}
           >
-            <Sparkles className="w-4 h-4 fill-slate-950" />
-            PARTICIPAR DO SORTEIO
+            <Sparkles className={`w-4 h-4 ${
+              tempoRestante?.status === 'aguardando_inicio' || tempoRestante?.status === 'encerrada'
+                ? 'text-current'
+                : 'fill-slate-950'
+            }`} />
+            {tempoRestante?.status === 'aguardando_inicio'
+              ? 'AGUARDANDO INÍCIO DAS VENDAS'
+              : tempoRestante?.status === 'encerrada'
+              ? 'VENDAS ENCERRADAS'
+              : 'PARTICIPAR DO SORTEIO'}
           </button>
         </div>
       </footer>
@@ -704,7 +1053,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
               {campanha.exigirCpf && (
                 <div>
                   <label className="text-xs font-semibold text-slate-300 block mb-1">
-                    CPF (obrigatório) *
+                    CPF *
                   </label>
                   <input
                     id="input-cpf-comprador"
@@ -721,7 +1070,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
               {campanha.exigirEmail && (
                 <div>
                   <label className="text-xs font-semibold text-slate-300 block mb-1">
-                    E-mail (obrigatório) *
+                    E-mail *
                   </label>
                   <input
                     id="input-email-comprador"
@@ -734,6 +1083,34 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
                   />
                 </div>
               )}
+
+              {/* Data de Nascimento para Cálculo Automático de Idade */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-semibold text-slate-300 block">
+                    Data de Nascimento *
+                  </label>
+                  {dataNascimento && (
+                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                      (calcularIdade(dataNascimento) || 0) >= 18
+                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                        : 'bg-red-500/20 text-red-400 border border-red-500/30'
+                    }`}>
+                      {calcularIdade(dataNascimento) !== null
+                        ? `Idade: ${calcularIdade(dataNascimento)} anos`
+                        : 'Data inválida'}
+                    </span>
+                  )}
+                </div>
+                <input
+                  id="input-nascimento-comprador"
+                  type="date"
+                  value={dataNascimento}
+                  onChange={e => setDataNascimento(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-mono text-white focus:border-emerald-500 focus:outline-none"
+                  required
+                />
+              </div>
 
               {/* Confirmação Idade Mínima (+18 anos) */}
               <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl">
@@ -776,8 +1153,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
                 id="btn-confirmar-gerar-pix"
                 type="submit"
                 disabled={enviandoPedido}
-                style={{ background: 'var(--brand, #10b981)' }}
-                className="w-full py-3.5 text-slate-950 font-black rounded-xl text-sm shadow-lg flex items-center justify-center gap-2 transition active:scale-[0.98] hover:brightness-110"
+                className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-sm shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 transition active:scale-[0.98]"
               >
                 {enviandoPedido ? (
                   <span className="flex items-center gap-2">

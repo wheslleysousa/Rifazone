@@ -39,11 +39,11 @@ export const MeusDadosModal: React.FC<Props> = ({
 
   useEffect(() => {
     try {
-      const savedNome = localStorage.getItem('rifapix_comprador_nome');
-      const savedPhone = localStorage.getItem('rifapix_comprador_whatsapp');
-      const savedCpf = localStorage.getItem('rifapix_comprador_cpf');
-      const savedEmail = localStorage.getItem('rifapix_comprador_email');
-      const savedIdade = localStorage.getItem('rifapix_comprador_maior_idade');
+      const savedNome = localStorage.getItem('rifazone_comprador_nome') || localStorage.getItem('rifapix_comprador_nome');
+      const savedPhone = localStorage.getItem('rifazone_comprador_whatsapp') || localStorage.getItem('rifapix_comprador_whatsapp');
+      const savedCpf = localStorage.getItem('rifazone_comprador_cpf') || localStorage.getItem('rifapix_comprador_cpf');
+      const savedEmail = localStorage.getItem('rifazone_comprador_email') || localStorage.getItem('rifapix_comprador_email');
+      const savedIdade = localStorage.getItem('rifazone_comprador_maior_idade') || localStorage.getItem('rifapix_comprador_maior_idade');
 
       if (savedNome) setNome(savedNome);
       if (savedPhone) setWhatsapp(formatWhatsapp(savedPhone));
@@ -84,11 +84,11 @@ export const MeusDadosModal: React.FC<Props> = ({
     }
 
     try {
-      localStorage.setItem('rifapix_comprador_nome', nome.trim());
-      localStorage.setItem('rifapix_comprador_whatsapp', cleanPhone);
-      localStorage.setItem('rifapix_comprador_cpf', cpf.trim());
-      localStorage.setItem('rifapix_comprador_email', email.trim());
-      localStorage.setItem('rifapix_comprador_maior_idade', String(maiorIdade));
+      localStorage.setItem('rifazone_comprador_nome', nome.trim());
+      localStorage.setItem('rifazone_comprador_whatsapp', cleanPhone);
+      localStorage.setItem('rifazone_comprador_cpf', cpf.trim());
+      localStorage.setItem('rifazone_comprador_email', email.trim());
+      localStorage.setItem('rifazone_comprador_maior_idade', String(maiorIdade));
 
       setSalvo(true);
       if (onSalvarSucesso) {

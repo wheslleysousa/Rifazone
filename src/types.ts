@@ -57,6 +57,15 @@ export interface Campanha {
   maxPorCompra: number;
   localSorteio: string; // ex: "Loteria Federal"
   dataSorteio: string | null; // ISO string
+  agendamentoAtivo?: boolean;
+  dataInicio?: string | null;
+  dataTermino?: string | null;
+  descontoPorValorTotal?: { aPartirDeValor: number; valorCotaComDesconto: number }[];
+  organizadorNome?: string;
+  organizadorFoto?: string;
+  organizadorWhatsapp?: string;
+  organizadorInstagram?: string;
+  organizadorTiktok?: string;
   premios: Premio[];
   cotasPremiadas: CotaPremiada[];
   promocoes: Promocao[];

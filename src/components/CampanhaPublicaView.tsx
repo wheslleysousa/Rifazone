@@ -590,6 +590,21 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
 
       {/* Main Container */}
       <main className="max-w-xl mx-auto px-4 pb-28 pt-3 space-y-4">
+
+        {/* BANNER CAMPANHA PAUSADA / DESATIVADA */}
+        {(campanha.status === 'pausada' || campanha.status === 'inativa' || campanha.status === 'rascunho') && (
+          <div className="bg-amber-500/15 border-2 border-amber-500/40 rounded-2xl p-4 text-center shadow-lg animate-in fade-in">
+            <div className="w-10 h-10 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center mx-auto mb-2 font-black text-lg">
+              ⏸️
+            </div>
+            <h3 className="text-sm font-black text-white uppercase tracking-wider">
+              Campanha Pausada no Momento
+            </h3>
+            <p className="text-xs text-amber-200/90 mt-1">
+              As vendas desta rifa foram temporariamente desativadas/pausadas pelo organizador. Volte em breve!
+            </p>
+          </div>
+        )}
         
         {/* CONTADOR REGRESSIVO DA CAMPANHA */}
         {tempoRestante && (
@@ -667,7 +682,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
             className="w-full aspect-[16/9] object-cover"
           />
           
-          {campanha.selo && (
+          {campanha.selo && (campanha.exibirSelo ?? true) && (
             <div className="absolute top-3 left-3 px-3 py-1 bg-amber-500 text-slate-950 font-black text-xs uppercase tracking-wider rounded-full shadow-lg flex items-center gap-1">
               <Flame className="w-3.5 h-3.5 fill-slate-950" />
               {campanha.selo}
@@ -691,7 +706,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
         </div>
 
         {/* Barra de Progresso */}
-        {campanha.exibirBarraProgresso && (
+        {(campanha.exibirBarraProgresso ?? true) && (
           <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-sm">
             <div className="flex items-center justify-between text-xs mb-2">
               <span className="text-slate-400 font-medium">Progresso do sorteio</span>
@@ -703,10 +718,12 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
                 style={{ width: `${Math.min(100, Math.max(2, estatisticas.percentualVendido))}%` }}
               />
             </div>
-            <div className="flex justify-between text-[11px] text-slate-400 mt-2">
-              <span>{estatisticas.vendidas.toLocaleString('pt-BR')} cotas vendidas</span>
-              <span>{estatisticas.disponiveis.toLocaleString('pt-BR')} disponíveis</span>
-            </div>
+            {(campanha.exibirQtdCotas ?? true) && (
+              <div className="flex justify-between text-[11px] text-slate-400 mt-2">
+                <span>{estatisticas.vendidas.toLocaleString('pt-BR')} cotas vendidas</span>
+                <span>{estatisticas.disponiveis.toLocaleString('pt-BR')} disponíveis</span>
+              </div>
+            )}
           </div>
         )}
 
@@ -803,7 +820,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
         </div>
 
         {/* Seção: Prêmios */}
-        {campanha.premios && campanha.premios.length > 0 && (
+        {(campanha.exibirPremios ?? true) && campanha.premios && campanha.premios.length > 0 && (
           <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-1.5">
               <Trophy className="w-4 h-4 text-amber-400" />
@@ -828,7 +845,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
         )}
 
         {/* Seção: Cotas Premiadas (Instantâneas) */}
-        {campanha.cotasPremiadas && campanha.cotasPremiadas.length > 0 && (
+        {(campanha.exibirCotasPremiadas ?? true) && campanha.cotasPremiadas && campanha.cotasPremiadas.length > 0 && (
           <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
@@ -887,7 +904,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
         </div>
 
         {/* Seção: Ranking dos Maiores Compradores */}
-        {campanha.exibirRanking && ranking && ranking.length > 0 && (
+        {(campanha.exibirRanking ?? true) && (campanha.exibirCompradores ?? true) && ranking && ranking.length > 0 && (
           <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-1.5">
               <Users className="w-4 h-4 text-emerald-400" />
@@ -919,34 +936,36 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
         )}
 
         {/* Seção: Ganhadores da Campanha */}
-        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-3">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-            <Trophy className="w-4 h-4 text-amber-400" />
-            Ganhadores da Campanha
-          </h3>
+        {(campanha.exibirPaginaGanhadores ?? true) && (
+          <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-3">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+              <Trophy className="w-4 h-4 text-amber-400" />
+              Ganhadores da Campanha
+            </h3>
 
-          {campanha.ganhador ? (
-            <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center font-black text-lg">
-                🏆
+            {campanha.ganhador ? (
+              <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center font-black text-lg">
+                  🏆
+                </div>
+                <div>
+                  <h4 className="text-sm font-extrabold text-white">
+                    {campanha.ganhador.nome}
+                  </h4>
+                  <p className="text-xs text-emerald-400 font-mono font-bold">
+                    Cota Contemplada: #{campanha.ganhador.cota}
+                  </p>
+                </div>
               </div>
-              <div>
-                <h4 className="text-sm font-extrabold text-white">
-                  {campanha.ganhador.nome}
-                </h4>
-                <p className="text-xs text-emerald-400 font-mono font-bold">
-                  Cota Contemplada: #{campanha.ganhador.cota}
+            ) : (
+              <div className="p-4 bg-slate-950/60 border border-dashed border-slate-800 rounded-xl text-center">
+                <p className="text-xs text-slate-400">
+                  Ainda não há ganhadores para a campanha
                 </p>
               </div>
-            </div>
-          ) : (
-            <div className="p-4 bg-slate-950/60 border border-dashed border-slate-800 rounded-xl text-center">
-              <p className="text-xs text-slate-400">
-                Ainda não há ganhadores para a campanha
-              </p>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
 
       </main>
 
@@ -965,9 +984,17 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
           <button
             id="btn-finalizar-compra"
             onClick={handleIniciarCompra}
-            disabled={tempoRestante?.status === 'aguardando_inicio' || tempoRestante?.status === 'encerrada'}
+            disabled={
+              tempoRestante?.status === 'aguardando_inicio' ||
+              tempoRestante?.status === 'encerrada' ||
+              campanha.status === 'pausada' ||
+              campanha.status === 'inativa' ||
+              campanha.status === 'rascunho'
+            }
             className={`flex-1 py-3 px-5 font-black rounded-xl text-sm shadow-lg flex items-center justify-center gap-2 transition active:scale-[0.98] ${
-              tempoRestante?.status === 'aguardando_inicio'
+              campanha.status === 'pausada' || campanha.status === 'inativa' || campanha.status === 'rascunho'
+                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40 cursor-not-allowed shadow-none'
+                : tempoRestante?.status === 'aguardando_inicio'
                 ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40 cursor-not-allowed shadow-none'
                 : tempoRestante?.status === 'encerrada'
                 ? 'bg-red-500/20 text-red-400 border border-red-500/40 cursor-not-allowed shadow-none'
@@ -975,11 +1002,13 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
             }`}
           >
             <Sparkles className={`w-4 h-4 ${
-              tempoRestante?.status === 'aguardando_inicio' || tempoRestante?.status === 'encerrada'
+              tempoRestante?.status === 'aguardando_inicio' || tempoRestante?.status === 'encerrada' || campanha.status === 'pausada' || campanha.status === 'inativa'
                 ? 'text-current'
                 : 'fill-slate-950'
             }`} />
-            {tempoRestante?.status === 'aguardando_inicio'
+            {campanha.status === 'pausada' || campanha.status === 'inativa' || campanha.status === 'rascunho'
+              ? 'CAMPANHA PAUSADA'
+              : tempoRestante?.status === 'aguardando_inicio'
               ? 'AGUARDANDO INÍCIO DAS VENDAS'
               : tempoRestante?.status === 'encerrada'
               ? 'VENDAS ENCERRADAS'

@@ -26,49 +26,113 @@ export const SorteadorView: React.FC<Props> = ({ campanhas, pedidos, onApurarCam
   const [erro, setErro] = useState('');
   const [copiado, setCopiado] = useState(false);
 
+  // Opção para não repetir ganhadores
+  const [naoRepetirGanhador, setNaoRepetirGanhador] = useState(true);
+
   const campanhaAtual = campanhas.find(c => c.id === campanhaId) || campanhas[0];
 
   // Cotas pagas desta campanha
   const pedidosPagos = pedidos.filter(p => p.campanhaId === campanhaId && p.status === 'pago');
   const todasCotasPagas: string[] = pedidosPagos.flatMap(p => p.numeros || []);
 
+  // Ganhadores que já foram contemplados nesta campanha
+  const ganhadoresExistentes = [
+    ...(campanhaAtual?.ganhadoresHistorico || []),
+    ...(campanhaAtual?.ganhador ? [campanhaAtual.ganhador] : [])
+  ];
+  const whatsappsGanhadores = new Set(ganhadoresExistentes.map(g => (g.whatsapp || '').replace(/\D/g, '')));
+  const cotasJaSorteadas = new Set(ganhadoresExistentes.map(g => String(g.cota)));
+
+  // Cotas elegíveis para o sorteio (apenas vendidas/pagas, excluindo ganhadores se ativado)
+  const cotasElegiveis: string[] = [];
+  pedidosPagos.forEach(p => {
+    const cleanW = (p.comprador?.whatsapp || '').replace(/\D/g, '');
+    if (naoRepetirGanhador && cleanW && whatsappsGanhadores.has(cleanW)) {
+      return; // Já ganhou, pula
+    }
+    (p.numeros || []).forEach(num => {
+      const strNum = String(num);
+      if (!cotasJaSorteadas.has(strNum)) {
+        cotasElegiveis.push(strNum);
+      }
+    });
+  });
+
+  // Configuração do Temporizador (segundos)
+  const [duracaoSegundos, setDuracaoSegundos] = useState<number>(3);
+  const timeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  // Atualizar temporizador padrão ao trocar de campanha
+  React.useEffect(() => {
+    if (campanhaAtual?.tempoAnimacaoSorteioSegundos) {
+      setDuracaoSegundos(campanhaAtual.tempoAnimacaoSorteioSegundos);
+    }
+  }, [campanhaId]);
+
+  // Limpar timeout no unmount
+  React.useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
+
   const handleSortearGlobo = async () => {
     if (!campanhaAtual) return;
-    if (todasCotasPagas.length === 0) {
-      setErro('Esta campanha ainda não possui cotas pagas para sortear.');
+    if (cotasElegiveis.length === 0) {
+      if (todasCotasPagas.length === 0) {
+        setErro('Esta campanha ainda não possui cotas pagas para sortear.');
+      } else {
+        setErro('Não há cotas elegíveis para este sorteio. Todos os participantes compradores já ganharam anteriormente!');
+      }
       return;
     }
+
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
 
     setErro('');
     setAnimando(true);
     setResultadoFinal(null);
 
-    // Efeito de números rodando rapidamente
-    const interval = setInterval(() => {
-      const randIndex = Math.floor(Math.random() * todasCotasPagas.length);
-      setNumeroAnimado(todasCotasPagas[randIndex]);
-    }, 60);
+    const listAnim = cotasElegiveis.length > 0 ? cotasElegiveis : todasCotasPagas;
+    const cotaGanhadora = cotasElegiveis[Math.floor(Math.random() * cotasElegiveis.length)];
 
-    // Escolhe o número final sorteado
-    const cotaGanhadora = todasCotasPagas[Math.floor(Math.random() * todasCotasPagas.length)];
+    const totalDurationMs = Math.max(1, duracaoSegundos) * 1000;
+    const startTime = Date.now();
 
-    setTimeout(async () => {
-      clearInterval(interval);
-      setNumeroAnimado(cotaGanhadora);
-      setAnimando(false);
+    // Função de desaceleração suave (slow down gradually)
+    const runAnimationStep = () => {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(1, elapsed / totalDurationMs);
 
-      try {
-        const res = await onApurarCampanha(campanhaAtual.id, cotaGanhadora);
-        setResultadoFinal(res);
-        confetti({
-          particleCount: 150,
-          spread: 80,
-          origin: { y: 0.6 }
-        });
-      } catch (err: any) {
-        setErro(err.message || 'Erro ao registrar apuração.');
+      if (progress < 1) {
+        // Exibe um número aleatório da lista de elegíveis
+        const randIndex = Math.floor(Math.random() * listAnim.length);
+        setNumeroAnimado(listAnim[randIndex]);
+
+        // Calcula próximo delay: no início (~35ms), no final (~550ms)
+        const nextDelay = 35 + Math.pow(progress, 2.5) * 520;
+        timeoutRef.current = setTimeout(runAnimationStep, nextDelay);
+      } else {
+        // Animação concluída -> para no número sorteado
+        setNumeroAnimado(cotaGanhadora);
+        setAnimando(false);
+
+        onApurarCampanha(campanhaAtual.id, cotaGanhadora)
+          .then(res => {
+            setResultadoFinal(res);
+            confetti({
+              particleCount: 160,
+              spread: 85,
+              origin: { y: 0.6 }
+            });
+          })
+          .catch(err => {
+            setErro(err.message || 'Erro ao registrar apuração.');
+          });
       }
-    }, 3500);
+    };
+
+    runAnimationStep();
   };
 
   const handleApurarFederal = async (e: React.FormEvent) => {
@@ -186,26 +250,82 @@ export const SorteadorView: React.FC<Props> = ({ campanhas, pedidos, onApurarCam
       {metodoSorteio === 'globo' && (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm text-center">
           
-          <div className="max-w-md mx-auto space-y-6">
-            <span className="text-xs font-bold uppercase tracking-wider text-emerald-400 block">
-              Sorteio entre as {todasCotasPagas.length} cotas pagas
-            </span>
+          <div className="max-w-md mx-auto space-y-5">
+            <div className="space-y-1">
+              <span className="text-xs font-black uppercase tracking-wider text-emerald-400 block">
+                Sorteio entre as {cotasElegiveis.length} cotas elegíveis
+              </span>
+              <p className="text-[11px] text-slate-400">
+                Total de cotas pagas: <span className="font-bold text-white">{todasCotasPagas.length}</span>
+                {ganhadoresExistentes.length > 0 && (
+                  <span> | Ganhadores anteriores: <span className="font-bold text-amber-400">{ganhadoresExistentes.length}</span></span>
+                )}
+              </p>
+            </div>
+
+            {/* Opção para Não Repetir Ganhador */}
+            <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl text-left flex items-center justify-between gap-3">
+              <label htmlFor="chk-nao-repetir" className="cursor-pointer text-xs font-bold text-slate-200 select-none flex-1">
+                <span className="text-emerald-400 block mb-0.5">Não repetir ganhador</span>
+                <span className="text-[10px] text-slate-400 font-normal block leading-tight">
+                  Bloqueia participantes que já ganharam nesta mesma ação.
+                </span>
+              </label>
+              <input
+                id="chk-nao-repetir"
+                type="checkbox"
+                checked={naoRepetirGanhador}
+                onChange={e => setNaoRepetirGanhador(e.target.checked)}
+                className="w-4 h-4 accent-emerald-500 rounded cursor-pointer"
+              />
+            </div>
+
+            {/* Configuração do Temporizador da Animação */}
+            <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl text-left space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-white flex items-center gap-1">
+                  ⏱️ Temporizador da Animação
+                </span>
+                <span className="text-xs font-mono font-black text-amber-400">
+                  {duracaoSegundos}s
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-400 leading-tight">
+                Duração em segundos que os números passarão desacelerando suavemente até revelar a cota vencedora.
+              </p>
+              <div className="flex items-center gap-1.5 pt-1">
+                {[2, 3, 5, 8, 10].map(s => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setDuracaoSegundos(s)}
+                    className={`flex-1 py-1.5 rounded-lg text-xs font-mono font-bold transition border ${
+                      duracaoSegundos === s
+                        ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-sm'
+                        : 'bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800'
+                    }`}
+                  >
+                    {s}s
+                  </button>
+                ))}
+              </div>
+            </div>
 
             {/* Display do Número Digital */}
             <div className="relative py-8 px-6 bg-slate-950 border-2 border-emerald-500/40 rounded-3xl shadow-2xl shadow-emerald-500/10">
               <div className="text-5xl sm:text-6xl font-black font-mono tracking-widest text-emerald-400 animate-pulse">
                 {numeroAnimado}
               </div>
-              <span className="text-[11px] text-slate-500 block mt-2 uppercase tracking-wider">
+              <span className="text-[11px] text-slate-500 block mt-2 uppercase tracking-wider font-semibold">
                 {animando ? 'Girando globo da sorte...' : 'Número Oficial Sorteado'}
               </span>
             </div>
 
             <button
               onClick={handleSortearGlobo}
-              disabled={animando || todasCotasPagas.length === 0}
+              disabled={animando || cotasElegiveis.length === 0}
               className={`w-full py-4 rounded-2xl font-black text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg transition ${
-                animando || todasCotasPagas.length === 0
+                animando || cotasElegiveis.length === 0
                   ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
                   : 'bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 shadow-emerald-500/25 active:scale-[0.98]'
               }`}

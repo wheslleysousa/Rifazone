@@ -85,9 +85,15 @@ export interface Campanha {
   exibirRanking: boolean;
   exibirBarraProgresso: boolean;
   exibirPaginaGanhadores: boolean;
+  exibirQtdCotas?: boolean;
+  exibirCompradores?: boolean;
+  exibirSelo?: boolean;
+  exibirPremios?: boolean;
+  exibirCotasPremiadas?: boolean;
+  tempoAnimacaoSorteioSegundos?: number;
   exigirEmail: boolean;
   exigirCpf: boolean;
-  status: 'rascunho' | 'publicada' | 'encerrada';
+  status: 'rascunho' | 'publicada' | 'pausada' | 'encerrada';
   numeroSorteado: string | null;
   ganhador?: {
     nome: string;
@@ -95,8 +101,18 @@ export interface Campanha {
     cota: string;
     pedidoId: string;
   } | null;
+  ganhadoresHistorico?: GanhadorRecord[];
   criadaEm: string;
   atualizadaEm?: string;
+}
+
+export interface GanhadorRecord {
+  nome: string;
+  whatsapp: string;
+  cota: string;
+  pedidoId?: string;
+  premioDescricao?: string;
+  dataSorteio?: string;
 }
 
 export interface Cota {

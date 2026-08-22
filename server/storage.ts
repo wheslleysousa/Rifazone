@@ -561,6 +561,21 @@ export class FileStorage implements Storage {
       };
     }
 
+    const historico = campanha.ganhadoresHistorico || [];
+    if (ganhador) {
+      const jaExiste = historico.some(h => h.cota === numeroSorteado);
+      if (!jaExiste) {
+        historico.push({
+          nome: ganhador.nome,
+          whatsapp: ganhador.whatsapp,
+          cota: numeroSorteado,
+          pedidoId: ganhador.pedidoId,
+          dataSorteio: new Date().toISOString()
+        });
+      }
+    }
+
+    campanha.ganhadoresHistorico = historico;
     campanha.status = 'encerrada';
     campanha.numeroSorteado = numeroSorteado;
     campanha.ganhador = ganhador;

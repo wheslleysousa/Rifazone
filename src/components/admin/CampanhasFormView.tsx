@@ -4,7 +4,7 @@ import {
   Youtube, FileText, CheckCircle2, AlertCircle, ArrowLeft,
   LayoutGrid, HelpCircle, Flame, Lock, Eye, Star, Info, Rocket,
   Upload, Camera, Link as LinkIcon, RefreshCw, ChevronRight, ChevronLeft,
-  DollarSign, Clock, MapPin, Tag, Check, Sparkle
+  DollarSign, Clock, MapPin, Tag, Check, Sparkle, GripVertical
 } from 'lucide-react';
 import { Campanha, Premio, CotaPremiada, Promocao, OfertaRelampago } from '../../types';
 import { compressAndReadImage } from '../../lib/image-upload';
@@ -42,6 +42,8 @@ export const CampanhasFormView: React.FC<Props> = ({
   const [dragActiveBanner, setDragActiveBanner] = useState(false);
   const [dragActiveCarrossel, setDragActiveCarrossel] = useState(false);
   const [modoUrlBanner, setModoUrlBanner] = useState(false);
+  const [mostrarModalCotas, setMostrarModalCotas] = useState(false);
+  const [draggedPromoIdx, setDraggedPromoIdx] = useState<number | null>(null);
 
   const bannerFileInputRef = useRef<HTMLInputElement>(null);
   const bannerCameraInputRef = useRef<HTMLInputElement>(null);
@@ -219,7 +221,7 @@ export const CampanhasFormView: React.FC<Props> = ({
       ...prev,
       cotasPremiadas: [
         ...cps,
-        { numero: '', premio: 'R$ 100 no Pix', status: 'disponivel', pedidoId: null }
+        { numero: '', premio: '', status: 'disponivel', pedidoId: null }
       ]
     }));
   };
@@ -258,8 +260,33 @@ export const CampanhasFormView: React.FC<Props> = ({
     const promos = form.promocoes || [];
     setForm(prev => ({
       ...prev,
-      promocoes: [...promos, { quantidade: 20, valor: 10.00, destaque: false }]
+      promocoes: [...promos, { quantidade: 0, valor: 0.00, destaque: false }]
     }));
+  };
+
+  const handleDragStartPromo = (e: React.DragEvent, idx: number) => {
+    setDraggedPromoIdx(idx);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(idx));
+  };
+
+  const handleDragOverPromo = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDropPromo = (e: React.DragEvent, targetIdx: number) => {
+    e.preventDefault();
+    if (draggedPromoIdx === null || draggedPromoIdx === targetIdx) {
+      setDraggedPromoIdx(null);
+      return;
+    }
+    const list = [...(form.promocoes || [])];
+    const itemToMove = list[draggedPromoIdx];
+    list.splice(draggedPromoIdx, 1);
+    list.splice(targetIdx, 0, itemToMove);
+    setForm(prev => ({ ...prev, promocoes: list }));
+    setDraggedPromoIdx(null);
   };
 
   const handleRemovePromo = (idx: number) => {
@@ -292,11 +319,11 @@ export const CampanhasFormView: React.FC<Props> = ({
         ...ofertas,
         {
           id: `oferta-${ofertas.length + 1}`,
-          titulo: 'Oferta Especial Turbinada 🔥',
-          subtitulo: 'Adicione mais cotas com super desconto exclusivo',
-          cotasExtras: 25,
-          preco: 8.50,
-          selo: 'OFERTA ÚNICA'
+          titulo: '',
+          subtitulo: '',
+          cotasExtras: 0,
+          preco: 0.00,
+          selo: ''
         }
       ]
     }));
@@ -535,35 +562,9 @@ export const CampanhasFormView: React.FC<Props> = ({
               </div>
             </div>
 
-            {/* Atalhos Rápidos e Presets */}
+            {/* Configuração de Modelo, Cotas e Valores */}
             <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-xl space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2 text-xs font-bold text-slate-300">
-                  <Zap className="w-4 h-4 text-amber-400" />
-                  <span>Atalhos Rápidos de Valor de Cota:</span>
-                </div>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {[0.05, 0.10, 0.25, 0.50, 1.00, 2.50, 5.00, 10.00].map(v => (
-                    <button
-                      key={v}
-                      type="button"
-                      onClick={() => setForm(prev => ({ ...prev, valorCota: v }))}
-                      className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-emerald-400 rounded-lg text-xs font-mono font-bold transition border border-slate-700"
-                    >
-                      R$ {v.toFixed(2).replace('.', ',')}
-                    </button>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={handleRestaurarValoresPadrao}
-                    className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg text-xs font-bold transition ml-1"
-                  >
-                    🔄 Padrões Sugeridos
-                  </button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 pt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
                 <div>
                   <label className="text-xs font-bold text-slate-300 block mb-1">
                     Modelo de Escolha
@@ -597,43 +598,25 @@ export const CampanhasFormView: React.FC<Props> = ({
                     )}
                   </div>
 
-                  <input
-                    type="number"
-                    min="1"
-                    max="10000000"
-                    placeholder="Ex: 10000"
-                    value={form.totalCotas !== undefined && form.totalCotas !== null ? form.totalCotas : ''}
-                    onChange={e => setForm(prev => ({ ...prev, totalCotas: e.target.value === '' ? 10000 : Number(e.target.value) }))}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono font-bold text-white focus:border-emerald-500 focus:outline-none"
-                    required
-                  />
-
-                  {/* Botões Rápidos de Opções de Cotas (100 a 10 Milhões) */}
-                  <div className="flex flex-wrap gap-1 mt-2">
-                    {[
-                      { label: '100', val: 100 },
-                      { label: '200', val: 200 },
-                      { label: '300', val: 300 },
-                      { label: '500', val: 500 },
-                      { label: '1 MIL', val: 1000 },
-                      { label: '10 MIL', val: 10000 },
-                      { label: '100 MIL', val: 100000 },
-                      { label: '1 MILHÃO', val: 1000000 },
-                      { label: '10 MILHÕES', val: 10000000 },
-                    ].map(item => (
-                      <button
-                        key={item.val}
-                        type="button"
-                        onClick={() => setForm(prev => ({ ...prev, totalCotas: item.val }))}
-                        className={`px-2 py-1 rounded text-[10px] font-mono font-bold transition border ${
-                          form.totalCotas === item.val
-                            ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow'
-                            : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
-                        }`}
-                      >
-                        {item.label}
-                      </button>
-                    ))}
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="1"
+                      max="10000000"
+                      placeholder="Ex: 10000"
+                      value={form.totalCotas !== undefined && form.totalCotas !== null ? form.totalCotas : ''}
+                      onChange={e => setForm(prev => ({ ...prev, totalCotas: e.target.value === '' ? undefined : Number(e.target.value) }))}
+                      className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-xs font-mono font-bold text-white focus:border-emerald-500 focus:outline-none"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setMostrarModalCotas(true)}
+                      className="px-3 py-2.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:border-emerald-500/60 rounded-xl text-xs font-bold transition shrink-0 flex items-center gap-1.5 shadow-sm"
+                    >
+                      <Zap className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Selecionar Quantidade</span>
+                    </button>
                   </div>
                 </div>
 
@@ -645,7 +628,7 @@ export const CampanhasFormView: React.FC<Props> = ({
                     type="number"
                     step="0.01"
                     min="0.01"
-                    placeholder="0.50"
+                    placeholder="Ex: 0.50"
                     value={form.valorCota !== undefined && form.valorCota !== null ? form.valorCota : ''}
                     onChange={e => setForm(prev => ({ ...prev, valorCota: e.target.value === '' ? undefined : Number(e.target.value) }))}
                     className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-xs font-mono text-emerald-400 font-black focus:border-emerald-500 focus:outline-none"
@@ -661,7 +644,7 @@ export const CampanhasFormView: React.FC<Props> = ({
                     type="number"
                     min="3"
                     max="60"
-                    placeholder="10 min"
+                    placeholder="Ex: 10 min"
                     value={form.tempoReservaMin !== undefined && form.tempoReservaMin !== null ? form.tempoReservaMin : ''}
                     onChange={e => setForm(prev => ({ ...prev, tempoReservaMin: e.target.value === '' ? undefined : Number(e.target.value) }))}
                     className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-xs font-mono text-white focus:border-emerald-500 focus:outline-none"
@@ -1487,7 +1470,23 @@ export const CampanhasFormView: React.FC<Props> = ({
                 </div>
               ) : (
                 (form.promocoes || []).map((promo, idx) => (
-                  <div key={idx} className="p-4 bg-slate-950/80 border border-slate-800 rounded-xl grid grid-cols-1 sm:grid-cols-5 gap-3 items-center">
+                  <div
+                    key={idx}
+                    draggable
+                    onDragStart={e => handleDragStartPromo(e, idx)}
+                    onDragOver={handleDragOverPromo}
+                    onDrop={e => handleDropPromo(e, idx)}
+                    className={`p-4 bg-slate-950/80 border rounded-xl grid grid-cols-1 sm:grid-cols-6 gap-3 items-center transition ${
+                      draggedPromoIdx === idx
+                        ? 'border-emerald-500 bg-emerald-500/10 opacity-50'
+                        : 'border-slate-800 hover:border-slate-700'
+                    }`}
+                  >
+                    {/* Alça de Arrastar (Drag Handle) */}
+                    <div className="flex items-center justify-center p-1 text-slate-500 hover:text-emerald-400 cursor-grab active:cursor-grabbing shrink-0" title="Segure e arraste para reordenar">
+                      <GripVertical className="w-5 h-5" />
+                    </div>
+
                     <div>
                       <label className="text-[10px] text-slate-400 block mb-1">Qtd de Cotas</label>
                       <input
@@ -1497,11 +1496,12 @@ export const CampanhasFormView: React.FC<Props> = ({
                         value={promo.quantidade !== undefined && promo.quantidade > 0 ? promo.quantidade : ''}
                         onChange={e => {
                           const valQtd = e.target.value === '' ? 0 : Number(e.target.value);
-                          const unitPrice = Number(form.valorCota) || 1.00;
+                          const unitPrice = Number(form.valorCota) || 0;
                           const arr = [...(form.promocoes || [])];
                           arr[idx].quantidade = valQtd;
-                          // Cálculo automático do valor do pacote com base no número de cotas
-                          arr[idx].valor = Number((valQtd * unitPrice).toFixed(2));
+                          if (unitPrice > 0) {
+                            arr[idx].valor = Number((valQtd * unitPrice).toFixed(2));
+                          }
                           setForm(prev => ({ ...prev, promocoes: arr }));
                         }}
                         className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono font-bold text-white focus:outline-none"
@@ -1509,7 +1509,7 @@ export const CampanhasFormView: React.FC<Props> = ({
                     </div>
 
                     <div>
-                      <label className="text-[10px] text-slate-400 block mb-1">Valor Total (Auto/Editável)</label>
+                      <label className="text-[10px] text-slate-400 block mb-1">Valor Total (R$)</label>
                       <input
                         type="number"
                         step="0.01"
@@ -1525,11 +1525,11 @@ export const CampanhasFormView: React.FC<Props> = ({
                       />
                     </div>
 
-                    <div className="flex items-center gap-2 pt-2 sm:pt-0">
+                    <div className="flex items-center gap-2 pt-2 sm:pt-0 sm:col-span-2">
                       <input
                         type="checkbox"
                         id={`promo-destaque-${idx}`}
-                        checked={promo.destaque}
+                        checked={!!promo.destaque}
                         onChange={e => {
                           const arr = [...(form.promocoes || [])];
                           arr[idx].destaque = e.target.checked;
@@ -1542,47 +1542,12 @@ export const CampanhasFormView: React.FC<Props> = ({
                       </label>
                     </div>
 
-                    {/* Reordenar Ordem (⬆️ e ⬇️) */}
-                    <div className="flex items-center justify-center gap-1">
-                      <button
-                        type="button"
-                        disabled={idx === 0}
-                        onClick={() => {
-                          if (idx === 0) return;
-                          const arr = [...(form.promocoes || [])];
-                          const temp = arr[idx];
-                          arr[idx] = arr[idx - 1];
-                          arr[idx - 1] = temp;
-                          setForm(prev => ({ ...prev, promocoes: arr }));
-                        }}
-                        className="p-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 text-slate-300 rounded-lg text-xs font-bold transition"
-                        title="Mover para cima"
-                      >
-                        ⬆️
-                      </button>
-                      <button
-                        type="button"
-                        disabled={idx === (form.promocoes || []).length - 1}
-                        onClick={() => {
-                          const arr = [...(form.promocoes || [])];
-                          if (idx >= arr.length - 1) return;
-                          const temp = arr[idx];
-                          arr[idx] = arr[idx + 1];
-                          arr[idx + 1] = temp;
-                          setForm(prev => ({ ...prev, promocoes: arr }));
-                        }}
-                        className="p-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 text-slate-300 rounded-lg text-xs font-bold transition"
-                        title="Mover para baixo"
-                      >
-                        ⬇️
-                      </button>
-                    </div>
-
                     <div className="text-right">
                       <button
                         type="button"
                         onClick={() => handleRemovePromo(idx)}
                         className="p-2 text-slate-500 hover:text-red-400 transition"
+                        title="Remover pacote"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -1613,7 +1578,7 @@ export const CampanhasFormView: React.FC<Props> = ({
                       ...prev,
                       descontoPorValorTotal: [
                         ...regras,
-                        { aPartirDeValor: 30, valorCotaComDesconto: 0.80 }
+                        { aPartirDeValor: 0, valorCotaComDesconto: 0.00 }
                       ]
                     }));
                   }}
@@ -1879,6 +1844,150 @@ export const CampanhasFormView: React.FC<Props> = ({
               </div>
             </div>
 
+            {/* Personalização de Visibilidade na Página Pública */}
+            <div className="pt-6 border-t border-slate-800 space-y-4">
+              <div>
+                <h3 className="text-base font-black text-white flex items-center gap-2 mb-1">
+                  <Eye className="w-5 h-5 text-teal-400" />
+                  Visibilidade & Exibição de Elementos (100% Editável)
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Defina exatamente o que aparece ou fica oculto para os participantes na página pública da sua campanha.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 bg-slate-950 border border-slate-800 rounded-2xl">
+                <div className="flex items-center gap-2.5 p-2 bg-slate-900/60 rounded-xl border border-slate-800">
+                  <input
+                    type="checkbox"
+                    id="chk-exibir-ranking"
+                    checked={form.exibirRanking ?? true}
+                    onChange={e => setForm(prev => ({ ...prev, exibirRanking: e.target.checked }))}
+                    className="w-4 h-4 rounded text-emerald-500 bg-slate-900 border-slate-700 cursor-pointer accent-emerald-500"
+                  />
+                  <label htmlFor="chk-exibir-ranking" className="text-xs text-slate-200 font-semibold cursor-pointer select-none">
+                    Exibir Ranking dos Top Compradores
+                  </label>
+                </div>
+
+                <div className="flex items-center gap-2.5 p-2 bg-slate-900/60 rounded-xl border border-slate-800">
+                  <input
+                    type="checkbox"
+                    id="chk-exibir-progresso"
+                    checked={form.exibirBarraProgresso ?? true}
+                    onChange={e => setForm(prev => ({ ...prev, exibirBarraProgresso: e.target.checked }))}
+                    className="w-4 h-4 rounded text-emerald-500 bg-slate-900 border-slate-700 cursor-pointer accent-emerald-500"
+                  />
+                  <label htmlFor="chk-exibir-progresso" className="text-xs text-slate-200 font-semibold cursor-pointer select-none">
+                    Exibir Barra de Progresso (% vendido)
+                  </label>
+                </div>
+
+                <div className="flex items-center gap-2.5 p-2 bg-slate-900/60 rounded-xl border border-slate-800">
+                  <input
+                    type="checkbox"
+                    id="chk-exibir-ganhadores"
+                    checked={form.exibirPaginaGanhadores ?? true}
+                    onChange={e => setForm(prev => ({ ...prev, exibirPaginaGanhadores: e.target.checked }))}
+                    className="w-4 h-4 rounded text-emerald-500 bg-slate-900 border-slate-700 cursor-pointer accent-emerald-500"
+                  />
+                  <label htmlFor="chk-exibir-ganhadores" className="text-xs text-slate-200 font-semibold cursor-pointer select-none">
+                    Exibir Seção de Ganhadores
+                  </label>
+                </div>
+
+                <div className="flex items-center gap-2.5 p-2 bg-slate-900/60 rounded-xl border border-slate-800">
+                  <input
+                    type="checkbox"
+                    id="chk-exibir-qtd-cotas"
+                    checked={form.exibirQtdCotas ?? true}
+                    onChange={e => setForm(prev => ({ ...prev, exibirQtdCotas: e.target.checked }))}
+                    className="w-4 h-4 rounded text-emerald-500 bg-slate-900 border-slate-700 cursor-pointer accent-emerald-500"
+                  />
+                  <label htmlFor="chk-exibir-qtd-cotas" className="text-xs text-slate-200 font-semibold cursor-pointer select-none">
+                    Exibir Quantidade de Cotas (Vendidas / Disponíveis)
+                  </label>
+                </div>
+
+                <div className="flex items-center gap-2.5 p-2 bg-slate-900/60 rounded-xl border border-slate-800">
+                  <input
+                    type="checkbox"
+                    id="chk-exibir-compradores"
+                    checked={form.exibirCompradores ?? true}
+                    onChange={e => setForm(prev => ({ ...prev, exibirCompradores: e.target.checked }))}
+                    className="w-4 h-4 rounded text-emerald-500 bg-slate-900 border-slate-700 cursor-pointer accent-emerald-500"
+                  />
+                  <label htmlFor="chk-exibir-compradores" className="text-xs text-slate-200 font-semibold cursor-pointer select-none">
+                    Exibir Compradores e Últimas Compras
+                  </label>
+                </div>
+
+                <div className="flex items-center gap-2.5 p-2 bg-slate-900/60 rounded-xl border border-slate-800">
+                  <input
+                    type="checkbox"
+                    id="chk-exibir-selo"
+                    checked={form.exibirSelo ?? true}
+                    onChange={e => setForm(prev => ({ ...prev, exibirSelo: e.target.checked }))}
+                    className="w-4 h-4 rounded text-emerald-500 bg-slate-900 border-slate-700 cursor-pointer accent-emerald-500"
+                  />
+                  <label htmlFor="chk-exibir-selo" className="text-xs text-slate-200 font-semibold cursor-pointer select-none">
+                    Exibir Selo de Destaque no Banner
+                  </label>
+                </div>
+
+                <div className="flex items-center gap-2.5 p-2 bg-slate-900/60 rounded-xl border border-slate-800">
+                  <input
+                    type="checkbox"
+                    id="chk-exibir-premios"
+                    checked={form.exibirPremios ?? true}
+                    onChange={e => setForm(prev => ({ ...prev, exibirPremios: e.target.checked }))}
+                    className="w-4 h-4 rounded text-emerald-500 bg-slate-900 border-slate-700 cursor-pointer accent-emerald-500"
+                  />
+                  <label htmlFor="chk-exibir-premios" className="text-xs text-slate-200 font-semibold cursor-pointer select-none">
+                    Exibir Lista da Premiação Oficial
+                  </label>
+                </div>
+
+                <div className="flex items-center gap-2.5 p-2 bg-slate-900/60 rounded-xl border border-slate-800">
+                  <input
+                    type="checkbox"
+                    id="chk-exibir-cotas-premiadas"
+                    checked={form.exibirCotasPremiadas ?? true}
+                    onChange={e => setForm(prev => ({ ...prev, exibirCotasPremiadas: e.target.checked }))}
+                    className="w-4 h-4 rounded text-emerald-500 bg-slate-900 border-slate-700 cursor-pointer accent-emerald-500"
+                  />
+                  <label htmlFor="chk-exibir-cotas-premiadas" className="text-xs text-slate-200 font-semibold cursor-pointer select-none">
+                    Exibir Seção de Cotas Premiadas Instantâneas
+                  </label>
+                </div>
+              </div>
+
+              {/* Temporizador Padrão de Animação do Sorteio */}
+              <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <label className="text-xs font-bold text-white block mb-0.5">
+                    ⏱️ Temporizador da Animação do Sorteio
+                  </label>
+                  <p className="text-[11px] text-slate-400">
+                    Tempo em segundos durante o qual os números rolam desacelerando até parar no vencedor.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <select
+                    value={form.tempoAnimacaoSorteioSegundos || 3}
+                    onChange={e => setForm(prev => ({ ...prev, tempoAnimacaoSorteioSegundos: Number(e.target.value) }))}
+                    className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono font-bold text-emerald-400 focus:outline-none"
+                  >
+                    <option value={2}>2 segundos (Rápido)</option>
+                    <option value={3}>3 segundos (Padrão)</option>
+                    <option value={5}>5 segundos (Suspenso)</option>
+                    <option value={8}>8 segundos (Longo)</option>
+                    <option value={10}>10 segundos (Ultra Suspenso)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
             {/* Exigências de Cadastro */}
             <div className="pt-6 border-t border-slate-800">
               <h3 className="text-base font-black text-white mb-2">Campos Obrigatórios no Checkout</h3>
@@ -1954,6 +2063,77 @@ export const CampanhasFormView: React.FC<Props> = ({
         </div>
 
       </form>
+
+      {/* MODAL DE SELEÇÃO DE QUANTIDADE DE COTAS */}
+      {mostrarModalCotas && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-5 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                  <Zap className="w-5 h-5 text-amber-400" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-white">Selecionar Quantidade de Cotas</h3>
+                  <p className="text-xs text-slate-400">Escolha a quantidade de números para a sua rifa</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMostrarModalCotas(false)}
+                className="w-8 h-8 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-full font-bold text-xs transition flex items-center justify-center"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-[60vh] overflow-y-auto pr-1">
+              {[
+                { label: '100 Cotas', val: 100, desc: '00 a 99 (2 dígitos)' },
+                { label: '200 Cotas', val: 200, desc: '000 a 199 (3 dígitos)' },
+                { label: '300 Cotas', val: 300, desc: '000 a 299 (3 dígitos)' },
+                { label: '500 Cotas', val: 500, desc: '000 a 499 (3 dígitos)' },
+                { label: '1.000 Cotas', val: 1000, desc: '0000 a 0999 (4 dígitos)' },
+                { label: '2.500 Cotas', val: 2500, desc: '0000 a 2499 (4 dígitos)' },
+                { label: '5.000 Cotas', val: 5000, desc: '0000 a 4999 (4 dígitos)' },
+                { label: '10.000 Cotas', val: 10000, desc: '00000 a 09999 (5 dígitos)' },
+                { label: '50.000 Cotas', val: 50000, desc: '00000 a 49999 (5 dígitos)' },
+                { label: '100.000 Cotas', val: 100000, desc: '000000 a 099999 (6 dígitos)' },
+                { label: '500.000 Cotas', val: 500000, desc: '000000 a 499999 (6 dígitos)' },
+                { label: '1 MILHÃO', val: 1000000, desc: '0000000 a 0999999 (7 d)' },
+                { label: '10 MILHÕES', val: 10000000, desc: '00000000 a 09999999 (8 d)' },
+              ].map(opt => (
+                <button
+                  key={opt.val}
+                  type="button"
+                  onClick={() => {
+                    setForm(prev => ({ ...prev, totalCotas: opt.val }));
+                    setMostrarModalCotas(false);
+                  }}
+                  className={`p-3 rounded-2xl text-left border transition ${
+                    form.totalCotas === opt.val
+                      ? 'bg-emerald-500/20 border-emerald-500 text-white shadow-lg shadow-emerald-500/10'
+                      : 'bg-slate-950 hover:bg-slate-800 border-slate-800 text-slate-300'
+                  }`}
+                >
+                  <p className="text-xs font-black text-white">{opt.label}</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">{opt.desc}</p>
+                </button>
+              ))}
+            </div>
+
+            <div className="pt-2 border-t border-slate-800 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setMostrarModalCotas(false)}
+                className="py-2.5 px-5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl transition"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

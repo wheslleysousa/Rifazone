@@ -7,6 +7,8 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   updateProfile,
+  updateEmail,
+  updatePassword,
   onAuthStateChanged,
   type User
 } from 'firebase/auth';
@@ -51,6 +53,24 @@ export async function entrarComGoogle(): Promise<User> {
 
 export async function sair(): Promise<void> {
   await signOut(auth);
+}
+
+export async function atualizarPerfilUsuario(nome: string, fotoUrl?: string): Promise<void> {
+  if (!auth.currentUser) throw new Error('Usuário não autenticado');
+  await updateProfile(auth.currentUser, {
+    displayName: nome,
+    photoURL: fotoUrl || ''
+  });
+}
+
+export async function atualizarEmailUsuario(novoEmail: string): Promise<void> {
+  if (!auth.currentUser) throw new Error('Usuário não autenticado');
+  await updateEmail(auth.currentUser, novoEmail);
+}
+
+export async function atualizarSenhaUsuario(novaSenha: string): Promise<void> {
+  if (!auth.currentUser) throw new Error('Usuário não autenticado');
+  await updatePassword(auth.currentUser, novaSenha);
 }
 
 // Traduz códigos de erro do Firebase Auth para mensagens amigáveis em pt-BR.

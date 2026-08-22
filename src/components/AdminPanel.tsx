@@ -4,10 +4,12 @@ import {
   LayoutDashboard, MessageSquare, LayoutGrid, Plus,
   Users, Ticket, RotateCw, Settings, LogOut, RefreshCw,
   Eye, Edit3, Link2, Copy, CheckCircle2, AlertCircle, Menu, X, Mail, Lock, User as UserIcon, Key,
-  ExternalLink, Zap, Unlink, ShieldCheck, HelpCircle, ChevronDown, ChevronUp, Info
+  ExternalLink, Zap, Unlink, ShieldCheck, HelpCircle, ChevronDown, ChevronUp, Info,
+  Trophy, Trash2, Play, Pause, Camera, Sparkles
 } from 'lucide-react';
 import {
   auth, observarAuth, cadastrarComEmail, entrarComEmail, entrarComGoogle, sair,
+  atualizarPerfilUsuario, atualizarEmailUsuario, atualizarSenhaUsuario,
   traduzErroAuth, type User
 } from '../lib/firebase';
 
@@ -61,30 +63,28 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
   const [form, setForm] = useState<Partial<Campanha>>({
     titulo: '',
     subtitulo: '',
-    descricao: '<p>Participe do sorteio oficial! Pagamento instantâneo via Pix.</p>',
-    bannerUrl: 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?auto=format&fit=crop&w=1200&q=80',
+    descricao: '',
+    bannerUrl: '',
     fotosCarrossel: [],
     youtubeUrl: '',
     modelo: 'aleatorio',
-    totalCotas: 10000,
-    valorCota: 0.50,
-    minPorCompra: 5,
-    maxPorCompra: 1000,
+    totalCotas: undefined,
+    valorCota: undefined,
+    minPorCompra: undefined,
+    maxPorCompra: undefined,
     localSorteio: 'Loteria Federal',
-    selo: 'Corre que essa vai rápido! 🔥',
-    tempoReservaMin: 10,
+    selo: '',
+    tempoReservaMin: undefined,
     exibirRanking: true,
     exibirBarraProgresso: true,
     exibirPaginaGanhadores: true,
     exigirEmail: false,
     exigirCpf: false,
     status: 'publicada',
-    premios: [{ posicao: 1, descricao: '1º Prêmio Principal' }],
+    premios: [],
     cotasPremiadas: [],
-    promocoes: [
-      { quantidade: 10, valor: 5.00, destaque: false },
-      { quantidade: 50, valor: 22.50, destaque: true }
-    ],
+    promocoes: [],
+    descontoPorValorTotal: [],
     ofertasRelampago: []
   });
   const [salvandoCampanha, setSalvandoCampanha] = useState(false);
@@ -94,6 +94,50 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
   // Link compartilhável pós-salvar
   const [linkCampanha, setLinkCampanha] = useState<{ codigo: string; titulo: string } | null>(null);
   const [linkCopiado, setLinkCopiado] = useState(false);
+
+  // Exclusão de campanha
+  const [campanhaParaExcluir, setCampanhaParaExcluir] = useState<Campanha | null>(null);
+  const [excluindoCampanha, setExcluindoCampanha] = useState(false);
+
+  // Alternar Status da Campanha (Ativar / Pausar)
+  const handleToggleStatusCampanha = async (campanha: Campanha) => {
+    const statusAtual = campanha.status;
+    const novoStatus = (statusAtual === 'publicada') ? 'pausada' : 'publicada';
+    setCampanhas(prev => prev.map(c => c.id === campanha.id ? { ...c, status: novoStatus } : c));
+    try {
+      const res = await authFetch(`/api/admin/campanhas/${campanha.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...campanha, status: novoStatus })
+      });
+      if (!res.ok) {
+        await carregarTudo();
+      }
+    } catch (e) {
+      await carregarTudo();
+    }
+  };
+
+  // Confirmar Exclusão de Campanha
+  const handleExcluirCampanha = async () => {
+    if (!campanhaParaExcluir) return;
+    setExcluindoCampanha(true);
+    try {
+      const res = await authFetch(`/api/admin/campanhas/${campanhaParaExcluir.id}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        setCampanhaParaExcluir(null);
+        await carregarTudo();
+      } else {
+        alert('Erro ao excluir campanha.');
+      }
+    } catch (e) {
+      alert('Falha de conexão ao tentar excluir campanha.');
+    } finally {
+      setExcluindoCampanha(false);
+    }
+  };
 
   // Configurações Mercado Pago
   const [configPagamento, setConfigPagamento] = useState<any | null>(null);
@@ -106,6 +150,65 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
   const [redirectUriCopiada, setRedirectUriCopiada] = useState(false);
   const [configMsg, setConfigMsg] = useState('');
   const [configErro, setConfigErro] = useState('');
+
+  // Sub-abas de configuração
+  const [subAbaConfig, setSubAbaConfig] = useState<'perfil' | 'pix'>('perfil');
+  const [perfilNome, setPerfilNome] = useState('');
+  const [perfilFoto, setPerfilFoto] = useState('');
+  const [perfilEmail, setPerfilEmail] = useState('');
+  const [perfilSenha, setPerfilSenha] = useState('');
+  const [salvandoPerfil, setSalvandoPerfil] = useState(false);
+
+  // Inicializa dados do perfil
+  useEffect(() => {
+    if (user) {
+      setPerfilNome(user.displayName || '');
+      setPerfilFoto(user.photoURL || '');
+      setPerfilEmail(user.email || '');
+    }
+  }, [user]);
+
+  const handleSalvarPerfil = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    setSalvandoPerfil(true);
+    setConfigMsg('');
+    setConfigErro('');
+    try {
+      // 1) Atualiza perfil (nome e foto)
+      if (perfilNome.trim() !== (user.displayName || '') || perfilFoto.trim() !== (user.photoURL || '')) {
+        await atualizarPerfilUsuario(perfilNome.trim(), perfilFoto.trim());
+      }
+      
+      // 2) Atualiza email se mudou
+      if (perfilEmail.trim() !== (user.email || '')) {
+        await atualizarEmailUsuario(perfilEmail.trim());
+      }
+
+      // 3) Atualiza senha se preenchida
+      if (perfilSenha) {
+        if (perfilSenha.length < 6) {
+          throw new Error('A nova senha deve ter no mínimo 6 caracteres.');
+        }
+        await atualizarSenhaUsuario(perfilSenha);
+        setPerfilSenha('');
+      }
+
+      // Recarrega o estado do usuário para refletir as alterações
+      setUser({
+        ...user,
+        displayName: perfilNome.trim(),
+        photoURL: perfilFoto.trim(),
+        email: perfilEmail.trim()
+      } as any);
+
+      setConfigMsg('Seus dados de perfil foram atualizados com sucesso no Firebase!');
+    } catch (err: any) {
+      setConfigErro(traduzErroAuth(err?.code || '') || err.message || 'Erro ao atualizar dados da conta.');
+    } finally {
+      setSalvandoPerfil(false);
+    }
+  };
 
   // Observa Auth Firebase
   useEffect(() => {
@@ -396,30 +499,34 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
     setForm({
       titulo: '',
       subtitulo: '',
-      descricao: '<p>Participe do sorteio oficial! Pagamento instantâneo via Pix.</p>',
-      bannerUrl: 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?auto=format&fit=crop&w=1200&q=80',
+      descricao: '',
+      bannerUrl: '',
       fotosCarrossel: [],
       youtubeUrl: '',
       modelo: 'aleatorio',
-      totalCotas: 10000,
-      valorCota: 0.50,
-      minPorCompra: 5,
-      maxPorCompra: 1000,
+      totalCotas: undefined,
+      valorCota: undefined,
+      minPorCompra: undefined,
+      maxPorCompra: undefined,
       localSorteio: 'Loteria Federal',
-      selo: 'Corre que essa vai rápido! 🔥',
-      tempoReservaMin: 10,
+      selo: '',
+      tempoReservaMin: undefined,
       exibirRanking: true,
       exibirBarraProgresso: true,
       exibirPaginaGanhadores: true,
+      exibirQtdCotas: true,
+      exibirCompradores: true,
+      exibirSelo: true,
+      exibirPremios: true,
+      exibirCotasPremiadas: true,
+      tempoAnimacaoSorteioSegundos: 3,
       exigirEmail: false,
       exigirCpf: false,
       status: 'publicada',
-      premios: [{ posicao: 1, descricao: '1º Prêmio Principal' }],
+      premios: [],
       cotasPremiadas: [],
-      promocoes: [
-        { quantidade: 10, valor: 5.00, destaque: false },
-        { quantidade: 50, valor: 22.50, destaque: true }
-      ],
+      promocoes: [],
+      descontoPorValorTotal: [],
       ofertasRelampago: []
     });
     setIaAviso('');
@@ -651,14 +758,6 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
               ))}
             </div>
           ))}
-
-          <button
-            onClick={() => { handleLimparReservas(); setMenuAberto(false); }}
-            className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white hover:bg-slate-800/80 border border-transparent transition"
-          >
-            <RefreshCw className="w-4 h-4 text-emerald-400" />
-            <span className="flex-1 text-left">Limpar Reservas</span>
-          </button>
         </nav>
 
         {/* Rodapé Usuário */}
@@ -840,18 +939,45 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
                       <div>
                         <div className="flex items-start justify-between gap-3 mb-3">
                           <div>
-                            <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider mb-1.5 ${
-                              c.status === 'publicada'
-                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                                : 'bg-amber-500/20 text-amber-300'
-                            }`}>
-                              {c.status}
-                            </span>
-                            <h4 className="text-base font-black text-white leading-snug">
+                            {/* Toggle Ativar / Pausar */}
+                            <button
+                              onClick={() => handleToggleStatusCampanha(c)}
+                              className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider transition flex items-center gap-1.5 shadow-sm ${
+                                c.status === 'publicada'
+                                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-amber-500/20 hover:text-amber-300 hover:border-amber-500/40'
+                                  : c.status === 'pausada'
+                                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-emerald-500/20 hover:text-emerald-300 hover:border-emerald-500/40'
+                                  : 'bg-slate-800 text-slate-300 border border-slate-700 hover:bg-emerald-500/20 hover:text-emerald-300'
+                              }`}
+                              title={
+                                c.status === 'publicada'
+                                  ? 'Campanha Ativa. Clique para Pausar as vendas.'
+                                  : 'Campanha Pausada. Clique para Ativar as vendas.'
+                              }
+                            >
+                              {c.status === 'publicada' ? (
+                                <>
+                                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                                  <span>ATIVA (Clique p/ Pausar)</span>
+                                </>
+                              ) : c.status === 'pausada' ? (
+                                <>
+                                  <Pause className="w-3 h-3 text-amber-400" />
+                                  <span>PAUSADA (Clique p/ Ativar)</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Play className="w-3 h-3 text-slate-400" />
+                                  <span>{c.status.toUpperCase()} (Ativar)</span>
+                                </>
+                              )}
+                            </button>
+
+                            <h4 className="text-base font-black text-white leading-snug mt-2">
                               {c.titulo}
                             </h4>
                           </div>
-                          <span className="text-xs font-mono font-bold text-slate-400 bg-slate-800 px-2 py-1 rounded">
+                          <span className="text-xs font-mono font-bold text-slate-400 bg-slate-800 px-2 py-1 rounded shrink-0">
                             /c/{c.codigo}
                           </span>
                         </div>
@@ -881,11 +1007,11 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
                       <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-slate-800">
                         <button
                           onClick={() => onSelectCampanha(c.codigo)}
-                          className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition"
-                          title="Ver como os compradores enxergam a página da rifa"
+                          className="py-2 px-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition"
+                          title="Ver prévia pública da rifa"
                         >
                           <Eye className="w-3.5 h-3.5 text-slate-400" />
-                          Ver Prévia
+                          Prévia
                         </button>
 
                         <button
@@ -893,11 +1019,23 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
                             setLinkCampanha({ codigo: c.codigo, titulo: c.titulo });
                             setLinkCopiado(false);
                           }}
-                          className="flex-1 py-2 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition"
-                          title="Obter link oficial permanente para divulgar aos compradores"
+                          className="py-2 px-3 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition"
+                          title="Link de divulgação"
                         >
                           <Link2 className="w-3.5 h-3.5 text-emerald-400" />
-                          Publicar / Link
+                          Link
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setCampanhaSelecionada(c);
+                            setAbaAtiva('sorteador');
+                          }}
+                          className="py-2 px-3 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition"
+                          title="Realizar sorteio de cotas pagas"
+                        >
+                          <Trophy className="w-3.5 h-3.5 text-amber-400" />
+                          Sorteio
                         </button>
 
                         <button
@@ -905,7 +1043,7 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
                             setForm(c);
                             setAbaAtiva('nova');
                           }}
-                          className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition"
+                          className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition border border-slate-700/60"
                           title="Editar Campanha"
                         >
                           <Edit3 className="w-4 h-4" />
@@ -916,10 +1054,18 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
                             setCampanhaSelecionada(c);
                             setAbaAtiva('pedidos');
                           }}
-                          className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition"
+                          className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition border border-slate-700/60"
                           title="Ver Pedidos e Bilhetes"
                         >
                           <Users className="w-4 h-4" />
+                        </button>
+
+                        <button
+                          onClick={() => setCampanhaParaExcluir(c)}
+                          className="p-2 bg-slate-800 hover:bg-red-500/20 hover:text-red-400 text-slate-400 rounded-xl transition border border-slate-700/60 ml-auto"
+                          title="Excluir Campanha"
+                        >
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
@@ -1012,17 +1158,45 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
             </div>
           )}
 
-          {/* 11. CONFIGURAÇÕES (MERCADO PAGO) */}
+          {/* 11. CONFIGURAÇÕES */}
           {abaAtiva === 'configuracoes' && (
             <div className="max-w-2xl mx-auto space-y-6">
               <div>
                 <h1 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
                   <Settings className="w-5 h-5 text-emerald-400" />
-                  Configurações — Mercado Pago Pix
+                  Configurações Gerais
                 </h1>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Conecte sua conta do Mercado Pago para receber o dinheiro de todas as cotas vendidas direto na sua conta bancária em tempo real.
+                  Gerencie as informações do seu perfil de organizador e configure o gateway de recebimento Pix.
                 </p>
+              </div>
+
+              {/* Seleção de Sub-abas */}
+              <div className="flex p-1 bg-slate-900 border border-slate-800 rounded-2xl">
+                <button
+                  type="button"
+                  onClick={() => { setSubAbaConfig('perfil'); setConfigMsg(''); setConfigErro(''); }}
+                  className={`flex-1 py-3 text-xs font-black rounded-xl transition flex items-center justify-center gap-2 ${
+                    subAbaConfig === 'perfil'
+                      ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/10'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <UserIcon className="w-4 h-4" />
+                  Minha Conta / Perfil
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setSubAbaConfig('pix'); setConfigMsg(''); setConfigErro(''); }}
+                  className={`flex-1 py-3 text-xs font-black rounded-xl transition flex items-center justify-center gap-2 ${
+                    subAbaConfig === 'pix'
+                      ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/10'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <Zap className="w-4 h-4" />
+                  Integração Pix (Mercado Pago)
+                </button>
               </div>
 
               {/* Mensagens de feedback */}
@@ -1046,242 +1220,440 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
                 </div>
               )}
 
-              {/* STATUS ATUAL DA CONEXÃO */}
-              <div className={`rounded-2xl border p-5 shadow-lg transition-all ${
-                configPagamento?.mpConfigurado
-                  ? 'border-emerald-500/40 bg-slate-900/90'
-                  : 'border-slate-800 bg-slate-900/60'
-              }`}>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="flex items-start gap-3.5">
-                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
-                      configPagamento?.mpConfigurado
-                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                        : 'bg-slate-800 text-slate-400 border border-slate-700'
-                    }`}>
-                      {configPagamento?.mpConfigurado ? (
-                        <ShieldCheck className="w-6 h-6" />
-                      ) : (
-                        <AlertCircle className="w-6 h-6 text-amber-400" />
-                      )}
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="text-sm font-black text-white">
-                          {configPagamento?.mpConfigurado ? 'Mercado Pago Conectado e Ativo' : 'Nenhuma Conta Conectada'}
-                        </h3>
-                        {configPagamento?.mpConfigurado && (
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
-                            configPagamento.mpConexaoTipo === 'oauth'
-                              ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30'
-                              : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                          }`}>
-                            {configPagamento.mpConexaoTipo === 'oauth' ? 'OAuth Oficial' : 'Chave Manual'}
-                          </span>
+              {/* ABA 1: CONFIGURAÇÃO DE PERFIL */}
+              {subAbaConfig === 'perfil' && (
+                <form onSubmit={handleSalvarPerfil} className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 space-y-6 shadow-xl">
+                  <div className="flex flex-col sm:flex-row items-center gap-5 pb-2 border-b border-slate-800/80">
+                    <div className="relative group">
+                      <div className="w-20 h-20 rounded-full bg-slate-950 border-2 border-emerald-500/30 overflow-hidden flex items-center justify-center shadow-lg">
+                        {perfilFoto ? (
+                          <img
+                            src={perfilFoto}
+                            alt="Avatar"
+                            className="w-full h-full object-cover"
+                            referrerPolicy="no-referrer"
+                            onError={(e) => {
+                              // Fallback se a imagem falhar
+                              (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(perfilNome || 'Rifa')}`;
+                            }}
+                          />
+                        ) : (
+                          <UserIcon className="w-8 h-8 text-slate-500" />
                         )}
                       </div>
-                      <p className="text-xs text-slate-400 mt-1">
-                        {configPagamento?.mpConfigurado
-                          ? 'Seus sorteios estão autorizados a emitir Pix oficiais e receber notificações instantâneas.'
-                          : 'Conecte sua conta do Mercado Pago para que os pagamentos Pix caiam direto no seu saldo.'}
-                      </p>
-
-                      {configPagamento?.mpConfigurado && (
-                        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] font-mono bg-slate-950/70 p-2.5 rounded-xl border border-slate-800">
-                          {configPagamento.mpUserId && (
-                            <div>
-                              <span className="text-slate-500 block text-[10px]">ID do Usuário MP:</span>
-                              <span className="text-slate-300 font-bold">{configPagamento.mpUserId}</span>
-                            </div>
-                          )}
-                          <div>
-                            <span className="text-slate-500 block text-[10px]">Token Ativo:</span>
-                            <span className="text-emerald-400 font-bold">{configPagamento.mpTokenMascara}</span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {configPagamento?.mpConfigurado && (
-                    <button
-                      onClick={handleDesconectarMercadoPago}
-                      disabled={desconectandoMp}
-                      className="px-3.5 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 self-start sm:self-center shrink-0"
-                    >
-                      <Unlink className="w-3.5 h-3.5" />
-                      {desconectandoMp ? 'Desconectando...' : 'Desconectar'}
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* CARD PRINCIPAL: CONECTAR COM 1 CLIQUE VIA OAUTH */}
-              <div className="rounded-2xl border border-sky-500/30 bg-gradient-to-br from-sky-950/40 via-slate-900 to-slate-900 p-6 space-y-4 shadow-xl">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 text-[10px] font-black uppercase tracking-wider border border-sky-500/30 flex items-center gap-1">
-                        <Zap className="w-3 h-3 text-sky-400" />
-                        Recomendado • 1 Clique
-                      </span>
-                    </div>
-                    <h2 className="text-base font-black text-white">
-                      Conectar Conta Mercado Pago (OAuth)
-                    </h2>
-                    <p className="text-xs text-slate-400 leading-relaxed">
-                      Autorize a plataforma em segundos. Você será direcionado para o site oficial do Mercado Pago para fazer login e autorizar os recebimentos.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="pt-2">
-                  <button
-                    onClick={handleConectarMercadoPagoOAuth}
-                    disabled={iniciandoOAuth}
-                    className="w-full sm:w-auto px-6 py-3.5 bg-[#009EE3] hover:bg-[#0086c3] text-white font-black text-sm rounded-xl shadow-lg shadow-sky-500/25 flex items-center justify-center gap-2.5 transition active:scale-[0.99] disabled:opacity-70 cursor-pointer"
-                  >
-                    {iniciandoOAuth ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                        Iniciando autorização segura...
-                      </>
-                    ) : (
-                      <>
-                        <span className="font-black text-base">MP</span>
-                        <span>{configPagamento?.mpConfigurado ? 'Reconectar com Mercado Pago' : 'Conectar com Mercado Pago'}</span>
-                        <ExternalLink className="w-4 h-4 ml-1 opacity-80" />
-                      </>
-                    )}
-                  </button>
-                </div>
-
-                {/* Ajuda para o Dono do App se OAuth ainda não tiver CLIENT_ID no Render */}
-                {!configPagamento?.oauthConfiguradoNoServidor && (
-                  <div className="mt-4 p-4 rounded-xl bg-slate-950 border border-slate-800 text-[11px] text-slate-400 space-y-2">
-                    <div className="flex items-center gap-1.5 text-amber-400 font-bold text-xs">
-                      <Info className="w-4 h-4 shrink-0" />
-                      Instruções para o Dono da Plataforma (Configuração única no Render)
-                    </div>
-                    <p>
-                      Para que qualquer usuário possa clicar no botão acima e conectar a conta dele automaticamente, adicione as variáveis no seu <strong>Render Dashboard → Environment</strong>:
-                    </p>
-                    <div className="font-mono text-slate-300 bg-slate-900 p-2.5 rounded-lg border border-slate-800 space-y-1">
-                      <div><strong className="text-sky-400">MP_CLIENT_ID</strong> = <em>Seu Application ID do Mercado Pago</em></div>
-                      <div><strong className="text-sky-400">MP_CLIENT_SECRET</strong> = <em>Seu Client Secret do Mercado Pago</em></div>
-                    </div>
-                    <div className="pt-1">
-                      <p className="text-slate-400 mb-1.5">
-                        E cadastre a <strong>URL de Retorno (Redirect URI)</strong> no portal Mercado Pago Developers:
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <code className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] text-emerald-300 font-mono break-all">
-                          {configPagamento?.oauthRedirectUri || `${window.location.origin}/api/auth/mercadopago/callback`}
-                        </code>
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            const uri = configPagamento?.oauthRedirectUri || `${window.location.origin}/api/auth/mercadopago/callback`;
-                            await navigator.clipboard.writeText(uri);
-                            setRedirectUriCopiada(true);
-                            setTimeout(() => setRedirectUriCopiada(false), 2000);
-                          }}
-                          className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-lg border border-slate-700 flex items-center gap-1 shrink-0"
-                        >
-                          {redirectUriCopiada ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                          {redirectUriCopiada ? 'Copiado!' : 'Copiar'}
-                        </button>
+                      <div className="absolute -bottom-1 -right-1 w-7 h-7 bg-emerald-500 text-slate-950 rounded-full flex items-center justify-center shadow-md border border-slate-900">
+                        <Camera className="w-3.5 h-3.5" />
                       </div>
                     </div>
-                  </div>
-                )}
-              </div>
-
-              {/* OPÇÃO 2: CONFIGURAÇÃO MANUAL (EXPANSÍVEL / AVANÇADO) */}
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-lg">
-                <button
-                  type="button"
-                  onClick={() => setMostrarManualMp(!mostrarManualMp)}
-                  className="w-full p-5 flex items-center justify-between text-left hover:bg-slate-800/40 transition"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <Key className="w-4 h-4 text-slate-400" />
-                    <div>
-                      <h3 className="text-xs font-bold text-white">
-                        Configuração Manual via Access Token (Avançado)
-                      </h3>
-                      <p className="text-[11px] text-slate-400">
-                        Insira diretamente o seu Access Token de Produção ou Teste gerado no portal do desenvolvedor.
+                    <div className="text-center sm:text-left space-y-1">
+                      <h3 className="text-sm font-black text-white">Foto do Organizador</h3>
+                      <p className="text-[11px] text-slate-400 leading-normal max-w-sm">
+                        Adicione um link direto de imagem (.jpg, .png ou .svg) ou clique no botão abaixo para gerar uma foto moderna baseada no seu nome.
                       </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const seed = perfilNome.trim() || user?.email || 'rifapix';
+                          const randomNum = Math.floor(Math.random() * 1000);
+                          setPerfilFoto(`https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(seed)}-${randomNum}`);
+                        }}
+                        className="mt-1.5 px-3 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-black rounded-lg transition flex items-center gap-1 mx-auto sm:mx-0"
+                      >
+                        <Sparkles className="w-3 h-3" />
+                        Gerar Avatar Moderno
+                      </button>
                     </div>
                   </div>
-                  {mostrarManualMp ? (
-                    <ChevronUp className="w-4 h-4 text-slate-400" />
-                  ) : (
-                    <ChevronDown className="w-4 h-4 text-slate-400" />
-                  )}
-                </button>
 
-                {mostrarManualMp && (
-                  <form onSubmit={handleSalvarConfig} className="p-6 pt-0 border-t border-slate-800/80 space-y-4 animate-in fade-in">
-                    <div className="pt-4">
-                      <label className="text-xs font-bold text-slate-300 block mb-1">
-                        Access Token do Mercado Pago *
-                      </label>
-                      <input
-                        type="password"
-                        value={mpTokenInput}
-                        onChange={e => setMpTokenInput(e.target.value)}
-                        placeholder={configPagamento?.mpConfigurado ? '•••••••••••• (deixe em branco para manter o token atual)' : 'APP_USR-... ou TEST-...'}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white font-mono focus:border-emerald-500 focus:outline-none"
-                        autoComplete="off"
-                      />
-                      <span className="text-[11px] text-slate-500 block mt-1">
-                        Começa com <strong className="text-emerald-400">APP_USR-</strong> (produção) ou <strong className="text-amber-400">TEST-</strong> (teste).
-                      </span>
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-bold text-slate-300 block mb-1">
-                        Public Key (Opcional)
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-300 flex items-center gap-1">
+                        <UserIcon className="w-3.5 h-3.5 text-emerald-400" />
+                        Nome Completo / Fantasia *
                       </label>
                       <input
                         type="text"
-                        value={mpPublicKeyInput}
-                        onChange={e => setMpPublicKeyInput(e.target.value)}
-                        placeholder="APP_USR-xxxxxxxx ou TEST-xxxx"
-                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white font-mono focus:border-emerald-500 focus:outline-none"
-                        autoComplete="off"
+                        required
+                        value={perfilNome}
+                        onChange={e => setPerfilNome(e.target.value)}
+                        placeholder="Ex: Carlos Prêmios"
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:border-emerald-500 focus:outline-none"
                       />
                     </div>
 
-                    <div className="flex justify-end pt-2">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-300 flex items-center gap-1">
+                        <Mail className="w-3.5 h-3.5 text-emerald-400" />
+                        E-mail de Acesso *
+                      </label>
+                      <input
+                        type="email"
+                        required
+                        value={perfilEmail}
+                        onChange={e => setPerfilEmail(e.target.value)}
+                        placeholder="Ex: organizador@email.com"
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:border-emerald-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-300 flex items-center gap-1">
+                      <Link2 className="w-3.5 h-3.5 text-emerald-400" />
+                      Link da Imagem de Perfil
+                    </label>
+                    <input
+                      type="url"
+                      value={perfilFoto}
+                      onChange={e => setPerfilFoto(e.target.value)}
+                      placeholder="https://exemplo.com/sua-foto.png"
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white font-mono focus:border-emerald-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-3.5">
+                    <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <Lock className="w-3.5 h-3.5 text-amber-400" />
+                      Alterar Senha de Acesso (Opcional)
+                    </h4>
+                    <p className="text-[10px] text-slate-400 leading-normal">
+                      Se deseja alterar sua senha, preencha o campo abaixo. Deixe em branco se deseja continuar utilizando sua senha atual de acesso ao painel do organizador.
+                    </p>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-300 block">
+                        Nova Senha de Acesso
+                      </label>
+                      <input
+                        type="password"
+                        value={perfilSenha}
+                        onChange={e => setPerfilSenha(e.target.value)}
+                        placeholder="No mínimo 6 caracteres"
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:border-emerald-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end pt-2">
+                    <button
+                      type="submit"
+                      disabled={salvandoPerfil}
+                      className="w-full sm:w-auto px-6 py-3 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-emerald-500/20 transition flex items-center justify-center gap-2"
+                    >
+                      {salvandoPerfil ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          Salvando alterações...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 className="w-4 h-4" />
+                          Salvar Meus Dados
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* ABA 2: MERCADO PAGO CONFIGURAÇÕES */}
+              {subAbaConfig === 'pix' && (
+                <>
+                  {/* STATUS ATUAL DA CONEXÃO */}
+                  <div className={`rounded-2xl border p-5 shadow-lg transition-all ${
+                    configPagamento?.mpConfigurado
+                      ? 'border-emerald-500/40 bg-slate-900/90'
+                      : 'border-slate-800 bg-slate-900/60'
+                  }`}>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="flex items-start gap-3.5">
+                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
+                          configPagamento?.mpConfigurado
+                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                            : 'bg-slate-800 text-slate-400 border border-slate-700'
+                        }`}>
+                          {configPagamento?.mpConfigurado ? (
+                            <ShieldCheck className="w-6 h-6" />
+                          ) : (
+                            <AlertCircle className="w-6 h-6 text-amber-400" />
+                          )}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="text-sm font-black text-white">
+                              {configPagamento?.mpConfigurado ? 'Mercado Pago Conectado e Ativo' : 'Nenhuma Conta Conectada'}
+                            </h3>
+                            {configPagamento?.mpConfigurado && (
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                                configPagamento.mpConexaoTipo === 'oauth'
+                                  ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30'
+                                  : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                              }`}>
+                                {configPagamento.mpConexaoTipo === 'oauth' ? 'OAuth Oficial' : 'Chave Manual'}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-slate-400 mt-1">
+                            {configPagamento?.mpConfigurado
+                              ? 'Seus sorteios estão autorizados a emitir Pix oficiais e receber notificações instantâneas.'
+                              : 'Conecte sua conta do Mercado Pago para que os pagamentos Pix caiam direto no seu saldo.'}
+                          </p>
+
+                          {configPagamento?.mpConfigurado && (
+                            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] font-mono bg-slate-950/70 p-2.5 rounded-xl border border-slate-800">
+                              {configPagamento.mpUserId && (
+                                <div>
+                                  <span className="text-slate-500 block text-[10px]">ID do Usuário MP:</span>
+                                  <span className="text-slate-300 font-bold">{configPagamento.mpUserId}</span>
+                                </div>
+                              )}
+                              <div>
+                                <span className="text-slate-500 block text-[10px]">Token Ativo:</span>
+                                <span className="text-emerald-400 font-bold">{configPagamento.mpTokenMascara}</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {configPagamento?.mpConfigurado && (
+                        <button
+                          type="button"
+                          onClick={handleDesconectarMercadoPago}
+                          disabled={desconectandoMp}
+                          className="px-3.5 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 self-start sm:self-center shrink-0"
+                        >
+                          <Unlink className="w-3.5 h-3.5" />
+                          {desconectandoMp ? 'Desconectando...' : 'Desconectar'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* CARD PRINCIPAL: CONECTAR COM 1 CLIQUE VIA OAUTH */}
+                  <div className="rounded-2xl border border-sky-500/30 bg-gradient-to-br from-sky-950/40 via-slate-900 to-slate-900 p-6 space-y-4 shadow-xl">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 text-[10px] font-black uppercase tracking-wider border border-sky-500/30 flex items-center gap-1">
+                            <Zap className="w-3 h-3 text-sky-400" />
+                            Recomendado • 1 Clique
+                          </span>
+                        </div>
+                        <h2 className="text-base font-black text-white">
+                          Conectar Conta Mercado Pago (OAuth)
+                        </h2>
+                        <p className="text-xs text-slate-400 leading-relaxed">
+                          Autorize a plataforma em segundos. Você será direcionado para o site oficial do Mercado Pago para fazer login e autorizar os recebimentos.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="pt-2">
                       <button
-                        type="submit"
-                        disabled={salvandoConfig}
-                        className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 text-slate-950 text-xs font-black rounded-xl shadow-md transition"
+                        type="button"
+                        onClick={handleConectarMercadoPagoOAuth}
+                        disabled={iniciandoOAuth}
+                        className="w-full sm:w-auto px-6 py-3.5 bg-[#009EE3] hover:bg-[#0086c3] text-white font-black text-sm rounded-xl shadow-lg shadow-sky-500/25 flex items-center justify-center gap-2.5 transition active:scale-[0.99] disabled:opacity-70 cursor-pointer"
                       >
-                        {salvandoConfig ? 'Salvando...' : 'Salvar Chaves Manualmente'}
+                        {iniciandoOAuth ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                            Iniciando autorização segura...
+                          </>
+                        ) : (
+                          <>
+                            <span className="font-black text-base">MP</span>
+                            <span>{configPagamento?.mpConfigurado ? 'Reconectar com Mercado Pago' : 'Conectar com Mercado Pago'}</span>
+                            <ExternalLink className="w-4 h-4 ml-1 opacity-80" />
+                          </>
+                        )}
                       </button>
                     </div>
-                  </form>
-                )}
-              </div>
 
-              {/* Informações de Segurança */}
-              <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 text-[11px] text-slate-400 space-y-1.5">
-                <p className="text-slate-300 font-bold text-xs flex items-center gap-1.5">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                  Segurança & Recebimento Direto
-                </p>
-                <p>• O dinheiro dos bilhetes Pix é creditado <strong>diretamente na conta do organizador</strong> vinculada, sem retenção por intermediários.</p>
-                <p>• A aprovação é processada via Webhook em milissegundos e atualiza o comprador na hora.</p>
-              </div>
+                    {/* Ajuda para o Dono do App se OAuth ainda não tiver CLIENT_ID no Render */}
+                    {!configPagamento?.oauthConfiguradoNoServidor && (
+                      <div className="mt-4 p-4 rounded-xl bg-slate-950 border border-slate-800 text-[11px] text-slate-400 space-y-2">
+                        <div className="flex items-center gap-1.5 text-amber-400 font-bold text-xs">
+                          <Info className="w-4 h-4 shrink-0" />
+                          Instruções para o Dono da Plataforma (Configuração única no Render)
+                        </div>
+                        <p>
+                          Para que qualquer usuário possa clicar no botão acima e conectar a conta dele automaticamente, adicione as variáveis no seu <strong>Render Dashboard → Environment</strong>:
+                        </p>
+                        <div className="font-mono text-slate-300 bg-slate-900 p-2.5 rounded-lg border border-slate-800 space-y-1">
+                          <div><strong className="text-sky-400">MP_CLIENT_ID</strong> = <em>Seu Application ID do Mercado Pago</em></div>
+                          <div><strong className="text-sky-400">MP_CLIENT_SECRET</strong> = <em>Seu Client Secret do Mercado Pago</em></div>
+                        </div>
+                        <div className="pt-1">
+                          <p className="text-slate-400 mb-1.5">
+                            E cadastre a <strong>URL de Retorno (Redirect URI)</strong> no portal Mercado Pago Developers:
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <code className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] text-emerald-300 font-mono break-all">
+                              {configPagamento?.oauthRedirectUri || `${window.location.origin}/api/auth/mercadopago/callback`}
+                            </code>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                const uri = configPagamento?.oauthRedirectUri || `${window.location.origin}/api/auth/mercadopago/callback`;
+                                await navigator.clipboard.writeText(uri);
+                                setRedirectUriCopiada(true);
+                                setTimeout(() => setRedirectUriCopiada(false), 2000);
+                              }}
+                              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-lg border border-slate-700 flex items-center gap-1 shrink-0"
+                            >
+                              {redirectUriCopiada ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                              {redirectUriCopiada ? 'Copiado!' : 'Copiar'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* OPÇÃO 2: CONFIGURAÇÃO MANUAL (EXPANSÍVEL / AVANÇADO) */}
+                  <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-lg">
+                    <button
+                      type="button"
+                      onClick={() => setMostrarManualMp(!mostrarManualMp)}
+                      className="w-full p-5 flex items-center justify-between text-left hover:bg-slate-800/40 transition"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Key className="w-4 h-4 text-slate-400" />
+                        <div>
+                          <h3 className="text-xs font-bold text-white">
+                            Configuração Manual via Access Token (Avançado)
+                          </h3>
+                          <p className="text-[11px] text-slate-400">
+                            Insira diretamente o seu Access Token de Produção ou Teste gerado no portal do desenvolvedor.
+                          </p>
+                        </div>
+                      </div>
+                      {mostrarManualMp ? (
+                        <ChevronUp className="w-4 h-4 text-slate-400" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4 text-slate-400" />
+                      )}
+                    </button>
+
+                    {mostrarManualMp && (
+                      <form onSubmit={handleSalvarConfig} className="p-6 pt-0 border-t border-slate-800/80 space-y-4 animate-in fade-in">
+                        <div className="pt-4">
+                          <label className="text-xs font-bold text-slate-300 block mb-1">
+                            Access Token do Mercado Pago *
+                          </label>
+                          <input
+                            type="password"
+                            value={mpTokenInput}
+                            onChange={e => setMpTokenInput(e.target.value)}
+                            placeholder={configPagamento?.mpConfigurado ? '•••••••••••• (deixe em branco para manter o token atual)' : 'APP_USR-... ou TEST-...'}
+                            className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white font-mono focus:border-emerald-500 focus:outline-none"
+                            autoComplete="off"
+                          />
+                          <span className="text-[11px] text-slate-500 block mt-1">
+                            Começa com <strong className="text-emerald-400">APP_USR-</strong> (produção) ou <strong className="text-amber-400">TEST-</strong> (teste).
+                          </span>
+                        </div>
+
+                        <div>
+                          <label className="text-xs font-bold text-slate-300 block mb-1">
+                            Public Key (Opcional)
+                          </label>
+                          <input
+                            type="text"
+                            value={mpPublicKeyInput}
+                            onChange={e => setMpPublicKeyInput(e.target.value)}
+                            placeholder="APP_USR-xxxxxxxx ou TEST-xxxx"
+                            className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white font-mono focus:border-emerald-500 focus:outline-none"
+                            autoComplete="off"
+                          />
+                        </div>
+
+                        <div className="flex justify-end pt-2">
+                          <button
+                            type="submit"
+                            disabled={salvandoConfig}
+                            className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 text-slate-950 text-xs font-black rounded-xl shadow-md transition"
+                          >
+                            {salvandoConfig ? 'Salvando...' : 'Salvar Chaves Manualmente'}
+                          </button>
+                        </div>
+                      </form>
+                    )}
+                  </div>
+
+                  {/* Informações de Segurança */}
+                  <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 text-[11px] text-slate-400 space-y-1.5">
+                    <p className="text-slate-300 font-bold text-xs flex items-center gap-1.5">
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                      Segurança & Recebimento Direto
+                    </p>
+                    <p>• O dinheiro dos bilhetes Pix é creditado <strong>diretamente na conta do organizador</strong> vinculada, sem retenção por intermediários.</p>
+                    <p>• A aprovação é processada via Webhook em milissegundos e atualiza o comprador na hora.</p>
+                  </div>
+                </>
+              )}
             </div>
           )}
 
         </main>
       </div>
+
+      {/* MODAL DE CONFIRMAÇÃO DE EXCLUSÃO DE CAMPANHA */}
+      {campanhaParaExcluir && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-5 animate-in fade-in zoom-in-95">
+            <div className="flex items-center gap-3 text-red-400">
+              <div className="w-12 h-12 rounded-2xl bg-red-500/20 border border-red-500/30 flex items-center justify-center text-red-400 shrink-0">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-white leading-tight">Excluir Campanha?</h3>
+                <p className="text-xs text-slate-400">Ação de exclusão permanente</p>
+              </div>
+            </div>
+
+            <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-2">
+              <p className="text-xs text-slate-300">
+                Tem certeza que deseja excluir a campanha:
+              </p>
+              <p className="text-sm font-black text-white bg-slate-900 p-2.5 rounded-xl border border-slate-800">
+                "{campanhaParaExcluir.titulo}"
+              </p>
+              <p className="text-[11px] text-red-400 font-medium pt-1">
+                ⚠️ Essa ação é irreversível e removerá todos os dados, bilhetes e estatísticas associados a esta ação.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3 pt-1">
+              <button
+                onClick={() => setCampanhaParaExcluir(null)}
+                disabled={excluindoCampanha}
+                className="flex-1 py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl transition"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleExcluirCampanha}
+                disabled={excluindoCampanha}
+                className="flex-1 py-3 px-4 bg-red-600 hover:bg-red-500 text-white font-black text-xs rounded-xl shadow-lg shadow-red-600/25 transition flex items-center justify-center gap-2"
+              >
+                {excluindoCampanha ? (
+                  <>
+                    <RotateCw className="w-4 h-4 animate-spin" />
+                    Excluindo...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    Sim, Excluir Campanha
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

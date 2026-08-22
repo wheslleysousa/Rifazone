@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import { createServer as createViteServer } from 'vite';
 import { db } from './server/storage.js';
 import { mpService } from './server/mercadopago.js';
+import { geminiService } from './server/gemini.js';
 import { Campanha } from './src/types.js';
 
 const app = express();
@@ -54,6 +55,7 @@ app.get('/api/health', (_req, res) => {
   res.json({
     status: 'ok',
     mpConfigured: mpService.isConfigured(),
+    iaConfigured: geminiService.isConfigured(),
     timestamp: new Date().toISOString()
   });
 });
@@ -414,6 +416,30 @@ app.post('/api/admin/login', (req, res) => {
   }
 
   return res.status(401).json({ error: 'Credenciais inválidas ou e-mail não autorizado.' });
+});
+
+// POST /api/admin/ia/gerar-campanha -> Gera conteúdo de campanha com IA (Gemini)
+app.post('/api/admin/ia/gerar-campanha', adminAuthMiddleware, async (req, res) => {
+  try {
+    const { premio, valorCota, totalCotas, publico, tom } = req.body || {};
+
+    if (!premio || !String(premio).trim()) {
+      return res.status(400).json({ error: 'Descreva o prêmio principal para a IA gerar a campanha.' });
+    }
+
+    const resultado = await geminiService.gerarCampanha({
+      premio: String(premio).trim(),
+      valorCota: valorCota !== undefined ? Number(valorCota) : undefined,
+      totalCotas: totalCotas !== undefined ? Number(totalCotas) : undefined,
+      publico: publico ? String(publico).trim() : undefined,
+      tom: tom ? String(tom).trim() : undefined
+    });
+
+    return res.json(resultado);
+  } catch (err: any) {
+    console.error('Erro ao gerar campanha com IA:', err);
+    return res.status(500).json({ error: err.message || 'Erro ao gerar campanha com IA.' });
+  }
 });
 
 // GET /api/admin/campanhas

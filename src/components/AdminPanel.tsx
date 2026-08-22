@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Campanha, Premio, CotaPremiada, Promocao, OfertaRelampago, Pedido } from '../types';
-import { 
-  Plus, Trash2, Edit3, Eye, Trophy, Gift, Zap, Settings, 
-  Users, CheckCircle2, AlertCircle, RefreshCw, Key, LogOut, ArrowRight, DollarSign, Calendar
+import {
+  Plus, Trash2, Edit3, Eye, Trophy, Gift, Zap, Settings,
+  Users, CheckCircle2, AlertCircle, RefreshCw, Key, LogOut, ArrowRight, DollarSign, Calendar,
+  Sparkles
 } from 'lucide-react';
 
 interface Props {
@@ -67,6 +68,71 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
   const [numeroSorteado, setNumeroSorteado] = useState('');
   const [resultadoApuracao, setResultadoApuracao] = useState<any | null>(null);
   const [apurando, setApurando] = useState(false);
+
+  // Assistente de IA (Gemini) State
+  const [iaAberto, setIaAberto] = useState(false);
+  const [iaPremio, setIaPremio] = useState('');
+  const [iaPublico, setIaPublico] = useState('');
+  const [iaTom, setIaTom] = useState('animado e com urgência');
+  const [iaGerando, setIaGerando] = useState(false);
+  const [iaErro, setIaErro] = useState('');
+  const [iaAviso, setIaAviso] = useState('');
+
+  // Gerar conteúdo da campanha com IA e preencher o formulário
+  const handleGerarComIA = async () => {
+    if (!iaPremio.trim()) {
+      setIaErro('Descreva o prêmio principal.');
+      return;
+    }
+    setIaErro('');
+    setIaAviso('');
+    setIaGerando(true);
+
+    try {
+      const res = await fetch('/api/admin/ia/gerar-campanha', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          premio: iaPremio,
+          valorCota: form.valorCota,
+          totalCotas: form.totalCotas,
+          publico: iaPublico,
+          tom: iaTom
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setIaErro(data.error || 'Erro ao gerar com IA.');
+        return;
+      }
+
+      setForm(prev => ({
+        ...prev,
+        titulo: data.titulo || prev.titulo,
+        subtitulo: data.subtitulo || prev.subtitulo,
+        descricao: data.descricaoHtml || prev.descricao,
+        selo: data.selo || prev.selo,
+        premios: Array.isArray(data.premios) && data.premios.length > 0 ? data.premios : prev.premios,
+        promocoes: Array.isArray(data.promocoes) && data.promocoes.length > 0 ? data.promocoes : prev.promocoes,
+        ofertasRelampago: data.ofertaRelampago ? [data.ofertaRelampago] : prev.ofertasRelampago
+      }));
+
+      setIaAviso(
+        data.isMock
+          ? 'Conteúdo gerado em modo simulação (defina GEMINI_API_KEY para usar a IA real do Gemini).'
+          : 'Conteúdo gerado com IA! Revise e ajuste antes de publicar.'
+      );
+      setIaAberto(false);
+    } catch (err) {
+      setIaErro('Falha de conexão ao gerar com IA.');
+    } finally {
+      setIaGerando(false);
+    }
+  };
 
   // Check login
   const handleLogin = async (e: React.FormEvent) => {
@@ -518,6 +584,93 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
                 {form.id ? 'Editar Campanha' : 'Criar Nova Campanha de Sorteio'}
               </h3>
               <p className="text-xs text-slate-400">Configure todos os parâmetros da rifa e regras de premiação.</p>
+            </div>
+
+            {/* Assistente de IA (Gemini) */}
+            <div className="rounded-2xl border border-violet-500/40 bg-gradient-to-br from-violet-500/10 to-fuchsia-500/5 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-violet-500/20 border border-violet-500/40 text-violet-300 flex items-center justify-center">
+                    <Sparkles className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black text-white leading-none">Assistente de IA</h4>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Gere título, subtítulo, regulamento e promoções automaticamente com o Gemini.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setIaAberto(v => !v); setIaErro(''); }}
+                  className="px-3 py-1.5 bg-violet-500 hover:bg-violet-400 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 transition shadow-md shadow-violet-500/20 shrink-0"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  {iaAberto ? 'Fechar' : 'Gerar com IA'}
+                </button>
+              </div>
+
+              {iaAberto && (
+                <div className="mt-4 space-y-3 border-t border-violet-500/20 pt-4">
+                  <div>
+                    <label className="text-xs font-bold text-slate-300 block mb-1">Prêmio principal *</label>
+                    <input
+                      type="text"
+                      value={iaPremio}
+                      onChange={e => setIaPremio(e.target.value)}
+                      placeholder="Ex: iPhone 16 Pro Max 256GB + R$ 2.000 no Pix"
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:border-violet-500 focus:outline-none"
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-bold text-slate-300 block mb-1">Público-alvo (opcional)</label>
+                      <input
+                        type="text"
+                        value={iaPublico}
+                        onChange={e => setIaPublico(e.target.value)}
+                        placeholder="Ex: jovens de 18 a 35 anos"
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:border-violet-500 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-slate-300 block mb-1">Tom de voz</label>
+                      <input
+                        type="text"
+                        value={iaTom}
+                        onChange={e => setIaTom(e.target.value)}
+                        placeholder="Ex: animado e com urgência"
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:border-violet-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                  {iaErro && (
+                    <p className="text-xs text-red-400 font-medium flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5" />
+                      {iaErro}
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleGerarComIA}
+                    disabled={iaGerando}
+                    className="w-full py-2.5 bg-violet-500 hover:bg-violet-400 disabled:opacity-60 text-white font-black rounded-xl text-sm transition flex items-center justify-center gap-2"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    {iaGerando ? 'Gerando conteúdo...' : 'Gerar e preencher formulário'}
+                  </button>
+                  <p className="text-[11px] text-slate-500">
+                    A IA preenche os campos abaixo. Você pode revisar e editar tudo antes de publicar.
+                  </p>
+                </div>
+              )}
+
+              {iaAviso && (
+                <p className="mt-3 text-xs text-emerald-300 font-medium flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  {iaAviso}
+                </p>
+              )}
             </div>
 
             <div className="space-y-4">

@@ -3,7 +3,8 @@ import { Campanha, Premio, CotaPremiada, Promocao, OfertaRelampago, Pedido } fro
 import {
   Plus, Trash2, Edit3, Eye, Trophy, Gift, Zap, Settings,
   Users, CheckCircle2, AlertCircle, RefreshCw, Key, LogOut, ArrowRight, DollarSign, Calendar,
-  Sparkles, Mail, Lock, User as UserIcon, Link2, Copy
+  Sparkles, Mail, Lock, User as UserIcon, Link2, Copy,
+  Menu, X, LayoutGrid, Ticket
 } from 'lucide-react';
 import {
   auth, observarAuth, cadastrarComEmail, entrarComEmail, entrarComGoogle, sair,
@@ -94,6 +95,39 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
   // Link compartilhável após criar/salvar campanha
   const [linkCampanha, setLinkCampanha] = useState<{ codigo: string; titulo: string } | null>(null);
   const [linkCopiado, setLinkCopiado] = useState(false);
+
+  // Menu lateral (responsivo — drawer no mobile)
+  const [menuAberto, setMenuAberto] = useState(false);
+
+  // Reset do formulário de nova campanha (reaproveitado no menu e nos botões)
+  const iniciarNovaCampanha = () => {
+    setForm({
+      titulo: '',
+      subtitulo: '',
+      descricao: '<p>Participe do sorteio oficial! Pagamento instantâneo via Pix.</p>',
+      bannerUrl: 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?auto=format&fit=crop&w=1200&q=80',
+      modelo: 'aleatorio',
+      totalCotas: 10000,
+      valorCota: 0.50,
+      minPorCompra: 5,
+      maxPorCompra: 1000,
+      localSorteio: 'Loteria Federal',
+      selo: 'Corre que essa vai rápido! 🔥',
+      tempoReservaMin: 10,
+      exibirRanking: true,
+      exibirBarraProgresso: true,
+      exibirPaginaGanhadores: true,
+      status: 'publicada',
+      premios: [{ posicao: 1, descricao: '1º Prêmio Principal' }],
+      cotasPremiadas: [],
+      promocoes: [
+        { quantidade: 10, valor: 5.00, destaque: false },
+        { quantidade: 50, valor: 22.50, destaque: true }
+      ],
+      ofertasRelampago: []
+    });
+    setAbaAtiva('nova');
+  };
 
   // Configurações de pagamento (Mercado Pago do organizador)
   const [configPagamento, setConfigPagamento] = useState<any | null>(null);
@@ -498,135 +532,120 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
     );
   }
 
+  // Itens do menu lateral
+  const navItems: { chave: typeof abaAtiva; label: string; icon: React.ReactNode; onClick?: () => void; alerta?: boolean }[] = [
+    { chave: 'lista', label: 'Campanhas', icon: <LayoutGrid className="w-4 h-4" /> },
+    { chave: 'nova', label: 'Nova Campanha', icon: <Plus className="w-4 h-4" />, onClick: iniciarNovaCampanha },
+    { chave: 'pedidos', label: 'Pedidos & Compradores', icon: <Users className="w-4 h-4" />, onClick: () => { if (campanhaSelecionada) carregarPedidos(campanhaSelecionada.id); setAbaAtiva('pedidos'); } },
+    { chave: 'apuracao', label: 'Apuração / Sorteio', icon: <Trophy className="w-4 h-4" /> },
+    { chave: 'pagamento', label: 'Pagamento', icon: <DollarSign className="w-4 h-4" />, alerta: !!(configPagamento && !configPagamento.mpConfigurado) }
+  ];
+
+  const irPara = (item: typeof navItems[number]) => {
+    if (item.onClick) item.onClick();
+    else setAbaAtiva(item.chave);
+    setMenuAberto(false);
+  };
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
-      {/* Top Header */}
-      <header className="bg-slate-900 border-b border-slate-800 px-6 py-3.5 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center font-black text-slate-950 text-base">
-            R
+    <div className="min-h-screen bg-slate-950 text-slate-100 md:flex">
+      {/* Overlay do drawer no mobile */}
+      {menuAberto && (
+        <div
+          className="fixed inset-0 bg-black/60 z-30 md:hidden"
+          onClick={() => setMenuAberto(false)}
+        />
+      )}
+
+      {/* Menu lateral (fixo no desktop, drawer no mobile) */}
+      <aside
+        className={`fixed md:sticky top-0 left-0 z-40 h-screen w-64 shrink-0 bg-slate-900 border-r border-slate-800 flex flex-col transition-transform duration-200 ${
+          menuAberto ? 'translate-x-0' : '-translate-x-full'
+        } md:translate-x-0`}
+      >
+        {/* Marca */}
+        <div className="flex items-center justify-between gap-3 px-5 h-16 border-b border-slate-800">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-emerald-500 flex items-center justify-center font-black text-slate-950 text-lg shadow-lg shadow-emerald-500/20">
+              R
+            </div>
+            <h2 className="text-lg font-black text-white leading-none">RifaZone</h2>
           </div>
-          <div>
-            <h2 className="text-base font-black text-white leading-none">
-              RifaZone
-            </h2>
-            <span className="text-[11px] text-emerald-400 font-mono">
-              {user?.email}
-            </span>
-          </div>
+          <button
+            onClick={() => setMenuAberto(false)}
+            className="md:hidden text-slate-400 hover:text-white"
+            aria-label="Fechar menu"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
-        <div className="flex items-center gap-2">
+        {/* Navegação */}
+        <nav className="flex-1 overflow-y-auto p-3 space-y-1">
+          {navItems.map(item => (
+            <button
+              key={item.chave}
+              onClick={() => irPara(item)}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition ${
+                abaAtiva === item.chave
+                  ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+                  : 'text-slate-300 hover:bg-slate-800 border border-transparent'
+              }`}
+            >
+              {item.icon}
+              <span className="flex-1 text-left">{item.label}</span>
+              {item.chave === 'lista' && (
+                <span className="text-[10px] font-bold bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded-full">
+                  {campanhas.length}
+                </span>
+              )}
+              {item.alerta && (
+                <span className="w-2 h-2 rounded-full bg-amber-400" title="Configure para receber pagamentos" />
+              )}
+            </button>
+          ))}
+
           <button
-            onClick={handleLimparReservas}
-            title="Limpar cotas com reserva expirada no banco"
-            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg border border-slate-700 flex items-center gap-1.5 transition"
+            onClick={() => { handleLimparReservas(); setMenuAberto(false); }}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-300 hover:bg-slate-800 border border-transparent transition"
           >
-            <RefreshCw className="w-3.5 h-3.5 text-emerald-400" />
-            Limpar Reservas
+            <RefreshCw className="w-4 h-4 text-emerald-400" />
+            <span className="flex-1 text-left">Limpar Reservas</span>
           </button>
+        </nav>
+
+        {/* Rodapé: usuário + sair */}
+        <div className="border-t border-slate-800 p-3">
+          <div className="px-2 py-1 mb-2">
+            <p className="text-[11px] text-slate-500">Conectado como</p>
+            <p className="text-xs text-emerald-400 font-mono truncate">{user?.email}</p>
+          </div>
           <button
             onClick={handleLogout}
-            className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-semibold rounded-lg border border-red-500/30 flex items-center gap-1 transition"
+            className="w-full flex items-center gap-2 px-3 py-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-sm font-semibold rounded-xl border border-red-500/30 transition"
           >
-            <LogOut className="w-3.5 h-3.5" />
+            <LogOut className="w-4 h-4" />
             Sair
           </button>
         </div>
-      </header>
+      </aside>
 
-      {/* Tabs Bar */}
-      <div className="bg-slate-900/60 border-b border-slate-800 px-6 flex items-center gap-4 overflow-x-auto">
-        <button
-          onClick={() => setAbaAtiva('lista')}
-          className={`py-3 text-xs font-bold border-b-2 transition ${
-            abaAtiva === 'lista'
-              ? 'border-emerald-400 text-emerald-400'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          Minhas Campanhas ({campanhas.length})
-        </button>
-
-        <button
-          onClick={() => {
-            setForm({
-              titulo: '',
-              subtitulo: '',
-              descricao: '<p>Participe do sorteio oficial! Pagamento instantâneo via Pix.</p>',
-              bannerUrl: 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?auto=format&fit=crop&w=1200&q=80',
-              modelo: 'aleatorio',
-              totalCotas: 10000,
-              valorCota: 0.50,
-              minPorCompra: 5,
-              maxPorCompra: 1000,
-              localSorteio: 'Loteria Federal',
-              selo: 'Corre que essa vai rápido! 🔥',
-              tempoReservaMin: 10,
-              exibirRanking: true,
-              exibirBarraProgresso: true,
-              exibirPaginaGanhadores: true,
-              status: 'publicada',
-              premios: [{ posicao: 1, descricao: '1º Prêmio Principal' }],
-              cotasPremiadas: [],
-              promocoes: [
-                { quantidade: 10, valor: 5.00, destaque: false },
-                { quantidade: 50, valor: 22.50, destaque: true }
-              ],
-              ofertasRelampago: []
-            });
-            setAbaAtiva('nova');
-          }}
-          className={`py-3 text-xs font-bold border-b-2 flex items-center gap-1 transition ${
-            abaAtiva === 'nova'
-              ? 'border-emerald-400 text-emerald-400'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <Plus className="w-3.5 h-3.5" />
-          Nova Campanha
-        </button>
-
-        <button
-          onClick={() => {
-            if (campanhaSelecionada) carregarPedidos(campanhaSelecionada.id);
-            setAbaAtiva('pedidos');
-          }}
-          className={`py-3 text-xs font-bold border-b-2 transition ${
-            abaAtiva === 'pedidos'
-              ? 'border-emerald-400 text-emerald-400'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          Pedidos & Compradores
-        </button>
-
-        <button
-          onClick={() => setAbaAtiva('apuracao')}
-          className={`py-3 text-xs font-bold border-b-2 transition ${
-            abaAtiva === 'apuracao'
-              ? 'border-emerald-400 text-emerald-400'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          Apuração / Sorteio
-        </button>
-
-        <button
-          onClick={() => setAbaAtiva('pagamento')}
-          className={`py-3 text-xs font-bold border-b-2 flex items-center gap-1 transition ${
-            abaAtiva === 'pagamento'
-              ? 'border-emerald-400 text-emerald-400'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <DollarSign className="w-3.5 h-3.5" />
-          Pagamento
-          {configPagamento && !configPagamento.mpConfigurado && (
-            <span className="ml-1 w-2 h-2 rounded-full bg-amber-400" title="Configure para receber pagamentos" />
-          )}
-        </button>
-      </div>
+      {/* Área principal */}
+      <div className="flex-1 min-w-0 flex flex-col">
+        {/* Top bar mobile com hambúrguer */}
+        <header className="md:hidden sticky top-0 z-20 bg-slate-900 border-b border-slate-800 h-14 flex items-center gap-3 px-4">
+          <button
+            onClick={() => setMenuAberto(true)}
+            className="text-slate-300 hover:text-white"
+            aria-label="Abrir menu"
+          >
+            <Menu className="w-6 h-6" />
+          </button>
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-emerald-500 flex items-center justify-center font-black text-slate-950 text-sm">R</div>
+            <span className="font-black text-white">RifaZone</span>
+          </div>
+        </header>
 
       {/* Content Body */}
       <div className="flex-1 p-6 max-w-6xl w-full mx-auto">
@@ -1286,6 +1305,7 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
           </div>
         )}
 
+        </div>
       </div>
     </div>
   );

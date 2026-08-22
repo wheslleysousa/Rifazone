@@ -375,11 +375,15 @@ app.post('/api/webhooks/mercadopago', async (req, res) => {
 
     // 3) Localiza o pedido para descobrir o organizador (e o token MP dele)
     const todosPedidos = await db.getTodosPedidos();
-    const pedidoEncontrado = todosPedidos.find(p => p.mpPaymentId === String(paymentId));
-    const mpToken = pedidoEncontrado ? await db.getMpTokenPorCampanha(pedidoEncontrado.campanhaId) : null;
+    let pedidoEncontrado = todosPedidos.find(p => p.mpPaymentId === String(paymentId));
+    let mpToken = pedidoEncontrado ? await db.getMpTokenPorCampanha(pedidoEncontrado.campanhaId) : null;
 
     // 4) Busca o pagamento REAL na API do Mercado Pago (Fonte da Verdade)
     const pagamento = await mpService.consultarPagamento(String(paymentId), mpToken);
+    if (!pedidoEncontrado && pagamento?.external_reference) {
+      pedidoEncontrado = todosPedidos.find(p => p.id === pagamento.external_reference);
+    }
+
     if (pagamento && pagamento.approved && pedidoEncontrado) {
       await db.confirmarPedido(pedidoEncontrado.id, String(paymentId));
       console.log(`Pedido ${pedidoEncontrado.id} confirmado via Webhook MP!`);
@@ -605,6 +609,20 @@ app.delete('/api/admin/campanhas/:id', firebaseAuthMiddleware, async (req, res) 
   }
   const deleted = await db.deleteCampanha(id);
   return res.json({ success: deleted });
+});
+
+// GET /api/admin/pedidos -> Lista todos os pedidos das campanhas do organizador
+app.get('/api/admin/pedidos', firebaseAuthMiddleware, async (req, res) => {
+  try {
+    const campanhas = await db.getCampanhas((req as any).userId);
+    const campanhaIds = new Set(campanhas.map(c => c.id));
+    const todosPedidos = await db.getTodosPedidos();
+    const meusPedidos = todosPedidos.filter(p => campanhaIds.has(p.campanhaId));
+    return res.json(meusPedidos);
+  } catch (err: any) {
+    console.error('Erro ao buscar pedidos do organizador:', err);
+    return res.status(500).json({ error: 'Erro ao buscar pedidos.' });
+  }
 });
 
 // GET /api/admin/campanhas/:id/pedidos -> Lista pedidos e compradores (somente o dono)

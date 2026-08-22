@@ -126,7 +126,7 @@ export class MercadoPagoService {
   public async consultarPagamento(
     paymentId: string,
     accessToken?: string | null
-  ): Promise<{ status: string; approved: boolean } | null> {
+  ): Promise<{ status: string; approved: boolean; external_reference?: string } | null> {
     if (!paymentId || paymentId.startsWith('mock_') || paymentId.startsWith('simulado_')) {
       return null;
     }
@@ -137,7 +137,8 @@ export class MercadoPagoService {
         const response = await paymentApi.get({ id: paymentId });
         return {
           status: response.status || 'unknown',
-          approved: response.status === 'approved'
+          approved: response.status === 'approved',
+          external_reference: (response as any).external_reference
         };
       } catch (err: any) {
         console.error('Erro ao consultar pagamento no Mercado Pago:', err?.message || err);

@@ -5,6 +5,7 @@ import { createServer as createViteServer } from 'vite';
 import { db } from './server/storage.js';
 import { mpService } from './server/mercadopago.js';
 import { geminiService } from './server/gemini.js';
+import { verifyFirebaseToken } from './server/auth.js';
 import { Campanha } from './src/types.js';
 
 const app = express();
@@ -19,31 +20,28 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ extended: true }));
 
-// --- Middleware de Autenticação Admin Simples e Segura ---
-function adminAuthMiddleware(req: Request, res: Response, next: NextFunction) {
-  const authHeader = req.headers.authorization;
-  const adminSecretHeader = req.headers['x-admin-key'];
+// --- Middleware de Autenticação via Firebase Authentication ---
+// Valida o ID Token do Firebase e disponibiliza o organizador em req.userId/req.userEmail.
+// Cada organizador só acessa e gerencia as próprias campanhas (multi-tenant).
+async function firebaseAuthMiddleware(req: Request, res: Response, next: NextFunction) {
+  const authHeader = req.headers.authorization || '';
 
-  // Check token or secret header
-  const configuredPassword = process.env.ADMIN_PASSWORD || 'admin';
-  const adminEmails = (process.env.ADMIN_EMAILS || 'wheslleyaviz@gmail.com,admin@exemplo.com')
-    .split(',')
-    .map(e => e.trim().toLowerCase());
-
-  // Check token Bearer (if user authenticated via Firebase or custom session)
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    const token = authHeader.split(' ')[1];
-    // Allow if matches simple admin token or valid session email
-    if (token === configuredPassword || token.startsWith('adm_session_')) {
-      return next();
-    }
+  if (!authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Não autorizado. Faça login com sua conta.' });
   }
 
-  if (adminSecretHeader && adminSecretHeader === configuredPassword) {
+  const token = authHeader.slice('Bearer '.length).trim();
+
+  try {
+    const user = await verifyFirebaseToken(token);
+    (req as any).userId = user.uid;
+    (req as any).userEmail = user.email;
+    (req as any).userName = user.name || null;
     return next();
+  } catch (err: any) {
+    console.warn('Falha na verificação do token Firebase:', err?.message || err);
+    return res.status(401).json({ error: 'Sessão inválida ou expirada. Faça login novamente.' });
   }
-
-  return res.status(401).json({ error: 'Não autorizado. Faça login no painel administrativo.' });
 }
 
 // ----------------------------------------------------
@@ -79,8 +77,11 @@ app.get('/api/campanhas/:codigo', (req, res) => {
       cotasOcupadas = db.getCotasOcupadas(campanha.id);
     }
 
+    // Não expor dados do organizador (uid/email) na resposta pública
+    const { ownerId, ownerEmail, ...campanhaPublica } = campanha;
+
     return res.json({
-      campanha,
+      campanha: campanhaPublica,
       estatisticas: {
         ...estatisticas,
         arrecadado: Number((estatisticas.vendidas * campanha.valorCota).toFixed(2))
@@ -185,14 +186,15 @@ app.post('/api/pedidos', async (req, res) => {
       return res.status(409).json({ error: err.message || 'Um ou mais números escolhidos acabaram de ser reservados por outro comprador. Tente novamente.' });
     }
 
-    // 2) Gerar o Pix no Mercado Pago
+    // 2) Gerar o Pix no Mercado Pago usando o token do organizador dono da campanha
+    const mpToken = db.getMpTokenPorCampanha(campanha.id);
     const pixResult = await mpService.criarPix({
       pedidoId,
       valorTotal,
       tituloCampanha: campanha.titulo,
       comprador: compradorSalvo,
       expiraEm
-    });
+    }, mpToken);
 
     // 3) Salvar pedido
     const novoPedido = db.savePedido({
@@ -246,7 +248,8 @@ app.get('/api/pedidos/:id/status', async (req, res) => {
 
     // Reconciliação se estiver pendente e tiver mpPaymentId
     if (pedido.status === 'pendente' && pedido.mpPaymentId) {
-      const consulta = await mpService.consultarPagamento(pedido.mpPaymentId);
+      const mpToken = db.getMpTokenPorCampanha(pedido.campanhaId);
+      const consulta = await mpService.consultarPagamento(pedido.mpPaymentId, mpToken);
       if (consulta && consulta.approved) {
         db.confirmarPedido(pedido.id, pedido.mpPaymentId);
         return res.json({ status: 'pago', pagoEm: new Date().toISOString() });
@@ -368,17 +371,16 @@ app.post('/api/webhooks/mercadopago', async (req, res) => {
       return res.sendStatus(200);
     }
 
-    // 3) Busca o pagamento REAL na API do Mercado Pago (Fonte da Verdade)
-    const pagamento = await mpService.consultarPagamento(String(paymentId));
-    if (pagamento && pagamento.approved) {
-      // Localiza pelo paymentId ou external reference
-      const todosPedidos = db.getTodosPedidos();
-      const pedidoEncontrado = todosPedidos.find(p => p.mpPaymentId === String(paymentId));
+    // 3) Localiza o pedido para descobrir o organizador (e o token MP dele)
+    const todosPedidos = db.getTodosPedidos();
+    const pedidoEncontrado = todosPedidos.find(p => p.mpPaymentId === String(paymentId));
+    const mpToken = pedidoEncontrado ? db.getMpTokenPorCampanha(pedidoEncontrado.campanhaId) : null;
 
-      if (pedidoEncontrado) {
-        db.confirmarPedido(pedidoEncontrado.id, String(paymentId));
-        console.log(`Pedido ${pedidoEncontrado.id} confirmado via Webhook MP!`);
-      }
+    // 4) Busca o pagamento REAL na API do Mercado Pago (Fonte da Verdade)
+    const pagamento = await mpService.consultarPagamento(String(paymentId), mpToken);
+    if (pagamento && pagamento.approved && pedidoEncontrado) {
+      db.confirmarPedido(pedidoEncontrado.id, String(paymentId));
+      console.log(`Pedido ${pedidoEncontrado.id} confirmado via Webhook MP!`);
     }
 
     return res.sendStatus(200); // Sempre 200 para evitar loops do MP
@@ -392,34 +394,62 @@ app.post('/api/webhooks/mercadopago', async (req, res) => {
 // 2. ENDPOINTS DO PAINEL ADMINISTRATIVO (PROTEGIDOS)
 // ----------------------------------------------------
 
-// Login Admin
-app.post('/api/admin/login', (req, res) => {
-  const { email, password } = req.body;
-  const configuredPassword = process.env.ADMIN_PASSWORD || 'admin';
-  const adminEmails = (process.env.ADMIN_EMAILS || 'wheslleyaviz@gmail.com,admin@exemplo.com')
-    .split(',')
-    .map(e => e.trim().toLowerCase());
+// GET /api/admin/me -> Valida o token do organizador logado e retorna seus dados
+app.get('/api/admin/me', firebaseAuthMiddleware, (req, res) => {
+  return res.json({
+    uid: (req as any).userId,
+    email: (req as any).userEmail,
+    name: (req as any).userName
+  });
+});
 
-  const cleanEmail = String(email || '').trim().toLowerCase();
+// GET /api/admin/configuracoes -> Status das credenciais de pagamento do organizador
+// (NUNCA retorna o Access Token completo — apenas se está configurado + máscara)
+app.get('/api/admin/configuracoes', firebaseAuthMiddleware, (req, res) => {
+  const config = db.getConfig((req as any).userId);
+  const token = config?.mpAccessToken || '';
+  return res.json({
+    mpConfigurado: !!token,
+    mpTokenMascara: token ? `${token.slice(0, 8)}••••••${token.slice(-4)}` : null,
+    mpPublicKey: config?.mpPublicKey || null,
+    atualizadaEm: config?.atualizadaEm || null
+  });
+});
 
-  // Validar se o e-mail está na lista autorizada
-  const emailAutorizado = adminEmails.includes(cleanEmail) || adminEmails.includes('*');
+// PUT /api/admin/configuracoes -> Salva as credenciais do Mercado Pago do organizador
+// Assim, os Pix das campanhas dele caem na conta Mercado Pago dele.
+app.put('/api/admin/configuracoes', firebaseAuthMiddleware, (req, res) => {
+  try {
+    const { mpAccessToken, mpPublicKey } = req.body || {};
 
-  if (emailAutorizado && password === configuredPassword) {
-    const token = 'adm_session_' + crypto.randomUUID();
+    // Validação básica do formato do Access Token do Mercado Pago
+    if (mpAccessToken && !/^(APP_USR-|TEST-)/.test(String(mpAccessToken).trim())) {
+      return res.status(400).json({
+        error: 'Access Token inválido. Ele deve começar com "APP_USR-" (produção) ou "TEST-" (teste).'
+      });
+    }
+
+    const config = db.saveConfig((req as any).userId, {
+      mpAccessToken: mpAccessToken !== undefined ? String(mpAccessToken || '') : undefined,
+      mpPublicKey: mpPublicKey !== undefined ? String(mpPublicKey || '') : undefined
+    });
+
+    const token = config.mpAccessToken || '';
     return res.json({
       success: true,
-      token,
-      email: cleanEmail,
-      mensagem: 'Login realizado com sucesso.'
+      mpConfigurado: !!token,
+      mpTokenMascara: token ? `${token.slice(0, 8)}••••••${token.slice(-4)}` : null,
+      mpPublicKey: config.mpPublicKey || null,
+      atualizadaEm: config.atualizadaEm
     });
+  } catch (err: any) {
+    console.error('Erro ao salvar configurações:', err);
+    return res.status(500).json({ error: 'Erro ao salvar configurações de pagamento.' });
   }
-
-  return res.status(401).json({ error: 'Credenciais inválidas ou e-mail não autorizado.' });
 });
 
 // POST /api/admin/ia/gerar-campanha -> Gera conteúdo de campanha com IA (Gemini)
-app.post('/api/admin/ia/gerar-campanha', adminAuthMiddleware, async (req, res) => {
+app.post('/api/admin/ia/gerar-campanha', firebaseAuthMiddleware, async (req, res) => {
   try {
     const { premio, valorCota, totalCotas, publico, tom } = req.body || {};
 
@@ -442,9 +472,9 @@ app.post('/api/admin/ia/gerar-campanha', adminAuthMiddleware, async (req, res) =
   }
 });
 
-// GET /api/admin/campanhas
-app.get('/api/admin/campanhas', adminAuthMiddleware, (_req, res) => {
-  const campanhas = db.getCampanhas();
+// GET /api/admin/campanhas -> Apenas as campanhas do organizador logado
+app.get('/api/admin/campanhas', firebaseAuthMiddleware, (req, res) => {
+  const campanhas = db.getCampanhas((req as any).userId);
   const comEstatisticas = campanhas.map(c => {
     const stats = db.getEstatisticasCampanha(c.id, c.totalCotas);
     return {
@@ -458,8 +488,8 @@ app.get('/api/admin/campanhas', adminAuthMiddleware, (_req, res) => {
   return res.json(comEstatisticas);
 });
 
-// POST /api/admin/campanhas -> Criar campanha
-app.post('/api/admin/campanhas', adminAuthMiddleware, (req, res) => {
+// POST /api/admin/campanhas -> Criar campanha (vinculada ao organizador logado)
+app.post('/api/admin/campanhas', firebaseAuthMiddleware, (req, res) => {
   try {
     const data: Partial<Campanha> = req.body;
 
@@ -488,6 +518,8 @@ app.post('/api/admin/campanhas', adminAuthMiddleware, (req, res) => {
 
     const novaCampanha: Campanha = {
       id: 'camp-' + crypto.randomUUID().slice(0, 8),
+      ownerId: (req as any).userId,
+      ownerEmail: (req as any).userEmail || null,
       codigo: finalCodigo,
       titulo: data.titulo.trim(),
       subtitulo: data.subtitulo?.trim() || '',
@@ -526,8 +558,8 @@ app.post('/api/admin/campanhas', adminAuthMiddleware, (req, res) => {
   }
 });
 
-// PUT /api/admin/campanhas/:id -> Editar campanha
-app.put('/api/admin/campanhas/:id', adminAuthMiddleware, (req, res) => {
+// PUT /api/admin/campanhas/:id -> Editar campanha (somente o dono)
+app.put('/api/admin/campanhas/:id', firebaseAuthMiddleware, (req, res) => {
   try {
     const { id } = req.params;
     const existente = db.getCampanhaById(id);
@@ -536,11 +568,17 @@ app.put('/api/admin/campanhas/:id', adminAuthMiddleware, (req, res) => {
       return res.status(404).json({ error: 'Campanha não encontrada.' });
     }
 
+    if (existente.ownerId !== (req as any).userId) {
+      return res.status(403).json({ error: 'Você não tem permissão para editar esta campanha.' });
+    }
+
     const data = req.body;
     const atualizada: Campanha = {
       ...existente,
       ...data,
       id: existente.id,
+      ownerId: existente.ownerId,
+      ownerEmail: existente.ownerEmail,
       criadaEm: existente.criadaEm,
       atualizadaEm: new Date().toISOString()
     };
@@ -553,28 +591,50 @@ app.put('/api/admin/campanhas/:id', adminAuthMiddleware, (req, res) => {
   }
 });
 
-// DELETE /api/admin/campanhas/:id
-app.delete('/api/admin/campanhas/:id', adminAuthMiddleware, (req, res) => {
+// DELETE /api/admin/campanhas/:id (somente o dono)
+app.delete('/api/admin/campanhas/:id', firebaseAuthMiddleware, (req, res) => {
   const { id } = req.params;
+  const existente = db.getCampanhaById(id);
+  if (!existente) {
+    return res.status(404).json({ error: 'Campanha não encontrada.' });
+  }
+  if (existente.ownerId !== (req as any).userId) {
+    return res.status(403).json({ error: 'Você não tem permissão para excluir esta campanha.' });
+  }
   const deleted = db.deleteCampanha(id);
   return res.json({ success: deleted });
 });
 
-// GET /api/admin/campanhas/:id/pedidos -> Lista pedidos e compradores
-app.get('/api/admin/campanhas/:id/pedidos', adminAuthMiddleware, (req, res) => {
+// GET /api/admin/campanhas/:id/pedidos -> Lista pedidos e compradores (somente o dono)
+app.get('/api/admin/campanhas/:id/pedidos', firebaseAuthMiddleware, (req, res) => {
   const { id } = req.params;
+  const existente = db.getCampanhaById(id);
+  if (!existente) {
+    return res.status(404).json({ error: 'Campanha não encontrada.' });
+  }
+  if (existente.ownerId !== (req as any).userId) {
+    return res.status(403).json({ error: 'Você não tem permissão para ver os pedidos desta campanha.' });
+  }
   const pedidos = db.getPedidosPorCampanha(id);
   return res.json(pedidos);
 });
 
-// POST /api/admin/campanhas/:id/sortear -> Apuração e definição do ganhador
-app.post('/api/admin/campanhas/:id/sortear', adminAuthMiddleware, (req, res) => {
+// POST /api/admin/campanhas/:id/sortear -> Apuração e definição do ganhador (somente o dono)
+app.post('/api/admin/campanhas/:id/sortear', firebaseAuthMiddleware, (req, res) => {
   try {
     const { id } = req.params;
     const { numeroSorteado } = req.body;
 
     if (!numeroSorteado) {
       return res.status(400).json({ error: 'Informe o número sorteado.' });
+    }
+
+    const existente = db.getCampanhaById(id);
+    if (!existente) {
+      return res.status(404).json({ error: 'Campanha não encontrada.' });
+    }
+    if (existente.ownerId !== (req as any).userId) {
+      return res.status(403).json({ error: 'Você não tem permissão para apurar esta campanha.' });
     }
 
     const resultado = db.realizarSorteio(id, String(numeroSorteado).trim());
@@ -586,7 +646,7 @@ app.post('/api/admin/campanhas/:id/sortear', adminAuthMiddleware, (req, res) => 
 });
 
 // POST /api/admin/limpar-reservas -> Limpa reservas vencidas
-app.post('/api/admin/limpar-reservas', adminAuthMiddleware, (_req, res) => {
+app.post('/api/admin/limpar-reservas', firebaseAuthMiddleware, (_req, res) => {
   const limpos = db.limparReservasExpiradas();
   return res.json({ success: true, cotasLiberadas: limpos });
 });
@@ -610,7 +670,7 @@ async function startServer() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`\n🚀 Servidor RifaPix rodando com sucesso em http://0.0.0.0:${PORT}`);
+    console.log(`\n🚀 Servidor RifaZone rodando com sucesso em http://0.0.0.0:${PORT}`);
     console.log(`💳 Mercado Pago API: ${mpService.isConfigured() ? 'ATIVO (Chave de produção/teste conectada)' : 'MODO SIMULAÇÃO ATIVO'}\n`);
   });
 }

@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { Campanha, Cota, Pedido, Comprador, RankingItem, CotaPremiada } from '../src/types.js';
+import { Campanha, Cota, Pedido, Comprador, RankingItem, CotaPremiada, ConfigOrganizador } from '../src/types.js';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 if (!fs.existsSync(DATA_DIR)) {
@@ -12,6 +12,7 @@ const CAMPANHAS_FILE = path.join(DATA_DIR, 'campanhas.json');
 const COTAS_FILE = path.join(DATA_DIR, 'cotas.json');
 const PEDIDOS_FILE = path.join(DATA_DIR, 'pedidos.json');
 const COMPRADORES_FILE = path.join(DATA_DIR, 'compradores.json');
+const CONFIGS_FILE = path.join(DATA_DIR, 'configuracoes.json');
 
 function loadJson<T>(file: string, fallback: T): T {
   try {
@@ -105,6 +106,8 @@ export class StorageService {
   private cotas: Map<string, Cota> = new Map();
   private pedidos: Map<string, Pedido> = new Map();
   private compradores: Map<string, Comprador> = new Map();
+  // Configurações de pagamento por organizador (key = ownerId)
+  private configs: Map<string, ConfigOrganizador> = new Map();
 
   constructor() {
     this.loadAll();
@@ -134,6 +137,13 @@ export class StorageService {
 
     const compradoresList = loadJson<Comprador[]>(COMPRADORES_FILE, []);
     compradoresList.forEach(c => this.compradores.set(c.id, c));
+
+    const configsList = loadJson<ConfigOrganizador[]>(CONFIGS_FILE, []);
+    configsList.forEach(c => this.configs.set(c.ownerId, c));
+  }
+
+  private saveConfigs() {
+    saveJson(CONFIGS_FILE, Array.from(this.configs.values()));
   }
 
   private saveCampanhas() {
@@ -157,10 +167,13 @@ export class StorageService {
   }
 
   // --- Campanhas ---
-  public getCampanhas(): Campanha[] {
-    return Array.from(this.campanhas.values()).sort((a, b) => 
-      new Date(b.criadaEm).getTime() - new Date(a.criadaEm).getTime()
-    );
+  // Lista campanhas. Se ownerId for informado, retorna apenas as do organizador.
+  public getCampanhas(ownerId?: string): Campanha[] {
+    return Array.from(this.campanhas.values())
+      .filter(c => !ownerId || c.ownerId === ownerId)
+      .sort((a, b) =>
+        new Date(b.criadaEm).getTime() - new Date(a.criadaEm).getTime()
+      );
   }
 
   public getCampanhaById(id: string): Campanha | null {
@@ -478,6 +491,37 @@ export class StorageService {
     this.compradores.set(cleanId, comprador);
     this.saveCompradores();
     return comprador;
+  }
+
+  // --- Configurações de pagamento por organizador ---
+  public getConfig(ownerId: string): ConfigOrganizador | null {
+    return this.configs.get(ownerId) || null;
+  }
+
+  public saveConfig(ownerId: string, dados: { mpAccessToken?: string | null; mpPublicKey?: string | null }): ConfigOrganizador {
+    const existente = this.configs.get(ownerId);
+    const config: ConfigOrganizador = {
+      ownerId,
+      // Só sobrescreve o token se um novo valor não-vazio foi enviado (evita apagar por engano)
+      mpAccessToken: dados.mpAccessToken !== undefined && dados.mpAccessToken !== ''
+        ? (dados.mpAccessToken ? dados.mpAccessToken.trim() : null)
+        : (existente?.mpAccessToken ?? null),
+      mpPublicKey: dados.mpPublicKey !== undefined
+        ? (dados.mpPublicKey ? dados.mpPublicKey.trim() : null)
+        : (existente?.mpPublicKey ?? null),
+      atualizadaEm: new Date().toISOString()
+    };
+    this.configs.set(ownerId, config);
+    this.saveConfigs();
+    return config;
+  }
+
+  // Retorna o Access Token do Mercado Pago do organizador dono da campanha.
+  public getMpTokenPorCampanha(campanhaId: string): string | null {
+    const campanha = this.campanhas.get(campanhaId);
+    if (!campanha || !campanha.ownerId) return null;
+    const config = this.configs.get(campanha.ownerId);
+    return config?.mpAccessToken || null;
   }
 
   // --- Limpeza de reservas expiradas ---

@@ -3,23 +3,45 @@ import { Campanha, Premio, CotaPremiada, Promocao, OfertaRelampago, Pedido } fro
 import {
   Plus, Trash2, Edit3, Eye, Trophy, Gift, Zap, Settings,
   Users, CheckCircle2, AlertCircle, RefreshCw, Key, LogOut, ArrowRight, DollarSign, Calendar,
-  Sparkles
+  Sparkles, Mail, Lock, User as UserIcon, Link2, Copy
 } from 'lucide-react';
+import {
+  auth, observarAuth, cadastrarComEmail, entrarComEmail, entrarComGoogle, sair,
+  traduzErroAuth, type User
+} from '../lib/firebase';
 
 interface Props {
   onSelectCampanha: (codigo: string) => void;
 }
 
 export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
-  const [token, setToken] = useState<string>(() => localStorage.getItem('rifapix_admin_token') || '');
-  const [email, setEmail] = useState<string>(() => localStorage.getItem('rifapix_admin_email') || 'wheslleyaviz@gmail.com');
-  const [password, setPassword] = useState('admin');
+  // --- Auth (Firebase) ---
+  const [user, setUser] = useState<User | null>(null);
+  const [authPronto, setAuthPronto] = useState(false);
+  const [modoCadastro, setModoCadastro] = useState(false);
+  const [nome, setNome] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loginErro, setLoginErro] = useState('');
   const [carregandoLogin, setCarregandoLogin] = useState(false);
 
+  // Requisição autenticada com o ID Token do Firebase sempre atualizado
+  const authFetch = async (url: string, options: RequestInit = {}) => {
+    const u = auth.currentUser;
+    if (!u) throw new Error('Não autenticado');
+    const idToken = await u.getIdToken();
+    return fetch(url, {
+      ...options,
+      headers: {
+        ...(options.headers || {}),
+        Authorization: `Bearer ${idToken}`
+      }
+    });
+  };
+
   // Painel State
   const [campanhas, setCampanhas] = useState<any[]>([]);
-  const [abaAtiva, setAbaAtiva] = useState<'lista' | 'nova' | 'pedidos' | 'apuracao'>('lista');
+  const [abaAtiva, setAbaAtiva] = useState<'lista' | 'nova' | 'pedidos' | 'apuracao' | 'pagamento'>('lista');
   const [carregando, setCarregando] = useState(false);
   const [campanhaSelecionada, setCampanhaSelecionada] = useState<any | null>(null);
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
@@ -69,6 +91,61 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
   const [resultadoApuracao, setResultadoApuracao] = useState<any | null>(null);
   const [apurando, setApurando] = useState(false);
 
+  // Link compartilhável após criar/salvar campanha
+  const [linkCampanha, setLinkCampanha] = useState<{ codigo: string; titulo: string } | null>(null);
+  const [linkCopiado, setLinkCopiado] = useState(false);
+
+  // Configurações de pagamento (Mercado Pago do organizador)
+  const [configPagamento, setConfigPagamento] = useState<any | null>(null);
+  const [mpTokenInput, setMpTokenInput] = useState('');
+  const [mpPublicKeyInput, setMpPublicKeyInput] = useState('');
+  const [salvandoConfig, setSalvandoConfig] = useState(false);
+  const [configMsg, setConfigMsg] = useState('');
+  const [configErro, setConfigErro] = useState('');
+
+  const carregarConfig = async () => {
+    try {
+      const res = await authFetch('/api/admin/configuracoes');
+      if (res.ok) {
+        const data = await res.json();
+        setConfigPagamento(data);
+        setMpPublicKeyInput(data.mpPublicKey || '');
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleSalvarConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setConfigMsg('');
+    setConfigErro('');
+    setSalvandoConfig(true);
+    try {
+      const body: any = { mpPublicKey: mpPublicKeyInput };
+      // Só envia o token se o organizador digitou um novo (campo em branco = mantém o atual)
+      if (mpTokenInput.trim()) body.mpAccessToken = mpTokenInput.trim();
+
+      const res = await authFetch('/api/admin/configuracoes', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setConfigErro(data.error || 'Erro ao salvar.');
+      } else {
+        setConfigPagamento(data);
+        setMpTokenInput('');
+        setConfigMsg('Credenciais salvas! Os pagamentos das suas campanhas cairão na sua conta Mercado Pago.');
+      }
+    } catch (err) {
+      setConfigErro('Falha de conexão ao salvar.');
+    } finally {
+      setSalvandoConfig(false);
+    }
+  };
+
   // Assistente de IA (Gemini) State
   const [iaAberto, setIaAberto] = useState(false);
   const [iaPremio, setIaPremio] = useState('');
@@ -89,12 +166,9 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
     setIaGerando(true);
 
     try {
-      const res = await fetch('/api/admin/ia/gerar-campanha', {
+      const res = await authFetch('/api/admin/ia/gerar-campanha', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           premio: iaPremio,
           valorCota: form.valorCota,
@@ -134,49 +208,64 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
     }
   };
 
-  // Check login
-  const handleLogin = async (e: React.FormEvent) => {
+  // Cadastro / Login com Firebase Authentication
+  const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginErro('');
     setCarregandoLogin(true);
-
     try {
-      const res = await fetch('/api/admin/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        setLoginErro(data.error || 'Credenciais inválidas.');
+      if (modoCadastro) {
+        await cadastrarComEmail(nome.trim(), email.trim(), password);
       } else {
-        setToken(data.token);
-        localStorage.setItem('rifapix_admin_token', data.token);
-        localStorage.setItem('rifapix_admin_email', email);
+        await entrarComEmail(email.trim(), password);
       }
-    } catch (err) {
-      setLoginErro('Falha ao autenticar.');
+      // onAuthStateChanged cuida do resto
+    } catch (err: any) {
+      setLoginErro(traduzErroAuth(err?.code || ''));
     } finally {
       setCarregandoLogin(false);
     }
   };
 
-  const handleLogout = () => {
-    setToken('');
-    localStorage.removeItem('rifapix_admin_token');
+  const handleLoginGoogle = async () => {
+    setLoginErro('');
+    setCarregandoLogin(true);
+    try {
+      await entrarComGoogle();
+    } catch (err: any) {
+      setLoginErro(traduzErroAuth(err?.code || ''));
+    } finally {
+      setCarregandoLogin(false);
+    }
   };
+
+  const handleLogout = async () => {
+    try {
+      await sair();
+    } catch {
+      // ignora
+    }
+    setCampanhas([]);
+    setCampanhaSelecionada(null);
+  };
+
+  // Observa o estado de autenticação do Firebase
+  useEffect(() => {
+    const unsub = observarAuth(u => {
+      setUser(u);
+      setAuthPronto(true);
+    });
+    return () => unsub();
+  }, []);
 
   // Carregar Campanhas
   const carregarCampanhas = async () => {
-    if (!token) return;
+    if (!auth.currentUser) return;
     setCarregando(true);
     try {
-      const res = await fetch('/api/admin/campanhas', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await authFetch('/api/admin/campanhas');
       if (res.status === 401) {
-        handleLogout();
+        await handleLogout();
         return;
       }
       const data = await res.json();
@@ -192,17 +281,16 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
   };
 
   useEffect(() => {
-    if (token) {
+    if (user) {
       carregarCampanhas();
+      carregarConfig();
     }
-  }, [token]);
+  }, [user]);
 
   // Carregar Pedidos
   const carregarPedidos = async (campanhaId: string) => {
     try {
-      const res = await fetch(`/api/admin/campanhas/${campanhaId}/pedidos`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await authFetch(`/api/admin/campanhas/${campanhaId}/pedidos`);
       const data = await res.json();
       setPedidos(data);
     } catch (e) {
@@ -217,17 +305,17 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
       const url = form.id ? `/api/admin/campanhas/${form.id}` : '/api/admin/campanhas';
       const method = form.id ? 'PUT' : 'POST';
 
-      const res = await fetch(url, {
+      const res = await authFetch(url, {
         method,
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form)
       });
 
       if (res.ok) {
+        const salva = await res.json();
         await carregarCampanhas();
+        setLinkCampanha({ codigo: salva.codigo, titulo: salva.titulo });
+        setLinkCopiado(false);
         setAbaAtiva('lista');
       } else {
         const d = await res.json();
@@ -247,12 +335,9 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
     setResultadoApuracao(null);
 
     try {
-      const res = await fetch(`/api/admin/campanhas/${campanhaSelecionada.id}/sortear`, {
+      const res = await authFetch(`/api/admin/campanhas/${campanhaSelecionada.id}/sortear`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ numeroSorteado })
       });
 
@@ -273,9 +358,8 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
   // Limpar reservas
   const handleLimparReservas = async () => {
     try {
-      const res = await fetch('/api/admin/limpar-reservas', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` }
+      const res = await authFetch('/api/admin/limpar-reservas', {
+        method: 'POST'
       });
       const data = await res.json();
       alert(`Reservas expiradas limpas com sucesso! Cotas liberadas: ${data.cotasLiberadas}`);
@@ -285,8 +369,18 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
     }
   };
 
-  // TELA DE LOGIN ADMIN
-  if (!token) {
+  // Enquanto o Firebase verifica se há sessão ativa
+  if (!authPronto) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-400 text-sm">
+        <RefreshCw className="w-4 h-4 mr-2 animate-spin text-emerald-400" />
+        Carregando...
+      </div>
+    );
+  }
+
+  // TELA DE CADASTRO / LOGIN DO ORGANIZADOR
+  if (!user) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
         <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8 shadow-2xl text-white">
@@ -295,44 +389,60 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
               R
             </div>
             <div>
-              <h1 className="text-xl font-black">Painel Administrativo</h1>
-              <p className="text-xs text-slate-400">RifaPix & Gestão de Sorteios</p>
+              <h1 className="text-xl font-black">RifaZone</h1>
+              <p className="text-xs text-slate-400">
+                {modoCadastro ? 'Crie sua conta de organizador' : 'Acesse seu painel de rifas'}
+              </p>
             </div>
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-4">
+          <form onSubmit={handleAuthSubmit} className="space-y-4">
+            {modoCadastro && (
+              <div>
+                <label className="text-xs font-semibold text-slate-300 block mb-1.5">Seu nome</label>
+                <div className="relative">
+                  <UserIcon className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={nome}
+                    onChange={e => setNome(e.target.value)}
+                    placeholder="Como você quer ser chamado"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white focus:border-emerald-500 focus:outline-none"
+                    required
+                  />
+                </div>
+              </div>
+            )}
+
             <div>
-              <label className="text-xs font-semibold text-slate-300 block mb-1.5">
-                E-mail de Administrador
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder="seuemail@exemplo.com"
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:border-emerald-500 focus:outline-none"
-                required
-              />
-              <span className="text-[11px] text-slate-500 block mt-1">
-                E-mail configurado em ADMIN_EMAILS
-              </span>
+              <label className="text-xs font-semibold text-slate-300 block mb-1.5">E-mail</label>
+              <div className="relative">
+                <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="seuemail@exemplo.com"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white focus:border-emerald-500 focus:outline-none"
+                  required
+                />
+              </div>
             </div>
 
             <div>
-              <label className="text-xs font-semibold text-slate-300 block mb-1.5">
-                Senha de Acesso
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="Senha"
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:border-emerald-500 focus:outline-none"
-                required
-              />
-              <span className="text-[11px] text-slate-500 block mt-1">
-                Padrão inicial: <code className="text-emerald-400 font-mono">admin</code> (ou altere no .env)
-              </span>
+              <label className="text-xs font-semibold text-slate-300 block mb-1.5">Senha</label>
+              <div className="relative">
+                <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder={modoCadastro ? 'Mínimo 6 caracteres' : 'Sua senha'}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white focus:border-emerald-500 focus:outline-none"
+                  required
+                  minLength={6}
+                />
+              </div>
             </div>
 
             {loginErro && (
@@ -346,11 +456,43 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
               id="btn-entrar-admin"
               type="submit"
               disabled={carregandoLogin}
-              className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-sm transition shadow-lg shadow-emerald-500/20"
+              className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 text-slate-950 font-black rounded-xl text-sm transition shadow-lg shadow-emerald-500/20"
             >
-              {carregandoLogin ? 'Autenticando...' : 'Entrar no Painel'}
+              {carregandoLogin ? 'Aguarde...' : modoCadastro ? 'Criar conta' : 'Entrar'}
             </button>
           </form>
+
+          <div className="flex items-center gap-3 my-4">
+            <div className="h-px flex-1 bg-slate-800" />
+            <span className="text-[11px] text-slate-500 uppercase tracking-wider">ou</span>
+            <div className="h-px flex-1 bg-slate-800" />
+          </div>
+
+          <button
+            type="button"
+            onClick={handleLoginGoogle}
+            disabled={carregandoLogin}
+            className="w-full py-2.5 bg-white hover:bg-slate-100 disabled:opacity-60 text-slate-800 font-bold rounded-xl text-sm transition flex items-center justify-center gap-2 border border-slate-300"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 48 48">
+              <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+              <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+              <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+              <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+            </svg>
+            Continuar com Google
+          </button>
+
+          <p className="text-center text-xs text-slate-400 mt-5">
+            {modoCadastro ? 'Já tem conta?' : 'Ainda não tem conta?'}{' '}
+            <button
+              type="button"
+              onClick={() => { setModoCadastro(v => !v); setLoginErro(''); }}
+              className="text-emerald-400 font-bold hover:underline"
+            >
+              {modoCadastro ? 'Fazer login' : 'Cadastre-se grátis'}
+            </button>
+          </p>
         </div>
       </div>
     );
@@ -366,10 +508,10 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
           </div>
           <div>
             <h2 className="text-base font-black text-white leading-none">
-              Painel Admin RifaPix
+              RifaZone
             </h2>
             <span className="text-[11px] text-emerald-400 font-mono">
-              {email}
+              {user?.email}
             </span>
           </div>
         </div>
@@ -469,6 +611,21 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
         >
           Apuração / Sorteio
         </button>
+
+        <button
+          onClick={() => setAbaAtiva('pagamento')}
+          className={`py-3 text-xs font-bold border-b-2 flex items-center gap-1 transition ${
+            abaAtiva === 'pagamento'
+              ? 'border-emerald-400 text-emerald-400'
+              : 'border-transparent text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <DollarSign className="w-3.5 h-3.5" />
+          Pagamento
+          {configPagamento && !configPagamento.mpConfigurado && (
+            <span className="ml-1 w-2 h-2 rounded-full bg-amber-400" title="Configure para receber pagamentos" />
+          )}
+        </button>
       </div>
 
       {/* Content Body */}
@@ -477,6 +634,66 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
         {/* ABA: LISTA DE CAMPANHAS */}
         {abaAtiva === 'lista' && (
           <div className="space-y-6">
+            {/* Banner do link compartilhável após criar/salvar campanha */}
+            {linkCampanha && (() => {
+              const shareUrl = `${window.location.origin}/c/${linkCampanha.codigo}`;
+              return (
+                <div className="rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 flex items-center justify-center shrink-0">
+                        <Link2 className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-black text-white leading-tight">
+                          Link da campanha "{linkCampanha.titulo}" pronto!
+                        </h4>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          Compartilhe este link para as pessoas comprarem as cotas:
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setLinkCampanha(null)}
+                      className="text-slate-500 hover:text-slate-300 text-xs shrink-0"
+                      title="Fechar"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <div className="mt-3 flex flex-col sm:flex-row items-stretch gap-2">
+                    <code className="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-emerald-300 font-mono break-all">
+                      {shareUrl}
+                    </code>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={async () => {
+                          try {
+                            await navigator.clipboard.writeText(shareUrl);
+                            setLinkCopiado(true);
+                            setTimeout(() => setLinkCopiado(false), 2000);
+                          } catch {
+                            setLinkCopiado(false);
+                          }
+                        }}
+                        className="px-3 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition"
+                      >
+                        {linkCopiado ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                        {linkCopiado ? 'Copiado!' : 'Copiar'}
+                      </button>
+                      <button
+                        onClick={() => onSelectCampanha(linkCampanha.codigo)}
+                        className="px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition border border-slate-700"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        Abrir
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-xl font-black text-white">Campanhas Ativas</h3>
@@ -958,6 +1175,114 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
                 )}
               </div>
             )}
+          </div>
+        )}
+
+        {/* ABA: PAGAMENTO (credenciais Mercado Pago do organizador) */}
+        {abaAtiva === 'pagamento' && (
+          <div className="max-w-2xl mx-auto space-y-6">
+            <div>
+              <h3 className="text-xl font-black text-white">Pagamento — Mercado Pago</h3>
+              <p className="text-xs text-slate-400">
+                Conecte a sua conta do Mercado Pago para que os pagamentos Pix das suas campanhas
+                caiam <strong className="text-emerald-400">direto na sua conta</strong>.
+              </p>
+            </div>
+
+            {/* Status atual */}
+            <div className={`rounded-2xl border p-4 flex items-center gap-3 ${
+              configPagamento?.mpConfigurado
+                ? 'border-emerald-500/40 bg-emerald-500/10'
+                : 'border-amber-500/40 bg-amber-500/10'
+            }`}>
+              {configPagamento?.mpConfigurado ? (
+                <>
+                  <CheckCircle2 className="w-6 h-6 text-emerald-400 shrink-0" />
+                  <div>
+                    <p className="text-sm font-bold text-white">Conta conectada ✅</p>
+                    <p className="text-[11px] text-slate-400 font-mono">
+                      Token: {configPagamento.mpTokenMascara}
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <AlertCircle className="w-6 h-6 text-amber-400 shrink-0" />
+                  <div>
+                    <p className="text-sm font-bold text-white">Ainda não conectado</p>
+                    <p className="text-[11px] text-slate-400">
+                      Enquanto não conectar, as vendas rodam em <strong>modo simulação</strong> (Pix de teste).
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <form onSubmit={handleSalvarConfig} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl">
+              <div>
+                <label className="text-xs font-bold text-slate-300 block mb-1">
+                  Access Token do Mercado Pago
+                </label>
+                <input
+                  type="password"
+                  value={mpTokenInput}
+                  onChange={e => setMpTokenInput(e.target.value)}
+                  placeholder={configPagamento?.mpConfigurado ? '•••••• (deixe em branco para manter o atual)' : 'APP_USR-... ou TEST-...'}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white font-mono focus:border-emerald-500 focus:outline-none"
+                  autoComplete="off"
+                />
+                <span className="text-[11px] text-slate-500 block mt-1">
+                  Encontre em <span className="text-emerald-400">Mercado Pago Developers → Suas integrações → sua aplicação → Credenciais</span>.
+                  Comece com o token de <strong>Teste</strong> (TEST-) antes de usar o de Produção (APP_USR-).
+                </span>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-300 block mb-1">
+                  Public Key (opcional)
+                </label>
+                <input
+                  type="text"
+                  value={mpPublicKeyInput}
+                  onChange={e => setMpPublicKeyInput(e.target.value)}
+                  placeholder="APP_USR-xxxxxxxx-xxxx-... ou TEST-..."
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white font-mono focus:border-emerald-500 focus:outline-none"
+                  autoComplete="off"
+                />
+              </div>
+
+              {configErro && (
+                <p className="text-xs text-red-400 font-medium flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  {configErro}
+                </p>
+              )}
+              {configMsg && (
+                <p className="text-xs text-emerald-300 font-medium flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  {configMsg}
+                </p>
+              )}
+
+              <div className="flex justify-end">
+                <button
+                  type="submit"
+                  disabled={salvandoConfig}
+                  className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 text-slate-950 text-xs font-black rounded-xl shadow-lg shadow-emerald-500/20"
+                >
+                  {salvandoConfig ? 'Salvando...' : 'Salvar credenciais'}
+                </button>
+              </div>
+            </form>
+
+            <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 text-[11px] text-slate-400 space-y-1.5">
+              <p className="text-slate-300 font-bold text-xs flex items-center gap-1.5">
+                <Key className="w-3.5 h-3.5 text-emerald-400" /> Como funciona
+              </p>
+              <p>• O token é guardado com segurança no servidor e <strong>nunca</strong> é exibido de volta por completo.</p>
+              <p>• Para o Pix confirmar sozinho, cadastre o webhook <code className="text-emerald-400">SUA_URL/api/webhooks/mercadopago</code> no painel do Mercado Pago.</p>
+              <p>• O Mercado Pago cobra uma taxa por Pix recebido — considere isso no valor da cota.</p>
+            </div>
           </div>
         )}
 

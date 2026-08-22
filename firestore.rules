@@ -1,55 +1,40 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
+
     // Default-deny catch-all
     match /{document=**} {
       allow read, write: if false;
     }
 
-    function isSignedIn() {
-      return request.auth != null;
-    }
+    // RifaZone é multi-organizador. TODA escrita passa pelo backend
+    // (Admin SDK, que ignora estas regras). O cliente nunca escreve direto.
+    // Aqui liberamos apenas as LEITURAS públicas que a página da campanha precisa.
 
-    function isAdmin() {
-      return isSignedIn() && (
-        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
-        request.auth.token.email == 'wheslleyaviz@gmail.com'
-      );
-    }
-
-    // Campanhas: Public read for published/finished, admin full access
+    // Campanhas: leitura pública (página /c/{codigo}); escrita só pelo backend.
     match /campanhas/{campanhaId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if false;
 
-      // Cotas subcollection
+      // Cotas: leitura pública (mostrar ocupadas/vendidas); escrita só backend.
       match /cotas/{cotaId} {
         allow read: if true;
-        allow write: if isAdmin();
+        allow write: if false;
       }
     }
 
-    // Pedidos
+    // Pedidos: nada de acesso público direto. Consulta de status é feita
+    // por endpoint do backend, não pelo cliente lendo o Firestore.
     match /pedidos/{pedidoId} {
-      allow read: if isAdmin() || (isSignedIn() && resource.data.compradorId == request.auth.uid);
-      allow create: if true;
-      allow update, delete: if isAdmin();
+      allow read, write: if false;
     }
 
-    // Compradores
+    // Compradores: dados pessoais — sem acesso público direto.
     match /compradores/{compradorId} {
-      allow read: if isAdmin();
-      allow write: if isAdmin();
+      allow read, write: if false;
     }
 
-    // Admins
-    match /admins/{adminId} {
-      allow read: if isSignedIn() && (request.auth.uid == adminId || isAdmin());
-      allow write: if isAdmin();
-    }
-
-    // Test connection doc
+    // Doc de teste de conexão do SDK Firebase no boot do frontend.
     match /test/{docId} {
       allow read: if true;
     }

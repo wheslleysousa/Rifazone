@@ -1,6 +1,6 @@
 {
-  "name": "RifaPix",
-  "description": "Plataforma completa de rifas e sorteios com pagamento instantâneo via Pix Mercado Pago, reserva atômica de cotas e painel administrativo.",
+  "name": "RifaZone",
+  "description": "Plataforma completa de rifas e sorteios com contas de organizadores (Firebase Auth), pagamento instantâneo via Pix Mercado Pago, reserva atômica de cotas, geração de campanhas com IA (Gemini) e painel administrativo.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

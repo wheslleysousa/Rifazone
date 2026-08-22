@@ -28,6 +28,8 @@ export interface OfertaRelampago {
 
 export interface Campanha {
   id: string;
+  ownerId?: string; // uid do organizador (Firebase Auth) dono da campanha
+  ownerEmail?: string; // email do organizador (referência)
   codigo: string; // curto e único, ex: 'civic-turbo' ou 'iphone-16'
   titulo: string;
   subtitulo?: string;
@@ -71,6 +73,14 @@ export interface Cota {
   reservadoAte: string | null; // ISO string
   compradorId: string | null;
   compradorNome?: string;
+}
+
+// Configurações de pagamento por organizador (credenciais do Mercado Pago dele)
+export interface ConfigOrganizador {
+  ownerId: string;
+  mpAccessToken: string | null; // segredo — nunca enviado de volta ao cliente
+  mpPublicKey: string | null;   // pública — pode ser exibida
+  atualizadaEm: string;
 }
 
 export interface Comprador {

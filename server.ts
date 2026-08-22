@@ -259,7 +259,14 @@ app.get('/api/pedidos/:id/status', async (req, res) => {
       const consulta = await mpService.consultarPagamento(pedido.mpPaymentId, mpToken);
       if (consulta && consulta.approved) {
         await db.confirmarPedido(pedido.id, pedido.mpPaymentId);
-        return res.json({ status: 'pago', pagoEm: new Date().toISOString() });
+        const pedidoAtualizado = (await db.getPedido(pedido.id)) || pedido;
+        return res.json({
+          status: 'pago',
+          pagoEm: pedidoAtualizado.pagoEm || new Date().toISOString(),
+          numeros: pedidoAtualizado.numeros || pedido.numeros || [],
+          quantidade: pedidoAtualizado.quantidade,
+          comprador: pedidoAtualizado.comprador
+        });
       }
     }
 
@@ -272,7 +279,9 @@ app.get('/api/pedidos/:id/status', async (req, res) => {
     return res.json({
       status: pedido.status,
       pagoEm: pedido.pagoEm,
-      numeros: pedido.status === 'pago' ? pedido.numeros : []
+      numeros: pedido.status === 'pago' ? (pedido.numeros || []) : [],
+      quantidade: pedido.quantidade,
+      comprador: pedido.comprador
     });
   } catch (err: any) {
     console.error('Erro ao verificar status do pedido:', err);

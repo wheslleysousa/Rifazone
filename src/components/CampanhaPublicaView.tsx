@@ -30,6 +30,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
   const [whatsapp, setWhatsapp] = useState('');
   const [cpf, setCpf] = useState('');
   const [email, setEmail] = useState('');
+  const [compradorSalvo, setCompradorSalvo] = useState<{ nome: string; whatsapp: string } | null>(null);
   const [formErro, setFormErro] = useState('');
   const [enviandoPedido, setEnviandoPedido] = useState(false);
 
@@ -55,10 +56,30 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
     quantidade: number;
     expiraEm: string;
     isMock?: boolean;
+    compradorNome?: string;
+    compradorWhatsapp?: string;
   } | null>(null);
 
   // Meus Números Modal
   const [meusNumerosAberto, setMeusNumerosAberto] = useState(false);
+
+  // Inicializar dados do comprador do localStorage
+  useEffect(() => {
+    try {
+      const savedNome = localStorage.getItem('rifapix_comprador_nome');
+      const savedPhone = localStorage.getItem('rifapix_comprador_whatsapp');
+      const savedCpf = localStorage.getItem('rifapix_comprador_cpf');
+      const savedEmail = localStorage.getItem('rifapix_comprador_email');
+
+      if (savedNome) setNome(savedNome);
+      if (savedPhone) {
+        setWhatsapp(formatWhatsapp(savedPhone));
+        setCompradorSalvo({ nome: savedNome || 'Participante', whatsapp: savedPhone });
+      }
+      if (savedCpf) setCpf(savedCpf);
+      if (savedEmail) setEmail(savedEmail);
+    } catch (e) {}
+  }, []);
 
   // Carregar dados da campanha
   const carregarCampanha = async () => {
@@ -215,6 +236,14 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
       }
 
       setCheckoutAberto(false);
+      try {
+        localStorage.setItem('rifapix_comprador_nome', nome.trim());
+        localStorage.setItem('rifapix_comprador_whatsapp', cleanWhatsapp);
+        if (cpf) localStorage.setItem('rifapix_comprador_cpf', cpf.trim());
+        if (email) localStorage.setItem('rifapix_comprador_email', email.trim());
+        setCompradorSalvo({ nome: nome.trim(), whatsapp: cleanWhatsapp });
+      } catch (e) {}
+
       setPixModalData({
         pedidoId: pedidoJson.pedidoId,
         pixCopiaCola: pedidoJson.pixCopiaCola,
@@ -222,7 +251,9 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
         valorTotal: pedidoJson.valorTotal,
         quantidade: pedidoJson.quantidade,
         expiraEm: pedidoJson.expiraEm,
-        isMock: pedidoJson.isMock
+        isMock: pedidoJson.isMock,
+        compradorNome: nome.trim(),
+        compradorWhatsapp: cleanWhatsapp
       });
 
     } catch (err: any) {
@@ -270,6 +301,24 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
             </button>
           </div>
         </div>
+
+        {/* Banner sutil se o comprador já possui dados salvos no navegador */}
+        {compradorSalvo && (
+          <div className="bg-emerald-950/40 border-t border-b border-emerald-500/20 px-4 py-1.5">
+            <div className="max-w-xl mx-auto flex items-center justify-between text-[11px]">
+              <span className="text-emerald-300 font-medium truncate">
+                👋 Olá, <strong>{compradorSalvo.nome}</strong>! Seus dados e bilhetes estão salvos.
+              </span>
+              <button
+                type="button"
+                onClick={() => setMeusNumerosAberto(true)}
+                className="text-emerald-400 hover:text-emerald-300 font-bold underline ml-2 flex-shrink-0"
+              >
+                Ver cotas
+              </button>
+            </div>
+          </div>
+        )}
       </header>
 
       {/* Main Container */}
@@ -694,12 +743,19 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
           quantidade={pixModalData.quantidade}
           expiraEm={pixModalData.expiraEm}
           isMock={pixModalData.isMock}
+          compradorNome={pixModalData.compradorNome || nome}
+          compradorWhatsapp={pixModalData.compradorWhatsapp || whatsapp.replace(/\D/g, '')}
+          tituloCampanha={campanha.titulo}
           onSuccess={() => {
-            // Atualiza dados da campanha
             carregarCampanha();
           }}
           onClose={() => {
             setPixModalData(null);
+            carregarCampanha();
+          }}
+          onVerMeusNumeros={() => {
+            setPixModalData(null);
+            setMeusNumerosAberto(true);
             carregarCampanha();
           }}
         />

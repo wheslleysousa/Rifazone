@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Campanha } from '../types';
-import { Search, Ticket, ArrowLeft, CheckCircle2, User, Phone, Calendar, AlertCircle } from 'lucide-react';
+import { Search, Ticket, ArrowLeft, CheckCircle2, User, Phone, Calendar, AlertCircle, Copy, Check, MessageCircle } from 'lucide-react';
 
 interface Props {
   campanha: Campanha;
@@ -14,6 +14,7 @@ export const MeusNumerosModal: React.FC<Props> = ({ campanha, onBack }) => {
   const [pedidos, setPedidos] = useState<any[]>([]);
   const [comprador, setComprador] = useState<any | null>(null);
   const [erro, setErro] = useState('');
+  const [copiado, setCopiado] = useState(false);
 
   const formatWhatsapp = (val: string) => {
     const raw = val.replace(/\D/g, '').slice(0, 11);
@@ -22,9 +23,8 @@ export const MeusNumerosModal: React.FC<Props> = ({ campanha, onBack }) => {
     return `(${raw.slice(0, 2)}) ${raw.slice(2, 7)}-${raw.slice(7)}`;
   };
 
-  const handleBuscar = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const cleanPhone = whatsapp.replace(/\D/g, '');
+  const executarBusca = async (phone: string) => {
+    const cleanPhone = phone.replace(/\D/g, '');
     if (cleanPhone.length < 10) {
       setErro('Informe um número de WhatsApp válido com DDD (ex: 11999998888).');
       return;
@@ -44,12 +44,47 @@ export const MeusNumerosModal: React.FC<Props> = ({ campanha, onBack }) => {
         setCotas(data.cotas || []);
         setPedidos(data.pedidos || []);
         setComprador(data.comprador || null);
+        try {
+          localStorage.setItem('rifapix_comprador_whatsapp', cleanPhone);
+          if (data.comprador?.nome) {
+            localStorage.setItem('rifapix_comprador_nome', data.comprador.nome);
+          }
+        } catch (e) {}
       }
     } catch (err) {
       setErro('Falha na comunicação com o servidor. Tente novamente.');
     } finally {
       setCarregando(false);
     }
+  };
+
+  useEffect(() => {
+    try {
+      const savedPhone = localStorage.getItem('rifapix_comprador_whatsapp');
+      if (savedPhone) {
+        setWhatsapp(formatWhatsapp(savedPhone));
+        executarBusca(savedPhone);
+      }
+    } catch (e) {}
+  }, [campanha.codigo]);
+
+  const handleBuscar = (e: React.FormEvent) => {
+    e.preventDefault();
+    executarBusca(whatsapp);
+  };
+
+  const handleCopiarTodos = () => {
+    if (!cotas || cotas.length === 0) return;
+    const texto = `🎟️ Meus Números (${campanha.titulo}):\n${cotas.join(', ')}\n\nParticipante: ${comprador?.nome || 'Confirmado'}`;
+    navigator.clipboard.writeText(texto);
+    setCopiado(true);
+    setTimeout(() => setCopiado(false), 3000);
+  };
+
+  const handleCompartilharWhatsapp = () => {
+    if (!cotas || cotas.length === 0) return;
+    const texto = encodeURIComponent(`🎟️ Meus números da sorte na campanha "${campanha.titulo}":\n\n${cotas.join(', ')}\n\nBoa sorte para mim! 🍀`);
+    window.open(`https://api.whatsapp.com/send?text=${texto}`, '_blank');
   };
 
   return (
@@ -66,7 +101,7 @@ export const MeusNumerosModal: React.FC<Props> = ({ campanha, onBack }) => {
             Voltar
           </button>
           <h3 className="text-lg font-black text-white">
-            Consultar Meus Números
+            Meus Bilhetes & Cotas
           </h3>
           <div className="w-12" /> {/* Spacer */}
         </div>
@@ -134,12 +169,32 @@ export const MeusNumerosModal: React.FC<Props> = ({ campanha, onBack }) => {
 
                 {/* Grade com os números */}
                 <div>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-1.5">
-                    <Ticket className="w-4 h-4 text-emerald-400" />
-                    Seus Números no Sorteio ({cotas.length}):
-                  </h4>
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                      <Ticket className="w-4 h-4 text-emerald-400" />
+                      Seus Números no Sorteio ({cotas.length}):
+                    </h4>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleCopiarTodos}
+                        className="text-[11px] font-bold text-slate-300 hover:text-emerald-400 bg-slate-800 hover:bg-slate-700 px-2 py-1 rounded-lg border border-slate-700 transition flex items-center gap-1"
+                      >
+                        {copiado ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                        {copiado ? 'Copiado!' : 'Copiar'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleCompartilharWhatsapp}
+                        className="text-[11px] font-bold text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 px-2 py-1 rounded-lg border border-emerald-500/30 transition flex items-center gap-1"
+                      >
+                        <MessageCircle className="w-3 h-3" />
+                        WhatsApp
+                      </button>
+                    </div>
+                  </div>
 
-                  <div className="flex flex-wrap gap-2 max-h-56 overflow-y-auto p-2 bg-slate-950 border border-slate-800 rounded-xl">
+                  <div className="flex flex-wrap gap-2 max-h-56 overflow-y-auto p-2.5 bg-slate-950 border border-slate-800 rounded-xl">
                     {cotas.map(num => (
                       <span
                         key={num}
@@ -198,3 +253,4 @@ export const MeusNumerosModal: React.FC<Props> = ({ campanha, onBack }) => {
     </div>
   );
 };
+

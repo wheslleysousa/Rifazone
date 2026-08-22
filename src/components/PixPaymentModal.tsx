@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { QrCode, Copy, Check, Clock, AlertCircle, Sparkles, CheckCircle2, ArrowRight } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { QrCode, Copy, Check, Clock, AlertCircle, Sparkles, CheckCircle2, ArrowRight, Share2, Ticket, MessageCircle } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import QRCode from 'qrcode';
 
@@ -11,8 +11,12 @@ interface Props {
   quantidade: number;
   expiraEm: string;
   isMock?: boolean;
+  compradorNome?: string;
+  compradorWhatsapp?: string;
+  tituloCampanha?: string;
   onSuccess: (numeros: string[]) => void;
   onClose: () => void;
+  onVerMeusNumeros?: () => void;
 }
 
 export const PixPaymentModal: React.FC<Props> = ({
@@ -23,15 +27,39 @@ export const PixPaymentModal: React.FC<Props> = ({
   quantidade,
   expiraEm,
   isMock,
+  compradorNome,
+  compradorWhatsapp,
+  tituloCampanha,
   onSuccess,
-  onClose
+  onClose,
+  onVerMeusNumeros
 }) => {
   const [copiado, setCopiado] = useState(false);
+  const [numerosCopiados, setNumerosCopiados] = useState(false);
   const [status, setStatus] = useState<'pendente' | 'pago' | 'expirado'>('pendente');
   const [tempoRestante, setTempoRestante] = useState<number>(600); // 10 min default
   const [simulando, setSimulando] = useState(false);
   const [numerosLiberados, setNumerosLiberados] = useState<string[]>([]);
   const [generatedQrDataUrl, setGeneratedQrDataUrl] = useState<string>('');
+
+  const confettiDisparadoRef = useRef(false);
+  const sucessoNotificadoRef = useRef(false);
+  const onSuccessRef = useRef(onSuccess);
+  onSuccessRef.current = onSuccess;
+
+  const triggerConfettiOnce = useCallback(() => {
+    if (confettiDisparadoRef.current) return;
+    confettiDisparadoRef.current = true;
+    try {
+      confetti({
+        particleCount: 100,
+        spread: 60,
+        origin: { y: 0.6 }
+      });
+    } catch (e) {
+      console.warn('Efeito confetti ignorado:', e);
+    }
+  }, []);
 
   useEffect(() => {
     if (pixCopiaCola) {
@@ -50,6 +78,8 @@ export const PixPaymentModal: React.FC<Props> = ({
 
   // Countdown timer
   useEffect(() => {
+    if (status === 'pago' || status === 'expirado') return;
+
     const target = new Date(expiraEm).getTime();
     
     const updateCountdown = () => {
@@ -64,22 +94,31 @@ export const PixPaymentModal: React.FC<Props> = ({
     updateCountdown();
     const interval = setInterval(updateCountdown, 1000);
     return () => clearInterval(interval);
-  }, [expiraEm]);
+  }, [expiraEm, status]);
 
-  // Polling status a cada 3.5 segundos
+  // Polling status a cada 3.5 segundos com proteção anti-loop
   useEffect(() => {
     if (status === 'pago' || status === 'expirado') return;
 
+    let cancelado = false;
+
     const interval = setInterval(async () => {
+      if (cancelado) return;
       try {
         const res = await fetch(`/api/pedidos/${pedidoId}/status`);
         if (res.ok) {
           const data = await res.json();
-          if (data.status === 'pago') {
+          if (data.status === 'pago' && !cancelado) {
+            cancelado = true;
+            clearInterval(interval);
             setStatus('pago');
-            setNumerosLiberados(data.numeros || []);
-            triggerConfetti();
-            onSuccess(data.numeros || []);
+            const nums = data.numeros || [];
+            setNumerosLiberados(nums);
+            triggerConfettiOnce();
+            if (!sucessoNotificadoRef.current) {
+              sucessoNotificadoRef.current = true;
+              onSuccessRef.current(nums);
+            }
           } else if (data.status === 'expirado') {
             setStatus('expirado');
           }
@@ -89,21 +128,29 @@ export const PixPaymentModal: React.FC<Props> = ({
       }
     }, 3500);
 
-    return () => clearInterval(interval);
-  }, [pedidoId, status, onSuccess]);
-
-  const triggerConfetti = () => {
-    confetti({
-      particleCount: 120,
-      spread: 70,
-      origin: { y: 0.6 }
-    });
-  };
+    return () => {
+      cancelado = true;
+      clearInterval(interval);
+    };
+  }, [pedidoId, status, triggerConfettiOnce]);
 
   const handleCopiar = () => {
     navigator.clipboard.writeText(pixCopiaCola);
     setCopiado(true);
     setTimeout(() => setCopiado(false), 3000);
+  };
+
+  const handleCopiarNumeros = () => {
+    if (numerosLiberados.length === 0) return;
+    const texto = `🎟️ Meus Números da Sorte (${tituloCampanha || 'Rifa'}):\n${numerosLiberados.join(', ')}\n\nParticipante: ${compradorNome || 'Confirmado'}`;
+    navigator.clipboard.writeText(texto);
+    setNumerosCopiados(true);
+    setTimeout(() => setNumerosCopiados(false), 3000);
+  };
+
+  const handleCompartilharWhatsapp = () => {
+    const texto = encodeURIComponent(`🎟️ Meus números da sorte na campanha "${tituloCampanha || 'Rifa'}":\n\n${numerosLiberados.join(', ')}\n\nBoa sorte para mim! 🍀`);
+    window.open(`https://api.whatsapp.com/send?text=${texto}`, '_blank');
   };
 
   const handleSimularPagamento = async () => {
@@ -115,9 +162,13 @@ export const PixPaymentModal: React.FC<Props> = ({
       const data = await res.json();
       if (data.success) {
         setStatus('pago');
-        setNumerosLiberados(data.numeros || []);
-        triggerConfetti();
-        onSuccess(data.numeros || []);
+        const nums = data.numeros || [];
+        setNumerosLiberados(nums);
+        triggerConfettiOnce();
+        if (!sucessoNotificadoRef.current) {
+          sucessoNotificadoRef.current = true;
+          onSuccessRef.current(nums);
+        }
       }
     } catch (e) {
       console.error(e);
@@ -138,42 +189,80 @@ export const PixPaymentModal: React.FC<Props> = ({
         
         {/* Status: PAGO COM SUCESSO */}
         {status === 'pago' ? (
-          <div className="text-center py-4 animate-in zoom-in-95 duration-200">
-            <div className="w-16 h-16 bg-emerald-500/20 border-2 border-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-400">
+          <div className="text-center py-2 animate-in zoom-in-95 duration-200">
+            <div className="w-16 h-16 bg-emerald-500/20 border-2 border-emerald-500 rounded-full flex items-center justify-center mx-auto mb-3 text-emerald-400">
               <CheckCircle2 className="w-10 h-10" />
             </div>
 
-            <h3 className="text-2xl font-black text-white mb-2">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/30 inline-block mb-2">
+              Conta de Comprador Criada & Vinculada
+            </span>
+
+            <h3 className="text-2xl font-black text-white mb-1">
               Pagamento Confirmado! 🎉
             </h3>
-            <p className="text-slate-300 text-sm mb-6">
-              Seu Pix foi processado com sucesso. Suas cotas estão registradas e garantidas no sorteio!
+            <p className="text-slate-300 text-xs mb-4">
+              Seu Pix foi processado com sucesso. Seus números já estão salvos e vinculados ao seu WhatsApp <strong>{compradorWhatsapp ? `(${compradorWhatsapp.slice(0, 2)}) *****-${compradorWhatsapp.slice(-4)}` : ''}</strong>!
             </p>
 
-            {numerosLiberados.length > 0 && (
-              <div className="bg-slate-800/80 border border-slate-700 rounded-xl p-4 mb-6 text-left">
-                <span className="text-xs font-semibold text-slate-400 block mb-2">
-                  Seus números da sorte ({numerosLiberados.length}):
-                </span>
-                <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto p-1">
+            {numerosLiberados.length > 0 ? (
+              <div className="bg-slate-950/80 border border-emerald-500/30 rounded-xl p-4 mb-4 text-left shadow-inner">
+                <div className="flex items-center justify-between mb-2.5">
+                  <span className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                    <Ticket className="w-4 h-4" />
+                    Seus Números ({numerosLiberados.length}):
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleCopiarNumeros}
+                    className="text-[11px] font-bold text-slate-300 hover:text-emerald-400 bg-slate-800 hover:bg-slate-700 px-2 py-1 rounded-lg border border-slate-700 transition flex items-center gap-1"
+                  >
+                    {numerosCopiados ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                    {numerosCopiados ? 'Copiados!' : 'Copiar'}
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto p-1 bg-slate-900/90 rounded-lg border border-slate-800">
                   {numerosLiberados.map(n => (
                     <span
                       key={n}
-                      className="px-2.5 py-1 bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-mono font-bold text-xs rounded-md"
+                      className="px-2.5 py-1 bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-mono font-black text-xs rounded-md shadow-sm"
                     >
                       {n}
                     </span>
                   ))}
                 </div>
               </div>
+            ) : (
+              <div className="p-3 bg-slate-800/80 rounded-xl mb-4 text-xs text-slate-300">
+                Seus números foram registrados no banco de dados e estão disponíveis no botão "Meus Números".
+              </div>
             )}
 
-            <button
-              onClick={onClose}
-              className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl transition shadow-lg shadow-emerald-500/20"
-            >
-              Concluir e Ver Meus Números
-            </button>
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={handleCompartilharWhatsapp}
+                className="w-full py-2.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition"
+              >
+                <MessageCircle className="w-4 h-4" />
+                Salvar / Compartilhar no WhatsApp
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (onVerMeusNumeros) {
+                    onVerMeusNumeros();
+                  } else {
+                    onClose();
+                  }
+                }}
+                className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-sm transition shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2"
+              >
+                <Ticket className="w-4 h-4" />
+                Acessar Área "Meus Números"
+              </button>
+            </div>
           </div>
         ) : status === 'expirado' ? (
           /* Status: EXPIRADO */
@@ -321,3 +410,4 @@ export const PixPaymentModal: React.FC<Props> = ({
     </div>
   );
 };
+

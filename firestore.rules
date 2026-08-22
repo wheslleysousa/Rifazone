@@ -1,0 +1,57 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.email == 'wheslleyaviz@gmail.com'
+      );
+    }
+
+    // Campanhas: Public read for published/finished, admin full access
+    match /campanhas/{campanhaId} {
+      allow read: if true;
+      allow write: if isAdmin();
+
+      // Cotas subcollection
+      match /cotas/{cotaId} {
+        allow read: if true;
+        allow write: if isAdmin();
+      }
+    }
+
+    // Pedidos
+    match /pedidos/{pedidoId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.compradorId == request.auth.uid);
+      allow create: if true;
+      allow update, delete: if isAdmin();
+    }
+
+    // Compradores
+    match /compradores/{compradorId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // Admins
+    match /admins/{adminId} {
+      allow read: if isSignedIn() && (request.auth.uid == adminId || isAdmin());
+      allow write: if isAdmin();
+    }
+
+    // Test connection doc
+    match /test/{docId} {
+      allow read: if true;
+    }
+  }
+}

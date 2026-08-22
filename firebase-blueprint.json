@@ -1,0 +1,89 @@
+{
+  "entities": {
+    "Campanha": {
+      "title": "Campanha",
+      "description": "Campanha de rifa ou sorteio com cotas e prêmios.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "codigo": { "type": "string" },
+        "titulo": { "type": "string" },
+        "subtitulo": { "type": "string" },
+        "descricao": { "type": "string" },
+        "bannerUrl": { "type": "string" },
+        "youtubeUrl": { "type": "string" },
+        "modelo": { "type": "string", "enum": ["aleatorio", "manual"] },
+        "totalCotas": { "type": "number" },
+        "valorCota": { "type": "number" },
+        "minPorCompra": { "type": "number" },
+        "maxPorCompra": { "type": "number" },
+        "localSorteio": { "type": "string" },
+        "dataSorteio": { "type": "string" },
+        "status": { "type": "string", "enum": ["rascunho", "publicada", "pausada", "encerrada"] },
+        "criadaEm": { "type": "string" }
+      },
+      "required": ["id", "codigo", "titulo", "totalCotas", "valorCota", "status", "criadaEm"]
+    },
+    "Pedido": {
+      "title": "Pedido",
+      "description": "Pedido de compra de cotas com Pix Mercado Pago.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "campanhaId": { "type": "string" },
+        "compradorId": { "type": "string" },
+        "quantidade": { "type": "number" },
+        "valorTotal": { "type": "number" },
+        "status": { "type": "string", "enum": ["pendente", "pago", "expirado", "cancelado"] },
+        "criadoEm": { "type": "string" },
+        "expiraEm": { "type": "string" }
+      },
+      "required": ["id", "campanhaId", "compradorId", "quantidade", "valorTotal", "status", "criadoEm", "expiraEm"]
+    },
+    "Comprador": {
+      "title": "Comprador",
+      "description": "Dados do comprador/participante da rifa.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nome": { "type": "string" },
+        "whatsapp": { "type": "string" },
+        "email": { "type": "string" },
+        "cpf": { "type": "string" },
+        "criadoEm": { "type": "string" }
+      },
+      "required": ["id", "nome", "whatsapp", "criadoEm"]
+    },
+    "Cota": {
+      "title": "Cota",
+      "description": "Cota individual reservada ou vendida.",
+      "type": "object",
+      "properties": {
+        "numero": { "type": "string" },
+        "status": { "type": "string", "enum": ["disponivel", "reservado", "vendido"] },
+        "pedidoId": { "type": "string" },
+        "compradorId": { "type": "string" },
+        "reservadoAte": { "type": "string" }
+      },
+      "required": ["numero", "status", "pedidoId"]
+    }
+  },
+  "firestore": {
+    "/campanhas/{campanhaId}": {
+      "schema": "Campanha",
+      "description": "Coleção de campanhas de rifas."
+    },
+    "/campanhas/{campanhaId}/cotas/{cotaId}": {
+      "schema": "Cota",
+      "description": "Cotas reservadas ou vendidas dentro da campanha."
+    },
+    "/pedidos/{pedidoId}": {
+      "schema": "Pedido",
+      "description": "Pedidos de compra gerados pelos usuários."
+    },
+    "/compradores/{compradorId}": {
+      "schema": "Comprador",
+      "description": "Informações dos compradores para consulta de histórico."
+    }
+  }
+}

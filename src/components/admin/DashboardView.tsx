@@ -11,8 +11,10 @@ interface Props {
   pedidos: Pedido[];
   onNovaCampanha: () => void;
   onSelectCampanha: (codigo: string) => void;
-  onNavigateTab: (tab: any) => void;
-  mpConectado: boolean;
+  onNavigateTab?: (tab: any) => void;
+  onIrParaConfig?: () => void;
+  mpConectado?: boolean;
+  mpConfigurado?: boolean;
 }
 
 export const DashboardView: React.FC<Props> = ({
@@ -21,8 +23,18 @@ export const DashboardView: React.FC<Props> = ({
   onNovaCampanha,
   onSelectCampanha,
   onNavigateTab,
-  mpConectado
+  onIrParaConfig,
+  mpConectado,
+  mpConfigurado
 }) => {
+  const isMpConectado = Boolean(mpConectado ?? mpConfigurado);
+  const handleNav = (tab: any) => {
+    if (onNavigateTab) {
+      onNavigateTab(tab);
+    } else if (tab === 'pagamento' || tab === 'configuracoes') {
+      onIrParaConfig?.();
+    }
+  };
   const [periodo, setPeriodo] = useState<'hoje' | '7dias' | '30dias' | 'tudo'>('tudo');
   const [ocultarValores, setOcultarValores] = useState(false);
   
@@ -116,8 +128,8 @@ export const DashboardView: React.FC<Props> = ({
       id: 1,
       titulo: 'Conectar Mercado Pago',
       desc: 'Receba os pagamentos Pix direto na sua conta bancária',
-      concluido: mpConectado,
-      acao: () => onNavigateTab('pagamento'),
+      concluido: isMpConectado,
+      acao: () => handleNav('configuracoes'),
       botao: 'Configurar'
     },
     {
@@ -133,7 +145,7 @@ export const DashboardView: React.FC<Props> = ({
       titulo: 'Publicar e divulgar o link',
       desc: 'Compartilhe no WhatsApp, Instagram e grupos',
       concluido: campanhas.some(c => c.status === 'publicada'),
-      acao: () => onNavigateTab('lista'),
+      acao: () => handleNav('campanhas'),
       botao: 'Ver Campanhas'
     },
     {
@@ -141,7 +153,7 @@ export const DashboardView: React.FC<Props> = ({
       titulo: 'Primeira venda confirmada',
       desc: 'Receba seu primeiro Pix instantâneo',
       concluido: pedidos.some(p => p.status === 'pago'),
-      acao: () => onNavigateTab('pedidos'),
+      acao: () => handleNav('pedidos'),
       botao: 'Ver Vendas'
     }
   ];

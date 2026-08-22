@@ -635,6 +635,7 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
               onSelectCampanha={onSelectCampanha}
               mpConfigurado={!!configPagamento?.mpConfigurado}
               onIrParaConfig={() => setAbaAtiva('configuracoes')}
+              onNavigateTab={(tab) => setAbaAtiva(tab)}
             />
           )}
 

@@ -68,6 +68,28 @@ export const CampanhasFormView: React.FC<Props> = ({
     setForm(prev => ({ ...prev, premios }));
   };
 
+  // Apagar todos os números e valores da cota (Aba 1)
+  const handleLimparTodosValores = () => {
+    setForm(prev => ({
+      ...prev,
+      valorCota: undefined,
+      minPorCompra: undefined,
+      maxPorCompra: undefined,
+      tempoReservaMin: undefined
+    }));
+  };
+
+  // Redefinir valores padrão sugeridos
+  const handleRestaurarValoresPadrao = () => {
+    setForm(prev => ({
+      ...prev,
+      valorCota: 0.50,
+      minPorCompra: 5,
+      maxPorCompra: 1000,
+      tempoReservaMin: 10
+    }));
+  };
+
   // Cotas Premiadas
   const handleAddCotaPremiada = () => {
     const cps = form.cotasPremiadas || [];
@@ -85,6 +107,32 @@ export const CampanhasFormView: React.FC<Props> = ({
     setForm(prev => ({ ...prev, cotasPremiadas: cps }));
   };
 
+  // Apagar todas as cotas premiadas (todos os números cadastrados)
+  const handleLimparTodasCotasPremiadas = () => {
+    setForm(prev => ({ ...prev, cotasPremiadas: [] }));
+  };
+
+  // Gerar cotas premiadas automáticas / aleatórias
+  const handleGerarCotasPremiadasAleatorias = (qtd: number = 5) => {
+    const total = form.totalCotas || 10000;
+    const digitos = Math.max(2, (total - 1).toString().length);
+    const numerosSorteados = new Set<string>();
+
+    while (numerosSorteados.size < qtd) {
+      const rand = Math.floor(Math.random() * total);
+      numerosSorteados.add(rand.toString().padStart(digitos, '0'));
+    }
+
+    const novasCotas: CotaPremiada[] = Array.from(numerosSorteados).map((num, i) => ({
+      numero: num,
+      premio: i === 0 ? 'R$ 500 no Pix' : i === 1 ? 'R$ 250 no Pix' : 'R$ 100 no Pix',
+      status: 'disponivel',
+      pedidoId: null
+    }));
+
+    setForm(prev => ({ ...prev, cotasPremiadas: novasCotas }));
+  };
+
   // Promoções de Pacotes
   const handleAddPromo = () => {
     const promos = form.promocoes || [];
@@ -97,6 +145,23 @@ export const CampanhasFormView: React.FC<Props> = ({
   const handleRemovePromo = (idx: number) => {
     const promos = (form.promocoes || []).filter((_, i) => i !== idx);
     setForm(prev => ({ ...prev, promocoes: promos }));
+  };
+
+  // Apagar todas as promoções de uma vez
+  const handleLimparTodasPromocoes = () => {
+    setForm(prev => ({ ...prev, promocoes: [] }));
+  };
+
+  // Gerar promoções automáticas inteligentes com base no valor da cota
+  const handleGerarPromocoesSugeridas = () => {
+    const val = Number(form.valorCota) || 0.50;
+    const pacotes: Promocao[] = [
+      { quantidade: 10, valor: Number((10 * val * 0.95).toFixed(2)), destaque: false },
+      { quantidade: 25, valor: Number((25 * val * 0.90).toFixed(2)), destaque: true },
+      { quantidade: 50, valor: Number((50 * val * 0.85).toFixed(2)), destaque: false },
+      { quantidade: 100, valor: Number((100 * val * 0.80).toFixed(2)), destaque: false }
+    ];
+    setForm(prev => ({ ...prev, promocoes: pacotes }));
   };
 
   // Ofertas Relâmpago (Upsell - até 2)
@@ -122,6 +187,11 @@ export const CampanhasFormView: React.FC<Props> = ({
   const handleRemoveOferta = (idx: number) => {
     const ofertas = (form.ofertasRelampago || []).filter((_, i) => i !== idx);
     setForm(prev => ({ ...prev, ofertasRelampago: ofertas }));
+  };
+
+  // Apagar todas as ofertas de upsell
+  const handleLimparTodasOfertas = () => {
+    setForm(prev => ({ ...prev, ofertasRelampago: [] }));
   };
 
   return (
@@ -248,94 +318,183 @@ export const CampanhasFormView: React.FC<Props> = ({
             </div>
 
             {/* Modelo e Valores */}
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 pt-2">
-              <div>
-                <label className="text-xs font-semibold text-slate-300 block mb-1">
-                  Modelo de Escolha
-                </label>
-                <select
-                  value={form.modelo || 'aleatorio'}
-                  onChange={e => setForm(prev => ({ ...prev, modelo: e.target.value as any }))}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white focus:border-emerald-500 focus:outline-none"
-                >
-                  <option value="aleatorio">Aleatório (Automático pelo sistema)</option>
-                  <option value="manual">Manual (Cliente escolhe no grid)</option>
-                </select>
+            <div className="pt-2 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-slate-950/80 border border-slate-800 rounded-xl">
+                <div className="flex items-center gap-1.5 text-xs text-slate-300">
+                  <Zap className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="font-bold">Ações Rápidas de Valores:</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[11px] text-slate-400">Atalhos de Cota:</span>
+                  {[0.10, 0.25, 0.50, 1.00, 2.50, 5.00].map(v => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => setForm(prev => ({ ...prev, valorCota: v }))}
+                      className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-emerald-400 rounded-lg text-[11px] font-mono font-bold transition border border-slate-700"
+                    >
+                      R$ {v.toFixed(2).replace('.', ',')}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={handleLimparTodosValores}
+                    className="px-2.5 py-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg text-[11px] font-bold transition ml-1"
+                    title="Apaga todos os números dos campos de valores e cotas"
+                  >
+                    🧹 Apagar Valores
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRestaurarValoresPadrao}
+                    className="px-2.5 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg text-[11px] font-bold transition"
+                  >
+                    🔄 Padrões
+                  </button>
+                </div>
               </div>
 
-              <div>
-                <label className="text-xs font-semibold text-slate-300 block mb-1">
-                  Total de Cotas *
-                </label>
-                <select
-                  value={form.totalCotas || 10000}
-                  onChange={e => setForm(prev => ({ ...prev, totalCotas: Number(e.target.value) }))}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs font-mono text-white focus:border-emerald-500 focus:outline-none"
-                >
-                  <option value="100">100 cotas (00 a 99)</option>
-                  <option value="500">500 cotas (000 a 499)</option>
-                  <option value="1000">1.000 cotas (000 a 999)</option>
-                  <option value="5000">5.000 cotas (0000 a 4999)</option>
-                  <option value="10000">10.000 cotas (0000 a 9999)</option>
-                  <option value="50000">50.000 cotas (00000 a 49999)</option>
-                  <option value="100000">100.000 cotas (00000 a 99999)</option>
-                </select>
-              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                <div>
+                  <label className="text-xs font-semibold text-slate-300 block mb-1">
+                    Modelo de Escolha
+                  </label>
+                  <select
+                    value={form.modelo || 'aleatorio'}
+                    onChange={e => setForm(prev => ({ ...prev, modelo: e.target.value as any }))}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                  >
+                    <option value="aleatorio">Aleatório (Automático pelo sistema)</option>
+                    <option value="manual">Manual (Cliente escolhe no grid)</option>
+                  </select>
+                </div>
 
-              <div>
-                <label className="text-xs font-semibold text-slate-300 block mb-1">
-                  Valor por Cota (R$) *
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  value={form.valorCota || 0.50}
-                  onChange={e => setForm(prev => ({ ...prev, valorCota: Number(e.target.value) }))}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs font-mono text-white focus:border-emerald-500 focus:outline-none"
-                  required
-                />
-              </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-300 block mb-1">
+                    Total de Cotas *
+                  </label>
+                  <select
+                    value={form.totalCotas || 10000}
+                    onChange={e => setForm(prev => ({ ...prev, totalCotas: Number(e.target.value) }))}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs font-mono text-white focus:border-emerald-500 focus:outline-none"
+                  >
+                    <option value="100">100 cotas (00 a 99)</option>
+                    <option value="500">500 cotas (000 a 499)</option>
+                    <option value="1000">1.000 cotas (000 a 999)</option>
+                    <option value="5000">5.000 cotas (0000 a 4999)</option>
+                    <option value="10000">10.000 cotas (0000 a 9999)</option>
+                    <option value="50000">50.000 cotas (00000 a 49999)</option>
+                    <option value="100000">100.000 cotas (00000 a 99999)</option>
+                  </select>
+                </div>
 
-              <div>
-                <label className="text-xs font-semibold text-slate-300 block mb-1">
-                  Tempo Reserva Pix (Minutos)
-                </label>
-                <input
-                  type="number"
-                  min="3"
-                  max="60"
-                  value={form.tempoReservaMin || 10}
-                  onChange={e => setForm(prev => ({ ...prev, tempoReservaMin: Number(e.target.value) }))}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs font-mono text-white focus:border-emerald-500 focus:outline-none"
-                />
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-semibold text-slate-300">
+                      Valor por Cota (R$) *
+                    </label>
+                    {form.valorCota !== undefined && (
+                      <button
+                        type="button"
+                        onClick={() => setForm(prev => ({ ...prev, valorCota: undefined }))}
+                        className="text-[10px] text-slate-500 hover:text-red-400"
+                        title="Limpar campo"
+                      >
+                        Limpar
+                      </button>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      placeholder="0.00"
+                      value={form.valorCota !== undefined && form.valorCota !== null ? form.valorCota : ''}
+                      onChange={e => setForm(prev => ({ ...prev, valorCota: e.target.value === '' ? undefined : Number(e.target.value) }))}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs font-mono text-emerald-400 font-bold focus:border-emerald-500 focus:outline-none"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-semibold text-slate-300">
+                      Tempo Reserva (Min)
+                    </label>
+                    {form.tempoReservaMin !== undefined && (
+                      <button
+                        type="button"
+                        onClick={() => setForm(prev => ({ ...prev, tempoReservaMin: undefined }))}
+                        className="text-[10px] text-slate-500 hover:text-red-400"
+                        title="Limpar campo"
+                      >
+                        Limpar
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    type="number"
+                    min="3"
+                    max="60"
+                    placeholder="Minutos..."
+                    value={form.tempoReservaMin !== undefined && form.tempoReservaMin !== null ? form.tempoReservaMin : ''}
+                    onChange={e => setForm(prev => ({ ...prev, tempoReservaMin: e.target.value === '' ? undefined : Number(e.target.value) }))}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs font-mono text-white focus:border-emerald-500 focus:outline-none"
+                  />
+                </div>
               </div>
             </div>
 
             {/* Mínimo e Máximo por Compra */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
               <div>
-                <label className="text-xs font-semibold text-slate-300 block mb-1">
-                  Mínimo de Cotas por Pedido
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-semibold text-slate-300">
+                    Mínimo por Pedido
+                  </label>
+                  {form.minPorCompra !== undefined && (
+                    <button
+                      type="button"
+                      onClick={() => setForm(prev => ({ ...prev, minPorCompra: undefined }))}
+                      className="text-[10px] text-slate-500 hover:text-red-400"
+                    >
+                      Limpar
+                    </button>
+                  )}
+                </div>
                 <input
                   type="number"
                   min="1"
-                  value={form.minPorCompra || 5}
-                  onChange={e => setForm(prev => ({ ...prev, minPorCompra: Number(e.target.value) }))}
+                  placeholder="Ex: 5"
+                  value={form.minPorCompra !== undefined && form.minPorCompra !== null ? form.minPorCompra : ''}
+                  onChange={e => setForm(prev => ({ ...prev, minPorCompra: e.target.value === '' ? undefined : Number(e.target.value) }))}
                   className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-white focus:border-emerald-500 focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-300 block mb-1">
-                  Máximo de Cotas por Pedido
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-semibold text-slate-300">
+                    Máximo por Pedido
+                  </label>
+                  {form.maxPorCompra !== undefined && (
+                    <button
+                      type="button"
+                      onClick={() => setForm(prev => ({ ...prev, maxPorCompra: undefined }))}
+                      className="text-[10px] text-slate-500 hover:text-red-400"
+                    >
+                      Limpar
+                    </button>
+                  )}
+                </div>
                 <input
                   type="number"
                   min="1"
-                  value={form.maxPorCompra || 1000}
-                  onChange={e => setForm(prev => ({ ...prev, maxPorCompra: Number(e.target.value) }))}
+                  placeholder="Ex: 1000"
+                  value={form.maxPorCompra !== undefined && form.maxPorCompra !== null ? form.maxPorCompra : ''}
+                  onChange={e => setForm(prev => ({ ...prev, maxPorCompra: e.target.value === '' ? undefined : Number(e.target.value) }))}
                   className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-white focus:border-emerald-500 focus:outline-none"
                 />
               </div>
@@ -545,7 +704,7 @@ export const CampanhasFormView: React.FC<Props> = ({
 
             {/* Cotas Premiadas Instantâneas */}
             <div className="pt-4 border-t border-slate-800">
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
                 <div>
                   <h3 className="text-sm font-black text-white flex items-center gap-2">
                     <Gift className="w-4 h-4 text-emerald-400" />
@@ -555,57 +714,92 @@ export const CampanhasFormView: React.FC<Props> = ({
                     O comprador que comprar o número especificado ganha o prêmio na hora!
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleAddCotaPremiada}
-                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 font-bold rounded-xl text-xs flex items-center gap-1 border border-slate-700"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  Nova Cota Premiada
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  {(form.cotasPremiadas || []).length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleLimparTodasCotasPremiadas}
+                      className="px-2.5 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 font-bold rounded-xl text-xs flex items-center gap-1 border border-red-500/30 transition"
+                      title="Apagar todos os números e cotas premiadas"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Apagar Todas
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleGerarCotasPremiadasAleatorias(5)}
+                    className="px-2.5 py-1.5 bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 font-bold rounded-xl text-xs flex items-center gap-1 border border-purple-500/30 transition"
+                    title="Gera 5 cotas premiadas com números aleatórios"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    Gerar 5 Aleatórias
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAddCotaPremiada}
+                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 font-bold rounded-xl text-xs flex items-center gap-1 border border-slate-700 transition"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Nova Cota
+                  </button>
+                </div>
               </div>
 
               <div className="space-y-2">
-                {(form.cotasPremiadas || []).map((cp, idx) => (
-                  <div key={idx} className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-3 bg-slate-950/60 border border-slate-800 rounded-xl">
-                    <input
-                      type="text"
-                      placeholder="Número da Cota (ex: 0421)"
-                      value={cp.numero}
-                      onChange={e => {
-                        const arr = [...(form.cotasPremiadas || [])];
-                        arr[idx].numero = e.target.value;
-                        setForm(prev => ({ ...prev, cotasPremiadas: arr }));
-                      }}
-                      className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs font-mono font-bold text-emerald-400 focus:outline-none"
-                      required
-                    />
-                    <input
-                      type="text"
-                      placeholder="Prêmio (ex: R$ 200 no Pix)"
-                      value={cp.premio}
-                      onChange={e => {
-                        const arr = [...(form.cotasPremiadas || [])];
-                        arr[idx].premio = e.target.value;
-                        setForm(prev => ({ ...prev, cotasPremiadas: arr }));
-                      }}
-                      className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none"
-                      required
-                    />
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] text-slate-400">
-                        Status: <strong className="text-emerald-400">{cp.status}</strong>
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveCotaPremiada(idx)}
-                        className="p-1.5 text-slate-500 hover:text-red-400 transition"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
+                {(form.cotasPremiadas || []).length === 0 ? (
+                  <div className="p-4 bg-slate-950/40 border border-dashed border-slate-800 rounded-xl text-center">
+                    <p className="text-xs text-slate-400 mb-2">Nenhuma cota premiada cadastrada no momento.</p>
+                    <button
+                      type="button"
+                      onClick={() => handleGerarCotasPremiadasAleatorias(5)}
+                      className="text-xs text-emerald-400 font-bold hover:underline"
+                    >
+                      + Clique aqui para gerar 5 números premiados automaticamente
+                    </button>
                   </div>
-                ))}
+                ) : (
+                  (form.cotasPremiadas || []).map((cp, idx) => (
+                    <div key={idx} className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-3 bg-slate-950/60 border border-slate-800 rounded-xl">
+                      <input
+                        type="text"
+                        placeholder="Número da Cota (ex: 0421)"
+                        value={cp.numero}
+                        onChange={e => {
+                          const arr = [...(form.cotasPremiadas || [])];
+                          arr[idx].numero = e.target.value;
+                          setForm(prev => ({ ...prev, cotasPremiadas: arr }));
+                        }}
+                        className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs font-mono font-bold text-emerald-400 focus:outline-none"
+                        required
+                      />
+                      <input
+                        type="text"
+                        placeholder="Prêmio (ex: R$ 200 no Pix)"
+                        value={cp.premio}
+                        onChange={e => {
+                          const arr = [...(form.cotasPremiadas || [])];
+                          arr[idx].premio = e.target.value;
+                          setForm(prev => ({ ...prev, cotasPremiadas: arr }));
+                        }}
+                        className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none"
+                        required
+                      />
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-slate-400">
+                          Status: <strong className="text-emerald-400">{cp.status}</strong>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveCotaPremiada(idx)}
+                          className="p-1.5 text-slate-500 hover:text-red-400 transition"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </div>
@@ -614,85 +808,152 @@ export const CampanhasFormView: React.FC<Props> = ({
         {/* ABA 4: PROMOÇÕES */}
         {abaInterna === 'promocoes' && (
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm space-y-4 animate-in fade-in">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h3 className="text-sm font-black text-white">Pacotes Promocionais de Cotas</h3>
                 <p className="text-xs text-slate-400">
                   Descontos por volume para acelerar o fechamento das cotas.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={handleAddPromo}
-                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 font-bold rounded-xl text-xs flex items-center gap-1 border border-slate-700"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Adicionar Pacote
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                {(form.promocoes || []).length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleLimparTodasPromocoes}
+                    className="px-2.5 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 font-bold rounded-xl text-xs flex items-center gap-1 border border-red-500/30 transition"
+                    title="Apagar todos os pacotes promocionais"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Apagar Pacotes
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={handleGerarPromocoesSugeridas}
+                  className="px-2.5 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 font-bold rounded-xl text-xs flex items-center gap-1 border border-emerald-500/30 transition"
+                  title="Gera pacotes inteligentes (10, 25, 50, 100 cotas com desconto progressivo)"
+                >
+                  <Zap className="w-3.5 h-3.5 text-amber-400" />
+                  Gerar Pacotes Inteligentes
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAddPromo}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 font-bold rounded-xl text-xs flex items-center gap-1 border border-slate-700 transition"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Adicionar Pacote
+                </button>
+              </div>
             </div>
 
             <div className="space-y-3">
-              {(form.promocoes || []).map((promo, idx) => (
-                <div key={idx} className="p-4 bg-slate-950/70 border border-slate-800 rounded-xl grid grid-cols-1 sm:grid-cols-4 gap-3 items-center">
-                  <div>
-                    <label className="text-[10px] text-slate-400 block mb-1">Quantidade de Cotas</label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={promo.quantidade}
-                      onChange={e => {
-                        const arr = [...(form.promocoes || [])];
-                        arr[idx].quantidade = Number(e.target.value);
-                        setForm(prev => ({ ...prev, promocoes: arr }));
-                      }}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs font-mono text-white focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] text-slate-400 block mb-1">Valor do Pacote (R$)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0.01"
-                      value={promo.valor}
-                      onChange={e => {
-                        const arr = [...(form.promocoes || [])];
-                        arr[idx].valor = Number(e.target.value);
-                        setForm(prev => ({ ...prev, promocoes: arr }));
-                      }}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs font-mono text-emerald-400 focus:outline-none"
-                    />
-                  </div>
-
-                  <div className="flex items-center gap-2 pt-3 sm:pt-0">
-                    <input
-                      type="checkbox"
-                      id={`promo-destaque-${idx}`}
-                      checked={promo.destaque}
-                      onChange={e => {
-                        const arr = [...(form.promocoes || [])];
-                        arr[idx].destaque = e.target.checked;
-                        setForm(prev => ({ ...prev, promocoes: arr }));
-                      }}
-                      className="w-4 h-4 rounded text-emerald-500 bg-slate-900 border-slate-700"
-                    />
-                    <label htmlFor={`promo-destaque-${idx}`} className="text-xs text-slate-300">
-                      Selo "Mais Popular"
-                    </label>
-                  </div>
-
-                  <div className="text-right">
-                    <button
-                      type="button"
-                      onClick={() => handleRemovePromo(idx)}
-                      className="p-1.5 text-slate-500 hover:text-red-400 transition"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
+              {(form.promocoes || []).length === 0 ? (
+                <div className="p-4 bg-slate-950/40 border border-dashed border-slate-800 rounded-xl text-center">
+                  <p className="text-xs text-slate-400 mb-2">Nenhum pacote promocional cadastrado.</p>
+                  <button
+                    type="button"
+                    onClick={handleGerarPromocoesSugeridas}
+                    className="text-xs text-emerald-400 font-bold hover:underline"
+                  >
+                    + Gerar 4 pacotes inteligentes automaticamente (com desconto progressivo)
+                  </button>
                 </div>
-              ))}
+              ) : (
+                (form.promocoes || []).map((promo, idx) => (
+                  <div key={idx} className="p-4 bg-slate-950/70 border border-slate-800 rounded-xl grid grid-cols-1 sm:grid-cols-4 gap-3 items-center">
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-[10px] text-slate-400">Qtd de Cotas</label>
+                        {promo.quantidade !== undefined && promo.quantidade > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const arr = [...(form.promocoes || [])];
+                              arr[idx].quantidade = 0;
+                              setForm(prev => ({ ...prev, promocoes: arr }));
+                            }}
+                            className="text-[9px] text-slate-500 hover:text-red-400"
+                          >
+                            Limpar
+                          </button>
+                        )}
+                      </div>
+                      <input
+                        type="number"
+                        min="1"
+                        placeholder="Ex: 20"
+                        value={promo.quantidade !== undefined && promo.quantidade !== null && promo.quantidade > 0 ? promo.quantidade : ''}
+                        onChange={e => {
+                          const arr = [...(form.promocoes || [])];
+                          arr[idx].quantidade = e.target.value === '' ? 0 : Number(e.target.value);
+                          setForm(prev => ({ ...prev, promocoes: arr }));
+                        }}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs font-mono text-white focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-[10px] text-slate-400">Valor do Pacote (R$)</label>
+                        {promo.valor !== undefined && promo.valor > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const arr = [...(form.promocoes || [])];
+                              arr[idx].valor = 0;
+                              setForm(prev => ({ ...prev, promocoes: arr }));
+                            }}
+                            className="text-[9px] text-slate-500 hover:text-red-400"
+                          >
+                            Limpar
+                          </button>
+                        )}
+                      </div>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        placeholder="0.00"
+                        value={promo.valor !== undefined && promo.valor !== null && promo.valor > 0 ? promo.valor : ''}
+                        onChange={e => {
+                          const arr = [...(form.promocoes || [])];
+                          arr[idx].valor = e.target.value === '' ? 0 : Number(e.target.value);
+                          setForm(prev => ({ ...prev, promocoes: arr }));
+                        }}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs font-mono text-emerald-400 font-bold focus:outline-none"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-3 sm:pt-0">
+                      <input
+                        type="checkbox"
+                        id={`promo-destaque-${idx}`}
+                        checked={promo.destaque}
+                        onChange={e => {
+                          const arr = [...(form.promocoes || [])];
+                          arr[idx].destaque = e.target.checked;
+                          setForm(prev => ({ ...prev, promocoes: arr }));
+                        }}
+                        className="w-4 h-4 rounded text-emerald-500 bg-slate-900 border-slate-700"
+                      />
+                      <label htmlFor={`promo-destaque-${idx}`} className="text-xs text-slate-300">
+                        Selo "Mais Popular"
+                      </label>
+                    </div>
+
+                    <div className="text-right">
+                      <button
+                        type="button"
+                        onClick={() => handleRemovePromo(idx)}
+                        className="p-1.5 text-slate-500 hover:text-red-400 transition"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         )}
@@ -700,7 +961,7 @@ export const CampanhasFormView: React.FC<Props> = ({
         {/* ABA 5: UPSELL / OFERTAS RELÂMPAGO */}
         {abaInterna === 'upsell' && (
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm space-y-4 animate-in fade-in">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h3 className="text-sm font-black text-white flex items-center gap-2">
                   <Zap className="w-4 h-4 text-amber-400" />
@@ -711,16 +972,28 @@ export const CampanhasFormView: React.FC<Props> = ({
                 </p>
               </div>
 
-              {(form.ofertasRelampago || []).length < 2 && (
-                <button
-                  type="button"
-                  onClick={handleAddOferta}
-                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold rounded-xl text-xs flex items-center gap-1 border border-slate-700"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  Adicionar Oferta ({(form.ofertasRelampago || []).length}/2)
-                </button>
-              )}
+              <div className="flex items-center gap-2">
+                {(form.ofertasRelampago || []).length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleLimparTodasOfertas}
+                    className="px-2.5 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 font-bold rounded-xl text-xs flex items-center gap-1 border border-red-500/30 transition"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Apagar Ofertas
+                  </button>
+                )}
+                {(form.ofertasRelampago || []).length < 2 && (
+                  <button
+                    type="button"
+                    onClick={handleAddOferta}
+                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold rounded-xl text-xs flex items-center gap-1 border border-slate-700"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Adicionar Oferta ({(form.ofertasRelampago || []).length}/2)
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="space-y-4">

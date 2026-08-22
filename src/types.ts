@@ -104,6 +104,9 @@ export interface ConfigOrganizador {
   ownerId: string;
   mpAccessToken: string | null; // segredo — nunca enviado de volta ao cliente
   mpPublicKey: string | null;   // pública — pode ser exibida
+  mpUserId?: string | number | null;
+  mpConexaoTipo?: 'oauth' | 'manual' | null;
+  mpConectadoEm?: string | null;
   atualizadaEm: string;
 }
 

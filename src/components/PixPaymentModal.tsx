@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { QrCode, Copy, Check, Clock, AlertCircle, Sparkles, CheckCircle2, ArrowRight } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import QRCode from 'qrcode';
 
 interface Props {
   pedidoId: string;
@@ -30,6 +31,22 @@ export const PixPaymentModal: React.FC<Props> = ({
   const [tempoRestante, setTempoRestante] = useState<number>(600); // 10 min default
   const [simulando, setSimulando] = useState(false);
   const [numerosLiberados, setNumerosLiberados] = useState<string[]>([]);
+  const [generatedQrDataUrl, setGeneratedQrDataUrl] = useState<string>('');
+
+  useEffect(() => {
+    if (pixCopiaCola) {
+      QRCode.toDataURL(pixCopiaCola, {
+        width: 300,
+        margin: 2,
+        color: {
+          dark: '#0f172a',
+          light: '#ffffff'
+        }
+      })
+        .then(url => setGeneratedQrDataUrl(url))
+        .catch(err => console.error('Erro ao gerar QRCode no cliente:', err));
+    }
+  }, [pixCopiaCola]);
 
   // Countdown timer
   useEffect(() => {
@@ -210,7 +227,13 @@ export const PixPaymentModal: React.FC<Props> = ({
 
             {/* QR Code Container */}
             <div className="flex flex-col items-center justify-center p-4 bg-white rounded-2xl mb-4 shadow-inner">
-              {pixQrCodeBase64 ? (
+              {generatedQrDataUrl ? (
+                <img
+                  src={generatedQrDataUrl}
+                  alt="QR Code Pix"
+                  className="w-48 h-48 object-contain rounded-lg"
+                />
+              ) : pixQrCodeBase64 ? (
                 <img
                   src={
                     pixQrCodeBase64.startsWith('data:') 

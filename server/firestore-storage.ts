@@ -391,16 +391,29 @@ export class FirestoreStorage implements Storage {
     return doc.exists ? (doc.data() as ConfigOrganizador) : null;
   }
 
-  public async saveConfig(ownerId: string, dados: { mpAccessToken?: string | null; mpPublicKey?: string | null }): Promise<ConfigOrganizador> {
+  public async saveConfig(ownerId: string, dados: {
+    mpAccessToken?: string | null;
+    mpPublicKey?: string | null;
+    mpUserId?: string | number | null;
+    mpConexaoTipo?: 'oauth' | 'manual' | null;
+    mpConectadoEm?: string | null;
+  }): Promise<ConfigOrganizador> {
     const existente = await this.getConfig(ownerId);
+
+    let novoToken: string | null = existente?.mpAccessToken ?? null;
+    if (dados.mpAccessToken !== undefined) {
+      novoToken = dados.mpAccessToken && dados.mpAccessToken.trim() ? dados.mpAccessToken.trim() : null;
+    }
+
     const config: ConfigOrganizador = {
       ownerId,
-      mpAccessToken: dados.mpAccessToken !== undefined && dados.mpAccessToken !== ''
-        ? (dados.mpAccessToken ? dados.mpAccessToken.trim() : null)
-        : (existente?.mpAccessToken ?? null),
+      mpAccessToken: novoToken,
       mpPublicKey: dados.mpPublicKey !== undefined
         ? (dados.mpPublicKey ? dados.mpPublicKey.trim() : null)
         : (existente?.mpPublicKey ?? null),
+      mpUserId: dados.mpUserId !== undefined ? dados.mpUserId : (existente?.mpUserId ?? null),
+      mpConexaoTipo: dados.mpConexaoTipo !== undefined ? dados.mpConexaoTipo : (existente?.mpConexaoTipo ?? (novoToken ? 'manual' : null)),
+      mpConectadoEm: dados.mpConectadoEm !== undefined ? dados.mpConectadoEm : (existente?.mpConectadoEm ?? (novoToken ? new Date().toISOString() : null)),
       atualizadaEm: new Date().toISOString()
     };
     await this.configsCol().doc(ownerId).set(config, { merge: false });

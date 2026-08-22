@@ -500,17 +500,30 @@ export class FileStorage implements Storage {
     return this.configs.get(ownerId) || null;
   }
 
-  public async saveConfig(ownerId: string, dados: { mpAccessToken?: string | null; mpPublicKey?: string | null }): Promise<ConfigOrganizador> {
+  public async saveConfig(ownerId: string, dados: {
+    mpAccessToken?: string | null;
+    mpPublicKey?: string | null;
+    mpUserId?: string | number | null;
+    mpConexaoTipo?: 'oauth' | 'manual' | null;
+    mpConectadoEm?: string | null;
+  }): Promise<ConfigOrganizador> {
     const existente = this.configs.get(ownerId);
+    
+    // Se dados.mpAccessToken for explicitamente null ou vazio '', permite desconectar
+    let novoToken: string | null = existente?.mpAccessToken ?? null;
+    if (dados.mpAccessToken !== undefined) {
+      novoToken = dados.mpAccessToken && dados.mpAccessToken.trim() ? dados.mpAccessToken.trim() : null;
+    }
+
     const config: ConfigOrganizador = {
       ownerId,
-      // Só sobrescreve o token se um novo valor não-vazio foi enviado (evita apagar por engano)
-      mpAccessToken: dados.mpAccessToken !== undefined && dados.mpAccessToken !== ''
-        ? (dados.mpAccessToken ? dados.mpAccessToken.trim() : null)
-        : (existente?.mpAccessToken ?? null),
+      mpAccessToken: novoToken,
       mpPublicKey: dados.mpPublicKey !== undefined
         ? (dados.mpPublicKey ? dados.mpPublicKey.trim() : null)
         : (existente?.mpPublicKey ?? null),
+      mpUserId: dados.mpUserId !== undefined ? dados.mpUserId : (existente?.mpUserId ?? null),
+      mpConexaoTipo: dados.mpConexaoTipo !== undefined ? dados.mpConexaoTipo : (existente?.mpConexaoTipo ?? (novoToken ? 'manual' : null)),
+      mpConectadoEm: dados.mpConectadoEm !== undefined ? dados.mpConectadoEm : (existente?.mpConectadoEm ?? (novoToken ? new Date().toISOString() : null)),
       atualizadaEm: new Date().toISOString()
     };
     this.configs.set(ownerId, config);

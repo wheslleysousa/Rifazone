@@ -56,7 +56,13 @@ export interface Storage {
 
   // Configurações de pagamento (Mercado Pago por organizador)
   getConfig(ownerId: string): Promise<ConfigOrganizador | null>;
-  saveConfig(ownerId: string, dados: { mpAccessToken?: string | null; mpPublicKey?: string | null }): Promise<ConfigOrganizador>;
+  saveConfig(ownerId: string, dados: {
+    mpAccessToken?: string | null;
+    mpPublicKey?: string | null;
+    mpUserId?: string | number | null;
+    mpConexaoTipo?: 'oauth' | 'manual' | null;
+    mpConectadoEm?: string | null;
+  }): Promise<ConfigOrganizador>;
   getMpTokenPorCampanha(campanhaId: string): Promise<string | null>;
 
   // Manutenção / apuração

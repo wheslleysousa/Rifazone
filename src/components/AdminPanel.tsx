@@ -3,7 +3,8 @@ import { Campanha, Pedido } from '../types';
 import {
   LayoutDashboard, MessageSquare, LayoutGrid, Plus,
   Users, Ticket, RotateCw, Settings, LogOut, RefreshCw,
-  Eye, Edit3, Link2, Copy, CheckCircle2, AlertCircle, Menu, X, Mail, Lock, User as UserIcon, Key
+  Eye, Edit3, Link2, Copy, CheckCircle2, AlertCircle, Menu, X, Mail, Lock, User as UserIcon, Key,
+  ExternalLink, Zap, Unlink, ShieldCheck, HelpCircle, ChevronDown, ChevronUp, Info
 } from 'lucide-react';
 import {
   auth, observarAuth, cadastrarComEmail, entrarComEmail, entrarComGoogle, sair,
@@ -99,6 +100,10 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
   const [mpTokenInput, setMpTokenInput] = useState('');
   const [mpPublicKeyInput, setMpPublicKeyInput] = useState('');
   const [salvandoConfig, setSalvandoConfig] = useState(false);
+  const [iniciandoOAuth, setIniciandoOAuth] = useState(false);
+  const [desconectandoMp, setDesconectandoMp] = useState(false);
+  const [mostrarManualMp, setMostrarManualMp] = useState(false);
+  const [redirectUriCopiada, setRedirectUriCopiada] = useState(false);
   const [configMsg, setConfigMsg] = useState('');
   const [configErro, setConfigErro] = useState('');
 
@@ -109,6 +114,26 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
       setAuthPronto(true);
     });
     return () => unsub();
+  }, []);
+
+  // Verifica parâmetros de retorno de OAuth do Mercado Pago na URL
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const mpOauth = params.get('mp_oauth');
+    const msg = params.get('msg');
+
+    if (mpOauth === 'sucesso') {
+      setAbaAtiva('configuracoes');
+      setConfigMsg('🎉 Conta do Mercado Pago conectada com sucesso! Todos os seus recebimentos Pix cairão diretamente na sua conta.');
+      setConfigErro('');
+      // Limpa os parâmetros da URL sem recarregar
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (mpOauth === 'erro') {
+      setAbaAtiva('configuracoes');
+      setConfigErro(`Erro ao conectar com Mercado Pago: ${msg || 'Autorização não concluída.'}`);
+      setConfigMsg('');
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
   }, []);
 
   // Carregar dados iniciais
@@ -278,7 +303,53 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
     return data;
   };
 
-  // Salvar Config Mercado Pago
+  // Iniciar fluxo OAuth do Mercado Pago (Conectar em 1 clique)
+  const handleConectarMercadoPagoOAuth = async () => {
+    setIniciandoOAuth(true);
+    setConfigErro('');
+    setConfigMsg('');
+    try {
+      const res = await authFetch('/api/auth/mercadopago/url');
+      const data = await res.json();
+      if (res.ok && data.url) {
+        // Redireciona diretamente para o login oficial e consentimento do Mercado Pago
+        window.location.href = data.url;
+      } else {
+        setConfigErro(data.error || 'Falha ao iniciar conexão com Mercado Pago. Verifique as configurações no servidor.');
+      }
+    } catch (err) {
+      setConfigErro('Erro de conexão ao comunicar com o servidor.');
+    } finally {
+      setIniciandoOAuth(false);
+    }
+  };
+
+  // Desconectar Mercado Pago
+  const handleDesconectarMercadoPago = async () => {
+    if (!window.confirm('Deseja realmente desconectar sua conta do Mercado Pago? As próximas compras não conseguirão gerar Pix até uma nova conta ser conectada.')) {
+      return;
+    }
+
+    setDesconectandoMp(true);
+    setConfigErro('');
+    setConfigMsg('');
+    try {
+      const res = await authFetch('/api/admin/configuracoes/desconectar', { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        await carregarTudo();
+        setConfigMsg('Conta do Mercado Pago desconectada com sucesso.');
+      } else {
+        setConfigErro(data.error || 'Erro ao desconectar.');
+      }
+    } catch {
+      setConfigErro('Erro de conexão ao desconectar.');
+    } finally {
+      setDesconectandoMp(false);
+    }
+  };
+
+  // Salvar Config Mercado Pago Manualmente
   const handleSalvarConfig = async (e: React.FormEvent) => {
     e.preventDefault();
     setConfigMsg('');
@@ -911,102 +982,261 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
                   Configurações — Mercado Pago Pix
                 </h1>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Conecte suas credenciais do Mercado Pago para que todo o dinheiro do Pix caia direto na sua conta bancária sem comissão de terceiros.
+                  Conecte sua conta do Mercado Pago para receber o dinheiro de todas as cotas vendidas direto na sua conta bancária em tempo real.
                 </p>
               </div>
 
-              {/* Status do Mercado Pago */}
-              <div className={`rounded-2xl border p-4 flex items-center gap-3 ${
+              {/* Mensagens de feedback */}
+              {configMsg && (
+                <div className="p-4 rounded-2xl border border-emerald-500/40 bg-emerald-500/10 text-emerald-300 text-xs font-semibold flex items-start gap-2.5 animate-in fade-in">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold text-white mb-0.5">Tudo Certo!</p>
+                    <p>{configMsg}</p>
+                  </div>
+                </div>
+              )}
+
+              {configErro && (
+                <div className="p-4 rounded-2xl border border-red-500/40 bg-red-500/10 text-red-300 text-xs font-semibold flex items-start gap-2.5 animate-in fade-in">
+                  <AlertCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold text-white mb-0.5">Atenção</p>
+                    <p>{configErro}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* STATUS ATUAL DA CONEXÃO */}
+              <div className={`rounded-2xl border p-5 shadow-lg transition-all ${
                 configPagamento?.mpConfigurado
-                  ? 'border-emerald-500/40 bg-emerald-500/10'
-                  : 'border-amber-500/40 bg-amber-500/10'
+                  ? 'border-emerald-500/40 bg-slate-900/90'
+                  : 'border-slate-800 bg-slate-900/60'
               }`}>
-                {configPagamento?.mpConfigurado ? (
-                  <>
-                    <CheckCircle2 className="w-6 h-6 text-emerald-400 shrink-0" />
-                    <div>
-                      <p className="text-sm font-bold text-white">Mercado Pago Conectado ✅</p>
-                      <p className="text-[11px] text-slate-400 font-mono">
-                        Token Ativo: {configPagamento.mpTokenMascara}
-                      </p>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-start gap-3.5">
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
+                      configPagamento?.mpConfigurado
+                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                        : 'bg-slate-800 text-slate-400 border border-slate-700'
+                    }`}>
+                      {configPagamento?.mpConfigurado ? (
+                        <ShieldCheck className="w-6 h-6" />
+                      ) : (
+                        <AlertCircle className="w-6 h-6 text-amber-400" />
+                      )}
                     </div>
-                  </>
-                ) : (
-                  <>
-                    <AlertCircle className="w-6 h-6 text-amber-400 shrink-0" />
                     <div>
-                      <p className="text-sm font-bold text-white">Credenciais Pendentes</p>
-                      <p className="text-[11px] text-slate-400">
-                        Insira seu Access Token abaixo. Em modo de teste, a plataforma simula os pagamentos automaticamente.
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="text-sm font-black text-white">
+                          {configPagamento?.mpConfigurado ? 'Mercado Pago Conectado e Ativo' : 'Nenhuma Conta Conectada'}
+                        </h3>
+                        {configPagamento?.mpConfigurado && (
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                            configPagamento.mpConexaoTipo === 'oauth'
+                              ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30'
+                              : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                          }`}>
+                            {configPagamento.mpConexaoTipo === 'oauth' ? 'OAuth Oficial' : 'Chave Manual'}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-400 mt-1">
+                        {configPagamento?.mpConfigurado
+                          ? 'Seus sorteios estão autorizados a emitir Pix oficiais e receber notificações instantâneas.'
+                          : 'Conecte sua conta do Mercado Pago para que os pagamentos Pix caiam direto no seu saldo.'}
                       </p>
+
+                      {configPagamento?.mpConfigurado && (
+                        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] font-mono bg-slate-950/70 p-2.5 rounded-xl border border-slate-800">
+                          {configPagamento.mpUserId && (
+                            <div>
+                              <span className="text-slate-500 block text-[10px]">ID do Usuário MP:</span>
+                              <span className="text-slate-300 font-bold">{configPagamento.mpUserId}</span>
+                            </div>
+                          )}
+                          <div>
+                            <span className="text-slate-500 block text-[10px]">Token Ativo:</span>
+                            <span className="text-emerald-400 font-bold">{configPagamento.mpTokenMascara}</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </>
-                )}
+                  </div>
+
+                  {configPagamento?.mpConfigurado && (
+                    <button
+                      onClick={handleDesconectarMercadoPago}
+                      disabled={desconectandoMp}
+                      className="px-3.5 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 self-start sm:self-center shrink-0"
+                    >
+                      <Unlink className="w-3.5 h-3.5" />
+                      {desconectandoMp ? 'Desconectando...' : 'Desconectar'}
+                    </button>
+                  )}
+                </div>
               </div>
 
-              <form onSubmit={handleSalvarConfig} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl">
-                <div>
-                  <label className="text-xs font-bold text-slate-300 block mb-1">
-                    Access Token do Mercado Pago *
-                  </label>
-                  <input
-                    type="password"
-                    value={mpTokenInput}
-                    onChange={e => setMpTokenInput(e.target.value)}
-                    placeholder={configPagamento?.mpConfigurado ? '•••••••••••• (deixe em branco para manter o token atual)' : 'APP_USR-... ou TEST-...'}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white font-mono focus:border-emerald-500 focus:outline-none"
-                    autoComplete="off"
-                  />
-                  <span className="text-[11px] text-slate-500 block mt-1">
-                    Obtenha em <strong className="text-emerald-400">Mercado Pago Developers → Suas integrações → Credenciais</strong>.
-                  </span>
+              {/* CARD PRINCIPAL: CONECTAR COM 1 CLIQUE VIA OAUTH */}
+              <div className="rounded-2xl border border-sky-500/30 bg-gradient-to-br from-sky-950/40 via-slate-900 to-slate-900 p-6 space-y-4 shadow-xl">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 text-[10px] font-black uppercase tracking-wider border border-sky-500/30 flex items-center gap-1">
+                        <Zap className="w-3 h-3 text-sky-400" />
+                        Recomendado • 1 Clique
+                      </span>
+                    </div>
+                    <h2 className="text-base font-black text-white">
+                      Conectar Conta Mercado Pago (OAuth)
+                    </h2>
+                    <p className="text-xs text-slate-400 leading-relaxed">
+                      Autorize a plataforma em segundos. Você será direcionado para o site oficial do Mercado Pago para fazer login e autorizar os recebimentos.
+                    </p>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="text-xs font-bold text-slate-300 block mb-1">
-                    Public Key (Opcional)
-                  </label>
-                  <input
-                    type="text"
-                    value={mpPublicKeyInput}
-                    onChange={e => setMpPublicKeyInput(e.target.value)}
-                    placeholder="APP_USR-xxxxxxxx ou TEST-xxxx"
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white font-mono focus:border-emerald-500 focus:outline-none"
-                    autoComplete="off"
-                  />
-                </div>
-
-                {configErro && (
-                  <p className="text-xs text-red-400 font-medium flex items-center gap-1">
-                    <AlertCircle className="w-3.5 h-3.5" />
-                    {configErro}
-                  </p>
-                )}
-                {configMsg && (
-                  <p className="text-xs text-emerald-300 font-medium flex items-center gap-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    {configMsg}
-                  </p>
-                )}
-
-                <div className="flex justify-end pt-2">
+                <div className="pt-2">
                   <button
-                    type="submit"
-                    disabled={salvandoConfig}
-                    className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 text-slate-950 text-xs font-black rounded-xl shadow-lg shadow-emerald-500/20"
+                    onClick={handleConectarMercadoPagoOAuth}
+                    disabled={iniciandoOAuth}
+                    className="w-full sm:w-auto px-6 py-3.5 bg-[#009EE3] hover:bg-[#0086c3] text-white font-black text-sm rounded-xl shadow-lg shadow-sky-500/25 flex items-center justify-center gap-2.5 transition active:scale-[0.99] disabled:opacity-70 cursor-pointer"
                   >
-                    {salvandoConfig ? 'Salvando...' : 'Salvar Credenciais do Mercado Pago'}
+                    {iniciandoOAuth ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        Iniciando autorização segura...
+                      </>
+                    ) : (
+                      <>
+                        <span className="font-black text-base">MP</span>
+                        <span>{configPagamento?.mpConfigurado ? 'Reconectar com Mercado Pago' : 'Conectar com Mercado Pago'}</span>
+                        <ExternalLink className="w-4 h-4 ml-1 opacity-80" />
+                      </>
+                    )}
                   </button>
                 </div>
-              </form>
 
+                {/* Ajuda para o Dono do App se OAuth ainda não tiver CLIENT_ID no Render */}
+                {!configPagamento?.oauthConfiguradoNoServidor && (
+                  <div className="mt-4 p-4 rounded-xl bg-slate-950 border border-slate-800 text-[11px] text-slate-400 space-y-2">
+                    <div className="flex items-center gap-1.5 text-amber-400 font-bold text-xs">
+                      <Info className="w-4 h-4 shrink-0" />
+                      Instruções para o Dono da Plataforma (Configuração única no Render)
+                    </div>
+                    <p>
+                      Para que qualquer usuário possa clicar no botão acima e conectar a conta dele automaticamente, adicione as variáveis no seu <strong>Render Dashboard → Environment</strong>:
+                    </p>
+                    <div className="font-mono text-slate-300 bg-slate-900 p-2.5 rounded-lg border border-slate-800 space-y-1">
+                      <div><strong className="text-sky-400">MP_CLIENT_ID</strong> = <em>Seu Application ID do Mercado Pago</em></div>
+                      <div><strong className="text-sky-400">MP_CLIENT_SECRET</strong> = <em>Seu Client Secret do Mercado Pago</em></div>
+                    </div>
+                    <div className="pt-1">
+                      <p className="text-slate-400 mb-1.5">
+                        E cadastre a <strong>URL de Retorno (Redirect URI)</strong> no portal Mercado Pago Developers:
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <code className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] text-emerald-300 font-mono break-all">
+                          {configPagamento?.oauthRedirectUri || `${window.location.origin}/api/auth/mercadopago/callback`}
+                        </code>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const uri = configPagamento?.oauthRedirectUri || `${window.location.origin}/api/auth/mercadopago/callback`;
+                            await navigator.clipboard.writeText(uri);
+                            setRedirectUriCopiada(true);
+                            setTimeout(() => setRedirectUriCopiada(false), 2000);
+                          }}
+                          className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-lg border border-slate-700 flex items-center gap-1 shrink-0"
+                        >
+                          {redirectUriCopiada ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                          {redirectUriCopiada ? 'Copiado!' : 'Copiar'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* OPÇÃO 2: CONFIGURAÇÃO MANUAL (EXPANSÍVEL / AVANÇADO) */}
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-lg">
+                <button
+                  type="button"
+                  onClick={() => setMostrarManualMp(!mostrarManualMp)}
+                  className="w-full p-5 flex items-center justify-between text-left hover:bg-slate-800/40 transition"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Key className="w-4 h-4 text-slate-400" />
+                    <div>
+                      <h3 className="text-xs font-bold text-white">
+                        Configuração Manual via Access Token (Avançado)
+                      </h3>
+                      <p className="text-[11px] text-slate-400">
+                        Insira diretamente o seu Access Token de Produção ou Teste gerado no portal do desenvolvedor.
+                      </p>
+                    </div>
+                  </div>
+                  {mostrarManualMp ? (
+                    <ChevronUp className="w-4 h-4 text-slate-400" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-slate-400" />
+                  )}
+                </button>
+
+                {mostrarManualMp && (
+                  <form onSubmit={handleSalvarConfig} className="p-6 pt-0 border-t border-slate-800/80 space-y-4 animate-in fade-in">
+                    <div className="pt-4">
+                      <label className="text-xs font-bold text-slate-300 block mb-1">
+                        Access Token do Mercado Pago *
+                      </label>
+                      <input
+                        type="password"
+                        value={mpTokenInput}
+                        onChange={e => setMpTokenInput(e.target.value)}
+                        placeholder={configPagamento?.mpConfigurado ? '•••••••••••• (deixe em branco para manter o token atual)' : 'APP_USR-... ou TEST-...'}
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white font-mono focus:border-emerald-500 focus:outline-none"
+                        autoComplete="off"
+                      />
+                      <span className="text-[11px] text-slate-500 block mt-1">
+                        Começa com <strong className="text-emerald-400">APP_USR-</strong> (produção) ou <strong className="text-amber-400">TEST-</strong> (teste).
+                      </span>
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-bold text-slate-300 block mb-1">
+                        Public Key (Opcional)
+                      </label>
+                      <input
+                        type="text"
+                        value={mpPublicKeyInput}
+                        onChange={e => setMpPublicKeyInput(e.target.value)}
+                        placeholder="APP_USR-xxxxxxxx ou TEST-xxxx"
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white font-mono focus:border-emerald-500 focus:outline-none"
+                        autoComplete="off"
+                      />
+                    </div>
+
+                    <div className="flex justify-end pt-2">
+                      <button
+                        type="submit"
+                        disabled={salvandoConfig}
+                        className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 text-slate-950 text-xs font-black rounded-xl shadow-md transition"
+                      >
+                        {salvandoConfig ? 'Salvando...' : 'Salvar Chaves Manualmente'}
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </div>
+
+              {/* Informações de Segurança */}
               <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 text-[11px] text-slate-400 space-y-1.5">
                 <p className="text-slate-300 font-bold text-xs flex items-center gap-1.5">
-                  <Key className="w-3.5 h-3.5 text-emerald-400" />
-                  Como Funciona o Pix Direto
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                  Segurança & Recebimento Direto
                 </p>
-                <p>• O Access Token é armazenado criptografado no servidor e utilizado exclusivamente para gerar a cobrança Pix.</p>
-                <p>• Quando o cliente paga no app do banco, o Mercado Pago envia a confirmação automática para o sistema e os bilhetes são ativados na hora.</p>
+                <p>• O dinheiro dos bilhetes Pix é creditado <strong>diretamente na conta do organizador</strong> vinculada, sem retenção por intermediários.</p>
+                <p>• A aprovação é processada via Webhook em milissegundos e atualiza o comprador na hora.</p>
               </div>
             </div>
           )}

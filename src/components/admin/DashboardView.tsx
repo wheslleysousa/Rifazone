@@ -166,14 +166,20 @@ export const DashboardView: React.FC<Props> = ({
       {/* Header com Filtro de Período e Botão Ocultar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
         <div>
-          <h1 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
-            Visão Geral do Negócio
-            <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
+          <div className="flex items-center gap-2 mb-1">
+            <h1 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
+              Visão Geral do Negócio
+            </h1>
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
               Ao Vivo
             </span>
-          </h1>
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 font-bold border border-blue-500/30 hidden sm:inline-flex items-center gap-1">
+              ☁️ Firebase Sincronizado
+            </span>
+          </div>
           <p className="text-slate-400 text-xs mt-0.5">
-            Acompanhe suas vendas de cotas, faturamento Pix e engajamento em tempo real.
+            Acompanhe suas vendas de cotas, faturamento Pix e progresso sincronizado em tempo real.
           </p>
         </div>
 
@@ -207,70 +213,80 @@ export const DashboardView: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* Checklist "Primeiros Passos" */}
-      {passosConcluidos < 4 && (
-        <div className="bg-gradient-to-r from-slate-900 to-slate-900/90 border border-amber-500/30 rounded-2xl p-5 shadow-lg relative overflow-hidden">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center font-black text-sm">
-                ⚡
-              </div>
-              <div>
-                <h3 className="text-sm font-black text-white">Guia de Primeiros Passos</h3>
-                <span className="text-xs text-slate-400">
-                  Complete {passosConcluidos} de 4 etapas para maximizar suas vendas
+      {/* Checklist "Primeiros Passos / Status do Sistema" */}
+      <div className="bg-gradient-to-r from-slate-900 to-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-lg relative overflow-hidden">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm ${
+              passosConcluidos === 4 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'
+            }`}>
+              {passosConcluidos === 4 ? '🏆' : '⚡'}
+            </div>
+            <div>
+              <h3 className="text-sm font-black text-white">
+                {passosConcluidos === 4 ? 'Status do Sistema: 100% Configurado e Operacional' : 'Guia de Primeiros Passos & Configurações'}
+              </h3>
+              <span className="text-xs text-slate-400">
+                {passosConcluidos === 4 
+                  ? 'Todas as 4 etapas essenciais estão concluídas e salvas no banco de dados.'
+                  : `Complete ${passosConcluidos} de 4 etapas para maximizar suas vendas (salvas no Firestore)`}
+              </span>
+            </div>
+          </div>
+          <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${
+            passosConcluidos === 4 
+              ? 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20' 
+              : 'text-amber-400 bg-amber-400/10 border-amber-400/20'
+          }`}>
+            {Math.round((passosConcluidos / 4) * 100)}% concluído
+          </span>
+        </div>
+
+        <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden mb-4">
+          <div
+            className="h-full bg-gradient-to-r from-amber-400 to-emerald-400 transition-all duration-500"
+            style={{ width: `${(passosConcluidos / 4) * 100}%` }}
+          />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {checklist.map(item => (
+            <div
+              key={item.id}
+              className={`p-3 rounded-xl border transition ${
+                item.concluido
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-slate-300'
+                  : 'bg-slate-800/60 border-slate-700/70 text-white hover:border-slate-600'
+              }`}
+            >
+              <div className="flex items-start justify-between mb-1.5">
+                <span className="font-bold text-xs flex items-center gap-1.5">
+                  {item.concluido ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  ) : (
+                    <Circle className="w-4 h-4 text-slate-500 shrink-0" />
+                  )}
+                  {item.titulo}
                 </span>
               </div>
-            </div>
-            <span className="text-xs font-bold text-amber-400 bg-amber-400/10 px-2.5 py-1 rounded-full border border-amber-400/20">
-              {Math.round((passosConcluidos / 4) * 100)}% concluído
-            </span>
-          </div>
-
-          <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden mb-4">
-            <div
-              className="h-full bg-gradient-to-r from-amber-400 to-emerald-400 transition-all duration-500"
-              style={{ width: `${(passosConcluidos / 4) * 100}%` }}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            {checklist.map(item => (
-              <div
-                key={item.id}
-                className={`p-3 rounded-xl border transition ${
+              <p className="text-[11px] text-slate-400 mb-3 leading-relaxed">
+                {item.desc}
+              </p>
+              <button
+                onClick={item.acao}
+                className={`w-full py-1.5 px-2.5 rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1 ${
                   item.concluido
-                    ? 'bg-emerald-500/10 border-emerald-500/30 text-slate-300'
-                    : 'bg-slate-800/60 border-slate-700/70 text-white hover:border-slate-600'
+                    ? 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700'
+                    : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950'
                 }`}
               >
-                <div className="flex items-start justify-between mb-1.5">
-                  <span className="font-bold text-xs flex items-center gap-1.5">
-                    {item.concluido ? (
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                    ) : (
-                      <Circle className="w-4 h-4 text-slate-500" />
-                    )}
-                    {item.titulo}
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-400 mb-3 leading-relaxed">
-                  {item.desc}
-                </p>
-                {!item.concluido && (
-                  <button
-                    onClick={item.acao}
-                    className="w-full py-1.5 px-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1"
-                  >
-                    {item.botao}
-                    <ArrowUpRight className="w-3 h-3" />
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
+                {item.concluido ? 'Visualizar' : item.botao}
+                <ArrowUpRight className="w-3 h-3" />
+              </button>
+            </div>
+          ))}
         </div>
-      )}
+      </div>
 
       {/* KPI Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

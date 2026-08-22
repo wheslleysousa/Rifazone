@@ -52,10 +52,13 @@ export class MercadoPagoService {
   public async criarPix(params: CreatePixParams, accessToken?: string | null): Promise<PixResult> {
     const { pedidoId, valorTotal, tituloCampanha, comprador, expiraEm } = params;
 
-    const paymentApi = this.buildApi(accessToken);
+    const token = (accessToken || process.env.MP_ACCESS_TOKEN || '').trim();
+    const paymentApi = this.buildApi(token);
 
-    // Se temos um token válido (do organizador ou global), chama a API oficial do Mercado Pago
-    if (paymentApi) {
+    // Se temos um token configurado pelo organizador ou no ambiente
+    if (token && paymentApi) {
+      const isTestToken = token.startsWith('TEST-');
+
       try {
         const baseUrl = process.env.BASE_URL || process.env.APP_URL || '';
         const notificationUrl = baseUrl ? `${baseUrl.replace(/\/$/, '')}/api/webhooks/mercadopago` : undefined;
@@ -63,9 +66,13 @@ export class MercadoPagoService {
         const cleanCpf = comprador.cpf ? comprador.cpf.replace(/\D/g, '') : '';
         const nameParts = comprador.nome.trim().split(' ');
         const firstName = nameParts[0] || 'Comprador';
-        const lastName = nameParts.slice(1).join(' ') || '.';
+        const lastName = nameParts.slice(1).join(' ') || 'Cliente';
 
-        const email = comprador.email || `${comprador.whatsapp.replace(/\D/g, '')}@rifazone.app`;
+        // E-mail válido
+        let email = comprador.email?.trim();
+        if (!email || !email.includes('@')) {
+          email = `cliente_${comprador.whatsapp.replace(/\D/g, '') || Date.now()}@rifazone.app`;
+        }
 
         const body: any = {
           transaction_amount: Number(valorTotal.toFixed(2)),
@@ -93,6 +100,10 @@ export class MercadoPagoService {
         const qrCode = td?.qr_code || '';
         const qrCodeBase64 = td?.qr_code_base64 || '';
 
+        if (!qrCode) {
+          throw new Error('Mercado Pago criou a transação mas não retornou o código Pix Copia e Cola.');
+        }
+
         return {
           paymentId: String(response.id),
           pixCopiaCola: qrCode,
@@ -100,13 +111,30 @@ export class MercadoPagoService {
           isMock: false
         };
       } catch (error: any) {
-        console.error('Erro na chamada Mercado Pago API:', error?.message || error);
-        // Se falhar (ex: credencial inválida ou rede), fallback para simulação transparente informando no console
+        console.error('Erro na chamada Mercado Pago API:', error);
+        
+        let errorMsg = error?.message || 'Falha ao comunicar com o Mercado Pago.';
+        if (error?.cause) {
+          try {
+            errorMsg += ` Detalhes: ${JSON.stringify(error.cause)}`;
+          } catch (e) {
+            // ignore json parse
+          }
+        }
+
+        if (isTestToken) {
+          errorMsg += ' [AVISO: Você está usando um Access Token de TESTE (TEST-...). Para gerar Pix que bancos reais aceitam pagar, use o Access Token de PRODUÇÃO (APP_USR-...).]';
+        }
+
+        const customErr: any = new Error(errorMsg);
+        customErr.mpError = true;
+        customErr.isTestToken = isTestToken;
+        customErr.details = error?.cause || error?.message || error;
+        throw customErr;
       }
     }
 
-    // Fallback Mock/Simulação elegante quando MP_ACCESS_TOKEN não foi fornecido
-    // Isso garante que você pode testar todo o fluxo imediatamente na UI!
+    // Caso NÃO haja NENHUM token configurado: gera simulação para teste local da UI
     const mockPaymentId = `mock_mp_${Date.now()}`;
     const mockPixCopiaCola = `00020126580014br.gov.bcb.pix0136${pedidoId}520400005303986540${valorTotal.toFixed(2).length}${valorTotal.toFixed(2)}5802BR5915RIFAZONE OFICIAL6009SAO PAULO62070503***6304E8A2`;
     

@@ -3,7 +3,7 @@ import { CampanhaPublicaResponse, Promocao, OfertaRelampago } from '../types';
 import { 
   Trophy, Flame, Sparkles, ShieldCheck, Ticket, Users, HelpCircle, 
   ChevronDown, ChevronUp, Plus, Minus, Check, Gift, Search, Info,
-  Smartphone, Share2, Instagram
+  Smartphone, Share2, Instagram, AlertTriangle, Copy, XCircle, CheckCircle2
 } from 'lucide-react';
 import { UpsellModal } from './UpsellModal';
 import { PixPaymentModal } from './PixPaymentModal';
@@ -32,6 +32,15 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
   const [email, setEmail] = useState('');
   const [formErro, setFormErro] = useState('');
   const [enviandoPedido, setEnviandoPedido] = useState(false);
+
+  // Modal de Diagnóstico de Erro (para copiar para o suporte)
+  const [erroDiagnostico, setErroDiagnostico] = useState<{
+    titulo: string;
+    mensagem: string;
+    detalhes?: any;
+    isTestToken?: boolean;
+  } | null>(null);
+  const [erroCopiado, setErroCopiado] = useState(false);
 
   // Oferta Relâmpago / Upsell
   const [upsellAberto, setUpsellAberto] = useState(false);
@@ -196,6 +205,12 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
 
       if (!res.ok) {
         setFormErro(pedidoJson.error || 'Erro ao gerar pedido e Pix.');
+        setErroDiagnostico({
+          titulo: pedidoJson.isMpError ? 'Erro na API do Mercado Pago' : 'Falha ao Gerar Pix',
+          mensagem: pedidoJson.error || 'Não foi possível gerar a cobrança Pix.',
+          detalhes: pedidoJson.detalhes || pedidoJson,
+          isTestToken: pedidoJson.isTestToken
+        });
         return;
       }
 
@@ -212,6 +227,11 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
 
     } catch (err: any) {
       setFormErro('Erro de conexão com o servidor. Tente novamente.');
+      setErroDiagnostico({
+        titulo: 'Erro de Conexão com o Servidor',
+        mensagem: err.message || 'Falha ao enviar requisição para o servidor.',
+        detalhes: err.stack || String(err)
+      });
     } finally {
       setEnviandoPedido(false);
     }
@@ -691,6 +711,94 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
           campanha={campanha}
           onBack={() => setMeusNumerosAberto(false)}
         />
+      )}
+
+      {/* Modal Diagnóstico de Erro para Suporte */}
+      {erroDiagnostico && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md overflow-y-auto">
+          <div className="relative w-full max-w-lg bg-slate-900 border border-red-500/40 rounded-2xl p-6 shadow-2xl text-white my-8 animate-in zoom-in-95">
+            <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-800 mb-4">
+              <div className="flex items-center gap-2.5 text-red-400">
+                <AlertTriangle className="w-6 h-6 flex-shrink-0" />
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-red-400/80 block">
+                    Diagnóstico de Integração
+                  </span>
+                  <h3 className="text-base font-bold text-white">
+                    {erroDiagnostico.titulo}
+                  </h3>
+                </div>
+              </div>
+              <button
+                onClick={() => setErroDiagnostico(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3.5">
+              <div className="bg-red-950/30 border border-red-800/40 rounded-xl p-3.5 text-xs text-red-200 leading-relaxed">
+                {erroDiagnostico.mensagem}
+              </div>
+
+              {erroDiagnostico.isTestToken && (
+                <div className="bg-amber-950/40 border border-amber-600/40 rounded-xl p-3 text-xs text-amber-200">
+                  <span className="font-bold block mb-1">⚠️ Atenção sobre Credenciais de Teste:</span>
+                  Você está usando um Access Token de teste (<code className="font-mono text-amber-300">TEST-...</code>). O Banco Central e os aplicativos de bancos reais (Nubank, Itaú, Bradesco, etc.) <strong>rejeitam pagamentos de tokens de teste</strong>. Para receber dinheiro real, você deve cadastrar seu <strong>Access Token de Produção</strong> (<code className="font-mono text-amber-300">APP_USR-...</code>).
+                </div>
+              )}
+
+              <div>
+                <label className="text-[11px] font-semibold text-slate-400 block mb-1">
+                  Log técnico para envio ao suporte:
+                </label>
+                <div className="max-h-40 overflow-y-auto bg-slate-950 border border-slate-800 rounded-xl p-3 text-[11px] font-mono text-slate-300 break-all select-all">
+                  {typeof erroDiagnostico.detalhes === 'object'
+                    ? JSON.stringify(erroDiagnostico.detalhes, null, 2)
+                    : String(erroDiagnostico.detalhes || erroDiagnostico.mensagem)}
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const textoParaCopiar = `--- DIAGNÓSTICO ERRO PIX RIFAZONE ---\nData: ${new Date().toISOString()}\nTítulo: ${erroDiagnostico.titulo}\nMensagem: ${erroDiagnostico.mensagem}\nDetalhes:\n${typeof erroDiagnostico.detalhes === 'object' ? JSON.stringify(erroDiagnostico.detalhes, null, 2) : String(erroDiagnostico.detalhes || '')}\n--------------------------------------`;
+                    navigator.clipboard.writeText(textoParaCopiar);
+                    setErroCopiado(true);
+                    setTimeout(() => setErroCopiado(false), 3500);
+                  }}
+                  className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition ${
+                    erroCopiado
+                      ? 'bg-emerald-500 text-slate-950'
+                      : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/20'
+                  }`}
+                >
+                  {erroCopiado ? (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" />
+                      Copiado! Envie para o assistente
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-4 h-4" />
+                      Copiar Detalhes do Erro
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setErroDiagnostico(null)}
+                  className="px-4 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
     </div>

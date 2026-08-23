@@ -37,6 +37,7 @@ export const PixPaymentModal: React.FC<Props> = ({
   onVerMeusNumeros,
   onGerarNovoPix
 }) => {
+  const valorExibicao = (valorTotal && valorTotal >= 100 && Number.isInteger(valorTotal)) ? valorTotal / 100 : (valorTotal || 0);
   const [copiado, setCopiado] = useState(false);
   const [numerosCopiados, setNumerosCopiados] = useState(false);
   const [status, setStatus] = useState<'pendente' | 'pago' | 'expirado'>('pendente');
@@ -353,7 +354,7 @@ export const PixPaymentModal: React.FC<Props> = ({
               <div className="text-right">
                 <span className="text-xs text-slate-400 block">Total a pagar</span>
                 <span className="text-lg font-black text-emerald-400">
-                  {formatarMoeda(valorTotal)}
+                  {formatarMoeda(valorExibicao)}
                 </span>
               </div>
             </div>

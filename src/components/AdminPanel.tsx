@@ -6,7 +6,7 @@ import {
   Eye, Edit3, Link2, Copy, CheckCircle2, AlertCircle, Menu, X, Mail, Lock, User as UserIcon, Key,
   ExternalLink, Zap, Unlink, ShieldCheck, HelpCircle, ChevronDown, ChevronUp, Info,
   Trophy, Trash2, Play, Pause, Camera, Sparkles, Palette, BarChart3,
-  ArrowLeft, Save
+  ArrowLeft, Save, CreditCard
 } from 'lucide-react';
 import {
   auth, observarAuth, cadastrarComEmail, entrarComEmail, entrarComGoogle, sair,
@@ -23,6 +23,7 @@ const ClientesView = React.lazy(() => import('./admin/ClientesView').then(m => (
 const SorteadorView = React.lazy(() => import('./admin/SorteadorView').then(m => ({ default: m.SorteadorView })));
 const CampanhasFormView = React.lazy(() => import('./admin/CampanhasFormView').then(m => ({ default: m.CampanhasFormView })));
 const TemaBuilderView = React.lazy(() => import('./admin/TemaBuilderView').then(m => ({ default: m.TemaBuilderView })));
+const CheckoutBuilderView = React.lazy(() => import('./admin/CheckoutBuilderView').then(m => ({ default: m.CheckoutBuilderView })));
 import { TEMA_PADRAO } from '../types';
 
 interface Props {
@@ -771,6 +772,13 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
       ]
     },
     {
+      titulo: 'Personalização & Checkout',
+      itens: [
+        { id: 'checkouts', label: 'Checkouts', icon: <CreditCard className="w-4 h-4 text-indigo-400" /> },
+        { id: 'tema-editor', label: 'Temas & Cores', icon: <Palette className="w-4 h-4 text-pink-400" /> },
+      ]
+    },
+    {
       titulo: 'Ferramentas & Ajustes',
       itens: [
         { id: 'sorteador', label: 'Sorteador Oficial', icon: <RotateCw className="w-4 h-4" /> },
@@ -936,6 +944,11 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
               pedidos={pedidos}
               onApurarCampanha={handleApurarCampanha}
             />
+          )}
+
+          {/* CHECKOUTS BUILDER */}
+          {abaAtiva === 'checkouts' && (
+            <CheckoutBuilderView authFetch={authFetch} />
           )}
 
           {/* TEMA EDITOR */}
@@ -1246,6 +1259,7 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
               onAbrirIA={handleGerarComIA}
               iaAviso={iaAviso}
               onVerPrevia={form.codigo ? () => onSelectCampanha(form.codigo!) : undefined}
+              authFetch={authFetch}
             />
           )}
 

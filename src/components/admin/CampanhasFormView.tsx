@@ -1,12 +1,12 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   Save, Sparkles, Plus, Trash2, Trophy, Gift, Zap, Image as ImageIcon, 
   Youtube, FileText, CheckCircle2, AlertCircle, ArrowLeft,
   LayoutGrid, HelpCircle, Flame, Lock, Eye, Star, Info, Rocket,
   Upload, Camera, Link as LinkIcon, RefreshCw, ChevronRight, ChevronLeft,
-  DollarSign, Clock, MapPin, Tag, Check, Sparkle, GripVertical, Palette, Loader2
+  DollarSign, Clock, MapPin, Tag, Check, Sparkle, GripVertical, Palette, Loader2, CreditCard, ShieldCheck
 } from 'lucide-react';
-import { Campanha, Premio, CotaPremiada, Promocao, OfertaRelampago, TEMA_PADRAO } from '../../types';
+import { Campanha, Premio, CotaPremiada, Promocao, OfertaRelampago, TEMA_PADRAO, CheckoutSalvo } from '../../types';
 import { uploadImageToStorage, compressAndReadImage } from '../../lib/image-upload';
 import { AcordeaoSecao } from './AcordeaoSecao';
 import { CampanhaPublicaView } from '../CampanhaPublicaView';
@@ -16,16 +16,17 @@ const TemaBuilderView = React.lazy(() => import('./TemaBuilderView').then(m => (
 interface Props {
   form: Partial<Campanha>;
   setForm: React.Dispatch<React.SetStateAction<Partial<Campanha>>>;
-  onSalvar: (e: React.FormEvent) => void;
+  onSalvar: () => void;
   salvando: boolean;
   erro: string;
   onCancelar: () => void;
   onAbrirIA: () => void;
   iaAviso: string;
   onVerPrevia?: () => void;
+  authFetch?: (url: string, options?: RequestInit) => Promise<Response>;
 }
 
-type TabType = 'basico' | 'midia' | 'premios' | 'promocoes' | 'upsell' | 'extras';
+type TabType = 'basico' | 'midia' | 'premios' | 'promocoes' | 'upsell' | 'extras' | 'checkout';
 
 export const CampanhasFormView: React.FC<Props> = ({
   form,
@@ -36,7 +37,8 @@ export const CampanhasFormView: React.FC<Props> = ({
   onCancelar,
   onAbrirIA,
   iaAviso,
-  onVerPrevia
+  onVerPrevia,
+  authFetch
 }) => {
   const [novaFotoUrl, setNovaFotoUrl] = useState('');
   const [secaoAberta, setSecaoAberta] = useState<TabType | null>('basico');
@@ -49,6 +51,16 @@ export const CampanhasFormView: React.FC<Props> = ({
   const [mostrarModalCotas, setMostrarModalCotas] = useState(false);
   const [draggedPromoIdx, setDraggedPromoIdx] = useState<number | null>(null);
   const [visualizacaoMobile, setVisualizacaoMobile] = useState<'controles' | 'preview'>('controles');
+  const [checkoutsSalvos, setCheckoutsSalvos] = useState<CheckoutSalvo[]>([]);
+
+  useEffect(() => {
+    if (authFetch) {
+      authFetch('/api/admin/checkouts')
+        .then(r => r.ok ? r.json() : [])
+        .then(data => setCheckoutsSalvos(data))
+        .catch(() => {});
+    }
+  }, [authFetch]);
 
   const bannerFileInputRef = useRef<HTMLInputElement>(null);
   const bannerCameraInputRef = useRef<HTMLInputElement>(null);
@@ -84,7 +96,8 @@ export const CampanhasFormView: React.FC<Props> = ({
     { id: 'premios', label: '3. Prêmios & Bilhetes Premiados', icon: Trophy, iconColor: 'text-amber-400', desc: 'Prêmio principal e cotas instantâneas' },
     { id: 'promocoes', label: '4. Pacotes & Descontos', icon: Zap, iconColor: 'text-purple-400', desc: 'Combos de cotas promocionais' },
     { id: 'upsell', label: '5. Ofertas Relâmpago', icon: Flame, iconColor: 'text-orange-400', desc: 'Aumente o ticket no checkout' },
-    { id: 'extras', label: '6. Brindes & Roleta', icon: Gift, iconColor: 'text-pink-400', desc: 'E-book digital e roleta bônus' }
+    { id: 'extras', label: '6. Brindes & Roleta', icon: Gift, iconColor: 'text-pink-400', desc: 'E-book digital e roleta bônus' },
+    { id: 'checkout', label: '7. Modelo de Checkout', icon: CreditCard, iconColor: 'text-indigo-400', desc: 'Selecione a experiência de pagamento' }
   ];
 
   // Upload handlers
@@ -2276,6 +2289,83 @@ export const CampanhasFormView: React.FC<Props> = ({
                   </span>
                 </label>
               </div>
+            </div>
+          </div>
+        </AcordeaoSecao>
+
+        {/* ABA 7: MODELO DE CHECKOUT DA CAMPANHA */}
+        <AcordeaoSecao 
+          titulo="7. Modelo de Checkout" 
+          isAberto={secaoAberta === 'checkout'} 
+          onToggle={() => setSecaoAberta(secaoAberta === 'checkout' ? null : 'checkout')}
+        >
+          <div className="bg-slate-900/60 border border-slate-800/60 backdrop-blur-xl rounded-3xl p-6 md:p-8 shadow-2xl space-y-6 animate-in fade-in">
+            <div>
+              <h3 className="text-sm font-black text-white flex items-center gap-2 uppercase tracking-wider mb-1">
+                <CreditCard className="w-4 h-4 text-indigo-400" />
+                Selecione a Experiência de Checkout da Rifa
+              </h3>
+              <p className="text-xs text-slate-400">
+                Escolha o modelo de pagamento e mensagens que serão exibidas ao comprador ao adquirir cotas nesta campanha.
+              </p>
+            </div>
+
+            {/* Opções de Seleção de Checkout */}
+            <div className="space-y-3">
+              {/* Opção Checkout Padrão */}
+              <div
+                onClick={() => setForm(prev => ({ ...prev, checkoutId: undefined, checkout: undefined }))}
+                className={`p-4 rounded-2xl border cursor-pointer transition flex items-center justify-between gap-4 ${
+                  !form.checkoutId
+                    ? 'bg-emerald-500/10 border-emerald-500 text-white shadow-lg'
+                    : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
+                    ✓
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black text-white">Checkout Padrão do Sistema</h4>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Pix Instantâneo + Cartão de Crédito em até 12x com Selos SSL</p>
+                  </div>
+                </div>
+                <span className="text-[10px] font-bold px-2.5 py-1 bg-emerald-500/20 text-emerald-300 rounded-full border border-emerald-500/30">
+                  Padrão Recomendado
+                </span>
+              </div>
+
+              {/* Opções Personalizadas Salvas */}
+              {checkoutsSalvos.map(item => (
+                <div
+                  key={item.id}
+                  onClick={() => setForm(prev => ({ ...prev, checkoutId: item.id, checkout: item.checkout }))}
+                  className={`p-4 rounded-2xl border cursor-pointer transition flex items-center justify-between gap-4 ${
+                    form.checkoutId === item.id
+                      ? 'bg-indigo-500/10 border-indigo-500 text-white shadow-lg'
+                      : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center">
+                      <CreditCard className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-black text-white">{item.nome}</h4>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        {item.checkout.metodos.pix && <span className="text-[10px] text-emerald-400 font-mono">PIX</span>}
+                        {item.checkout.metodos.cartao && <span className="text-[10px] text-blue-400 font-mono">Cartão {item.checkout.parcelasMax}x</span>}
+                        {item.checkout.metodos.boleto && <span className="text-[10px] text-amber-400 font-mono">Boleto</span>}
+                      </div>
+                    </div>
+                  </div>
+                  {form.checkoutId === item.id && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 bg-indigo-500/20 text-indigo-300 rounded-full border border-indigo-500/30">
+                      Selecionado
+                    </span>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
         </AcordeaoSecao>

@@ -72,6 +72,14 @@ export interface EstiloSalvo {
   criadoEm: string;
 }
 
+export interface CheckoutSalvo {
+  id: string;
+  ownerId?: string;
+  nome: string;
+  checkout: CheckoutConfig;
+  criadoEm: string;
+}
+
 export const TEMA_PADRAO: TemaCampanha = {
   cores: {
     primaria: '#10b981',
@@ -129,15 +137,15 @@ export interface CheckoutConfig {
 export const DEFAULT_CHECKOUT_CONFIG: CheckoutConfig = {
   metodos: {
     pix: true,
-    cartao: false,
+    cartao: true,
     boleto: false
   },
-  parcelasMax: 1,
+  parcelasMax: 12,
   taxaParcelamento: 'comprador',
   mensagens: {
     topo: 'Selecione a forma de pagamento:',
     pix: 'Aprovação imediata via Pix com QR Code e Copia e Cola.',
-    cartao: 'Pagamento rápido e seguro processado no cartão.',
+    cartao: 'Pagamento rápido e seguro processado no cartão de crédito.',
     sucesso: 'Seu pagamento foi confirmado! Seus números foram gerados com sucesso.',
     urgencia: 'Seus números estão reservados por tempo limitado. Conclua o pagamento!'
   },
@@ -251,6 +259,7 @@ export interface Campanha {
   exigirEmail: boolean;
   exigirCpf: boolean;
   tema?: TemaCampanha;
+  checkoutId?: string;
   checkout?: CheckoutConfig;
   remarketing?: RemarketingConfig;
   cupons?: CupomDesconto[];

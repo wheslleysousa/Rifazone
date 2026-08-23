@@ -86,6 +86,11 @@ export interface Storage {
   listarEstilos(ownerId: string): Promise<EstiloSalvo[]>;
   excluirEstilo(ownerId: string, id: string): Promise<boolean>;
 
+  // Checkouts salvos pelo organizador
+  salvarCheckout(ownerId: string, checkoutData: { id?: string; nome: string; checkout: CheckoutConfig }): Promise<CheckoutSalvo>;
+  listarCheckouts(ownerId: string): Promise<CheckoutSalvo[]>;
+  excluirCheckout(ownerId: string, id: string): Promise<boolean>;
+
   // Fila de Mensagens (Automação / Outbox)
   enfileirarMensagem(msg: Omit<MensagemFila, 'id' | 'criadoEm' | 'status'>): Promise<MensagemFila>;
   listarFilaPendente(limitNum: number): Promise<MensagemFila[]>;

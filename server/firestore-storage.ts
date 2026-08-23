@@ -3,7 +3,7 @@ import { getFirestore, type Firestore, type Transaction } from 'firebase-admin/f
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { Campanha, Cota, Pedido, Comprador, RankingItem, CotaPremiada, ConfigOrganizador, EstiloSalvo, TemaCampanha, MensagemFila } from '../src/types.js';
+import { Campanha, Cota, Pedido, Comprador, RankingItem, CotaPremiada, ConfigOrganizador, EstiloSalvo, TemaCampanha, CheckoutSalvo, CheckoutConfig, MensagemFila } from '../src/types.js';
 import { Storage, EstatisticasCampanha, MeusNumerosResult, ConfirmarPedidoResult, SorteioResult, DadosConfig } from './storage-interface.js';
 import { mergeConfig } from './config-utils.js';
 import { decryptToken } from './crypto-utils.js';
@@ -79,6 +79,7 @@ export class FirestoreStorage implements Storage {
   private compradoresCol() { return this.db.collection('compradores'); }
   private configsCol() { return this.db.collection('configuracoes'); }
   private estilosCol(ownerId: string) { return this.db.collection('estilos').doc(ownerId).collection('temas'); }
+  private checkoutsCol(ownerId: string) { return this.db.collection('checkouts').doc(ownerId).collection('itens'); }
   private filaCol() { return this.db.collection('mensagens_fila'); }
 
   // --- Campanhas ---
@@ -528,6 +529,34 @@ export class FirestoreStorage implements Storage {
 
   public async excluirEstilo(ownerId: string, id: string): Promise<boolean> {
     const docRef = this.estilosCol(ownerId).doc(id);
+    const doc = await docRef.get();
+    if (!doc.exists) return false;
+    await docRef.delete();
+    return true;
+  }
+
+  // --- Checkouts Salvos ---
+  public async salvarCheckout(ownerId: string, checkoutData: { id?: string; nome: string; checkout: CheckoutConfig }): Promise<CheckoutSalvo> {
+    const id = checkoutData.id || `chk-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+    const item: CheckoutSalvo = {
+      id,
+      ownerId,
+      nome: checkoutData.nome.trim() || 'Checkout Sem Nome',
+      checkout: checkoutData.checkout,
+      criadoEm: new Date().toISOString()
+    };
+    await this.checkoutsCol(ownerId).doc(id).set(item);
+    return item;
+  }
+
+  public async listarCheckouts(ownerId: string): Promise<CheckoutSalvo[]> {
+    const snap = await this.checkoutsCol(ownerId).get();
+    const lista = snap.docs.map(d => d.data() as CheckoutSalvo);
+    return lista.sort((a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime());
+  }
+
+  public async excluirCheckout(ownerId: string, id: string): Promise<boolean> {
+    const docRef = this.checkoutsCol(ownerId).doc(id);
     const doc = await docRef.get();
     if (!doc.exists) return false;
     await docRef.delete();

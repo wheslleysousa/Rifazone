@@ -103,6 +103,7 @@ export function sanitizarCampanha(
     exigirEmail: data.exigirEmail !== undefined ? Boolean(data.exigirEmail) : (base?.exigirEmail ?? false),
     exigirCpf: data.exigirCpf !== undefined ? Boolean(data.exigirCpf) : (base?.exigirCpf ?? false),
     tema: data.tema || base?.tema || TEMA_PADRAO,
+    checkoutId: data.checkoutId !== undefined ? (data.checkoutId || undefined) : (base?.checkoutId ?? undefined),
     checkout: data.checkout || base?.checkout || DEFAULT_CHECKOUT_CONFIG,
     remarketing: data.remarketing !== undefined ? data.remarketing : (base?.remarketing ?? {
       ativo: false,
@@ -504,7 +505,7 @@ app.post('/api/pedidos', async (req, res) => {
       return res.status(201).json({
         pedidoId: novoPedido.id,
         metodoPagamento: 'boleto',
-        valorTotal: novoPedido.valorTotal,
+        valorTotal: toReais(novoPedido.valorTotal),
         quantidade: novoPedido.quantidade,
         numeros: novoPedido.numeros,
         boletoUrl: novoPedido.boletoUrl,
@@ -546,7 +547,7 @@ app.post('/api/pedidos', async (req, res) => {
       return res.status(201).json({
         pedidoId: novoPedido.id,
         metodoPagamento: 'cartao',
-        valorTotal: novoPedido.valorTotal,
+        valorTotal: toReais(novoPedido.valorTotal),
         quantidade: novoPedido.quantidade,
         numeros: novoPedido.numeros,
         expiraEm: novoPedido.expiraEm,
@@ -590,7 +591,7 @@ app.post('/api/pedidos', async (req, res) => {
     return res.status(201).json({
       pedidoId: novoPedido.id,
       metodoPagamento: 'pix',
-      valorTotal: novoPedido.valorTotal,
+      valorTotal: toReais(novoPedido.valorTotal),
       quantidade: novoPedido.quantidade,
       numeros: novoPedido.numeros,
       pixCopiaCola: novoPedido.pixCopiaCola,
@@ -1584,6 +1585,55 @@ app.delete('/api/admin/estilos/:id', firebaseAuthMiddleware, async (req, res) =>
   } catch (err: any) {
     console.error('Erro ao excluir estilo:', err);
     return res.status(500).json({ error: 'Erro ao excluir estilo.' });
+  }
+});
+
+// GET /api/admin/checkouts -> Lista modelos de checkout salvos pelo organizador
+app.get('/api/admin/checkouts', firebaseAuthMiddleware, async (req, res) => {
+  try {
+    const checkouts = await db.listarCheckouts((req as any).userId);
+    return res.json(checkouts);
+  } catch (err: any) {
+    console.error('Erro ao listar checkouts:', err);
+    return res.status(500).json({ error: 'Erro ao listar checkouts salvos.' });
+  }
+});
+
+// POST /api/admin/checkouts -> Salva um modelo de checkout para o organizador
+app.post('/api/admin/checkouts', firebaseAuthMiddleware, async (req, res) => {
+  try {
+    const { id, nome, checkout } = req.body || {};
+    if (!nome || !String(nome).trim()) {
+      return res.status(400).json({ error: 'Nome do checkout é obrigatório.' });
+    }
+    if (!checkout || !checkout.metodos) {
+      return res.status(400).json({ error: 'Configurações do checkout inválidas.' });
+    }
+
+    const itemSalvo = await db.salvarCheckout((req as any).userId, {
+      id: id ? String(id) : undefined,
+      nome: String(nome).trim(),
+      checkout
+    });
+    return res.status(201).json(itemSalvo);
+  } catch (err: any) {
+    console.error('Erro ao salvar checkout:', err);
+    return res.status(500).json({ error: 'Erro ao salvar checkout.' });
+  }
+});
+
+// DELETE /api/admin/checkouts/:id -> Exclui um modelo de checkout salvo
+app.delete('/api/admin/checkouts/:id', firebaseAuthMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deleted = await db.excluirCheckout((req as any).userId, id);
+    if (!deleted) {
+      return res.status(404).json({ error: 'Checkout não encontrado ou não autorizado.' });
+    }
+    return res.json({ success: true });
+  } catch (err: any) {
+    console.error('Erro ao excluir checkout:', err);
+    return res.status(500).json({ error: 'Erro ao excluir checkout.' });
   }
 });
 

@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { Campanha, Cota, Pedido, Comprador, RankingItem, CotaPremiada, ConfigOrganizador, EstiloSalvo, TemaCampanha, MensagemFila } from '../src/types.js';
+import { Campanha, Cota, Pedido, Comprador, RankingItem, CotaPremiada, ConfigOrganizador, EstiloSalvo, TemaCampanha, CheckoutSalvo, CheckoutConfig, MensagemFila } from '../src/types.js';
 import { Storage, EstatisticasCampanha, MeusNumerosResult, ConfirmarPedidoResult, SorteioResult, DadosConfig } from './storage-interface.js';
 import { mergeConfig } from './config-utils.js';
 import { decryptToken } from './crypto-utils.js';
@@ -17,6 +17,7 @@ const PEDIDOS_FILE = path.join(DATA_DIR, 'pedidos.json');
 const COMPRADORES_FILE = path.join(DATA_DIR, 'compradores.json');
 const CONFIGS_FILE = path.join(DATA_DIR, 'configuracoes.json');
 const ESTILOS_FILE = path.join(DATA_DIR, 'estilos.json');
+const CHECKOUTS_FILE = path.join(DATA_DIR, 'checkouts.json');
 const FILA_FILE = path.join(DATA_DIR, 'fila.json');
 
 function loadJson<T>(file: string, fallback: T): T {
@@ -116,6 +117,8 @@ export class FileStorage implements Storage {
   private configs: Map<string, ConfigOrganizador> = new Map();
   // Estilos de temas salvos
   private estilos: Map<string, EstiloSalvo> = new Map();
+  // Checkouts salvos
+  private checkouts: Map<string, CheckoutSalvo> = new Map();
   private fila: Map<string, MensagemFila> = new Map();
 
   constructor() {
@@ -153,6 +156,9 @@ export class FileStorage implements Storage {
     const estilosList = loadJson<EstiloSalvo[]>(ESTILOS_FILE, []);
     estilosList.forEach(e => this.estilos.set(e.id, e));
 
+    const checkoutsList = loadJson<CheckoutSalvo[]>(CHECKOUTS_FILE, []);
+    checkoutsList.forEach(chk => this.checkouts.set(chk.id, chk));
+
     const filaList = loadJson<MensagemFila[]>(FILA_FILE, []);
     filaList.forEach(m => this.fila.set(m.id, m));
   }
@@ -163,6 +169,10 @@ export class FileStorage implements Storage {
 
   private saveEstilos() {
     saveJson(ESTILOS_FILE, Array.from(this.estilos.values()));
+  }
+
+  private saveCheckouts() {
+    saveJson(CHECKOUTS_FILE, Array.from(this.checkouts.values()));
   }
 
   private saveFila() {
@@ -641,6 +651,36 @@ export class FileStorage implements Storage {
     if (estilo.ownerId && estilo.ownerId !== ownerId) return false;
     this.estilos.delete(id);
     this.saveEstilos();
+    return true;
+  }
+
+  // --- Checkouts Salvos ---
+  public async salvarCheckout(ownerId: string, checkoutData: { id?: string; nome: string; checkout: CheckoutConfig }): Promise<CheckoutSalvo> {
+    const id = checkoutData.id || `chk-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+    const item: CheckoutSalvo = {
+      id,
+      ownerId,
+      nome: checkoutData.nome.trim() || 'Checkout Sem Nome',
+      checkout: checkoutData.checkout,
+      criadoEm: new Date().toISOString()
+    };
+    this.checkouts.set(id, item);
+    this.saveCheckouts();
+    return item;
+  }
+
+  public async listarCheckouts(ownerId: string): Promise<CheckoutSalvo[]> {
+    return Array.from(this.checkouts.values())
+      .filter(c => !c.ownerId || c.ownerId === ownerId)
+      .sort((a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime());
+  }
+
+  public async excluirCheckout(ownerId: string, id: string): Promise<boolean> {
+    const chk = this.checkouts.get(id);
+    if (!chk) return false;
+    if (chk.ownerId && chk.ownerId !== ownerId) return false;
+    this.checkouts.delete(id);
+    this.saveCheckouts();
     return true;
   }
 

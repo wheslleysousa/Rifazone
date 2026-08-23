@@ -4,21 +4,20 @@
 
 export function toCents(value: number | string | undefined | null): number {
   if (value === undefined || value === null || value === '') return 0;
-  const num = typeof value === 'string' ? parseFloat(value.replace(',', '.')) : Number(value);
-  if (isNaN(num) || num <= 0) return 0;
+  if (typeof value === 'number') return Math.round(value * 100);
+  const num = parseFloat(String(value).replace(',', '.'));
+  if (isNaN(num)) return 0;
   return Math.round(num * 100);
 }
 
 export function toReais(value: number | string | undefined | null): number {
   if (value === undefined || value === null || value === '') return 0;
-  const num = typeof value === 'string' ? parseFloat(value.replace(',', '.')) : Number(value);
+  const num = typeof value === 'number' ? value : parseFloat(String(value).replace(',', '.'));
   if (isNaN(num)) return 0;
-  if (num === 0) return 0;
-  // Se for decimal como 0.50 ou 12.50, já é em Reais
-  if (num % 1 !== 0) return num;
-  // Se for inteiro em centavos passados das funções de pagamento (ex: 2500 centavos -> 25.00, 50 centavos -> 0.50)
-  if (num >= 100) return Number((num / 100).toFixed(2));
-  return num;
+  
+  // Se o valor vier do Firestore como centavos (inteiro), dividimos por 100
+  // Note: Esta função é usada principalmente para converter o que vem do banco (centavos) para exibição (reais)
+  return Number((num / 100).toFixed(2));
 }
 
 export function formatarMoeda(value: number | string | undefined | null): string {

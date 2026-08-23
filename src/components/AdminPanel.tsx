@@ -5,7 +5,8 @@ import {
   Users, Ticket, RotateCw, Settings, LogOut, RefreshCw,
   Eye, Edit3, Link2, Copy, CheckCircle2, AlertCircle, Menu, X, Mail, Lock, User as UserIcon, Key,
   ExternalLink, Zap, Unlink, ShieldCheck, HelpCircle, ChevronDown, ChevronUp, Info,
-  Trophy, Trash2, Play, Pause, Camera, Sparkles, Palette, BarChart3
+  Trophy, Trash2, Play, Pause, Camera, Sparkles, Palette, BarChart3,
+  ArrowLeft, Save
 } from 'lucide-react';
 import {
   auth, observarAuth, cadastrarComEmail, entrarComEmail, entrarComGoogle, sair,
@@ -20,6 +21,8 @@ const RemarketingView = React.lazy(() => import('./admin/RemarketingView').then(
 const ClientesView = React.lazy(() => import('./admin/ClientesView').then(m => ({ default: m.ClientesView })));
 const SorteadorView = React.lazy(() => import('./admin/SorteadorView').then(m => ({ default: m.SorteadorView })));
 const CampanhasFormView = React.lazy(() => import('./admin/CampanhasFormView').then(m => ({ default: m.CampanhasFormView })));
+const TemaBuilderView = React.lazy(() => import('./admin/TemaBuilderView').then(m => ({ default: m.TemaBuilderView })));
+import { TEMA_PADRAO } from '../types';
 
 interface Props {
   onSelectCampanha: (codigo: string) => void;
@@ -569,9 +572,7 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
       <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
         <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl text-white">
           <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center font-black text-slate-950 text-xl shadow-lg shadow-emerald-500/20">
-              R
-            </div>
+            <img src="/logorifazone.png.jpeg" alt="RifaZone" className="w-12 h-12 rounded-2xl shadow-xl shadow-emerald-500/10 object-cover" />
             <div>
               <h1 className="text-xl font-black">RifaZone</h1>
               <p className="text-xs text-slate-400">
@@ -776,9 +777,7 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
         {/* Brand */}
         <div className="flex items-center justify-between px-5 h-16 border-b border-slate-800 shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center font-black text-slate-950 text-base shadow-md shadow-emerald-500/20">
-              R
-            </div>
+            <img src="/logorifazone.png.jpeg" alt="RifaZone" className="w-8 h-8 rounded-lg object-cover" />
             <div>
               <h2 className="text-base font-black text-white leading-none">RifaZone</h2>
               <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">Painel Pro</span>
@@ -857,12 +856,15 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
             >
               <Menu className="w-6 h-6" />
             </button>
-            <span className="font-black text-white">RifaZone</span>
+            <div className="flex items-center gap-2">
+              <img src="/logorifazone.png.jpeg" alt="RifaZone" className="w-7 h-7 rounded-lg object-cover" />
+              <span className="font-black text-white text-sm">RifaZone</span>
+            </div>
           </div>
         </header>
 
         {/* Container Principal */}
-        <main className="flex-1 p-4 sm:p-6 max-w-6xl w-full mx-auto space-y-6">
+        <main className="flex-1 p-4 md:p-6 lg:p-8 w-full max-w-none mx-auto space-y-6 overflow-x-hidden">
           <React.Suspense fallback={
             <div className="flex flex-col items-center justify-center p-12 gap-3 bg-slate-900 border border-slate-800 rounded-2xl">
               <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
@@ -912,6 +914,51 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
               pedidos={pedidos}
               onApurarCampanha={handleApurarCampanha}
             />
+          )}
+
+          {/* TEMA EDITOR */}
+          {abaAtiva === 'tema-editor' && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setAbaAtiva('campanhas')}
+                    className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition border border-slate-700"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                  </button>
+                  <div>
+                    <h1 className="text-xl font-black text-white flex items-center gap-2">
+                      <Palette className="w-5 h-5 text-emerald-400" />
+                      Editor de Tema: {form.titulo}
+                    </h1>
+                    <p className="text-slate-400 text-xs">Ajuste as cores, tipografia e identidade visual da sua rifa.</p>
+                  </div>
+                </div>
+                
+                <button
+                  onClick={handleSalvarCampanha}
+                  disabled={salvandoCampanha}
+                  className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl flex items-center gap-2 transition shadow-lg shadow-emerald-500/20 disabled:opacity-50"
+                >
+                  {salvandoCampanha ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  {salvandoCampanha ? 'Salvando...' : 'Salvar Alterações'}
+                </button>
+              </div>
+
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6">
+                <React.Suspense fallback={<div className="p-12 text-center text-slate-400">Carregando editor de temas...</div>}>
+                  <TemaBuilderView
+                    campanha={form}
+                    onChangeCampanha={setForm}
+                    tema={form.tema || TEMA_PADRAO}
+                    onChangeTema={(novoTema) => setForm(prev => ({ ...prev, tema: novoTema }))}
+                    onSalvar={handleSalvarCampanha}
+                    salvando={salvandoCampanha}
+                  />
+                </React.Suspense>
+              </div>
+            </div>
           )}
 
           {/* 5. LISTA DE CAMPANHAS */}
@@ -1019,100 +1066,98 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
                   </button>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {campanhas.map(c => (
                     <div
                       key={c.id}
-                      className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg flex flex-col justify-between space-y-4"
+                      className="group relative bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl flex flex-col justify-between space-y-6 hover:border-emerald-500/30 transition-all duration-300 hover:shadow-emerald-500/5"
                     >
+                      {/* Botão Excluir no Topo */}
+                      <button
+                        onClick={() => setCampanhaParaExcluir(c)}
+                        className="absolute -top-3 -right-3 w-8 h-8 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-lg transition-transform hover:scale-110 active:scale-95 z-10"
+                        title="Excluir Campanha"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+
                       <div>
-                        <div className="flex items-start justify-between gap-3 mb-3">
-                          <div>
+                        <div className="flex items-start justify-between gap-3 mb-4">
+                          <div className="flex-1">
                             {/* Toggle Ativar / Pausar */}
                             <button
                               onClick={() => handleToggleStatusCampanha(c)}
-                              className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider transition flex items-center gap-1.5 shadow-sm ${
+                              className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition flex items-center gap-1.5 shadow-sm ${
                                 c.status === 'publicada'
-                                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-amber-500/20 hover:text-amber-300 hover:border-amber-500/40'
+                                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20'
                                   : c.status === 'pausada'
-                                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-emerald-500/20 hover:text-emerald-300 hover:border-emerald-500/40'
-                                  : 'bg-slate-800 text-slate-300 border border-slate-700 hover:bg-emerald-500/20 hover:text-emerald-300'
+                                  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20'
+                                  : 'bg-slate-800 text-slate-400 border border-slate-700'
                               }`}
-                              title={
-                                c.status === 'publicada'
-                                  ? 'Campanha Ativa. Clique para Pausar as vendas.'
-                                  : 'Campanha Pausada. Clique para Ativar as vendas.'
-                              }
                             >
                               {c.status === 'publicada' ? (
                                 <>
                                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                                  <span>ATIVA (Clique p/ Pausar)</span>
+                                  <span>ATIVA</span>
                                 </>
                               ) : c.status === 'pausada' ? (
                                 <>
                                   <Pause className="w-3 h-3 text-amber-400" />
-                                  <span>PAUSADA (Clique p/ Ativar)</span>
+                                  <span>PAUSADA</span>
                                 </>
                               ) : (
                                 <>
                                   <Play className="w-3 h-3 text-slate-400" />
-                                  <span>{c.status.toUpperCase()} (Ativar)</span>
+                                  <span>{c.status.toUpperCase()}</span>
                                 </>
                               )}
                             </button>
 
-                            <h4 className="text-base font-black text-white leading-snug mt-2">
+                            <h4 className="text-lg font-black text-white leading-tight mt-3 line-clamp-2">
                               {c.titulo}
                             </h4>
                           </div>
-                          <span className="text-xs font-mono font-bold text-slate-400 bg-slate-800 px-2 py-1 rounded shrink-0">
-                            /c/{c.codigo}
-                          </span>
+                          
+                          <div className="flex flex-col items-end gap-2">
+                            <span className="text-[10px] font-mono font-bold text-slate-500 bg-slate-800/50 px-2 py-1 rounded">
+                              {c.codigo}
+                            </span>
+                          </div>
                         </div>
 
-                        <div className="grid grid-cols-3 gap-2 bg-slate-950 p-3 rounded-xl border border-slate-800/80 text-xs">
-                          <div>
-                            <span className="text-slate-500 block text-[10px]">Arrecadado</span>
-                            <span className="font-extrabold text-emerald-400">
-                              R$ {c.estatisticas?.arrecadado?.toFixed(2)?.replace('.', ',') || '0,00'}
+                        {/* Métricas Rápidas */}
+                        <div className="grid grid-cols-2 gap-3 bg-slate-950 p-4 rounded-2xl border border-slate-800/80 text-xs mb-4">
+                          <div className="space-y-1">
+                            <span className="text-slate-500 block text-[10px] font-bold uppercase tracking-wider">Arrecadado</span>
+                            <span className="text-sm font-black text-emerald-400 font-mono">
+                              R$ {c.estatisticas?.arrecadado?.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || '0,00'}
                             </span>
                           </div>
-                          <div>
-                            <span className="text-slate-500 block text-[10px]">Vendidas</span>
-                            <span className="font-extrabold text-white">
-                              {c.estatisticas?.vendidas || 0} / {c.totalCotas}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-slate-500 block text-[10px]">Progresso</span>
-                            <span className="font-extrabold text-amber-400">
-                              {c.estatisticas?.percentualVendido || 0}%
-                            </span>
+                          <div className="space-y-1">
+                            <span className="text-slate-500 block text-[10px] font-bold uppercase tracking-wider">Progresso</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-black text-white font-mono">
+                                {c.estatisticas?.percentualVendido || 0}%
+                              </span>
+                              <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                                <div 
+                                  className="h-full bg-emerald-500 rounded-full" 
+                                  style={{ width: `${c.estatisticas?.percentualVendido || 0}%` }}
+                                />
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-slate-800">
+                      {/* Ações Inferiores Grid */}
+                      <div className="grid grid-cols-2 gap-2">
                         <button
                           onClick={() => onSelectCampanha(c.codigo)}
-                          className="py-2 px-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition"
-                          title="Ver prévia pública da rifa"
+                          className="py-3 px-3 bg-slate-800 hover:bg-slate-700 text-white text-[11px] font-black rounded-2xl flex items-center justify-center gap-2 transition border border-slate-700"
                         >
-                          <Eye className="w-3.5 h-3.5 text-slate-400" />
-                          Prévia
-                        </button>
-
-                        <button
-                          onClick={() => {
-                            setLinkCampanha({ codigo: c.codigo, titulo: c.titulo });
-                            setLinkCopiado(false);
-                          }}
-                          className="py-2 px-3 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition"
-                          title="Link de divulgação"
-                        >
-                          <Link2 className="w-3.5 h-3.5 text-emerald-400" />
-                          Link
+                          <Eye className="w-4 h-4 text-slate-400" />
+                          PRÉVIA
                         </button>
 
                         <button
@@ -1120,11 +1165,10 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
                             setCampanhaSelecionada(c);
                             setAbaAtiva('sorteador');
                           }}
-                          className="py-2 px-3 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition"
-                          title="Realizar sorteio de cotas pagas"
+                          className="py-3 px-3 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 text-[11px] font-black rounded-2xl flex items-center justify-center gap-2 transition border border-amber-500/20"
                         >
-                          <Trophy className="w-3.5 h-3.5 text-amber-400" />
-                          Sorteio
+                          <Trophy className="w-4 h-4" />
+                          SORTEIO
                         </button>
 
                         <button
@@ -1132,40 +1176,33 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
                             setForm(c);
                             setAbaAtiva('nova');
                           }}
-                          className="p-2 bg-slate-800 hover:bg-emerald-500/20 hover:text-emerald-300 text-slate-300 rounded-xl transition border border-slate-700/60"
-                          title="Personalizar Tema & Cores"
+                          className="py-3 px-3 bg-slate-800 hover:bg-slate-700 text-white text-[11px] font-black rounded-2xl flex items-center justify-center gap-2 transition border border-slate-700"
                         >
-                          <Palette className="w-4 h-4 text-emerald-400" />
+                          <Edit3 className="w-4 h-4 text-slate-400" />
+                          EDITAR RIFA
                         </button>
 
                         <button
                           onClick={() => {
                             setForm(c);
-                            setAbaAtiva('nova');
+                            setAbaAtiva('tema-editor');
                           }}
-                          className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition border border-slate-700/60"
-                          title="Editar Campanha"
+                          className="py-3 px-3 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-[11px] font-black rounded-2xl flex items-center justify-center gap-2 transition border border-emerald-500/20"
                         >
-                          <Edit3 className="w-4 h-4" />
+                          <Palette className="w-4 h-4" />
+                          TEMA & CORES
                         </button>
 
                         <button
-                          onClick={() => {
-                            setCampanhaSelecionada(c);
-                            setAbaAtiva('pedidos');
+                          onClick={async () => {
+                            const shareUrl = `${window.location.origin}/c/${c.codigo}`;
+                            await navigator.clipboard.writeText(shareUrl);
+                            alert('Link da rifa copiado com sucesso!');
                           }}
-                          className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition border border-slate-700/60"
-                          title="Ver Pedidos e Bilhetes"
+                          className="col-span-2 py-3.5 px-3 bg-slate-100 hover:bg-white text-slate-900 text-[11px] font-black rounded-2xl flex items-center justify-center gap-2 transition shadow-xl active:scale-95"
                         >
-                          <Users className="w-4 h-4" />
-                        </button>
-
-                        <button
-                          onClick={() => setCampanhaParaExcluir(c)}
-                          className="p-2 bg-slate-800 hover:bg-red-500/20 hover:text-red-400 text-slate-400 rounded-xl transition border border-slate-700/60 ml-auto"
-                          title="Excluir Campanha"
-                        >
-                          <Trash2 className="w-4 h-4" />
+                          <Copy className="w-4 h-4" />
+                          COPIAR LINK DA RIFA
                         </button>
                       </div>
                     </div>

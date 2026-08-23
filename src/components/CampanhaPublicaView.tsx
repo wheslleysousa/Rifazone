@@ -1256,11 +1256,13 @@ export const CampanhaPublicaView: React.FC<Props> = ({
       {/* Top Navbar com Menu Lateral */}
       <header className="sticky top-0 z-40 bg-slate-950/95 backdrop-blur-md border-b border-slate-800">
         <div className="max-w-xl mx-auto px-4 h-16 flex items-center justify-between">
-          <button
-            type="button"
-            onClick={() => setOrganizadorModalAberto(true)}
-            className="flex items-center gap-2.5 text-left hover:opacity-90 transition cursor-pointer group"
-          >
+          <div className="flex items-center gap-2">
+            <img src="/logorifazone.png.jpeg" alt="RifaZone" className="w-7 h-7 rounded-lg object-cover" />
+            <button
+              type="button"
+              onClick={() => setOrganizadorModalAberto(true)}
+              className="flex items-center gap-2.5 text-left hover:opacity-90 transition cursor-pointer group"
+            >
             {campanha.organizadorFoto ? (
               <img
                 src={campanha.organizadorFoto}
@@ -1285,6 +1287,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
               </span>
             </div>
           </button>
+          </div>
 
           <div className="flex items-center gap-2">
             <button

@@ -8,7 +8,14 @@ import { geminiService } from './server/gemini.js';
 import { verifyFirebaseToken } from './server/auth.js';
 import { configParaPainel, configParaMarcaPublica } from './server/config-utils.js';
 import { decryptToken } from './server/crypto-utils.js';
-import { dispararMetaCapiPurchase, buscarInsightsMetaAds } from './server/meta-service.js';
+import {
+  dispararMetaCapiPurchase,
+  buscarInsightsMetaAds,
+  buscarBusinessManagers,
+  buscarAdAccounts,
+  buscarInsightsDeVariasContas,
+  buscarTodasAsContasDeAnunciosDoUsuario
+} from './server/meta-service.js';
 import { toCents } from './server/money-utils.js';
 import { EmailNotificador } from './server/notifications.js';
 import { Campanha, TEMA_PADRAO, DEFAULT_CHECKOUT_CONFIG } from './src/types.js';
@@ -1194,23 +1201,56 @@ app.put('/api/admin/configuracoes', firebaseAuthMiddleware, async (req, res) => 
 app.get('/api/admin/meta/insights', firebaseAuthMiddleware, async (req, res) => {
   try {
     const ownerId = (req as any).userId;
-    const { campanhaId } = req.query;
+    const { campanhaId, adAccountId: queryAdAccountId, bmId: queryBmId } = req.query;
 
     const config = await db.getConfig(ownerId);
     const plainToken = decryptToken(config?.metaAccessToken) || decryptToken(config?.metaCapiToken);
-    const adAccountId = config?.metaAdAccountId;
+    
+    // Se não informou na query e não tem na config, adAccountId vira undefined
+    const adAccountId = (queryAdAccountId as string) || config?.metaAdAccountId;
 
-    if (!plainToken || !adAccountId) {
+    if (!plainToken) {
       return res.status(400).json({
         conectado: false,
-        error: 'Token da Marketing API e/ou ID da Conta de Anúncios (act_...) do Meta Ads não configurados.'
+        error: 'Token da Marketing API do Meta Ads não configurado.'
       });
     }
 
-    const metaInsights = await buscarInsightsMetaAds({
-      metaAccessToken: plainToken,
-      metaAdAccountId: adAccountId
-    });
+    let metaInsights;
+    try {
+      if (adAccountId === 'todas') {
+        let accountsToFetch = [];
+        if (queryBmId && queryBmId !== 'todas') {
+          // Todas as contas de UMA BM específica
+          accountsToFetch = await buscarAdAccounts(plainToken, queryBmId as string);
+        } else {
+          // Todas as contas de TODAS as BMs
+          accountsToFetch = await buscarTodasAsContasDeAnunciosDoUsuario(plainToken);
+        }
+        
+        const ids = accountsToFetch.map((a: any) => a.id);
+        if (ids.length === 0) {
+          throw new Error('Nenhuma conta de anúncios encontrada para os filtros selecionados.');
+        }
+        metaInsights = await buscarInsightsDeVariasContas({
+          metaAccessToken: plainToken,
+          adAccountIds: ids
+        });
+      } else if (adAccountId) {
+        metaInsights = await buscarInsightsMetaAds({
+          metaAccessToken: plainToken,
+          metaAdAccountId: adAccountId
+        });
+      } else {
+        return res.json({
+          conectado: true,
+          adAccountId: null,
+          error: 'Selecione uma conta de anúncios para ver os dados.'
+        });
+      }
+    } catch (metaErr: any) {
+      return res.status(500).json({ error: metaErr.message });
+    }
 
     let pedidos: any[] = [];
     if (campanhaId && campanhaId !== 'todas') {
@@ -1255,6 +1295,63 @@ app.get('/api/admin/meta/insights', firebaseAuthMiddleware, async (req, res) => 
       conectado: false,
       error: err.message || 'Erro ao comunicar com a Marketing API da Meta.'
     });
+  }
+});
+
+// GET /api/admin/meta/bms -> Lista Business Managers do usuário
+app.get('/api/admin/meta/bms', firebaseAuthMiddleware, async (req, res) => {
+  try {
+    const ownerId = (req as any).userId;
+    const config = await db.getConfig(ownerId);
+    const plainToken = decryptToken(config?.metaAccessToken) || decryptToken(config?.metaCapiToken);
+
+    if (!plainToken) {
+      return res.status(400).json({ error: 'Token do Facebook não configurado.' });
+    }
+
+    const bms = await buscarBusinessManagers(plainToken);
+    return res.json(bms);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/admin/meta/adaccounts -> Lista Contas de Anúncios (pode filtrar por businessId)
+app.get('/api/admin/meta/adaccounts', firebaseAuthMiddleware, async (req, res) => {
+  try {
+    const ownerId = (req as any).userId;
+    const { businessId } = req.query;
+    const config = await db.getConfig(ownerId);
+    const plainToken = decryptToken(config?.metaAccessToken) || decryptToken(config?.metaCapiToken);
+
+    if (!plainToken) {
+      return res.status(400).json({ error: 'Token do Facebook não configurado.' });
+    }
+
+    const accounts = await buscarAdAccounts(plainToken, businessId as string);
+    return res.json(accounts);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/admin/meta/selecionar-conta -> Salva a conta de anúncios selecionada nas configurações
+app.post('/api/admin/meta/selecionar-conta', firebaseAuthMiddleware, async (req, res) => {
+  try {
+    const ownerId = (req as any).userId;
+    const { adAccountId } = req.body;
+
+    if (!adAccountId) {
+      return res.status(400).json({ error: 'ID da conta não fornecido.' });
+    }
+
+    await db.saveConfig(ownerId, {
+      metaAdAccountId: adAccountId
+    });
+
+    return res.json({ success: true, adAccountId });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
   }
 });
 

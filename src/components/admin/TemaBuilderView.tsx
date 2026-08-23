@@ -448,10 +448,10 @@ export const TemaBuilderView: React.FC<Props> = ({
       </div>
 
       {/* Layout Split-Screen Principal */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      <div className="flex flex-col gap-8">
         
-        {/* COLUNA DA ESQUERDA: CONTROLES DO TEMA (7 Colunas em telas grandes) */}
-        <div className={`lg:col-span-7 space-y-4 ${visualizacaoMobile === 'preview' ? 'hidden lg:block' : 'block'}`}>
+        {/* COLUNA DA ESQUERDA: CONTROLES DO TEMA (Full width) */}
+        <div className={`w-full space-y-4 ${visualizacaoMobile === 'preview' ? 'hidden lg:block' : 'block'}`}>
           
           {/* Navegação entre seções de customização */}
           <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 p-1 bg-slate-900 border border-slate-800 rounded-xl">
@@ -1357,23 +1357,21 @@ export const TemaBuilderView: React.FC<Props> = ({
             </div>
           )}
 
-        </div>
+        </div> {/* FECHA O w-full */}
 
-        {/* COLUNA DA DIREITA: PRÉVIA EM TEMPO REAL COM MOCKUP DE CELULAR (5 Colunas) */}
-        <div className={`lg:col-span-5 ${visualizacaoMobile === 'controles' ? 'hidden lg:block' : 'block'}`}>
-          <div className="sticky top-6 space-y-3">
-            
-            {/* Header da Prévia */}
-            <div className="flex items-center justify-between px-2">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="text-xs font-black uppercase tracking-wider text-slate-300">
+        {/* COLUNA DA DIREITA: PRÉVIA EM TEMPO REAL COM MOCKUP DE CELULAR (Full width at bottom) */}
+        <div className={`w-full mt-8 border-t border-slate-800/60 pt-12 ${visualizacaoMobile === 'controles' ? 'hidden lg:block' : 'block'}`}>
+          <div className="flex flex-col items-center space-y-6">
+            <div className="flex flex-col items-center text-center px-4">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse" />
+                <h3 className="text-sm font-black text-white uppercase tracking-wider">
                   Prévia em Tempo Real
-                </span>
+                </h3>
               </div>
-              <span className="text-[11px] text-slate-500 font-mono">
-                Mockup Smartphone ~390px
-              </span>
+              <p className="text-xs text-slate-400 max-w-md">
+                Veja como a sua página de sorteio está ficando. Esta é uma representação fiel de como os participantes verão o seu site.
+              </p>
             </div>
 
             {/* MOCKUP DO SMARTPHONE COM MOLDURA REALISTA */}

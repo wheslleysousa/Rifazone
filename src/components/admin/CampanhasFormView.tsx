@@ -25,7 +25,7 @@ interface Props {
   onVerPrevia?: () => void;
 }
 
-type TabType = 'basico' | 'midia' | 'premios' | 'promocoes' | 'upsell' | 'extras' | 'tema';
+type TabType = 'basico' | 'midia' | 'premios' | 'promocoes' | 'upsell' | 'extras';
 
 export const CampanhasFormView: React.FC<Props> = ({
   form,
@@ -78,14 +78,13 @@ export const CampanhasFormView: React.FC<Props> = ({
     '🏆 Sorteio Confirmado'
   ];
 
-  const tabsConfig: { id: TabType; label: string; icon: any; desc: string }[] = [
-    { id: 'basico', label: '1. Informações & Cotas', icon: DollarSign, desc: 'Título, valor da cota e regras' },
-    { id: 'midia', label: '2. Fotos & Mídia', icon: Camera, desc: 'Banner principal do celular e carrossel' },
-    { id: 'premios', label: '3. Prêmios & Bilhetes Premiados', icon: Trophy, desc: 'Prêmio principal e cotas instantâneas' },
-    { id: 'promocoes', label: '4. Pacotes & Descontos', icon: Zap, desc: 'Combos de cotas promocionais' },
-    { id: 'upsell', label: '5. Ofertas Relâmpago', icon: Flame, desc: 'Aumente o ticket no checkout' },
-    { id: 'extras', label: '6. Brindes & Roleta', icon: Gift, desc: 'E-book digital e roleta bônus' },
-    { id: 'tema', label: '7. Personalizar Tema', icon: Palette, desc: 'Cores, botão CTA, tipografia e blocos' }
+  const tabsConfig: { id: TabType; label: string; icon: any; iconColor: string; desc: string }[] = [
+    { id: 'basico', label: '1. Informações & Cotas', icon: DollarSign, iconColor: 'text-emerald-400', desc: 'Título, valor da cota e regras' },
+    { id: 'midia', label: '2. Fotos & Mídia', icon: Camera, iconColor: 'text-blue-400', desc: 'Banner principal do celular e carrossel' },
+    { id: 'premios', label: '3. Prêmios & Bilhetes Premiados', icon: Trophy, iconColor: 'text-amber-400', desc: 'Prêmio principal e cotas instantâneas' },
+    { id: 'promocoes', label: '4. Pacotes & Descontos', icon: Zap, iconColor: 'text-purple-400', desc: 'Combos de cotas promocionais' },
+    { id: 'upsell', label: '5. Ofertas Relâmpago', icon: Flame, iconColor: 'text-orange-400', desc: 'Aumente o ticket no checkout' },
+    { id: 'extras', label: '6. Brindes & Roleta', icon: Gift, iconColor: 'text-pink-400', desc: 'E-book digital e roleta bônus' }
   ];
 
   // Upload handlers
@@ -349,7 +348,7 @@ export const CampanhasFormView: React.FC<Props> = ({
   const valorCotaNum = Number(form.valorCota || 0);
   const arrecadacaoEstimada = totalCotasNum * valorCotaNum;
 
-  const tabKeys: TabType[] = ['basico', 'midia', 'premios', 'promocoes', 'upsell', 'extras', 'tema'];
+  const tabKeys: TabType[] = ['basico', 'midia', 'premios', 'promocoes', 'upsell', 'extras'];
   const currentIndex = secaoAberta ? tabKeys.indexOf(secaoAberta) : 0;
 
   const irProximo = () => {
@@ -498,9 +497,8 @@ export const CampanhasFormView: React.FC<Props> = ({
           </div>
         )}
 
-        {secaoAberta !== 'tema' ? (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            <div className={`lg:col-span-7 space-y-4 ${visualizacaoMobile === 'preview' ? 'hidden lg:block' : 'block'}`}>
+        <div className="flex flex-col gap-8">
+            <div className={`w-full space-y-4 ${visualizacaoMobile === 'preview' ? 'hidden lg:block' : 'block'}`}>
               
               {/* ABA 1: INFORMACÕES & COTAS */}
               <AcordeaoSecao 
@@ -2281,9 +2279,10 @@ export const CampanhasFormView: React.FC<Props> = ({
             </div>
           </div>
         </AcordeaoSecao>
+            </div> {/* FECHA O w-full */}
 
-          <div className={`lg:col-span-5 ${visualizacaoMobile === 'controles' ? 'hidden lg:block' : 'block'}`}>
-            <div className="sticky top-6 space-y-3">
+          <div className={`w-full mt-8 border-t border-slate-800/60 pt-12 ${visualizacaoMobile === 'controles' ? 'hidden lg:block' : 'block'}`}>
+            <div className="space-y-6 flex flex-col items-center">
               <div className="flex items-center justify-between px-2">
                 <div className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -2355,26 +2354,6 @@ export const CampanhasFormView: React.FC<Props> = ({
             </div>
           </div>
         </div>
-      </div>
-      ) : (
-        <div className="animate-in fade-in">
-          <React.Suspense fallback={
-            <div className="flex flex-col items-center justify-center p-12 gap-4 bg-slate-900/60 border border-slate-800/60 backdrop-blur-xl rounded-3xl shadow-2xl">
-              <div className="w-10 h-10 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin"></div>
-              <p className="text-sm font-medium text-slate-400 animate-pulse">Carregando construtor de temas...</p>
-            </div>
-          }>
-            <TemaBuilderView
-              campanha={form}
-              onChangeCampanha={setForm}
-              tema={form.tema || TEMA_PADRAO}
-              onChangeTema={(novoTema) => setForm(prev => ({ ...prev, tema: novoTema }))}
-              onSalvar={onSalvar}
-              salvando={salvando}
-            />
-          </React.Suspense>
-        </div>
-      )}
 
         {/* NAVEGAÇÃO DE RODAPÉ (AVANÇAR E VOLTAR) */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8 mt-4 border-t border-slate-800/60">

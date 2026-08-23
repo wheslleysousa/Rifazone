@@ -121,8 +121,12 @@ export interface MetaCampaign {
   reach: number;
   clicks: number;
   cpc: number;
+  cpm: number;
+  ctr: number;
   impressions: number;
   comprasMeta: number;
+  viewContent: number;
+  initiateCheckout: number;
 }
 
 export interface MetaInsightsResult {
@@ -130,8 +134,12 @@ export interface MetaInsightsResult {
   reach: number;
   clicks: number;
   cpc: number;
+  cpm: number;
+  ctr: number;
   impressions: number;
   comprasMeta: number;
+  viewContent: number;
+  initiateCheckout: number;
   campaigns: MetaCampaign[];
 }
 
@@ -151,11 +159,11 @@ export async function buscarInsightsMetaAds({
   }
 
   // Busca totais da conta
-  const fields = 'spend,reach,clicks,cpc,impressions,actions';
+  const fields = 'spend,reach,clicks,cpc,cpm,ctr,impressions,actions';
   const urlTotal = `https://graph.facebook.com/v18.0/${actId}/insights?fields=${fields}&date_preset=maximum&access_token=${encodeURIComponent(metaAccessToken)}`;
   
   // Busca lista de campanhas e seus insights
-  const urlCampaigns = `https://graph.facebook.com/v18.0/${actId}/campaigns?fields=id,name,status,insights.date_preset(maximum){spend,reach,clicks,cpc,impressions,actions}&limit=50&access_token=${encodeURIComponent(metaAccessToken)}`;
+  const urlCampaigns = `https://graph.facebook.com/v18.0/${actId}/campaigns?fields=id,name,status,insights.date_preset(maximum){${fields}}&limit=50&access_token=${encodeURIComponent(metaAccessToken)}`;
 
   const [resTotal, resCamp] = await Promise.all([
     fetch(urlTotal),
@@ -175,17 +183,26 @@ export async function buscarInsightsMetaAds({
   const reach = parseInt(item.reach || '0', 10);
   const clicks = parseInt(item.clicks || '0', 10);
   const cpc = parseFloat(item.cpc || '0');
+  const cpm = parseFloat(item.cpm || '0');
+  const ctr = parseFloat(item.ctr || '0');
   const impressions = parseInt(item.impressions || '0', 10);
+  
   let comprasMeta = 0;
+  let viewContent = 0;
+  let initiateCheckout = 0;
 
   if (Array.isArray(item.actions)) {
-    const purchaseAction = item.actions.find((a: any) =>
-      a.action_type === 'purchase' ||
-      a.action_type === 'offsite_conversion.fb_pixel_purchase' ||
-      a.action_type === 'omni_purchase'
-    );
-    if (purchaseAction) {
-      comprasMeta = parseInt(purchaseAction.value || '0', 10);
+    for (const a of item.actions) {
+      const type = a.action_type;
+      const val = parseInt(a.value || '0', 10);
+      
+      if (type === 'purchase' || type === 'offsite_conversion.fb_pixel_purchase' || type === 'omni_purchase') {
+        comprasMeta += val;
+      } else if (type === 'view_content' || type === 'offsite_conversion.fb_pixel_view_content') {
+        viewContent += val;
+      } else if (type === 'initiate_checkout' || type === 'offsite_conversion.fb_pixel_initiate_checkout') {
+        initiateCheckout += val;
+      }
     }
   }
 
@@ -195,14 +212,21 @@ export async function buscarInsightsMetaAds({
       const cInsights = (c.insights && c.insights.data && c.insights.data[0]) || {};
       
       let cCompras = 0;
+      let cViewContent = 0;
+      let cInitiateCheckout = 0;
+
       if (Array.isArray(cInsights.actions)) {
-        const pAction = cInsights.actions.find((a: any) =>
-          a.action_type === 'purchase' ||
-          a.action_type === 'offsite_conversion.fb_pixel_purchase' ||
-          a.action_type === 'omni_purchase'
-        );
-        if (pAction) {
-          cCompras = parseInt(pAction.value || '0', 10);
+        for (const a of cInsights.actions) {
+          const type = a.action_type;
+          const val = parseInt(a.value || '0', 10);
+          
+          if (type === 'purchase' || type === 'offsite_conversion.fb_pixel_purchase' || type === 'omni_purchase') {
+            cCompras += val;
+          } else if (type === 'view_content' || type === 'offsite_conversion.fb_pixel_view_content') {
+            cViewContent += val;
+          } else if (type === 'initiate_checkout' || type === 'offsite_conversion.fb_pixel_initiate_checkout') {
+            cInitiateCheckout += val;
+          }
         }
       }
 
@@ -214,8 +238,12 @@ export async function buscarInsightsMetaAds({
         reach: parseInt(cInsights.reach || '0', 10),
         clicks: parseInt(cInsights.clicks || '0', 10),
         cpc: parseFloat(cInsights.cpc || '0'),
+        cpm: parseFloat(cInsights.cpm || '0'),
+        ctr: parseFloat(cInsights.ctr || '0'),
         impressions: parseInt(cInsights.impressions || '0', 10),
-        comprasMeta: cCompras
+        comprasMeta: cCompras,
+        viewContent: cViewContent,
+        initiateCheckout: cInitiateCheckout
       });
     }
   }
@@ -228,8 +256,139 @@ export async function buscarInsightsMetaAds({
     reach,
     clicks,
     cpc,
+    cpm,
+    ctr,
     impressions,
     comprasMeta,
+    viewContent,
+    initiateCheckout,
     campaigns
   };
+}
+
+/**
+ * Busca insights de múltiplas contas e consolida os resultados
+ */
+export async function buscarInsightsDeVariasContas({
+  metaAccessToken,
+  adAccountIds
+}: {
+  metaAccessToken: string;
+  adAccountIds: string[];
+}): Promise<MetaInsightsResult> {
+  const results = await Promise.all(adAccountIds.map(id => 
+    buscarInsightsMetaAds({ metaAccessToken, metaAdAccountId: id }).catch(err => {
+      console.error(`Erro ao buscar insights da conta ${id}:`, err.message);
+      return null;
+    })
+  ));
+
+  const validResults = results.filter((r): r is MetaInsightsResult => r !== null);
+  
+  const aggregate: MetaInsightsResult = {
+    spend: 0,
+    reach: 0,
+    clicks: 0,
+    cpc: 0,
+    cpm: 0,
+    ctr: 0,
+    impressions: 0,
+    comprasMeta: 0,
+    viewContent: 0,
+    initiateCheckout: 0,
+    campaigns: []
+  };
+
+  for (const r of validResults) {
+    aggregate.spend += r.spend;
+    aggregate.reach += r.reach;
+    aggregate.clicks += r.clicks;
+    aggregate.impressions += r.impressions;
+    aggregate.comprasMeta += r.comprasMeta;
+    aggregate.viewContent += r.viewContent;
+    aggregate.initiateCheckout += r.initiateCheckout;
+    aggregate.campaigns.push(...r.campaigns);
+  }
+
+  aggregate.cpc = aggregate.clicks > 0 ? (aggregate.spend / aggregate.clicks) : 0;
+  aggregate.cpm = aggregate.impressions > 0 ? (aggregate.spend / (aggregate.impressions / 1000)) : 0;
+  aggregate.ctr = aggregate.impressions > 0 ? (aggregate.clicks / aggregate.impressions) * 100 : 0;
+  
+  aggregate.campaigns.sort((a, b) => b.spend - a.spend);
+
+  return aggregate;
+}
+
+/**
+ * Lista as Business Managers (empresas) do usuário
+ */
+export async function buscarBusinessManagers(metaAccessToken: string) {
+  const url = `https://graph.facebook.com/v18.0/me/businesses?fields=id,name,vertical,primary_page&access_token=${encodeURIComponent(metaAccessToken)}`;
+  const res = await fetch(url);
+  const json = await res.json();
+  if (!res.ok) {
+    throw new Error(json.error?.message || 'Erro ao buscar Business Managers.');
+  }
+  return json.data || [];
+}
+
+/**
+ * Lista as Contas de Anúncios do usuário ou de uma BM específica
+ */
+export async function buscarAdAccounts(metaAccessToken: string, businessId?: string) {
+  // Se tiver businessId, busca as contas daquela BM, senão busca as contas "pessoais" ou acessíveis pelo token
+  const endpoint = businessId ? `${businessId}/client_ad_accounts` : `me/adaccounts`;
+  const url = `https://graph.facebook.com/v18.0/${endpoint}?fields=id,name,account_id,account_status,currency,timezone_name,business&limit=100&access_token=${encodeURIComponent(metaAccessToken)}`;
+  
+  const res = await fetch(url);
+  const json = await res.json();
+  
+  if (!res.ok) {
+    // Tenta o endpoint alternativo se o primeiro falhar (alguns tokens tem permissão diferente)
+    if (businessId) {
+       const urlAlt = `https://graph.facebook.com/v18.0/${businessId}/owned_ad_accounts?fields=id,name,account_id,account_status,currency,timezone_name,business&limit=100&access_token=${encodeURIComponent(metaAccessToken)}`;
+       const resAlt = await fetch(urlAlt);
+       const jsonAlt = await resAlt.json();
+       if (resAlt.ok) return jsonAlt.data || [];
+    }
+    throw new Error(json.error?.message || 'Erro ao buscar Contas de Anúncios.');
+  }
+  
+  return json.data || [];
+}
+
+/**
+ * Lista TODAS as contas de anúncios acessíveis pelo token, 
+ * incluindo as de todas as BMs e contas pessoais.
+ */
+export async function buscarTodasAsContasDeAnunciosDoUsuario(metaAccessToken: string) {
+  try {
+    // 1. Busca BMs
+    const bms = await buscarBusinessManagers(metaAccessToken);
+    
+    // 2. Busca contas de cada BM
+    const accountPromises = bms.map((bm: any) => 
+      buscarAdAccounts(metaAccessToken, bm.id).catch(() => [])
+    );
+    
+    // 3. Busca contas pessoais (me/adaccounts)
+    accountPromises.push(buscarAdAccounts(metaAccessToken).catch(() => []));
+    
+    const results = await Promise.all(accountPromises);
+    
+    // 4. Achata e remove duplicatas (pelo ID)
+    const allAccountsMap = new Map<string, any>();
+    for (const batch of results) {
+      if (Array.isArray(batch)) {
+        for (const acc of batch) {
+          allAccountsMap.set(acc.id, acc);
+        }
+      }
+    }
+    
+    return Array.from(allAccountsMap.values());
+  } catch (err) {
+    console.error('Erro ao buscar todas as contas do usuário:', err);
+    return [];
+  }
 }

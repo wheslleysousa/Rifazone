@@ -107,7 +107,9 @@ export class FirestoreStorage implements Storage {
     if (!campanha.id) campanha.id = 'camp-' + crypto.randomUUID().slice(0, 8);
     if (!campanha.criadaEm) campanha.criadaEm = new Date().toISOString();
     campanha.atualizadaEm = new Date().toISOString();
-    await this.campanhasCol().doc(campanha.id).set(campanha, { merge: false });
+    // Firestore não aceita undefined em documentos
+    const limpo = JSON.parse(JSON.stringify(campanha));
+    await this.campanhasCol().doc(campanha.id).set(limpo, { merge: false });
     return campanha;
   }
 
@@ -274,7 +276,8 @@ export class FirestoreStorage implements Storage {
 
   // --- Pedidos ---
   public async savePedido(pedido: Pedido): Promise<Pedido> {
-    await this.pedidosCol().doc(pedido.id).set(pedido, { merge: false });
+    const limpo = JSON.parse(JSON.stringify(pedido));
+    await this.pedidosCol().doc(pedido.id).set(limpo);
     return pedido;
   }
 
@@ -517,7 +520,8 @@ export class FirestoreStorage implements Storage {
       tema: estilo.tema,
       criadoEm: new Date().toISOString()
     };
-    await this.estilosCol(ownerId).doc(id).set(estiloSalvo);
+    const limpo = JSON.parse(JSON.stringify(estiloSalvo));
+    await this.estilosCol(ownerId).doc(id).set(limpo);
     return estiloSalvo;
   }
 
@@ -545,7 +549,8 @@ export class FirestoreStorage implements Storage {
       checkout: checkoutData.checkout,
       criadoEm: new Date().toISOString()
     };
-    await this.checkoutsCol(ownerId).doc(id).set(item);
+    const limpo = JSON.parse(JSON.stringify(item));
+    await this.checkoutsCol(ownerId).doc(id).set(limpo);
     return item;
   }
 

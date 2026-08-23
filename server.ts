@@ -1483,7 +1483,8 @@ app.put('/api/admin/campanhas/:id', firebaseAuthMiddleware, async (req, res) => 
       return res.status(404).json({ error: 'Campanha não encontrada.' });
     }
 
-    if (existente.ownerId !== (req as any).userId) {
+    const userId = (req as any).userId;
+    if (existente.ownerId && existente.ownerId !== userId) {
       return res.status(403).json({ error: 'Você não tem permissão para editar esta campanha.' });
     }
 
@@ -1491,15 +1492,18 @@ app.put('/api/admin/campanhas/:id', firebaseAuthMiddleware, async (req, res) => 
     const atualizada = sanitizarCampanha(
       data,
       existente,
-      existente.ownerId,
-      existente.ownerEmail
+      existente.ownerId || userId,
+      existente.ownerEmail || (req as any).userEmail || null
     );
 
     const salva = await db.saveCampanha(atualizada);
     return res.json(formatarCampanhaParaEnvio(salva));
   } catch (err: any) {
     console.error('Erro ao atualizar campanha:', err);
-    return res.status(500).json({ error: 'Erro ao atualizar campanha.' });
+    return res.status(500).json({ 
+      error: err?.message || 'Erro ao atualizar campanha.',
+      detalhes: err?.stack || String(err)
+    });
   }
 });
 

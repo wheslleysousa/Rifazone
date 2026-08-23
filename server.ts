@@ -790,9 +790,11 @@ app.get('/api/pedidos/:id/status', async (req, res) => {
     }
 
     // Checar se já expirou
-    if (pedido.status === 'pendente' && new Date(pedido.expiraEm).getTime() < Date.now()) {
+    if (pedido.status === 'pendente' && pedido.expiraEm && new Date(pedido.expiraEm).getTime() <= Date.now()) {
       pedido.status = 'expirado';
       await db.savePedido(pedido);
+      // Libera reservas associadas a este pedido
+      await db.limparReservasExpiradas();
     }
 
     return res.json({
@@ -2247,6 +2249,18 @@ async function startServer() {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
+
+  // Limpeza automática e periódica de pedidos e reservas expiradas (a cada 30s)
+  setInterval(async () => {
+    try {
+      const res = await db.limparReservasExpiradas();
+      if (res && (res.cotasLiberadas > 0 || res.pedidosExpirados > 0)) {
+        console.log(`[EXPIRAÇÃO AUTOMÁTICA] Limpeza executada: ${res.pedidosExpirados} pedidos expirados, ${res.cotasLiberadas} cotas liberadas.`);
+      }
+    } catch (e) {
+      // silencioso
+    }
+  }, 30 * 1000);
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`\n🚀 Servidor RifaZone rodando com sucesso em http://0.0.0.0:${PORT}`);

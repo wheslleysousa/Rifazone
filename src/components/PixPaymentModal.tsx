@@ -99,7 +99,10 @@ export const PixPaymentModal: React.FC<Props> = ({
   useEffect(() => {
     if (status === 'pago' || status === 'expirado') return;
 
-    const target = new Date(expiraEm).getTime();
+    let target = new Date(expiraEm).getTime();
+    if (isNaN(target) || target <= 0) {
+      target = Date.now() + 10 * 60 * 1000;
+    }
     
     const updateCountdown = () => {
       const now = Date.now();

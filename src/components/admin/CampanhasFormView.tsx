@@ -833,7 +833,7 @@ export const CampanhasFormView: React.FC<Props> = ({
                 <label className="relative inline-flex items-center cursor-pointer shrink-0">
                   <input
                     type="checkbox"
-                    checked={Boolean(form.metaPixelId)}
+                    checked={form.metaPixelId !== null}
                     onChange={e => {
                       const ativo = e.target.checked;
                       setForm(prev => ({ ...prev, metaPixelId: ativo ? (prev.metaPixelId || '') : null }));

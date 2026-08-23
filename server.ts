@@ -79,7 +79,7 @@ export function sanitizarCampanha(
           subtitulo: String(o.subtitulo || ''),
           cotasExtras: Number(o.cotasExtras || 0),
           preco: toCents(o.preco),
-          selo: o.selo ? String(o.selo) : undefined
+          selo: o.selo ? String(o.selo) : null
         }))
       : (base?.ofertasRelampago || []),
     selo: data.selo !== undefined ? (data.selo || null) : (base?.selo ?? null),

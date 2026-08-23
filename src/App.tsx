@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CampanhaPublicaView } from './components/CampanhaPublicaView';
-import { AdminPanel } from './components/AdminPanel';
+
+const AdminPanel = React.lazy(() => import('./components/AdminPanel').then(m => ({ default: m.AdminPanel })));
 
 export default function App() {
   // A tela inicial (/) é o painel (login/cadastro -> dashboard).
@@ -50,5 +51,16 @@ export default function App() {
     );
   }
 
-  return <AdminPanel onSelectCampanha={navigateToCampanha} />;
+  return (
+    <React.Suspense fallback={
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-sm font-medium text-slate-400">Carregando painel...</p>
+        </div>
+      </div>
+    }>
+      <AdminPanel onSelectCampanha={navigateToCampanha} />
+    </React.Suspense>
+  );
 }

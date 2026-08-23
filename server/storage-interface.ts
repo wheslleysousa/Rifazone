@@ -1,4 +1,4 @@
-import { Campanha, Pedido, Comprador, RankingItem, CotaPremiada, ConfigOrganizador, MarcaConfig, RedesSociais, EstiloSalvo, TemaCampanha } from '../src/types.js';
+import { Campanha, Pedido, Comprador, RankingItem, CotaPremiada, ConfigOrganizador, MarcaConfig, RedesSociais, EstiloSalvo, TemaCampanha, MensagemFila } from '../src/types.js';
 
 // Campos que o organizador pode salvar nas configurações
 export interface DadosConfig {
@@ -13,6 +13,7 @@ export interface DadosConfig {
   metaCapiToken?: string | null;
   metaAccessToken?: string | null;
   metaAdAccountId?: string | null;
+  notificameToken?: string | null;
 }
 
 export interface EstatisticasCampanha {
@@ -82,4 +83,10 @@ export interface Storage {
   salvarEstilo(ownerId: string, estilo: { id?: string; nome: string; tema: TemaCampanha }): Promise<EstiloSalvo>;
   listarEstilos(ownerId: string): Promise<EstiloSalvo[]>;
   excluirEstilo(ownerId: string, id: string): Promise<boolean>;
+
+  // Fila de Mensagens (Automação / Outbox)
+  enfileirarMensagem(msg: Omit<MensagemFila, 'id' | 'criadoEm' | 'status'>): Promise<MensagemFila>;
+  listarFilaPendente(limitNum: number): Promise<MensagemFila[]>;
+  marcarStatusMensagem(id: string, status: 'pendente' | 'enviada' | 'erro' | 'cancelada', erro?: string): Promise<MensagemFila | null>;
+  listarTodasMensagensFila(campanhaId?: string): Promise<MensagemFila[]>;
 }

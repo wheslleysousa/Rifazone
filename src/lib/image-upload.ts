@@ -1,5 +1,4 @@
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { storage } from './firebase';
+/// <reference types="vite/client" />
 
 /**
  * Utilitário para redimensionar, comprimir e gerar Blob / DataURL de imagem.
@@ -72,11 +71,10 @@ function compressImageToBlob(
 }
 
 /**
- * Comprime a imagem e faz upload real para o Firebase Storage.
- * Retorna a download URL (https://firebasestorage.googleapis.com/...) para evitar
- * o limite de 1 MiB de documento do Firestore.
+ * Comprime a imagem e faz upload real para o Cloudinary (unsigned upload).
+ * Retorna a secure_url para evitar o limite de 1 MiB de documento do Firestore.
  * 
- * Se o Firebase Storage falhar ou estiver offline, faz fallback seguro para data URL comprimida (base64)
+ * Se o Cloudinary falhar ou não estiver configurado, faz fallback seguro para data URL comprimida (base64)
  * registrando aviso no console.
  */
 export async function uploadImageToStorage(
@@ -88,25 +86,42 @@ export async function uploadImageToStorage(
 ): Promise<string> {
   const { blob, dataUrl } = await compressImageToBlob(file, maxWidth, maxHeight, quality);
 
+  const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+  const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+
+  if (!cloudName || !uploadPreset) {
+    console.warn(
+      '⚠️ VITE_CLOUDINARY_CLOUD_NAME ou VITE_CLOUDINARY_UPLOAD_PRESET não configurados. Usando base64 comprimido como fallback.'
+    );
+    return dataUrl;
+  }
+
   try {
-    if (!storage) {
-      throw new Error('Firebase Storage não inicializado.');
-    }
+    const formData = new FormData();
+    formData.append('file', blob);
+    formData.append('upload_preset', uploadPreset);
+    formData.append('folder', `rifazone/${pasta}`);
 
-    const extensao = 'jpg';
-    const nomeArquivo = `${pasta}/${Date.now()}_${Math.random().toString(36).substring(2, 9)}.${extensao}`;
-    const storageRef = ref(storage, nomeArquivo);
-
-    const snapshot = await uploadBytes(storageRef, blob, {
-      contentType: 'image/jpeg',
-      cacheControl: 'public, max-age=31536000'
+    const url = `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`;
+    const res = await fetch(url, {
+      method: 'POST',
+      body: formData,
     });
 
-    const downloadUrl = await getDownloadURL(snapshot.ref);
-    return downloadUrl;
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new Error(`Cloudinary upload failed: ${res.statusText} - ${errorText}`);
+    }
+
+    const data = await res.json();
+    if (data.secure_url) {
+      return data.secure_url;
+    } else {
+      throw new Error('secure_url não retornado pelo Cloudinary');
+    }
   } catch (error) {
     console.warn(
-      '⚠️ Firebase Storage indisponível ou inacessível. Usando base64 comprimido como fallback:',
+      '⚠️ Cloudinary upload falhou. Usando base64 comprimido como fallback:',
       error
     );
     return dataUrl;

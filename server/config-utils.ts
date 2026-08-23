@@ -30,6 +30,12 @@ export function mergeConfig(ownerId: string, existente: ConfigOrganizador | null
     metaCapiToken = raw ? encryptToken(raw) : null;
   }
 
+  let notificameToken: string | null = existente?.notificameToken ?? null;
+  if (dados.notificameToken !== undefined) {
+    const raw = dados.notificameToken && String(dados.notificameToken).trim() ? String(dados.notificameToken).trim() : null;
+    notificameToken = raw ? encryptToken(raw) : null;
+  }
+
   return {
     ownerId,
     mpAccessToken,
@@ -45,6 +51,7 @@ export function mergeConfig(ownerId: string, existente: ConfigOrganizador | null
       : (conectouAgora && !existente?.mpConectadoEm ? new Date().toISOString() : (existente?.mpConectadoEm ?? null)),
     metaAccessToken,
     metaCapiToken,
+    notificameToken,
     metaAdAccountId: dados.metaAdAccountId !== undefined
       ? (dados.metaAdAccountId ? String(dados.metaAdAccountId).trim() : null)
       : (existente?.metaAdAccountId ?? null),
@@ -68,6 +75,7 @@ export function configParaPainel(config: ConfigOrganizador | null) {
   const plainMp = decryptToken(config?.mpAccessToken);
   const plainMeta = decryptToken(config?.metaAccessToken);
   const plainCapi = decryptToken(config?.metaCapiToken);
+  const plainNotificame = decryptToken(config?.notificameToken);
 
   return {
     mpConfigurado: !!plainMp,
@@ -80,6 +88,8 @@ export function configParaPainel(config: ConfigOrganizador | null) {
     metaTokenMascara: mascarar(plainMeta),
     metaCapiConfigurado: !!plainCapi,
     metaCapiTokenMascara: mascarar(plainCapi),
+    notificameConfigurado: !!plainNotificame,
+    notificameTokenMascara: mascarar(plainNotificame),
     metaAdAccountId: config?.metaAdAccountId || null,
     metaPixelId: config?.metaPixelId || null,
     marca: {

@@ -3,7 +3,7 @@ import { getFirestore, type Firestore, type Transaction } from 'firebase-admin/f
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { Campanha, Cota, Pedido, Comprador, RankingItem, CotaPremiada, ConfigOrganizador, EstiloSalvo, TemaCampanha } from '../src/types.js';
+import { Campanha, Cota, Pedido, Comprador, RankingItem, CotaPremiada, ConfigOrganizador, EstiloSalvo, TemaCampanha, MensagemFila } from '../src/types.js';
 import { Storage, EstatisticasCampanha, MeusNumerosResult, ConfirmarPedidoResult, SorteioResult, DadosConfig } from './storage-interface.js';
 import { mergeConfig } from './config-utils.js';
 import { decryptToken } from './crypto-utils.js';
@@ -79,6 +79,7 @@ export class FirestoreStorage implements Storage {
   private compradoresCol() { return this.db.collection('compradores'); }
   private configsCol() { return this.db.collection('configuracoes'); }
   private estilosCol(ownerId: string) { return this.db.collection('estilos').doc(ownerId).collection('temas'); }
+  private filaCol() { return this.db.collection('mensagens_fila'); }
 
   // --- Campanhas ---
   public async getCampanhas(ownerId?: string): Promise<Campanha[]> {
@@ -531,5 +532,55 @@ export class FirestoreStorage implements Storage {
     if (!doc.exists) return false;
     await docRef.delete();
     return true;
+  }
+
+  // --- Fila de Mensagens (Automação / Outbox) ---
+  public async enfileirarMensagem(msg: Omit<MensagemFila, 'id' | 'criadoEm' | 'status'>): Promise<MensagemFila> {
+    const snap = await this.filaCol().where('chaveIdempotencia', '==', msg.chaveIdempotencia).limit(1).get();
+    if (!snap.empty) {
+      return snap.docs[0].data() as MensagemFila;
+    }
+
+    const id = `msg-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+    const novaMsg: MensagemFila = {
+      ...msg,
+      id,
+      status: 'pendente',
+      criadoEm: new Date().toISOString()
+    };
+
+    await this.filaCol().doc(id).set(novaMsg);
+    return novaMsg;
+  }
+
+  public async listarFilaPendente(limitNum: number): Promise<MensagemFila[]> {
+    const snap = await this.filaCol().where('status', '==', 'pendente').limit(limitNum).get();
+    return snap.docs.map(d => d.data() as MensagemFila);
+  }
+
+  public async marcarStatusMensagem(id: string, status: 'pendente' | 'enviada' | 'erro' | 'cancelada', erro?: string): Promise<MensagemFila | null> {
+    const docRef = this.filaCol().doc(id);
+    const doc = await docRef.get();
+    if (!doc.exists) return null;
+
+    const msg = doc.data() as MensagemFila;
+    msg.status = status;
+    if (erro) msg.erro = erro;
+    if (status === 'enviada') {
+      msg.enviadoEm = new Date().toISOString();
+    }
+
+    await docRef.set(msg);
+    return msg;
+  }
+
+  public async listarTodasMensagensFila(campanhaId?: string): Promise<MensagemFila[]> {
+    let query: FirebaseFirestore.Query = this.filaCol();
+    if (campanhaId) {
+      query = query.where('campanhaId', '==', campanhaId);
+    }
+    const snap = await query.get();
+    const lista = snap.docs.map(d => d.data() as MensagemFila);
+    return lista.sort((a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime());
   }
 }

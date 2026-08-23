@@ -1,0 +1,20 @@
+{
+  "name": "rifazone-whatsapp-worker",
+  "version": "1.0.0",
+  "description": "WhatsApp Web Worker for RifaZone, utilizing whatsapp-web.js and Puppeteer to process and send queued messages.",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "qrcode": "^1.5.3",
+    "whatsapp-web.js": "^1.26.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "author": "RifaZone",
+  "license": "MIT"
+}

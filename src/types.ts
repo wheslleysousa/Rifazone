@@ -152,28 +152,50 @@ export interface CupomDesconto {
   criadoEm?: string;
 }
 
-export interface RegraRemarketingAguardando {
-  id?: string;
-  faltaMin: number; // dispara quando FALTA X min p/ expirar
-  mensagem: string;
-}
-
-export interface RegraRemarketingExpirado {
-  id?: string;
-  aposMin: number; // dispara X min APÓS expirar
+export interface RegraNaoPagou {
+  faltandoMin?: number;      // ex: 5 (antes de expirar)
+  aposExpirarMin?: number;   // ex: 0, 1440 (24h), 10080 (7 dias)
   cupom?: string;
   descontoPct?: number;
-  mensagem: string;
+  mensagem: string;          // suporta {nome},{campanha},{link},{cupom},{numeros}
+}
+
+export interface RegraPago {
+  ativo: boolean;
+  enviarNumeros: boolean;    // manda a lista de cotas ganhas
+  mensagem: string;          // {nome},{campanha},{qtd},{numeros}
 }
 
 export interface RemarketingConfig {
   ativo: boolean;
-  aguardando: RegraRemarketingAguardando[];
-  expirado: RegraRemarketingExpirado[];
+  canal: 'whatsapp' | 'email' | 'ambos';
+  regrasNaoPagou: RegraNaoPagou[];
+  regraPago: RegraPago;
+  somenteSeCampanhaAtiva: boolean; // regras de +24h/+7d só disparam se a campanha ainda estiver publicada
+  // Retrocompatibilidade se necessário
+  aguardando?: any[];
+  expirado?: any[];
+}
+
+export interface MensagemFila {
+  id: string;
+  ownerId: string;
+  campanhaId: string;
+  pedidoId: string;
+  para: string; // whatsapp com DDI 55
+  canal: 'whatsapp' | 'email' | 'ambos';
+  texto: string;
+  tipo: 'nao_pagou' | 'pago';
+  status: 'pendente' | 'enviada' | 'erro' | 'cancelada';
+  erro?: string;
+  chaveIdempotencia: string; // ex: pedidoId+regra
+  criadoEm: string;
+  enviadoEm?: string | null;
 }
 
 export interface Campanha {
   id: string;
+  modalidade?: 'paga' | 'gratis'; // Rifa paga vs Sorteio gratuito
   ownerId?: string; // uid do organizador (Firebase Auth) dono da campanha
   ownerEmail?: string; // email do organizador (referência)
   codigo: string; // curto e único, ex: 'civic-turbo' ou 'iphone-16'
@@ -297,6 +319,7 @@ export interface ConfigOrganizador {
   // Meta Ads (Marketing API) — para a aba de Analytics
   metaAccessToken?: string | null;  // segredo — nunca retornado ao cliente
   metaAdAccountId?: string | null;  // ex: act_1234567890
+  notificameToken?: string | null;  // segredo — para envio via WhatsApp Notificame
   atualizadaEm: string;
 }
 
@@ -334,7 +357,7 @@ export interface Pedido {
   quantidade: number;
   valorTotal: number;
   status: 'pendente' | 'pago' | 'expirado' | 'cancelado';
-  metodoPagamento?: 'pix' | 'cartao' | 'boleto';
+  metodoPagamento?: 'pix' | 'cartao' | 'boleto' | 'gratis';
   mpPaymentId: string | null;
   pixCopiaCola: string | null;
   pixQrCodeBase64: string | null;

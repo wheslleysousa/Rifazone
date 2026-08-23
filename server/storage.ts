@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { Campanha, Cota, Pedido, Comprador, RankingItem, CotaPremiada, ConfigOrganizador, EstiloSalvo, TemaCampanha } from '../src/types.js';
+import { Campanha, Cota, Pedido, Comprador, RankingItem, CotaPremiada, ConfigOrganizador, EstiloSalvo, TemaCampanha, MensagemFila } from '../src/types.js';
 import { Storage, EstatisticasCampanha, MeusNumerosResult, ConfirmarPedidoResult, SorteioResult, DadosConfig } from './storage-interface.js';
 import { mergeConfig } from './config-utils.js';
 import { decryptToken } from './crypto-utils.js';
@@ -17,6 +17,7 @@ const PEDIDOS_FILE = path.join(DATA_DIR, 'pedidos.json');
 const COMPRADORES_FILE = path.join(DATA_DIR, 'compradores.json');
 const CONFIGS_FILE = path.join(DATA_DIR, 'configuracoes.json');
 const ESTILOS_FILE = path.join(DATA_DIR, 'estilos.json');
+const FILA_FILE = path.join(DATA_DIR, 'fila.json');
 
 function loadJson<T>(file: string, fallback: T): T {
   try {
@@ -115,6 +116,7 @@ export class FileStorage implements Storage {
   private configs: Map<string, ConfigOrganizador> = new Map();
   // Estilos de temas salvos
   private estilos: Map<string, EstiloSalvo> = new Map();
+  private fila: Map<string, MensagemFila> = new Map();
 
   constructor() {
     this.loadAll();
@@ -150,6 +152,9 @@ export class FileStorage implements Storage {
 
     const estilosList = loadJson<EstiloSalvo[]>(ESTILOS_FILE, []);
     estilosList.forEach(e => this.estilos.set(e.id, e));
+
+    const filaList = loadJson<MensagemFila[]>(FILA_FILE, []);
+    filaList.forEach(m => this.fila.set(m.id, m));
   }
 
   private saveConfigs() {
@@ -158,6 +163,10 @@ export class FileStorage implements Storage {
 
   private saveEstilos() {
     saveJson(ESTILOS_FILE, Array.from(this.estilos.values()));
+  }
+
+  private saveFila() {
+    saveJson(FILA_FILE, Array.from(this.fila.values()));
   }
 
   private saveCampanhas() {
@@ -633,5 +642,56 @@ export class FileStorage implements Storage {
     this.estilos.delete(id);
     this.saveEstilos();
     return true;
+  }
+
+  // --- Fila de Mensagens (Automação / Outbox) ---
+  public async enfileirarMensagem(msg: Omit<MensagemFila, 'id' | 'criadoEm' | 'status'>): Promise<MensagemFila> {
+    const existingMsg = Array.from(this.fila.values()).find(
+      m => m.chaveIdempotencia === msg.chaveIdempotencia
+    );
+    if (existingMsg) {
+      return existingMsg;
+    }
+
+    const id = `msg-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+    const novaMsg: MensagemFila = {
+      ...msg,
+      id,
+      status: 'pendente',
+      criadoEm: new Date().toISOString()
+    };
+
+    this.fila.set(id, novaMsg);
+    this.saveFila();
+    return novaMsg;
+  }
+
+  public async listarFilaPendente(limitNum: number): Promise<MensagemFila[]> {
+    return Array.from(this.fila.values())
+      .filter(m => m.status === 'pendente')
+      .slice(0, limitNum);
+  }
+
+  public async marcarStatusMensagem(id: string, status: 'pendente' | 'enviada' | 'erro' | 'cancelada', erro?: string): Promise<MensagemFila | null> {
+    const msg = this.fila.get(id);
+    if (!msg) return null;
+
+    msg.status = status;
+    if (erro) msg.erro = erro;
+    if (status === 'enviada') {
+      msg.enviadoEm = new Date().toISOString();
+    }
+
+    this.fila.set(id, msg);
+    this.saveFila();
+    return msg;
+  }
+
+  public async listarTodasMensagensFila(campanhaId?: string): Promise<MensagemFila[]> {
+    let list = Array.from(this.fila.values());
+    if (campanhaId) {
+      list = list.filter(m => m.campanhaId === campanhaId);
+    }
+    return list.sort((a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime());
   }
 }

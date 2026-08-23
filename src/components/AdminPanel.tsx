@@ -13,13 +13,13 @@ import {
   traduzErroAuth, type User
 } from '../lib/firebase';
 
-// Sub-components import
-import { DashboardView } from './admin/DashboardView';
-import { AnalyticsView } from './admin/AnalyticsView';
-import { RemarketingView } from './admin/RemarketingView';
-import { ClientesView } from './admin/ClientesView';
-import { SorteadorView } from './admin/SorteadorView';
-import { CampanhasFormView } from './admin/CampanhasFormView';
+// Sub-components lazy loaded
+const DashboardView = React.lazy(() => import('./admin/DashboardView').then(m => ({ default: m.DashboardView })));
+const AnalyticsView = React.lazy(() => import('./admin/AnalyticsView').then(m => ({ default: m.AnalyticsView })));
+const RemarketingView = React.lazy(() => import('./admin/RemarketingView').then(m => ({ default: m.RemarketingView })));
+const ClientesView = React.lazy(() => import('./admin/ClientesView').then(m => ({ default: m.ClientesView })));
+const SorteadorView = React.lazy(() => import('./admin/SorteadorView').then(m => ({ default: m.SorteadorView })));
+const CampanhasFormView = React.lazy(() => import('./admin/CampanhasFormView').then(m => ({ default: m.CampanhasFormView })));
 
 interface Props {
   onSelectCampanha: (codigo: string) => void;
@@ -501,6 +501,7 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
       titulo: '',
       subtitulo: '',
       descricao: '',
+      modalidade: 'paga',
       bannerUrl: '',
       fotosCarrossel: [],
       youtubeUrl: '',
@@ -796,6 +797,12 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
 
         {/* Container Principal */}
         <main className="flex-1 p-4 sm:p-6 max-w-6xl w-full mx-auto space-y-6">
+          <React.Suspense fallback={
+            <div className="flex flex-col items-center justify-center p-12 gap-3 bg-slate-900 border border-slate-800 rounded-2xl">
+              <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+              <p className="text-sm font-medium text-slate-400">Carregando visualização...</p>
+            </div>
+          }>
 
           {/* 1. DASHBOARD */}
           {abaAtiva === 'dashboard' && (
@@ -1626,6 +1633,7 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
             </div>
           )}
 
+          </React.Suspense>
         </main>
       </div>
 

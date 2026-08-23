@@ -1,11 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   MessageSquare, Clock, Copy, Check, Send, AlertCircle, 
-  ExternalLink, Search, Flame, Sparkles, Filter, RefreshCw,
-  Plus, Trash2, Tag, Percent, Settings2, Play, CheckCircle2,
-  Mail, PhoneCall
+  Search, RefreshCw, Plus, Trash2, Tag, Settings2, Play, 
+  CheckCircle2, Mail, PhoneCall, Ban, Eye, X, ArrowRight, HelpCircle
 } from 'lucide-react';
-import { Pedido, Campanha, RegraRemarketingAguardando, RegraRemarketingExpirado, CupomDesconto } from '../../types';
+import { Pedido, Campanha, CupomDesconto, MensagemFila } from '../../types';
 
 interface Props {
   campanhas?: Campanha[];
@@ -21,75 +20,112 @@ export const RemarketingView: React.FC<Props> = ({
   authFetch 
 }) => {
   const [subAba, setSubAba] = useState<'fila' | 'regras' | 'cupons'>('fila');
-  const [termoBusca, setTermoBusca] = useState('');
-  const [filtroStatus, setFiltroStatus] = useState<'todos' | 'pendente' | 'expirado'>('pendente');
-  const [copiadoId, setCopiadoId] = useState<string | null>(null);
-  const [templateAtivo, setTemplateAtivo] = useState<'pendente' | 'urgencia' | 'desconto'>('pendente');
+  
+  // Fila de Mensagens (Outbox)
+  const [filaMensagens, setFilaMensagens] = useState<MensagemFila[]>([]);
+  const [carregandoFila, setCarregandoFila] = useState(false);
+  const [termoBuscaFila, setTermoBuscaFila] = useState('');
+  const [filtroStatusFila, setFiltroStatusFila] = useState<'todos' | 'pendente' | 'enviada' | 'erro' | 'cancelada'>('todos');
+  const [filtroCanalFila, setFiltroCanalFila] = useState<'todos' | 'whatsapp' | 'email'>('todos');
+  
+  // Estado de conexão do worker externo de WhatsApp Web
+  const [workerStatus, setWorkerStatus] = useState<{ conectado: boolean; numero?: string; atualizadoEm?: string } | null>(null);
+  const [carregandoWorker, setCarregandoWorker] = useState(false);
+
+  // Detalhe de Mensagem para Visualização Completa
+  const [msgDetalhe, setMsgDetalhe] = useState<MensagemFila | null>(null);
 
   // Seleção de campanha para configuração de regras/cupons
   const [campanhaIdSel, setCampanhaIdSel] = useState<string>(campanhas[0]?.id || '');
   const campanhaSel = campanhas.find(c => c.id === campanhaIdSel) || campanhas[0];
 
-  // Estado local para edição de regras e cupons
-  const [remAtivo, setRemAtivo] = useState<boolean>(campanhaSel?.remarketing?.ativo ?? false);
-  const [regrasAguardando, setRegrasAguardando] = useState<RegraRemarketingAguardando[]>(
-    campanhaSel?.remarketing?.aguardando || [
-      { id: '1', faltaMin: 5, mensagem: 'Olá {nome}! Sua reserva na {campanha} está expirando em {minutos} min. Pague o Pix para garantir: {link}' }
-    ]
-  );
-  const [regrasExpirado, setRegrasExpirado] = useState<RegraRemarketingExpirado[]>(
-    campanhaSel?.remarketing?.expirado || [
-      { id: '2', aposMin: 30, cupom: 'VOLTA10', descontoPct: 10, mensagem: 'Oi {nome}! Seu pedido na {campanha} expirou. Use o cupom {cupom} e ganhe {descontoPct}% de desconto: {link}' }
-    ]
-  );
-  const [cupons, setCupons] = useState<CupomDesconto[]>(campanhaSel?.cupons || []);
+  // Estados das Regras de Remarketing (Automação Hub)
+  const [remAtivo, setRemAtivo] = useState<boolean>(false);
+  const [canal, setCanal] = useState<'whatsapp' | 'email' | 'ambos'>('whatsapp');
+  const [somenteSeCampanhaAtiva, setSomenteSeCampanhaAtiva] = useState<boolean>(true);
+  const [regrasNaoPagou, setRegrasNaoPagou] = useState<any[]>([]);
+  const [regraPago, setRegraPago] = useState<any>({
+    ativo: false,
+    enviarNumeros: true,
+    mensagem: 'Olá {nome}! Seu pagamento para a campanha {campanha} foi confirmado com sucesso. Seus números: {numeros}. Boa sorte! 🍀'
+  });
+  
+  const [cupons, setCupons] = useState<CupomDesconto[]>([]);
 
+  // Estados auxiliares
+  const [copiadoId, setCopiadoId] = useState<string | null>(null);
   const [salvandoConfig, setSalvandoConfig] = useState(false);
   const [msgFeedback, setMsgFeedback] = useState('');
   const [executandoMotor, setExecutandoMotor] = useState(false);
   const [resultadoMotor, setResultadoMotor] = useState<any>(null);
+  const [processandoFila, setProcessandoFila] = useState(false);
 
-  // Atualiza estado local quando troca a campanha selecionada
-  React.useEffect(() => {
+  // Carrega o status do worker de WhatsApp
+  const fetchWorkerStatus = async () => {
+    if (!authFetch) return;
+    setCarregandoWorker(true);
+    try {
+      const res = await authFetch('/api/admin/worker/status');
+      if (res.ok) {
+        const data = await res.json();
+        setWorkerStatus(data);
+      }
+    } catch (err) {
+      console.error('Erro ao buscar status do worker:', err);
+    } finally {
+      setCarregandoWorker(false);
+    }
+  };
+
+  // Carrega o status do worker no mount e periodicamente a cada 15s
+  useEffect(() => {
+    fetchWorkerStatus();
+    const interval = setInterval(fetchWorkerStatus, 15000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Carrega a fila de mensagens do outbox
+  const fetchFila = async () => {
+    if (!authFetch) return;
+    setCarregandoFila(true);
+    try {
+      const res = await authFetch('/api/admin/fila-mensagens');
+      if (res.ok) {
+        const data = await res.json();
+        setFilaMensagens(data);
+      }
+    } catch (err) {
+      console.error('Erro ao buscar fila de mensagens:', err);
+    } finally {
+      setCarregandoFila(false);
+    }
+  };
+
+  // Carrega fila ao entrar na sub-aba de fila
+  useEffect(() => {
+    if (subAba === 'fila') {
+      fetchFila();
+    }
+  }, [subAba]);
+
+  // Atualiza estados quando troca a campanha selecionada
+  useEffect(() => {
     if (campanhaSel) {
       setRemAtivo(campanhaSel.remarketing?.ativo ?? false);
-      setRegrasAguardando(
-        campanhaSel.remarketing?.aguardando || [
-          { id: '1', faltaMin: 5, mensagem: 'Olá {nome}! Sua reserva na {campanha} está expirando em {minutos} min. Pague o Pix para garantir: {link}' }
-        ]
-      );
-      setRegrasExpirado(
-        campanhaSel.remarketing?.expirado || [
-          { id: '2', aposMin: 30, cupom: 'VOLTA10', descontoPct: 10, mensagem: 'Oi {nome}! Seu pedido na {campanha} expirou. Use o cupom {cupom} e ganhe {descontoPct}% de desconto: {link}' }
-        ]
-      );
+      setCanal(campanhaSel.remarketing?.canal || 'whatsapp');
+      setSomenteSeCampanhaAtiva(campanhaSel.remarketing?.somenteSeCampanhaAtiva ?? true);
+      setRegrasNaoPagou(campanhaSel.remarketing?.regrasNaoPagou || []);
+      setRegraPago(campanhaSel.remarketing?.regraPago || {
+        ativo: false,
+        enviarNumeros: true,
+        mensagem: 'Olá {nome}! Seu pagamento para a campanha {campanha} foi confirmado com sucesso. Seus números: {numeros}. Boa sorte! 🍀'
+      });
       setCupons(campanhaSel.cupons || []);
     }
   }, [campanhaIdSel, campanhas]);
 
-  // Filtragem de pedidos
-  const pedidosFiltrados = pedidos.filter(p => {
-    const combinaStatus = filtroStatus === 'todos' ? (p.status === 'pendente' || p.status === 'expirado') : p.status === filtroStatus;
-    const combinaBusca = !termoBusca || 
-      p.comprador?.nome?.toLowerCase().includes(termoBusca.toLowerCase()) ||
-      p.comprador?.whatsapp?.includes(termoBusca) ||
-      p.id.toLowerCase().includes(termoBusca.toLowerCase());
-    return combinaStatus && combinaBusca;
-  });
-
-  const formatWhatsapp = (val: string) => {
-    const raw = val.replace(/\D/g, '');
-    return raw.startsWith('55') ? raw : `55${raw}`;
-  };
-
-  const copiarPix = (pix: string, id: string) => {
-    navigator.clipboard.writeText(pix);
-    setCopiadoId(id);
-    setTimeout(() => setCopiadoId(null), 3000);
-  };
-
-  // Salvar configurações de remarketing e cupons na campanha
-  const handleSalvarRegras = async () => {
+  // Salva a configuração atualizada de remarketing e cupons na campanha
+  const handleSalvarConfiguracoes = async () => {
     if (!campanhaSel || !authFetch) return;
     setSalvandoConfig(true);
     setMsgFeedback('');
@@ -99,8 +135,10 @@ export const RemarketingView: React.FC<Props> = ({
         ...campanhaSel,
         remarketing: {
           ativo: remAtivo,
-          aguardando: regrasAguardando,
-          expirado: regrasExpirado
+          canal: canal,
+          somenteSeCampanhaAtiva: somenteSeCampanhaAtiva,
+          regrasNaoPagou: regrasNaoPagou,
+          regraPago: regraPago
         },
         cupons: cupons
       };
@@ -112,7 +150,7 @@ export const RemarketingView: React.FC<Props> = ({
       });
 
       if (res.ok) {
-        setMsgFeedback('Configurações de remarketing salvas com sucesso!');
+        setMsgFeedback('Configurações salvas e aplicadas com sucesso!');
         onRefresh();
       } else {
         const err = await res.json();
@@ -126,8 +164,8 @@ export const RemarketingView: React.FC<Props> = ({
     }
   };
 
-  // Disparar motor de remarketing manualmente
-  const handleExecutarMotor = async () => {
+  // Disparar motor de enfileiramento manualmente (Scan de pedidos para outbox)
+  const handleExecutarEnfileirador = async () => {
     setExecutandoMotor(true);
     setResultadoMotor(null);
     try {
@@ -137,55 +175,106 @@ export const RemarketingView: React.FC<Props> = ({
       });
       const data = await res.json();
       if (res.ok) {
-        setResultadoMotor(data);
+        setResultadoMotor({ type: 'enfileirador', ...data });
+        if (subAba === 'fila') fetchFila();
         onRefresh();
       } else {
-        alert(data.error || 'Erro ao executar motor.');
+        alert(data.error || 'Erro ao varrer pedidos pendentes.');
       }
     } catch (err) {
-      alert('Falha de conexão ao executar motor.');
+      alert('Falha de conexão ao executar enfileiramento.');
     } finally {
       setExecutandoMotor(false);
     }
   };
 
-  // Gerar mensagem de WhatsApp rápida para o comprador
-  const gerarMensagemWhatsApp = (p: Pedido) => {
-    const nome = p.comprador?.nome?.split(' ')[0] || 'Amigo(a)';
-    const valor = p.valorTotal.toFixed(2).replace('.', ',');
-    const cotas = p.quantidade;
-    const pix = p.pixCopiaCola || '';
-    const link = `${window.location.origin}/c/${p.campanhaId}?pedido=${p.id}`;
-
-    if (p.status === 'expirado') {
-      return encodeURIComponent(
-        `Oi ${nome}! 👋 Notamos que seu pedido de ${cotas} cotas na rifa expirou.\n\n` +
-        `Você ainda pode reativar seu pedido e participar antes que as cotas esgotem:\n\n` +
-        `${link}\n\n` +
-        `Qualquer dúvida, estamos por aqui! 🍀`
-      );
+  // Processar fila (Envia as mensagens do outbox)
+  const handleProcessarFilaManual = async () => {
+    setProcessandoFila(true);
+    setResultadoMotor(null);
+    try {
+      const fetchFn = authFetch || fetch;
+      const res = await fetchFn('/api/tarefas/processar-fila?secret=rifazone_cron_secret_default', {
+        method: 'POST'
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setResultadoMotor({ type: 'processador', ...data });
+        fetchFila();
+        onRefresh();
+      } else {
+        alert(data.error || 'Erro ao processar fila de outbox.');
+      }
+    } catch (err) {
+      alert('Falha de conexão ao processar fila.');
+    } finally {
+      setProcessandoFila(false);
     }
+  };
 
-    if (templateAtivo === 'urgencia') {
-      return encodeURIComponent(
-        `🚨 *ÚLTIMA CHAMADA, ${nome.toUpperCase()}!* 🚨\n\n` +
-        `Sua reserva de ${cotas} cotas por R$ ${valor} expirará em poucos minutos.\n\n` +
-        `Pague rápido com o Pix Copia e Cola:\n\n${pix}\n\n` +
-        `Garanta seus números antes que sejam liberados para outro comprador! 🔥`
-      );
-    } else if (templateAtivo === 'desconto') {
-      return encodeURIComponent(
-        `Oi ${nome}! 🎉 Seus números no sorteio já estão separados!\nTotal: R$ ${valor} por ${cotas} cotas.\n\n` +
-        `Chave Pix para pagamento instantâneo:\n${pix}\n\n` +
-        `Obrigado pela preferência e boa sorte!`
-      );
+  // Cancelar/Limpar todas as mensagens pendentes da fila
+  const handleLimparFilaMensagens = async () => {
+    if (!window.confirm('Deseja realmente cancelar todas as mensagens pendentes ou com erro na fila?')) {
+      return;
+    }
+    try {
+      if (!authFetch) return;
+      const res = await authFetch('/api/admin/fila-mensagens/limpar', {
+        method: 'POST'
+      });
+      if (res.ok) {
+        alert('Todas as mensagens da fila foram canceladas com sucesso.');
+        fetchFila();
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Erro ao limpar fila de mensagens.');
+      }
+    } catch (err) {
+      alert('Falha ao limpar fila de mensagens.');
+    }
+  };
+
+  // Filtragem da fila de outbox
+  const filaFiltrada = filaMensagens.filter(m => {
+    const combinaStatus = filtroStatusFila === 'todos' ? true : m.status === filtroStatusFila;
+    const combinaCanal = filtroCanalFila === 'todos' ? true : m.canal === filtroCanalFila;
+    const combinaBusca = !termoBuscaFila || 
+      m.id.toLowerCase().includes(termoBuscaFila.toLowerCase()) ||
+      m.para.includes(termoBuscaFila) ||
+      m.texto.toLowerCase().includes(termoBuscaFila.toLowerCase()) ||
+      m.pedidoId.toLowerCase().includes(termoBuscaFila.toLowerCase());
+    return combinaStatus && combinaCanal && combinaBusca;
+  });
+
+  // Funções utilitárias para regras
+  const adicionarRegraNaoPagou = (tipo: 'faltando' | 'apos') => {
+    if (tipo === 'faltando') {
+      setRegrasNaoPagou([
+        ...regrasNaoPagou,
+        {
+          faltandoMin: 15,
+          mensagem: 'Olá {nome}! Sua reserva na campanha {campanha} expira em {minutos} minutos. Garanta seus números acessando o link: {link}'
+        }
+      ]);
     } else {
-      return encodeURIComponent(
-        `Olá ${nome}! 👋 Notamos que sua reserva de *${cotas} cotas* (R$ ${valor}) no sorteio oficial está aguardando pagamento.\n\n` +
-        `Para garantir seus números agora mesmo via Pix Copia e Cola:\n\n${pix}\n\n` +
-        `Assim que pagar, sua participação é confirmada na hora! 🍀`
-      );
+      setRegrasNaoPagou([
+        ...regrasNaoPagou,
+        {
+          aposExpirarMin: 60,
+          cupom: 'VOLTA5',
+          descontoPct: 5,
+          mensagem: 'Oi {nome}! Seu pedido na campanha {campanha} expirou. Mas calma: use o cupom {cupom} e tenha {descontoPct}% de desconto refazendo sua reserva aqui: {link}'
+        }
+      ]);
     }
+  };
+
+  const removerRegraNaoPagou = (index: number) => {
+    setRegrasNaoPagou(regrasNaoPagou.filter((_, i) => i !== index));
+  };
+
+  const atualizarRegraNaoPagou = (index: number, campos: any) => {
+    setRegrasNaoPagou(regrasNaoPagou.map((item, i) => i === index ? { ...item, ...campos } : item));
   };
 
   return (
@@ -197,30 +286,43 @@ export const RemarketingView: React.FC<Props> = ({
           <div>
             <h1 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
               <MessageSquare className="w-6 h-6 text-emerald-400" />
-              Recuperação de Vendas & Remarketing
+              Central de Automação & Outbox
             </h1>
             <p className="text-slate-400 text-xs mt-0.5">
-              Automatize lembretes de Pix pendente, envie cupons de desconto para pedidos expirados e cobre no WhatsApp.
+              Configure regras de remarketing automatizadas para Pix pendentes e aprovados, gerencie cupons e acompanhe a fila de mensagens (Outbox).
             </p>
           </div>
 
-          <div className="flex items-center gap-2 self-start sm:self-auto">
+          <div className="flex flex-wrap items-center gap-2">
             <button
-              onClick={handleExecutarMotor}
+              onClick={handleExecutarEnfileirador}
               disabled={executandoMotor}
-              className="px-3.5 py-2 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 text-slate-950 font-black rounded-xl text-xs flex items-center gap-1.5 shadow-lg shadow-emerald-500/20 transition"
-              title="Executar robô de disparo automatizado agora"
+              className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-60 text-slate-200 font-bold border border-slate-700 rounded-xl text-xs flex items-center gap-1.5 transition"
+              title="Varrer pedidos e enfileirar mensagens de remarketing pendentes"
             >
-              {executandoMotor ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
-              Disparar Motor de Remarketing
+              {executandoMotor ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5 text-emerald-400" />}
+              Varrer Pedidos
             </button>
 
             <button
-              onClick={onRefresh}
-              className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold border border-slate-700 flex items-center gap-1.5 transition"
+              onClick={handleProcessarFilaManual}
+              disabled={processandoFila}
+              className="px-3.5 py-2 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 text-slate-950 font-black rounded-xl text-xs flex items-center gap-1.5 shadow-lg shadow-emerald-500/20 transition"
+              title="Processar mensagens pendentes da fila (enviar ao Notificame/E-mail)"
             >
-              <RefreshCw className="w-3.5 h-3.5" />
-              Atualizar
+              {processandoFila ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+              Processar Outbox
+            </button>
+
+            <button
+              onClick={() => {
+                if (subAba === 'fila') fetchFila();
+                onRefresh();
+              }}
+              className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl border border-slate-700 transition"
+              title="Sincronizar dados"
+            >
+              <RefreshCw className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -234,7 +336,7 @@ export const RemarketingView: React.FC<Props> = ({
             }`}
           >
             <PhoneCall className="w-3.5 h-3.5" />
-            Fila no WhatsApp ({pedidos.filter(p => p.status === 'pendente' || p.status === 'expirado').length})
+            Fila Outbox ({filaMensagens.filter(m => m.status === 'pendente').length})
           </button>
 
           <button
@@ -244,7 +346,7 @@ export const RemarketingView: React.FC<Props> = ({
             }`}
           >
             <Settings2 className="w-3.5 h-3.5" />
-            Regras de Envio
+            Regras de Automação
           </button>
 
           <button
@@ -257,24 +359,62 @@ export const RemarketingView: React.FC<Props> = ({
             Cupons ({cupons.length})
           </button>
         </div>
+
+        {/* Status do Conector WhatsApp Web (Worker) */}
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-4 bg-slate-950 border border-slate-800 rounded-xl">
+          <div className="flex items-center gap-3">
+            <div className={`p-2 rounded-lg ${workerStatus?.conectado ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-800 text-slate-500'}`}>
+              <MessageSquare className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black text-slate-200">Conector WhatsApp Web (Worker Externo)</span>
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black ${
+                  workerStatus?.conectado 
+                    ? 'bg-emerald-500/20 text-emerald-400' 
+                    : 'bg-slate-800 text-slate-400'
+                }`}>
+                  {workerStatus?.conectado ? 'CONECTADO' : 'DESCONECTADO'}
+                </span>
+              </div>
+              <p className="text-slate-400 text-[11px] mt-0.5">
+                {workerStatus?.conectado 
+                  ? `Número conectado: +${workerStatus.numero}. Fila outbox processada por cron local a cada 15s.`
+                  : 'Nenhum número pareado no momento. Conecte o worker externo e escaneie o código QR.'
+                }
+              </p>
+            </div>
+          </div>
+          {workerStatus?.atualizadoEm && (
+            <div className="text-[10px] text-slate-500 font-medium self-end md:self-center">
+              Último sinal: {Math.max(0, Math.round((Date.now() - new Date(workerStatus.atualizadoEm).getTime()) / 1000))}s atrás
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Exibição dos resultados do motor se disparado */}
+      {/* Alertas de Motor / Feedback de Ações */}
       {resultadoMotor && (
         <div className="p-4 bg-slate-900 border border-emerald-500/40 rounded-2xl text-xs text-slate-300 space-y-2 animate-in fade-in">
           <div className="flex items-center justify-between">
             <span className="font-black text-emerald-400 flex items-center gap-1.5 text-sm">
               <CheckCircle2 className="w-4 h-4" />
-              Execução do Motor Concluída! Disparados: {resultadoMotor.disparados}
+              {resultadoMotor.type === 'enfileirador' 
+                ? `Venda varrida! Enfileiradas: ${resultadoMotor.enfileirados} novas mensagens` 
+                : `Outbox processada! Sucesso: ${resultadoMotor.sucesso} | Falhas: ${resultadoMotor.erro}`}
             </span>
-            <button onClick={() => setResultadoMotor(null)} className="text-slate-500 hover:text-white text-xs">Fechar</button>
+            <button onClick={() => setResultadoMotor(null)} className="text-slate-500 hover:text-white">
+              <X className="w-4 h-4" />
+            </button>
           </div>
           {resultadoMotor.detalhes && resultadoMotor.detalhes.length > 0 && (
             <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1 font-mono text-[11px] max-h-40 overflow-y-auto">
               {resultadoMotor.detalhes.map((d: any, idx: number) => (
                 <div key={idx} className="flex items-center justify-between py-0.5 border-b border-slate-800/40 last:border-0">
-                  <span className="text-slate-200">{d.comprador} (Pedido {d.pedidoId})</span>
-                  <span className="text-emerald-400 uppercase font-bold">{d.tipo} ({d.regra})</span>
+                  <span className="text-slate-300">Para: {d.para}</span>
+                  <span className={`font-bold ${d.status === 'enviada' || d.status === 'simulado' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    {d.status || d.tipo} {d.erro ? `(${d.erro})` : ''}
+                  </span>
                 </div>
               ))}
             </div>
@@ -283,165 +423,233 @@ export const RemarketingView: React.FC<Props> = ({
       )}
 
       {/* ----------------------------------------------------
-          SUB-ABA 1: FILA DE RECUPERAÇÃO / WHATSAPP MANUALE
+          SUB-ABA 1: FILA DE MENSAGENS (OUTBOX)
          ---------------------------------------------------- */}
       {subAba === 'fila' && (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
           
-          {/* Seletor de Modelo e Filtros */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
-            <div className="space-y-1.5">
-              <span className="text-xs font-bold text-slate-400 block">Modelo de Cobrança WhatsApp:</span>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => setTemplateAtivo('pendente')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
-                    templateAtivo === 'pendente'
-                      ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
-                      : 'bg-slate-800 text-slate-400 hover:text-white'
-                  }`}
-                >
-                  👋 Lembrete Amigável
-                </button>
-                <button
-                  onClick={() => setTemplateAtivo('urgencia')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
-                    templateAtivo === 'urgencia'
-                      ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                      : 'bg-slate-800 text-slate-400 hover:text-white'
-                  }`}
-                >
-                  🚨 Senso de Urgência
-                </button>
-                <button
-                  onClick={() => setTemplateAtivo('desconto')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
-                    templateAtivo === 'desconto'
-                      ? 'bg-purple-500 text-white shadow-md shadow-purple-500/20'
-                      : 'bg-slate-800 text-slate-400 hover:text-white'
-                  }`}
-                >
-                  🎉 Confirmação Rápida
-                </button>
-              </div>
-            </div>
-
-            {/* Filtros de Lista */}
-            <div className="flex items-center gap-2">
+          {/* Barra de Filtros da Fila */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-slate-800">
+            <div className="flex flex-wrap items-center gap-2">
               <select
-                value={filtroStatus}
-                onChange={e => setFiltroStatus(e.target.value as any)}
+                value={filtroStatusFila}
+                onChange={e => setFiltroStatusFila(e.target.value as any)}
                 className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-emerald-500"
               >
-                <option value="pendente">Status: Aguardando Pix</option>
-                <option value="expirado">Status: Expirados</option>
-                <option value="todos">Status: Todos os Não-Pagos</option>
+                <option value="todos">Status: Todos</option>
+                <option value="pendente">Status: Pendente</option>
+                <option value="enviada">Status: Enviada</option>
+                <option value="erro">Status: Erro (Falhou)</option>
+                <option value="cancelada">Status: Cancelada</option>
               </select>
 
+              <select
+                value={filtroCanalFila}
+                onChange={e => setFiltroCanalFila(e.target.value as any)}
+                className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-emerald-500"
+              >
+                <option value="todos">Canal: Todos</option>
+                <option value="whatsapp">Canal: WhatsApp</option>
+                <option value="email">Canal: E-mail</option>
+              </select>
+
+              {(filtroStatusFila !== 'todos' || filtroCanalFila !== 'todos' || termoBuscaFila) && (
+                <button
+                  onClick={() => {
+                    setFiltroStatusFila('todos');
+                    setFiltroCanalFila('todos');
+                    setTermoBuscaFila('');
+                  }}
+                  className="px-2.5 py-1.5 bg-slate-800 text-xs text-slate-300 rounded-lg hover:text-white"
+                >
+                  Limpar Filtros
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
               <div className="relative">
                 <input
                   type="text"
-                  placeholder="Nome ou WhatsApp..."
-                  value={termoBusca}
-                  onChange={e => setTermoBusca(e.target.value)}
-                  className="bg-slate-950 border border-slate-700 rounded-xl pl-8 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:border-emerald-500 focus:outline-none w-48"
+                  placeholder="Buscar destinatário ou texto..."
+                  value={termoBuscaFila}
+                  onChange={e => setTermoBuscaFila(e.target.value)}
+                  className="bg-slate-950 border border-slate-700 rounded-xl pl-8 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:border-emerald-500 focus:outline-none w-56"
                 />
                 <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-3" />
               </div>
+
+              <button
+                onClick={handleLimparFilaMensagens}
+                className="px-3.5 py-2 bg-slate-950 border border-rose-500/30 hover:bg-rose-500/10 text-rose-400 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+                title="Limpar mensagens com erro e pendentes da outbox"
+              >
+                <Ban className="w-3.5 h-3.5" />
+                Limpar Fila
+              </button>
             </div>
           </div>
 
-          {/* Lista de Pedidos */}
-          {pedidosFiltrados.length > 0 ? (
-            <div className="space-y-3">
-              {pedidosFiltrados.map(p => {
-                const msg = gerarMensagemWhatsApp(p);
-                const linkWhats = `https://wa.me/${formatWhatsapp(p.comprador?.whatsapp || '')}?text=${msg}`;
-
-                return (
-                  <div
-                    key={p.id}
-                    className="p-4 bg-slate-950/70 border border-slate-800 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-4"
-                  >
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-white text-sm">
-                          {p.comprador?.nome || 'Comprador'}
-                        </span>
-                        <span className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded border flex items-center gap-1 ${
-                          p.status === 'pendente' 
-                            ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
-                            : 'bg-rose-500/20 text-rose-300 border-rose-500/30'
-                        }`}>
-                          <Clock className="w-3 h-3" />
-                          {p.status === 'pendente' ? 'Aguardando Pix' : 'Expirado'}
-                        </span>
-
-                        {p.remarketingEnviado && p.remarketingEnviado.length > 0 && (
-                          <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 text-[10px] font-bold rounded border border-emerald-500/30">
-                            Auto Disparado ({p.remarketingEnviado.length})
+          {/* Listagem da Fila de Mensagens */}
+          {carregandoFila ? (
+            <div className="py-12 text-center text-slate-400 text-xs flex flex-col items-center justify-center gap-2">
+              <RefreshCw className="w-6 h-6 animate-spin text-emerald-400" />
+              Buscando mensagens da outbox...
+            </div>
+          ) : filaFiltrada.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-800 text-slate-400 font-bold uppercase text-[10px]">
+                    <th className="py-3 px-4">ID / Criação</th>
+                    <th className="py-3 px-4">Destinatário</th>
+                    <th className="py-3 px-4">Canal / Tipo</th>
+                    <th className="py-3 px-4">Conteúdo</th>
+                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4 text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60">
+                  {filaFiltrada.map((msg) => (
+                    <tr key={msg.id} className="hover:bg-slate-950/45 transition">
+                      <td className="py-3 px-4 font-mono text-[10px] text-slate-500">
+                        <div className="text-slate-300 font-bold">{msg.id.slice(-8).toUpperCase()}</div>
+                        <div>{new Date(msg.criadoEm).toLocaleDateString('pt-BR')} {new Date(msg.criadoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
+                      </td>
+                      <td className="py-3 px-4 font-bold text-slate-200">
+                        {msg.para}
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-1">
+                          {msg.canal === 'whatsapp' ? (
+                            <span className="px-1.5 py-0.5 bg-emerald-500/10 text-emerald-400 text-[9px] font-bold uppercase rounded border border-emerald-500/20">Whats</span>
+                          ) : msg.canal === 'email' ? (
+                            <span className="px-1.5 py-0.5 bg-sky-500/10 text-sky-400 text-[9px] font-bold uppercase rounded border border-sky-500/20">E-mail</span>
+                          ) : (
+                            <span className="px-1.5 py-0.5 bg-purple-500/10 text-purple-400 text-[9px] font-bold uppercase rounded border border-purple-500/20">Ambos</span>
+                          )}
+                          <span className="text-slate-400 text-[10px] font-medium capitalize">({msg.tipo})</span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-slate-300 max-w-xs truncate">
+                        {msg.texto}
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="space-y-0.5">
+                          <span className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded border inline-block ${
+                            msg.status === 'pendente'
+                              ? 'bg-amber-500/15 text-amber-400 border-amber-500/20'
+                              : msg.status === 'enviada'
+                              ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20'
+                              : msg.status === 'erro'
+                              ? 'bg-rose-500/15 text-rose-400 border-rose-500/20'
+                              : 'bg-slate-800 text-slate-500 border-slate-700'
+                          }`}>
+                            {msg.status}
                           </span>
-                        )}
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
-                        <span>WhatsApp: <strong className="text-slate-200">{p.comprador?.whatsapp}</strong></span>
-                        <span>•</span>
-                        <span>Cotas: <strong className="text-emerald-400">{p.quantidade}</strong></span>
-                        <span>•</span>
-                        <span>Valor: <strong className="text-white">R$ {p.valorTotal.toFixed(2).replace('.', ',')}</strong></span>
-                        <span>•</span>
-                        <span>Expira/Expirou: {new Date(p.expiraEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 self-end md:self-auto">
-                      {p.pixCopiaCola && p.status === 'pendente' && (
+                          {msg.erro && (
+                            <div className="text-[10px] text-rose-400 truncate max-w-[150px]" title={msg.erro}>
+                              {msg.erro}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-right">
                         <button
-                          onClick={() => copiarPix(p.pixCopiaCola!, p.id)}
-                          className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold border border-slate-700 flex items-center gap-1.5 transition"
-                          title="Copiar Código Pix"
+                          onClick={() => setMsgDetalhe(msg)}
+                          className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg transition"
+                          title="Ver Mensagem Completa"
                         >
-                          {copiadoId === p.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                          {copiadoId === p.id ? 'Copiado!' : 'Pix'}
+                          <Eye className="w-3.5 h-3.5" />
                         </button>
-                      )}
-
-                      <a
-                        href={linkWhats}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl text-xs font-black flex items-center gap-1.5 shadow-md shadow-emerald-500/20 transition"
-                      >
-                        <Send className="w-3.5 h-3.5" />
-                        Cobrar no WhatsApp
-                      </a>
-                    </div>
-                  </div>
-                );
-              })}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           ) : (
             <div className="py-12 text-center text-slate-500 text-xs bg-slate-950/40 rounded-xl border border-slate-800/60">
               <Check className="w-8 h-8 mx-auto mb-2 text-emerald-500/50" />
-              Nenhum pedido no status selecionado no momento!
+              Nenhuma mensagem encontrada na outbox com os filtros atuais.
             </div>
           )}
         </div>
       )}
 
+      {/* Modal para Visualização Detalhada da Mensagem */}
+      {msgDetalhe && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-5 space-y-4 shadow-2xl relative">
+            <button 
+              onClick={() => setMsgDetalhe(null)} 
+              className="absolute right-4 top-4 text-slate-400 hover:text-white transition"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <h3 className="font-black text-white text-base flex items-center gap-2 border-b border-slate-800 pb-3">
+              <Eye className="w-5 h-5 text-emerald-400" />
+              Detalhes da Mensagem Outbox
+            </h3>
+
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800/60">
+                <span className="text-slate-500 block font-bold text-[10px] uppercase">ID do Registro</span>
+                <span className="text-slate-300 font-mono text-[10px]">{msgDetalhe.id}</span>
+              </div>
+              <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800/60">
+                <span className="text-slate-500 block font-bold text-[10px] uppercase">Destinatário</span>
+                <span className="text-slate-200 font-bold text-sm">{msgDetalhe.para}</span>
+              </div>
+              <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800/60">
+                <span className="text-slate-500 block font-bold text-[10px] uppercase">Status de Envio</span>
+                <span className={`font-bold capitalize ${msgDetalhe.status === 'enviada' ? 'text-emerald-400' : msgDetalhe.status === 'erro' ? 'text-rose-400' : 'text-amber-400'}`}>{msgDetalhe.status}</span>
+              </div>
+              <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800/60">
+                <span className="text-slate-500 block font-bold text-[10px] uppercase">Canal e Tipo</span>
+                <span className="text-slate-300 font-medium capitalize">{msgDetalhe.canal} ({msgDetalhe.tipo})</span>
+              </div>
+            </div>
+
+            <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-1.5">
+              <span className="text-slate-400 font-bold text-[10px] uppercase block">Texto Completo da Mensagem</span>
+              <p className="text-xs text-slate-200 white-space:pre-wrap leading-relaxed font-sans bg-slate-900/60 p-3 rounded-lg border border-slate-800/60 font-mono">
+                {msgDetalhe.texto}
+              </p>
+            </div>
+
+            {msgDetalhe.erro && (
+              <div className="bg-rose-500/10 border border-rose-500/20 p-3 rounded-xl text-xs space-y-1">
+                <span className="text-rose-400 font-bold text-[10px] uppercase block">Log do Erro Retornado</span>
+                <p className="font-mono text-[11px] text-rose-300">{msgDetalhe.erro}</p>
+              </div>
+            )}
+
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={() => setMsgDetalhe(null)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold border border-slate-700 transition"
+              >
+                Fechar Visualização
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ----------------------------------------------------
-          SUB-ABA 2: CONFIGURAÇÃO DE REGRAS AUTOMÁTICAS
+          SUB-ABA 2: CONFIGURAÇÃO DE REGRAS DE AUTOMAÇÃO
          ---------------------------------------------------- */}
       {subAba === 'regras' && (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-6">
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-6 animate-in fade-in">
           
           {/* Seletor de Campanha */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
             <div>
-              <h3 className="text-base font-black text-white">Regras de Automação de Remarketing</h3>
+              <h3 className="text-base font-black text-white">Central de Regras de Remarketing</h3>
               <p className="text-xs text-slate-400">
-                Configure os disparos e mensagens automáticas enviados via e-mail e preparados para o motor.
+                Determine as regras de contato automatizado por campanha. Os envios são gerados em background.
               </p>
             </div>
 
@@ -459,190 +667,260 @@ export const RemarketingView: React.FC<Props> = ({
             </div>
           </div>
 
-          {/* Toggle Ativar Automação */}
-          <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between">
-            <div className="space-y-0.5">
-              <span className="font-bold text-white text-sm block">Ativar Motor de Remarketing para esta campanha</span>
-              <span className="text-slate-400 text-xs block">O sistema verificará a cada execução se há pedidos no prazo de disparo.</span>
-            </div>
-            <button
-              onClick={() => setRemAtivo(!remAtivo)}
-              className={`w-12 h-6 rounded-full transition-colors relative p-1 ${remAtivo ? 'bg-emerald-500' : 'bg-slate-800'}`}
-            >
-              <div className={`w-4 h-4 rounded-full bg-white transition-transform ${remAtivo ? 'translate-x-6' : 'translate-x-0'}`} />
-            </button>
-          </div>
-
-          {/* Variáveis disponíveis */}
-          <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800/80 text-xs space-y-1">
-            <span className="text-slate-400 font-bold block">Variáveis dinâmicas para o texto das mensagens:</span>
-            <div className="flex flex-wrap gap-2 text-[11px] font-mono text-emerald-400">
-              <span className="bg-slate-900 px-2 py-0.5 rounded border border-slate-800">{'{nome}'}</span>
-              <span className="bg-slate-900 px-2 py-0.5 rounded border border-slate-800">{'{campanha}'}</span>
-              <span className="bg-slate-900 px-2 py-0.5 rounded border border-slate-800">{'{link}'}</span>
-              <span className="bg-slate-900 px-2 py-0.5 rounded border border-slate-800">{'{cupom}'}</span>
-              <span className="bg-slate-900 px-2 py-0.5 rounded border border-slate-800">{'{minutos}'}</span>
-            </div>
-          </div>
-
-          {/* 1. Regras para Aguardando Pagamento */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h4 className="text-sm font-black text-amber-400 flex items-center gap-1.5">
-                <Clock className="w-4 h-4" />
-                Público Aguardando Pagamento (Lembrete Pré-Expiração)
-              </h4>
+          {/* Configurações Globais da Campanha */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            
+            {/* Ativar Remarketing */}
+            <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between">
+              <div className="space-y-0.5">
+                <span className="font-bold text-white text-sm block">Ativar Remarketing Automatizado</span>
+                <span className="text-slate-400 text-[11px] block">O robô varrerá os pedidos para esta campanha conforme as regras.</span>
+              </div>
               <button
-                type="button"
-                onClick={() => setRegrasAguardando([...regrasAguardando, { id: 'ag_' + Date.now(), faltaMin: 5, mensagem: 'Olá {nome}! Sua reserva na {campanha} vence em {minutos} min. Pague o Pix: {link}' }])}
-                className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-bold border border-slate-700 flex items-center gap-1"
+                onClick={() => setRemAtivo(!remAtivo)}
+                className={`w-12 h-6 rounded-full transition-colors relative p-1 flex items-center ${remAtivo ? 'bg-emerald-500' : 'bg-slate-800'}`}
               >
-                <Plus className="w-3.5 h-3.5" /> Adicionar Regra
+                <div className={`w-4 h-4 rounded-full bg-white transition-transform ${remAtivo ? 'translate-x-6' : 'translate-x-0'}`} />
               </button>
             </div>
 
-            {regrasAguardando.map((r, idx) => (
-              <div key={r.id || idx} className="p-4 bg-slate-950 border border-slate-800 rounded-xl space-y-3">
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-slate-300">Disparar quando faltar</span>
-                    <input
-                      type="number"
-                      min="1"
-                      value={r.faltaMin}
-                      onChange={e => {
-                        const val = Number(e.target.value);
-                        setRegrasAguardando(regrasAguardando.map((item, i) => i === idx ? { ...item, faltaMin: val } : item));
-                      }}
-                      className="w-20 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white font-bold"
-                    />
-                    <span className="text-xs font-bold text-slate-300">minutos para o Pix expirar</span>
-                  </div>
+            {/* Canal de Envio Preferencial */}
+            <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between">
+              <div className="space-y-0.5">
+                <span className="font-bold text-white text-sm block">Canal Preferencial de Disparo</span>
+                <span className="text-slate-400 text-[11px] block">Escolha se as notificações vão por WhatsApp, E-mail ou Ambos.</span>
+              </div>
+              <select
+                value={canal}
+                onChange={e => setCanal(e.target.value as any)}
+                className="bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs font-bold text-white focus:outline-none"
+              >
+                <option value="whatsapp">WhatsApp</option>
+                <option value="email">E-mail</option>
+                <option value="ambos">Ambos</option>
+              </select>
+            </div>
 
+            {/* Somente se Campanha Ativa */}
+            <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between md:col-span-2">
+              <div className="space-y-0.5">
+                <span className="font-bold text-white text-sm block">Apenas se Campanha Estiver Publicada</span>
+                <span className="text-slate-400 text-[11px] block">Evita que regras de longa duração (+24h, +7d) disparem se a campanha já foi finalizada ou pausada.</span>
+              </div>
+              <button
+                onClick={() => setSomenteSeCampanhaAtiva(!somenteSeCampanhaAtiva)}
+                className={`w-12 h-6 rounded-full transition-colors relative p-1 flex items-center ${somenteSeCampanhaAtiva ? 'bg-emerald-500' : 'bg-slate-800'}`}
+              >
+                <div className={`w-4 h-4 rounded-full bg-white transition-transform ${somenteSeCampanhaAtiva ? 'translate-x-6' : 'translate-x-0'}`} />
+              </button>
+            </div>
+          </div>
+
+          {/* Variáveis dinâmicas para Ajuda */}
+          <div className="p-3.5 bg-slate-950/60 rounded-xl border border-slate-800/80 text-xs space-y-2">
+            <span className="text-slate-400 font-bold flex items-center gap-1">
+              <HelpCircle className="w-3.5 h-3.5 text-emerald-400" />
+              Variáveis dinâmicas suportadas no texto das mensagens:
+            </span>
+            <div className="flex flex-wrap gap-2 text-[11px] font-mono text-emerald-400">
+              <span className="bg-slate-900 px-2 py-0.5 rounded border border-slate-800" title="Primeiro nome do comprador">{'{nome}'}</span>
+              <span className="bg-slate-900 px-2 py-0.5 rounded border border-slate-800" title="Título da Campanha">{'{campanha}'}</span>
+              <span className="bg-slate-900 px-2 py-0.5 rounded border border-slate-800" title="Link com cupom embutido se houver">{'{link}'}</span>
+              <span className="bg-slate-900 px-2 py-0.5 rounded border border-slate-800" title="Código do cupom ativo">{'{cupom}'}</span>
+              <span className="bg-slate-900 px-2 py-0.5 rounded border border-slate-800" title="Minutos (restantes ou decorridos)">{'{minutos}'}</span>
+              <span className="bg-slate-900 px-2 py-0.5 rounded border border-slate-800" title="Números reservados ou comprados">{'{numeros}'}</span>
+              <span className="bg-slate-900 px-2 py-0.5 rounded border border-slate-800" title="Quantidade de cotas reservadas">{'{qtd}'}</span>
+            </div>
+          </div>
+
+          {/* 1. SEÇÃO DE REGRAS DE NÃO-PAGOU */}
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-2">
+              <h4 className="text-sm font-black text-amber-400 flex items-center gap-1.5">
+                <Clock className="w-4 h-4" />
+                Mensagens de Pix Gerado & NÃO Pago (Aguardando / Expirado)
+              </h4>
+              
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => adicionarRegraNaoPagou('faltando')}
+                  className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-bold border border-slate-700 flex items-center gap-1"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Pix Quase Expirando
+                </button>
+                <button
+                  type="button"
+                  onClick={() => adicionarRegraNaoPagou('apos')}
+                  className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-bold border border-slate-700 flex items-center gap-1"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Pedido Expirou
+                </button>
+              </div>
+            </div>
+
+            {regrasNaoPagou.length > 0 ? (
+              <div className="space-y-4">
+                {regrasNaoPagou.map((r, idx) => {
+                  const isFaltando = r.faltandoMin !== undefined;
+
+                  return (
+                    <div key={idx} className="p-4 bg-slate-950 border border-slate-800 rounded-xl space-y-4 shadow-sm">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`px-2 py-0.5 text-[9px] font-black uppercase rounded border ${
+                            isFaltando 
+                              ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' 
+                              : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                          }`}>
+                            {isFaltando ? 'Pix Quase Expirando' : 'Pedido Expirado'}
+                          </span>
+
+                          <span className="text-xs text-slate-300">Disparar</span>
+                          {isFaltando ? (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs font-bold text-slate-400">faltando</span>
+                              <input
+                                type="number"
+                                min="1"
+                                value={r.faltandoMin}
+                                onChange={e => atualizarRegraNaoPagou(idx, { faltandoMin: Number(e.target.value) })}
+                                className="w-16 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white font-bold text-center"
+                              />
+                              <span className="text-xs font-bold text-slate-400">minutos para expirar</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs font-bold text-slate-400">passados</span>
+                              <input
+                                type="number"
+                                min="0"
+                                value={r.aposExpirarMin}
+                                onChange={e => atualizarRegraNaoPagou(idx, { aposExpirarMin: Number(e.target.value) })}
+                                className="w-16 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white font-bold text-center"
+                              />
+                              <span className="text-xs font-bold text-slate-400">minutos da expiração</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <button
+                          onClick={() => removerRegraNaoPagou(idx)}
+                          className="text-slate-500 hover:text-rose-400 transition p-1 ml-auto sm:ml-0"
+                          title="Remover regra"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      {/* Configuração de Cupom (Somente para Regras após expirar) */}
+                      {!isFaltando && (
+                        <div className="grid grid-cols-2 gap-3 max-w-sm">
+                          <div>
+                            <label className="text-[10px] text-slate-400 block mb-0.5">Cupom de Desconto</label>
+                            <input
+                              type="text"
+                              value={r.cupom || ''}
+                              onChange={e => atualizarRegraNaoPagou(idx, { cupom: e.target.value.toUpperCase().trim() })}
+                              placeholder="EX: RECUPERA"
+                              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white font-mono uppercase font-bold"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] text-slate-400 block mb-0.5">Desconto (%)</label>
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              value={r.descontoPct || 0}
+                              onChange={e => atualizarRegraNaoPagou(idx, { descontoPct: Number(e.target.value) })}
+                              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white font-bold"
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-slate-500 uppercase block font-bold">Conteúdo do Texto de Remarketing</label>
+                        <textarea
+                          rows={3}
+                          value={r.mensagem}
+                          onChange={e => atualizarRegraNaoPagou(idx, { mensagem: e.target.value })}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
+                          placeholder="Olá {nome}! Notamos que seu pedido na campanha {campanha} está..."
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="py-8 text-center text-slate-500 text-xs bg-slate-950/40 rounded-xl border border-slate-800/60">
+                Nenhuma regra cadastrada para pedidos não pagos ainda. Adicione regras acima!
+              </div>
+            )}
+          </div>
+
+          {/* 2. SEÇÃO DE REGRA DO PAGO */}
+          <div className="space-y-4 pt-4 border-t border-slate-800">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-black text-emerald-400 flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4" />
+                Mensagem de Pagamento Aprovado (Confirmação Automática)
+              </h4>
+              
+              <button
+                type="button"
+                onClick={() => setRegraPago({ ...regraPago, ativo: !regraPago.ativo })}
+                className={`px-3 py-1 text-[10px] font-black uppercase rounded border transition ${
+                  regraPago.ativo ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-slate-800 text-slate-500 border-slate-700'
+                }`}
+              >
+                {regraPago.ativo ? 'Ativo' : 'Inativo'}
+              </button>
+            </div>
+
+            {regraPago.ativo && (
+              <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl space-y-4 animate-in fade-in">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-300">Enviar lista de cotas compradas no corpo da mensagem?</span>
+                  </div>
                   <button
-                    onClick={() => setRegrasAguardando(regrasAguardando.filter((_, i) => i !== idx))}
-                    className="text-slate-500 hover:text-rose-400 transition p-1"
-                    title="Remover regra"
+                    onClick={() => setRegraPago({ ...regraPago, enviarNumeros: !regraPago.enviarNumeros })}
+                    className={`w-10 h-5 rounded-full transition-colors relative p-0.5 flex items-center ${regraPago.enviarNumeros ? 'bg-emerald-500' : 'bg-slate-800'}`}
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <div className={`w-3.5 h-3.5 rounded-full bg-white transition-transform ${regraPago.enviarNumeros ? 'translate-x-5' : 'translate-x-0'}`} />
                   </button>
                 </div>
 
-                <textarea
-                  rows={2}
-                  value={r.mensagem}
-                  onChange={e => {
-                    const val = e.target.value;
-                    setRegrasAguardando(regrasAguardando.map((item, i) => i === idx ? { ...item, mensagem: val } : item));
-                  }}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
-                  placeholder="Texto da mensagem..."
-                />
-              </div>
-            ))}
-          </div>
-
-          {/* 2. Regras para Pedidos Expirados */}
-          <div className="space-y-4 pt-2 border-t border-slate-800">
-            <div className="flex items-center justify-between">
-              <h4 className="text-sm font-black text-rose-400 flex items-center gap-1.5">
-                <AlertCircle className="w-4 h-4" />
-                Público com Pedido Expirado (Recuperação com Cupom)
-              </h4>
-              <button
-                type="button"
-                onClick={() => setRegrasExpirado([...regrasExpirado, { id: 'exp_' + Date.now(), aposMin: 30, cupom: 'VOLTA10', descontoPct: 10, mensagem: 'Oi {nome}! Seu pedido na {campanha} expirou. Ganhe {descontoPct}% usando o cupom {cupom}: {link}' }])}
-                className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-bold border border-slate-700 flex items-center gap-1"
-              >
-                <Plus className="w-3.5 h-3.5" /> Adicionar Regra
-              </button>
-            </div>
-
-            {regrasExpirado.map((r, idx) => (
-              <div key={r.id || idx} className="p-4 bg-slate-950 border border-slate-800 rounded-xl space-y-3">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-bold text-slate-300">Disparar</span>
-                    <input
-                      type="number"
-                      min="1"
-                      value={r.aposMin}
-                      onChange={e => {
-                        const val = Number(e.target.value);
-                        setRegrasExpirado(regrasExpirado.map((item, i) => i === idx ? { ...item, aposMin: val } : item));
-                      }}
-                      className="w-20 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white font-bold"
-                    />
-                    <span className="text-xs font-bold text-slate-300">minutos APÓS expirar</span>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-bold text-slate-400">Cupom:</span>
-                      <input
-                        type="text"
-                        value={r.cupom || ''}
-                        onChange={e => {
-                          const val = e.target.value.toUpperCase();
-                          setRegrasExpirado(regrasExpirado.map((item, i) => i === idx ? { ...item, cupom: val } : item));
-                        }}
-                        placeholder="VOLTA10"
-                        className="w-24 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white font-mono uppercase font-bold"
-                      />
-                    </div>
-
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-bold text-slate-400">Desconto %:</span>
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={r.descontoPct || 0}
-                        onChange={e => {
-                          const val = Number(e.target.value);
-                          setRegrasExpirado(regrasExpirado.map((item, i) => i === idx ? { ...item, descontoPct: val } : item));
-                        }}
-                        className="w-16 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white font-bold"
-                      />
-                    </div>
-
-                    <button
-                      onClick={() => setRegrasExpirado(regrasExpirado.filter((_, i) => i !== idx))}
-                      className="text-slate-500 hover:text-rose-400 transition p-1"
-                      title="Remover regra"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] text-slate-500 uppercase block font-bold">Conteúdo da Mensagem de Confirmação</label>
+                  <textarea
+                    rows={3}
+                    value={regraPago.mensagem || ''}
+                    onChange={e => setRegraPago({ ...regraPago, mensagem: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
+                    placeholder="Olá {nome}! Recebemos o seu Pix..."
+                  />
                 </div>
-
-                <textarea
-                  rows={2}
-                  value={r.mensagem}
-                  onChange={e => {
-                    const val = e.target.value;
-                    setRegrasExpirado(regrasExpirado.map((item, i) => i === idx ? { ...item, mensagem: val } : item));
-                  }}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
-                  placeholder="Texto da mensagem..."
-                />
               </div>
-            ))}
+            )}
           </div>
 
-          {/* Botão Salvar */}
-          <div className="pt-2 flex items-center justify-between">
+          {/* Botão de Gravar Tudo */}
+          <div className="pt-2 flex items-center justify-between border-t border-slate-800">
             {msgFeedback && (
               <span className="text-emerald-400 text-xs font-bold flex items-center gap-1">
                 <CheckCircle2 className="w-4 h-4" /> {msgFeedback}
               </span>
             )}
             <button
-              onClick={handleSalvarRegras}
+              onClick={handleSalvarConfiguracoes}
               disabled={salvandoConfig}
               className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs shadow-md shadow-emerald-500/20 transition ml-auto flex items-center gap-1.5"
             >
-              {salvandoConfig ? 'Salvando...' : 'Salvar Regras de Remarketing'}
+              {salvandoConfig ? 'Salvando...' : 'Gravar Configurações & Regras'}
             </button>
           </div>
         </div>
@@ -652,13 +930,13 @@ export const RemarketingView: React.FC<Props> = ({
           SUB-ABA 3: GESTÃO DE CUPONS DE DESCONTO
          ---------------------------------------------------- */}
       {subAba === 'cupons' && (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-5">
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-5 animate-in fade-in">
           
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
             <div>
               <h3 className="text-base font-black text-white">Cupons de Desconto da Campanha</h3>
               <p className="text-xs text-slate-400">
-                Crie códigos promocionais para os compradores aplicarem no fluxo de finalização da compra.
+                Cadastre cupons fixos que os clientes podem aplicar manualmente na tela de checkout da campanha.
               </p>
             </div>
 
@@ -790,7 +1068,7 @@ export const RemarketingView: React.FC<Props> = ({
               </span>
             )}
             <button
-              onClick={handleSalvarRegras}
+              onClick={handleSalvarConfiguracoes}
               disabled={salvandoConfig}
               className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs shadow-md shadow-emerald-500/20 transition ml-auto flex items-center gap-1.5"
             >

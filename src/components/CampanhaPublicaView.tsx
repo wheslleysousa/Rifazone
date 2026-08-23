@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Campanha, CampanhaPublicaResponse, Promocao, OfertaRelampago, TemaCampanha, TEMA_PADRAO, DEFAULT_CHECKOUT_CONFIG } from '../types';
+import { Campanha, CampanhaPublicaResponse, Promocao, OfertaRelampago, TemaCampanha, TEMA_PADRAO, DEFAULT_CHECKOUT_CONFIG, RankingItem } from '../types';
 import { 
   Trophy, Flame, Sparkles, ShieldCheck, Ticket, Users,
   ChevronDown, ChevronUp, Plus, Minus, Gift, Info,
   Smartphone, Share2, Instagram, AlertTriangle, Copy, CheckCircle2,
-  User, CreditCard, QrCode, FileText, Lock, Shield
+  User, CreditCard, QrCode, FileText, Lock, Shield, X
 } from 'lucide-react';
 import { UpsellModal } from './UpsellModal';
 import { PixPaymentModal } from './PixPaymentModal';
@@ -48,6 +48,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
 
   // Seleção de cotas
   const [quantidade, setQuantidade] = useState<number>(10);
+  const [qtdInicializada, setQtdInicializada] = useState(false);
   const [cotasManuais] = useState<string[]>([]);
   const [descricaoAberta, setDescricaoAberta] = useState(false);
 
@@ -143,6 +144,26 @@ export const CampanhaPublicaView: React.FC<Props> = ({
   // Meus Números Modal
   const [meusNumerosAberto, setMeusNumerosAberto] = useState(false);
 
+  // Modal de Todas as Campanhas do Organizador
+  const [organizadorModalAberto, setOrganizadorModalAberto] = useState(false);
+  const [campanhasOrganizador, setCampanhasOrganizador] = useState<Campanha[]>([]);
+  const [carregandoOrganizador, setCarregandoOrganizador] = useState(false);
+
+  useEffect(() => {
+    if (organizadorModalAberto) {
+      setCarregandoOrganizador(true);
+      fetch('/api/campanhas')
+        .then(res => res.json())
+        .then(resData => {
+          if (Array.isArray(resData)) {
+            setCampanhasOrganizador(resData.filter((c: Campanha) => c.status === 'publicada' || c.status === 'pausada'));
+          }
+        })
+        .catch(err => console.error('Erro ao buscar campanhas do organizador:', err))
+        .finally(() => setCarregandoOrganizador(false));
+    }
+  }, [organizadorModalAberto]);
+
   // Cupom de Desconto
   const [cupomInput, setCupomInput] = useState('');
   const [cupomAplicado, setCupomAplicado] = useState<{ codigo: string; descontoPct: number; mensagem?: string } | null>(null);
@@ -207,26 +228,57 @@ export const CampanhaPublicaView: React.FC<Props> = ({
   // Carregar dados da campanha
   const carregarCampanha = async () => {
     if (modoPreview && previewCampanha) {
+      let realEst = {
+        totalCotas: previewCampanha.totalCotas || 10000,
+        vendidas: 0,
+        reservadas: 0,
+        disponiveis: previewCampanha.totalCotas || 10000,
+        percentualVendido: 0
+      };
+      let realRank: RankingItem[] = [];
+
+      // Se a campanha já tem um código e não é um mock, tenta buscar as estatísticas reais
+      if (previewCampanha.codigo && !previewCampanha.codigo.startsWith('sorteio-preview')) {
+        try {
+          const res = await fetch(`/api/campanhas/${previewCampanha.codigo}`);
+          if (res.ok) {
+            const json: CampanhaPublicaResponse = await res.json();
+            if (json.estatisticas) {
+              realEst = {
+                ...json.estatisticas,
+                totalCotas: previewCampanha.totalCotas || json.estatisticas.totalCotas
+              };
+            }
+            if (json.ranking) {
+              realRank = json.ranking;
+            }
+          }
+        } catch (e) {
+          // Ignora erro
+        }
+      }
+
       setData({
         campanha: previewCampanha,
-        estatisticas: {
-          totalCotas: previewCampanha.totalCotas || 10000,
-          vendidas: Math.round((previewCampanha.totalCotas || 10000) * 0.45),
-          reservadas: Math.round((previewCampanha.totalCotas || 10000) * 0.05),
-          disponiveis: Math.round((previewCampanha.totalCotas || 10000) * 0.5),
-          percentualVendido: 45
-        },
-        ranking: [
-          { posicao: 1, nome: 'Carlos E.', quantidadeCotas: 250 },
-          { posicao: 2, nome: 'Mariana S.', quantidadeCotas: 180 },
-          { posicao: 3, nome: 'João P.', quantidadeCotas: 120 }
-        ]
+        estatisticas: realEst,
+        ranking: realRank
       });
-      if (previewCampanha.promocoes && previewCampanha.promocoes.length > 0) {
-        const promoDestaque = previewCampanha.promocoes.find(p => p.destaque) || previewCampanha.promocoes[0];
-        setQuantidade(promoDestaque.quantidade);
+
+      if (!qtdInicializada) {
+        if (previewCampanha.promocoes && previewCampanha.promocoes.length > 0) {
+          const promoDestaque = previewCampanha.promocoes.find(p => p.destaque) || previewCampanha.promocoes[0];
+          setQuantidade(promoDestaque.quantidade);
+        } else {
+          setQuantidade(previewCampanha.minPorCompra || 10);
+        }
+        setQtdInicializada(true);
       } else {
-        setQuantidade(previewCampanha.minPorCompra || 10);
+        setQuantidade(prev => {
+          if (prev < (previewCampanha.minPorCompra || 1)) {
+            return previewCampanha.minPorCompra || 1;
+          }
+          return prev;
+        });
       }
       setCarregando(false);
       return;
@@ -251,12 +303,22 @@ export const CampanhaPublicaView: React.FC<Props> = ({
         });
       }
 
-      // Seta default quantidade
-      if (json.campanha.promocoes && json.campanha.promocoes.length > 0) {
-        const promoDestaque = json.campanha.promocoes.find(p => p.destaque) || json.campanha.promocoes[0];
-        setQuantidade(promoDestaque.quantidade);
+      // Seta default quantidade apenas na primeira carga
+      if (!qtdInicializada) {
+        if (json.campanha.promocoes && json.campanha.promocoes.length > 0) {
+          const promoDestaque = json.campanha.promocoes.find(p => p.destaque) || json.campanha.promocoes[0];
+          setQuantidade(promoDestaque.quantidade);
+        } else {
+          setQuantidade(json.campanha.minPorCompra || 10);
+        }
+        setQtdInicializada(true);
       } else {
-        setQuantidade(json.campanha.minPorCompra || 10);
+        setQuantidade(prev => {
+          if (prev < (json.campanha.minPorCompra || 1)) {
+            return json.campanha.minPorCompra || 1;
+          }
+          return prev;
+        });
       }
     } catch (err: any) {
       setErro(err.message || 'Erro ao carregar sorteio.');
@@ -265,9 +327,11 @@ export const CampanhaPublicaView: React.FC<Props> = ({
     }
   };
 
+  const strPreviewCampanha = previewCampanha ? JSON.stringify(previewCampanha) : '';
+
   useEffect(() => {
     carregarCampanha();
-  }, [codigo, modoPreview, previewCampanha]);
+  }, [codigo, modoPreview, strPreviewCampanha]);
 
   // Efeito do Contador Regressivo (Início e Término)
   useEffect(() => {
@@ -611,6 +675,27 @@ export const CampanhaPublicaView: React.FC<Props> = ({
 
       // 2. Fluxo Específico por Método
 
+      // Sorteio Gratuito
+      if (pedidoJson.metodoPagamento === 'gratis' || campanha.modalidade === 'gratis') {
+        setCheckoutAberto(false);
+        if (data?.marca?.metaPixelId && campanha) {
+          trackPurchase(data.marca.metaPixelId, {
+            contentIds: [campanha.id],
+            value: 0,
+            numItems: 1
+          }, pedidoJson.pedidoId);
+        }
+        setCartaoSuccessModalData({
+          pedidoId: pedidoJson.pedidoId,
+          valorTotal: 0,
+          quantidade: 1,
+          numeros: pedidoJson.numeros || [],
+          compradorNome: nome.trim()
+        });
+        carregarCampanha();
+        return;
+      }
+
       // A) CARTÃO DE CRÉDITO — Tokenização Client-Side e Cobrança
       if (metodoPagamento === 'cartao') {
         const partesValidade = cartaoValidade.split('/');
@@ -767,7 +852,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
 
   // 2. Seção Barra de Progresso
   const SecaoBarraProgresso = () => {
-    if (campanha.exibirBarraProgresso === false) return null;
+    if (campanha.exibirBarraProgresso === false || estatisticas.vendidas === 0) return null;
     return (
       <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-sm">
         <div className="flex items-center justify-between text-xs mb-2">
@@ -812,14 +897,38 @@ export const CampanhaPublicaView: React.FC<Props> = ({
             </h2>
           </div>
           <div className="text-right">
-            <span className="text-[11px] text-slate-400 block">Por apenas</span>
+            <span className="text-[11px] text-slate-400 block">{campanha.modalidade === 'gratis' ? 'Inscrição' : 'Por apenas'}</span>
             <span className="text-sm font-extrabold" style={{ color: 'var(--brand)' }}>
-              {formatarMoeda(campanha.valorCota)} / cota
+              {campanha.modalidade === 'gratis' ? 'GRÁTIS (R$ 0,00)' : `${formatarMoeda(campanha.valorCota)} / cota`}
             </span>
           </div>
         </div>
 
-        {/* Botões Rápidos de Pacotes / Promoções */}
+        {campanha.modalidade === 'gratis' ? (
+          <div className="p-4 bg-purple-500/10 border border-purple-500/30 rounded-2xl text-center space-y-3">
+            <div className="flex items-center justify-center gap-2 text-purple-300 font-extrabold text-sm">
+              <Gift className="w-5 h-5 text-purple-400" />
+              <span>Sorteio Gratuito — 1 Cota Grátis Por Pessoa</span>
+            </div>
+            <p className="text-xs text-slate-300">
+              Inscreva-se com seu Nome, WhatsApp e CPF para receber seu bilhete oficial gratuitamente e concorrer aos prêmios!
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setQuantidade(1);
+                setCheckoutAberto(true);
+              }}
+              style={{ backgroundColor: 'var(--btn)', color: 'var(--btn-txt)' }}
+              className={`w-full py-3.5 font-black text-sm rounded-xl shadow-lg flex items-center justify-center gap-2 transition hover:opacity-90 active:scale-[0.98] ${getBtnRoundingClass(tema.botao.formato)}`}
+            >
+              <Gift className="w-4 h-4" />
+              <span>🎁 GARANTIR MINHA COTA GRÁTIS AGORA</span>
+            </button>
+          </div>
+        ) : (
+          <>
+            {/* Botões Rápidos de Pacotes / Promoções */}
         {campanha.promocoes && campanha.promocoes.length > 0 && (
           <div className="grid grid-cols-3 gap-2">
             {campanha.promocoes.map((promo: Promocao, idx: number) => {
@@ -901,6 +1010,8 @@ export const CampanhaPublicaView: React.FC<Props> = ({
             <Plus className="w-4 h-4" />
           </button>
         </div>
+        </>
+        )}
       </div>
     );
   };
@@ -1042,7 +1153,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
 
   // 8. Seção Ganhadores da Campanha
   const SecaoGanhadores = () => {
-    if (campanha.exibirPaginaGanhadores === false) return null;
+    if (campanha.exibirPaginaGanhadores === false || !campanha.ganhador) return null;
     return (
       <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-3">
         <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
@@ -1138,16 +1249,20 @@ export const CampanhaPublicaView: React.FC<Props> = ({
       {/* Top Navbar com Menu Lateral */}
       <header className="sticky top-0 z-40 bg-slate-950/95 backdrop-blur-md border-b border-slate-800">
         <div className="max-w-xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
+          <button
+            type="button"
+            onClick={() => setOrganizadorModalAberto(true)}
+            className="flex items-center gap-2.5 text-left hover:opacity-90 transition cursor-pointer group"
+          >
             {campanha.organizadorFoto ? (
               <img
                 src={campanha.organizadorFoto}
                 alt={campanha.organizadorNome || 'Organizador'}
-                className="w-9 h-9 rounded-full object-cover border border-[var(--brand)]/50 shadow-md"
+                className="w-9 h-9 rounded-full object-cover border border-[var(--brand)]/50 shadow-md group-hover:scale-105 transition-transform"
               />
             ) : (
               <div
-                className="w-9 h-9 rounded-full flex items-center justify-center font-black text-base shadow-md"
+                className="w-9 h-9 rounded-full flex items-center justify-center font-black text-base shadow-md group-hover:scale-105 transition-transform"
                 style={{ backgroundColor: 'var(--brand)', color: 'var(--btn-txt)' }}
               >
                 {(campanha.organizadorNome || 'Rifa')[0].toUpperCase()}
@@ -1157,11 +1272,12 @@ export const CampanhaPublicaView: React.FC<Props> = ({
               <span className="font-extrabold text-white text-sm tracking-tight block truncate max-w-[160px] sm:max-w-[200px]">
                 {campanha.titulo}
               </span>
-              <span className="text-[10px] text-slate-400 font-medium block">
-                {campanha.organizadorNome || 'Organizador Oficial'}
+              <span className="text-[10px] text-slate-400 font-medium block flex items-center gap-1 group-hover:text-emerald-400 transition-colors">
+                <span>{campanha.organizadorNome || 'Organizador Oficial'}</span>
+                <span className="text-[9px] bg-slate-800 text-slate-300 px-1.5 py-0.2 rounded-full border border-slate-700">Ver todas</span>
               </span>
             </div>
-          </div>
+          </button>
 
           <div className="flex items-center gap-2">
             <button
@@ -1564,8 +1680,18 @@ export const CampanhaPublicaView: React.FC<Props> = ({
               </div>
             )}
 
-            {/* SELETOR DE MÉTODOS DE PAGAMENTO */}
-            {(() => {
+            {/* SELETOR DE MÉTODOS DE PAGAMENTO OU BANNER GRATUITO */}
+            {campanha.modalidade === 'gratis' ? (
+              <div className="mb-4 p-3.5 bg-purple-500/10 border border-purple-500/30 rounded-2xl text-center">
+                <span className="text-xs font-black text-purple-300 flex items-center justify-center gap-1.5">
+                  <Gift className="w-4 h-4 text-purple-400" />
+                  Sorteio 100% Gratuito — 1 Cota por CPF
+                </span>
+                <p className="text-[11px] text-slate-300 mt-1">
+                  Preencha seus dados abaixo para validar sua inscrição e receber seu bilhete da sorte sem pagar nada!
+                </p>
+              </div>
+            ) : (() => {
               const chk = campanha.checkout || DEFAULT_CHECKOUT_CONFIG;
               const metodosAtivos = [
                 ...(chk.metodos?.pix !== false ? ['pix'] : []),
@@ -1664,10 +1790,10 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                   />
                 </div>
 
-                {(campanha.exigirCpf || metodoPagamento === 'boleto') && (
+                {(campanha.exigirCpf || campanha.modalidade === 'gratis' || metodoPagamento === 'boleto') && (
                   <div>
                     <label className="text-xs font-semibold text-slate-300 block mb-1">
-                      CPF * {metodoPagamento === 'boleto' && <span className="text-amber-400 font-normal text-[11px]">(obrigatório para boleto)</span>}
+                      CPF * {campanha.modalidade === 'gratis' ? <span className="text-purple-400 font-normal text-[11px]">(1 cota por CPF)</span> : metodoPagamento === 'boleto' && <span className="text-amber-400 font-normal text-[11px]">(obrigatório para boleto)</span>}
                     </label>
                     <input
                       id="input-cpf-comprador"
@@ -1681,7 +1807,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                   </div>
                 )}
 
-                {(campanha.exigirEmail || metodoPagamento === 'cartao') && (
+                {(campanha.exigirEmail || campanha.modalidade === 'gratis' || metodoPagamento === 'cartao') && (
                   <div>
                     <label className="text-xs font-semibold text-slate-300 block mb-1">
                       E-mail * {metodoPagamento === 'cartao' && <span className="text-blue-400 font-normal text-[11px]">(para comprovante do cartão)</span>}
@@ -1878,62 +2004,64 @@ export const CampanhaPublicaView: React.FC<Props> = ({
               </div>
 
               {/* CAMPO DE CUPOM DE DESCONTO */}
-              <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
-                <label className="text-[11px] font-bold text-slate-300 flex items-center justify-between">
-                  <span>Tem um cupom de desconto?</span>
+              {campanha.modalidade !== 'gratis' && (
+                <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                  <label className="text-[11px] font-bold text-slate-300 flex items-center justify-between">
+                    <span>Tem um cupom de desconto?</span>
+                    {cupomAplicado && (
+                      <span className="text-emerald-400 text-[10px] uppercase font-mono font-bold">
+                        {cupomAplicado.descontoPct}% OFF APLICADO
+                      </span>
+                    )}
+                  </label>
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      placeholder="Digite o código (ex: VOLTA10)"
+                      value={cupomInput}
+                      onChange={e => {
+                        setCupomInput(e.target.value.toUpperCase());
+                        setCupomErro('');
+                      }}
+                      className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white uppercase font-mono font-bold focus:border-[var(--brand)] focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleValidarCupom()}
+                      disabled={validandoCupom || !cupomInput.trim()}
+                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-lg border border-slate-700 transition disabled:opacity-50"
+                    >
+                      {validandoCupom ? 'Aplicando...' : cupomAplicado ? 'Atualizar' : 'Aplicar'}
+                    </button>
+                  </div>
+
                   {cupomAplicado && (
-                    <span className="text-emerald-400 text-[10px] uppercase font-mono font-bold">
-                      {cupomAplicado.descontoPct}% OFF APLICADO
-                    </span>
+                    <p className="text-[11px] text-emerald-400 font-bold flex items-center gap-1">
+                      ✓ Cupom {cupomAplicado.codigo} ativado ({cupomAplicado.descontoPct}% de desconto)!
+                    </p>
                   )}
-                </label>
 
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    placeholder="Digite o código (ex: VOLTA10)"
-                    value={cupomInput}
-                    onChange={e => {
-                      setCupomInput(e.target.value.toUpperCase());
-                      setCupomErro('');
-                    }}
-                    className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white uppercase font-mono font-bold focus:border-[var(--brand)] focus:outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => handleValidarCupom()}
-                    disabled={validandoCupom || !cupomInput.trim()}
-                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-lg border border-slate-700 transition disabled:opacity-50"
-                  >
-                    {validandoCupom ? 'Aplicando...' : cupomAplicado ? 'Atualizar' : 'Aplicar'}
-                  </button>
+                  {cupomErro && (
+                    <p className="text-[11px] text-rose-400 font-medium">
+                      ⚠️ {cupomErro}
+                    </p>
+                  )}
                 </div>
-
-                {cupomAplicado && (
-                  <p className="text-[11px] text-emerald-400 font-bold flex items-center gap-1">
-                    ✓ Cupom {cupomAplicado.codigo} ativado ({cupomAplicado.descontoPct}% de desconto)!
-                  </p>
-                )}
-
-                {cupomErro && (
-                  <p className="text-[11px] text-rose-400 font-medium">
-                    ⚠️ {cupomErro}
-                  </p>
-                )}
-              </div>
+              )}
 
               {/* Resumo Financeiro */}
               <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-3 text-xs space-y-1">
                 <div className="flex justify-between text-slate-300">
                   <span>Cotas:</span>
                   <span className="font-bold text-white">
-                    {quantidade + (ofertaSelecionada ? ofertaSelecionada.cotasExtras : 0)} cotas
+                    {campanha.modalidade === 'gratis' ? '1 cota' : `${quantidade + (ofertaSelecionada ? ofertaSelecionada.cotasExtras : 0)} cotas`}
                   </span>
                 </div>
                 <div className="flex justify-between text-slate-300 border-t border-slate-700/50 pt-1">
-                  <span>Total a pagar via {metodoPagamento === 'cartao' ? 'Cartão' : metodoPagamento === 'boleto' ? 'Boleto' : 'Pix'}:</span>
+                  <span>Total:</span>
                   <span className="font-extrabold text-sm" style={{ color: 'var(--brand)' }}>
-                    {formatarMoeda(valorTotalAtual + (ofertaSelecionada ? ofertaSelecionada.preco : 0))}
+                    {campanha.modalidade === 'gratis' ? 'R$ 0,00 (Grátis)' : formatarMoeda(valorTotalAtual + (ofertaSelecionada ? ofertaSelecionada.preco : 0))}
                   </span>
                 </div>
               </div>
@@ -1947,7 +2075,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                   </span>
                   <span className="flex items-center gap-1">
                     <ShieldCheck className="w-3 h-3 text-blue-400" />
-                    Mercado Pago Oficial
+                    Validação Anti-Fraude CPF
                   </span>
                 </div>
               )}
@@ -1966,10 +2094,12 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                 {enviandoPedido ? (
                   <span className="flex items-center gap-2">
                     <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
-                    {metodoPagamento === 'cartao' ? 'Processando Cartão com Segurança...' : metodoPagamento === 'boleto' ? 'Gerando Boleto Bancário...' : 'Gerando Pix Oficial...'}
+                    {campanha.modalidade === 'gratis' ? 'Validando Inscrição Gratuita...' : metodoPagamento === 'cartao' ? 'Processando Cartão com Segurança...' : metodoPagamento === 'boleto' ? 'Gerando Boleto Bancário...' : 'Gerando Pix Oficial...'}
                   </span>
                 ) : (
-                  metodoPagamento === 'cartao'
+                  campanha.modalidade === 'gratis'
+                    ? '🎁 CONCLUIR MINHA INSCRIÇÃO GRÁTIS'
+                    : metodoPagamento === 'cartao'
                     ? 'PAGAR COM CARTÃO AGORA'
                     : metodoPagamento === 'boleto'
                     ? 'GERAR BOLETO BANCÁRIO'
@@ -2181,6 +2311,106 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                   Fechar
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Todas as Campanhas do Organizador */}
+      {organizadorModalAberto && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-5 shadow-2xl space-y-4 max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3 shrink-0">
+              <div className="flex items-center gap-3">
+                {campanha.organizadorFoto ? (
+                  <img
+                    src={campanha.organizadorFoto}
+                    alt={campanha.organizadorNome || 'Organizador'}
+                    className="w-10 h-10 rounded-full object-cover border border-emerald-500/50"
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-emerald-500 text-slate-950 font-black flex items-center justify-center text-lg">
+                    {(campanha.organizadorNome || 'R')[0].toUpperCase()}
+                  </div>
+                )}
+                <div>
+                  <h3 className="font-extrabold text-white text-sm">
+                    {campanha.organizadorNome || 'Organizador Oficial'}
+                  </h3>
+                  <span className="text-[11px] text-slate-400">
+                    Campanhas e Ações Disponíveis
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOrganizadorModalAberto(false)}
+                className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto space-y-3 pr-1 flex-1">
+              {carregandoOrganizador ? (
+                <div className="py-8 text-center text-xs text-slate-400">
+                  <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                  Carregando campanhas do organizador...
+                </div>
+              ) : campanhasOrganizador.length === 0 ? (
+                <div className="py-8 text-center text-xs text-slate-400">
+                  Nenhuma outra campanha encontrada no momento.
+                </div>
+              ) : (
+                campanhasOrganizador.map(c => (
+                  <a
+                    key={c.id}
+                    href={`/c/${c.slug || c.id}`}
+                    className={`p-3 rounded-xl border block transition ${
+                      c.id === campanha.id
+                        ? 'bg-emerald-500/10 border-emerald-500/50 text-white'
+                        : 'bg-slate-950 border-slate-800 hover:border-slate-700 text-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      {c.bannerUrl ? (
+                        <img src={c.bannerUrl} alt={c.titulo} className="w-14 h-14 rounded-lg object-cover shrink-0" />
+                      ) : (
+                        <div className="w-14 h-14 rounded-lg bg-slate-800 flex items-center justify-center text-slate-500 text-xs shrink-0">
+                          Rifa
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="font-bold text-xs text-white truncate">{c.titulo}</span>
+                          {c.modalidade === 'gratis' ? (
+                            <span className="text-[9px] font-black uppercase bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded border border-purple-500/30">Grátis</span>
+                          ) : (
+                            <span className="text-[9px] font-mono font-bold text-emerald-400">
+                              {c.valorCota === 0 ? 'Grátis' : `R$ ${(c.valorCota || 0).toFixed(2).replace('.', ',')}`}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-slate-400 line-clamp-1 mt-0.5">{c.subtitulo || c.descricao || 'Sorteio Oficial'}</p>
+                        <div className="text-[10px] text-slate-500 mt-1 flex items-center gap-2">
+                          <span>{c.totalCotas.toLocaleString()} cotas</span>
+                          {c.id === campanha.id && <span className="text-emerald-400 font-bold">• Atual</span>}
+                        </div>
+                      </div>
+                    </div>
+                  </a>
+                ))
+              )}
+            </div>
+
+            <div className="pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setOrganizadorModalAberto(false)}
+                className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition"
+              >
+                Fechar
+              </button>
             </div>
           </div>
         </div>

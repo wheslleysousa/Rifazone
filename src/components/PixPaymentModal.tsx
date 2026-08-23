@@ -114,7 +114,7 @@ export const PixPaymentModal: React.FC<Props> = ({
     return () => clearInterval(interval);
   }, [expiraEm, status]);
 
-  // Polling status a cada 3.5 segundos com proteção anti-loop
+  // Polling status a cada 2 segundos com proteção anti-loop
   useEffect(() => {
     if (status === 'pago' || status === 'expirado') return;
 
@@ -144,7 +144,7 @@ export const PixPaymentModal: React.FC<Props> = ({
       } catch (e) {
         // silencioso
       }
-    }, 3500);
+    }, 2000);
 
     return () => {
       cancelado = true;

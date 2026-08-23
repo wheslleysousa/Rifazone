@@ -12,6 +12,15 @@ const pixelsInicializados = new Set<string>();
  */
 export function initMetaPixel(pixelId?: string | null) {
   if (!pixelId || typeof window === 'undefined') return;
+
+  // Evita inicializar o Meta Pixel dentro de iframes de preview (como o AI Studio)
+  // onde o navegador impõe regras rígidas de segurança de sandbox, tornando o window.fetch um getter-only não configurável.
+  const isIframe = window.self !== window.top;
+  if (isIframe) {
+    console.info('[Meta Pixel] Ignorando inicialização do Meta Pixel dentro do iframe de preview do AI Studio.');
+    return;
+  }
+
   const cleanId = pixelId.trim();
   if (!cleanId || pixelsInicializados.has(cleanId)) return;
 

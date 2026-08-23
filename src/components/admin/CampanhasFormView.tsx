@@ -8,7 +8,8 @@ import {
 } from 'lucide-react';
 import { Campanha, Premio, CotaPremiada, Promocao, OfertaRelampago, TEMA_PADRAO } from '../../types';
 import { uploadImageToStorage, compressAndReadImage } from '../../lib/image-upload';
-import { TemaBuilderView } from './TemaBuilderView';
+
+const TemaBuilderView = React.lazy(() => import('./TemaBuilderView').then(m => ({ default: m.TemaBuilderView })));
 
 interface Props {
   form: Partial<Campanha>;
@@ -346,7 +347,7 @@ export const CampanhasFormView: React.FC<Props> = ({
   const arrecadacaoEstimada = totalCotasNum * valorCotaNum;
 
   // Navegação pelos passos
-  const tabKeys: TabType[] = ['basico', 'midia', 'premios', 'promocoes', 'upsell', 'extras'];
+  const tabKeys: TabType[] = ['basico', 'midia', 'premios', 'promocoes', 'upsell', 'extras', 'tema'];
   const currentIndex = tabKeys.indexOf(abaInterna);
 
   const irProximo = () => {
@@ -564,6 +565,69 @@ export const CampanhasFormView: React.FC<Props> = ({
               </div>
             </div>
 
+            {/* MODALIDADE DA CAMPANHA: RIFA PAGA VS SORTEIO GRATUITO */}
+            <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-3">
+              <label className="text-xs font-black text-slate-200 uppercase tracking-wider block">
+                Modalidade de Arrecadação / Participação *
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setForm(prev => ({ ...prev, modalidade: 'paga', valorCota: prev.valorCota === 0 ? undefined : prev.valorCota }))}
+                  className={`p-3.5 rounded-xl border text-left transition relative flex items-start gap-3 ${
+                    (form.modalidade || 'paga') === 'paga'
+                      ? 'bg-emerald-500/10 border-emerald-500 text-white shadow-md shadow-emerald-500/10 ring-1 ring-emerald-500/30'
+                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-800/60'
+                  }`}
+                >
+                  <div className={`p-2 rounded-lg ${ (form.modalidade || 'paga') === 'paga' ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-400' }`}>
+                    <DollarSign className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="font-extrabold text-xs text-white flex items-center gap-1.5">
+                      <span>Rifa Paga (Tradicional)</span>
+                      {(form.modalidade || 'paga') === 'paga' && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />}
+                    </div>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Venda de cotas por valor estipulado (ex: R$ 0,50) via Pix, Cartão ou Boleto.
+                    </p>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setForm(prev => ({ ...prev, modalidade: 'gratis', valorCota: 0, minPorCompra: 1, maxPorCompra: 1, exigirCpf: true, exigirEmail: true }))}
+                  className={`p-3.5 rounded-xl border text-left transition relative flex items-start gap-3 ${
+                    form.modalidade === 'gratis'
+                      ? 'bg-purple-500/10 border-purple-500 text-white shadow-md shadow-purple-500/10 ring-1 ring-purple-500/30'
+                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-800/60'
+                  }`}
+                >
+                  <div className={`p-2 rounded-lg ${ form.modalidade === 'gratis' ? 'bg-purple-500 text-white' : 'bg-slate-800 text-slate-400' }`}>
+                    <Gift className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="font-extrabold text-xs text-white flex items-center gap-1.5">
+                      <span>Sorteio Gratuito (0 Reais)</span>
+                      {form.modalidade === 'gratis' && <CheckCircle2 className="w-3.5 h-3.5 text-purple-400" />}
+                    </div>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      1 cota grátis por CPF/Pessoa. Excelente para captar leads e engajamento.
+                    </p>
+                  </div>
+                </button>
+              </div>
+
+              {form.modalidade === 'gratis' && (
+                <div className="p-3 bg-purple-950/40 border border-purple-500/30 rounded-xl text-xs text-purple-200 flex items-center gap-2 mt-2">
+                  <Gift className="w-4 h-4 text-purple-400 shrink-0" />
+                  <span>
+                    <strong>Modo Sorteio Gratuito Ativado:</strong> O valor da cota é automaticamente fixado em <strong>R$ 0,00</strong>. A validação por CPF é ativada para garantir 1 cota única por participante.
+                  </span>
+                </div>
+              )}
+            </div>
+
             {/* Configuração de Modelo, Cotas e Valores */}
             <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-xl space-y-3">
               <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
@@ -626,16 +690,23 @@ export const CampanhasFormView: React.FC<Props> = ({
                   <label className="text-xs font-bold text-slate-300 block mb-1">
                     Valor por Cota (R$) *
                   </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    placeholder="Ex: 0.50"
-                    value={form.valorCota !== undefined && form.valorCota !== null ? form.valorCota : ''}
-                    onChange={e => setForm(prev => ({ ...prev, valorCota: e.target.value === '' ? undefined : Number(e.target.value) }))}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-xs font-mono text-emerald-400 font-black focus:border-emerald-500 focus:outline-none"
-                    required
-                  />
+                  {form.modalidade === 'gratis' ? (
+                    <div className="w-full bg-purple-950/60 border border-purple-500/40 rounded-xl px-3 py-2.5 text-xs font-mono text-purple-300 font-black flex items-center justify-between">
+                      <span>R$ 0,00</span>
+                      <span className="text-[10px] bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full border border-purple-500/30">Grátis</span>
+                    </div>
+                  ) : (
+                    <input
+                      type="number"
+                      step="any"
+                      min="0.0001"
+                      placeholder="Ex: 0.50"
+                      value={form.valorCota !== undefined && form.valorCota !== null ? form.valorCota : ''}
+                      onChange={e => setForm(prev => ({ ...prev, valorCota: e.target.value === '' ? undefined : Number(e.target.value) }))}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-xs font-mono text-emerald-400 font-black focus:border-emerald-500 focus:outline-none"
+                      required
+                    />
+                  )}
                 </div>
 
                 <div>
@@ -661,28 +732,52 @@ export const CampanhasFormView: React.FC<Props> = ({
                 <label className="text-xs font-bold text-slate-300 block mb-1">
                   Mínimo de Cotas por Pedido
                 </label>
-                <input
-                  type="number"
-                  min="1"
-                  placeholder="Ex: 5"
-                  value={form.minPorCompra !== undefined && form.minPorCompra !== null ? form.minPorCompra : ''}
-                  onChange={e => setForm(prev => ({ ...prev, minPorCompra: e.target.value === '' ? undefined : Number(e.target.value) }))}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-mono text-white focus:border-emerald-500 focus:outline-none"
-                />
+                {form.modalidade === 'gratis' ? (
+                  <input
+                    type="number"
+                    value={1}
+                    disabled
+                    className="w-full bg-slate-950/50 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-mono text-purple-300 cursor-not-allowed"
+                  />
+                ) : (
+                  <input
+                    type="number"
+                    min="1"
+                    placeholder="Ex: 5"
+                    value={form.minPorCompra !== undefined && form.minPorCompra !== null ? form.minPorCompra : ''}
+                    onChange={e => setForm(prev => ({ ...prev, minPorCompra: e.target.value === '' ? undefined : Number(e.target.value) }))}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-mono text-white focus:border-emerald-500 focus:outline-none"
+                  />
+                )}
+                {form.modalidade === 'gratis' && (
+                  <span className="text-[10px] text-purple-400 mt-1 block">Fixado em 1 cota por CPF</span>
+                )}
               </div>
 
               <div>
                 <label className="text-xs font-bold text-slate-300 block mb-1">
                   Máximo de Cotas por Pedido
                 </label>
-                <input
-                  type="number"
-                  min="1"
-                  placeholder="Ex: 1000"
-                  value={form.maxPorCompra !== undefined && form.maxPorCompra !== null ? form.maxPorCompra : ''}
-                  onChange={e => setForm(prev => ({ ...prev, maxPorCompra: e.target.value === '' ? undefined : Number(e.target.value) }))}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-mono text-white focus:border-emerald-500 focus:outline-none"
-                />
+                {form.modalidade === 'gratis' ? (
+                  <input
+                    type="number"
+                    value={1}
+                    disabled
+                    className="w-full bg-slate-950/50 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-mono text-purple-300 cursor-not-allowed"
+                  />
+                ) : (
+                  <input
+                    type="number"
+                    min="1"
+                    placeholder="Ex: 1000"
+                    value={form.maxPorCompra !== undefined && form.maxPorCompra !== null ? form.maxPorCompra : ''}
+                    onChange={e => setForm(prev => ({ ...prev, maxPorCompra: e.target.value === '' ? undefined : Number(e.target.value) }))}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-mono text-white focus:border-emerald-500 focus:outline-none"
+                  />
+                )}
+                {form.modalidade === 'gratis' && (
+                  <span className="text-[10px] text-purple-400 mt-1 block">Fixado em 1 cota por CPF</span>
+                )}
               </div>
 
               <div>
@@ -1417,6 +1512,14 @@ export const CampanhasFormView: React.FC<Props> = ({
         {/* ABA 4: PROMOÇÕES & PACOTES */}
         {abaInterna === 'promocoes' && (
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm space-y-4 animate-in fade-in">
+            {form.modalidade === 'gratis' && (
+              <div className="p-3 bg-purple-950/60 border border-purple-500/40 rounded-xl text-xs text-purple-200 flex items-center gap-2">
+                <Gift className="w-4 h-4 text-purple-400 shrink-0" />
+                <span>
+                  <strong>Aviso de Sorteio Gratuito:</strong> Em sorteios gratuitos, pacotes de cotas pagas não são exibidos na página pública, pois cada usuário resgata 1 cota grátis por CPF.
+                </span>
+              </div>
+            )}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
               <div>
                 <h3 className="text-base font-black text-white flex items-center gap-2">
@@ -1644,6 +1747,14 @@ export const CampanhasFormView: React.FC<Props> = ({
         {/* ABA 5: OFERTAS RELÂMPAGO (UPSELL NO CHECKOUT) */}
         {abaInterna === 'upsell' && (
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm space-y-4 animate-in fade-in">
+            {form.modalidade === 'gratis' && (
+              <div className="p-3 bg-purple-950/60 border border-purple-500/40 rounded-xl text-xs text-purple-200 flex items-center gap-2">
+                <Gift className="w-4 h-4 text-purple-400 shrink-0" />
+                <span>
+                  <strong>Aviso de Sorteio Gratuito:</strong> Ofertas relâmpago de pagamento não são exibidas em sorteios 100% gratuitos.
+                </span>
+              </div>
+            )}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
               <div>
                 <h3 className="text-base font-black text-white flex items-center gap-2">
@@ -2027,14 +2138,21 @@ export const CampanhasFormView: React.FC<Props> = ({
         {/* ABA 7: PERSONALIZAR TEMA & LAYOUT */}
         {abaInterna === 'tema' && (
           <div className="animate-in fade-in">
-            <TemaBuilderView
-              campanha={form}
-              onChangeCampanha={setForm}
-              tema={form.tema || TEMA_PADRAO}
-              onChangeTema={(novoTema) => setForm(prev => ({ ...prev, tema: novoTema }))}
-              onSalvar={onSalvar}
-              salvando={salvando}
-            />
+            <React.Suspense fallback={
+              <div className="flex flex-col items-center justify-center p-8 gap-2 bg-slate-900 border border-slate-800 rounded-2xl">
+                <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                <p className="text-xs text-slate-400">Carregando construtor de temas...</p>
+              </div>
+            }>
+              <TemaBuilderView
+                campanha={form}
+                onChangeCampanha={setForm}
+                tema={form.tema || TEMA_PADRAO}
+                onChangeTema={(novoTema) => setForm(prev => ({ ...prev, tema: novoTema }))}
+                onSalvar={onSalvar}
+                salvando={salvando}
+              />
+            </React.Suspense>
           </div>
         )}
 

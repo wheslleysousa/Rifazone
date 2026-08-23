@@ -1,3 +1,5 @@
+import nodemailer from 'nodemailer';
+
 export interface NotificacaoPayload {
   destinatarioEmail?: string | null;
   destinatarioTelefone?: string;
@@ -23,11 +25,19 @@ export class EmailNotificador implements Notificador {
   private resendApiKey?: string;
   private sendGridApiKey?: string;
   private emailFrom: string;
+  private smtpHost: string;
+  private smtpPort: number;
+  private smtpUser?: string;
+  private smtpPass?: string;
 
   constructor() {
     this.resendApiKey = process.env.RESEND_API_KEY?.trim();
     this.sendGridApiKey = process.env.SENDGRID_API_KEY?.trim();
     this.emailFrom = process.env.EMAIL_FROM?.trim() || 'rifazone@notificacoes.com';
+    this.smtpHost = process.env.SMTP_HOST?.trim() || 'smtp.gmail.com';
+    this.smtpPort = Number(process.env.SMTP_PORT) || 465;
+    this.smtpUser = process.env.SMTP_USER?.trim();
+    this.smtpPass = process.env.SMTP_PASS?.trim();
   }
 
   async enviarEmail(payload: NotificacaoPayload): Promise<NotificadorResult> {
@@ -56,7 +66,38 @@ export class EmailNotificador implements Notificador {
       </div>
     `;
 
-    // 1. Tenta envio via Resend se RESEND_API_KEY estiver configurada
+    // 1. Tenta envio por SMTP se SMTP_USER e SMTP_PASS existirem
+    if (this.smtpUser && this.smtpPass) {
+      try {
+        const transporter = nodemailer.createTransport({
+          host: this.smtpHost,
+          port: this.smtpPort,
+          secure: this.smtpPort === 465,
+          auth: {
+            user: this.smtpUser,
+            pass: this.smtpPass,
+          },
+        });
+
+        // O remetente do e-mail deve ser SMTP_USER quando usar Gmail.
+        const remetente = this.smtpUser;
+
+        const info = await transporter.sendMail({
+          from: remetente,
+          to: payload.destinatarioEmail,
+          subject: assunto,
+          html: htmlBody,
+        });
+
+        console.log(`[EmailNotificador - SMTP] E-mail enviado com sucesso para ${payload.destinatarioEmail}. MessageId: ${info.messageId}`);
+        return { sucesso: true, id: info.messageId };
+      } catch (err: any) {
+        console.error('[EmailNotificador - SMTP] Erro ao enviar por SMTP:', err);
+        return { sucesso: false, erro: err.message || String(err) };
+      }
+    }
+
+    // 2. Tenta envio via Resend se RESEND_API_KEY estiver configurada
     if (this.resendApiKey) {
       try {
         const response = await fetch('https://api.resend.com/emails', {
@@ -85,7 +126,7 @@ export class EmailNotificador implements Notificador {
       }
     }
 
-    // 2. Tenta envio via SendGrid se SENDGRID_API_KEY estiver configurada
+    // 3. Fallback SendGrid (se existir apiKey mas outros falharam)
     if (this.sendGridApiKey) {
       try {
         const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
@@ -111,11 +152,11 @@ export class EmailNotificador implements Notificador {
       }
     }
 
-    // 3. Fallback de Desenvolvimento / Simulação
-    console.log(`[EmailNotificador - Simulação] Disparo de e-mail para ${payload.destinatarioEmail}: "${payload.mensagemTexto.slice(0, 60)}..."`);
+    // 4. Sem canal configurado
+    console.error(`[EmailNotificador] Erro: Não há canal de e-mail configurado (SMTP ou Resend). Não foi possível enviar para ${payload.destinatarioEmail}.`);
     return {
-      sucesso: true,
-      id: `simulacao_email_${Date.now()}`
+      sucesso: false,
+      erro: 'Nenhum canal de e-mail (SMTP ou Resend) configurado no servidor'
     };
   }
 }

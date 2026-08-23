@@ -66,7 +66,7 @@ export const CartaoSuccessModal: React.FC<Props> = ({
 
           <div className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-full text-xs font-bold">
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Pagamento Aprovado no Cartão!</span>
+            <span>{valorTotal === 0 ? 'Inscrição Grátis Confirmada! 🎉' : 'Pagamento Aprovado no Cartão!'}</span>
           </div>
 
           <h3 className="text-xl font-black text-white">

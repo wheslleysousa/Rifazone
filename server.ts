@@ -97,8 +97,17 @@ export function sanitizarCampanha(
     checkout: data.checkout || base?.checkout || DEFAULT_CHECKOUT_CONFIG,
     remarketing: data.remarketing !== undefined ? data.remarketing : (base?.remarketing ?? {
       ativo: false,
-      aguardando: [{ faltaMin: 5, mensagem: "Olá {nome}! Sua reserva de cotas na rifa {campanha} está expirando em {minutos} minutos. Pague via Pix para garantir: {link}" }],
-      expirado: [{ aposMin: 30, cupom: "VOLTA10", descontoPct: 10, mensagem: "Oi {nome}! Vimos que seu pedido na {campanha} expirou. Ganhe 10% de desconto usando o cupom {cupom}: {link}" }]
+      canal: 'whatsapp',
+      regrasNaoPagou: [
+        { faltandoMin: 5, mensagem: "Olá {nome}! Sua reserva de cotas na rifa {campanha} está expirando em {minutos} minutos. Pague via Pix para garantir: {link}" },
+        { aposExpirarMin: 30, cupom: "VOLTA10", descontoPct: 10, mensagem: "Oi {nome}! Vimos que seu pedido na {campanha} expirou. Ganhe 10% de desconto usando o cupom {cupom}: {link}" }
+      ],
+      regraPago: {
+        ativo: false,
+        enviarNumeros: true,
+        mensagem: 'Olá {nome}! Seu pagamento para a campanha {campanha} foi confirmado com sucesso. Seus números: {numeros}. Boa sorte! 🍀'
+      },
+      somenteSeCampanhaAtiva: true
     }),
     cupons: Array.isArray(data.cupons) ? data.cupons : (base?.cupons || []),
     status: (data.status || base?.status || 'publicada') as any,
@@ -113,6 +122,13 @@ export function sanitizarCampanha(
 const app = express();
 // Render/Cloud Run injetam a porta via variável PORT.
 const PORT = Number(process.env.PORT) || 3000;
+
+// Estado em memória do worker do WhatsApp Web
+let globalWorkerStatus = {
+  conectado: false,
+  numero: undefined as string | undefined,
+  atualizadoEm: undefined as string | undefined
+};
 
 // Body parsers
 app.use(express.json({
@@ -342,6 +358,67 @@ app.post('/api/pedidos', async (req, res) => {
       await db.reservarCotas(campanha, cotasAReservar, pedidoId, compradorSalvo.id, compradorSalvo.nome);
     } catch (err: any) {
       return res.status(409).json({ error: err.message || 'Um ou mais números escolhidos acabaram de ser reservados por outro comprador. Tente novamente.' });
+    }
+
+    // 1.5) Tratar Modalidade Sorteio Gratuito (0 Reais)
+    if (campanha.modalidade === 'gratis' || valorTotalCents === 0) {
+      const pedidosExistentes = await db.getPedidosPorCampanha(campanha.id);
+      const cpfDigits = compradorSalvo.cpf ? compradorSalvo.cpf.replace(/\D/g, '') : null;
+      const phoneDigits = compradorSalvo.whatsapp.replace(/\D/g, '');
+
+      const jaInscrito = pedidosExistentes.some(p => {
+        if (!p || p.status === 'cancelado') return false;
+        const pCpf = p.comprador?.cpf ? p.comprador.cpf.replace(/\D/g, '') : '';
+        const pPhone = p.comprador?.whatsapp ? p.comprador.whatsapp.replace(/\D/g, '') : '';
+        return (cpfDigits && pCpf === cpfDigits) || (phoneDigits && pPhone === phoneDigits);
+      });
+
+      if (jaInscrito) {
+        return res.status(400).json({
+          error: 'Você já possui uma cota cadastrada neste sorteio gratuito com este CPF ou WhatsApp.'
+        });
+      }
+
+      totalQtd = 1;
+      if (cotasAReservar.length > 1) {
+        cotasAReservar = cotasAReservar.slice(0, 1);
+      }
+
+      const novoPedido = await db.savePedido({
+        id: pedidoId,
+        campanhaId: campanha.id,
+        compradorId: compradorSalvo.id,
+        comprador: {
+          nome: compradorSalvo.nome,
+          whatsapp: compradorSalvo.whatsapp,
+          cpf: compradorSalvo.cpf,
+          email: compradorSalvo.email
+        },
+        numeros: cotasAReservar,
+        quantidade: 1,
+        valorTotal: 0,
+        status: 'pago',
+        metodoPagamento: 'gratis',
+        mpPaymentId: 'gratis_' + pedidoId,
+        pixCopiaCola: null,
+        pixQrCodeBase64: null,
+        cupomAplicado: null,
+        expiraEm: expiraEm.toISOString(),
+        criadoEm: agora.toISOString(),
+        pagoEm: agora.toISOString()
+      });
+
+      await processarConfirmacaoPedido(novoPedido.id, 'gratis_' + pedidoId, req);
+
+      return res.status(201).json({
+        pedidoId: novoPedido.id,
+        metodoPagamento: 'gratis',
+        valorTotal: 0,
+        quantidade: 1,
+        numeros: novoPedido.numeros,
+        status: 'pago',
+        mensagem: 'Inscrição no Sorteio Gratuito confirmada com sucesso!'
+      });
     }
 
     const mpToken = await db.getMpTokenPorCampanha(campanha.id);
@@ -594,6 +671,35 @@ async function processarConfirmacaoPedido(pedidoId: string, paymentId?: string, 
     if (pedidoAtualizado) {
       const campanha = await db.getCampanhaById(pedidoAtualizado.campanhaId);
       if (campanha) {
+        // Enfileirar remarketing pago se configurado e ativo
+        if (campanha.remarketing && campanha.remarketing.ativo && campanha.remarketing.regraPago && campanha.remarketing.regraPago.ativo) {
+          try {
+            const rule = campanha.remarketing.regraPago;
+            const numerosTexto = rule.enviarNumeros ? pedidoAtualizado.numeros.join(', ') : '';
+            const msgTexto = (rule.mensagem || '')
+              .replace(/\{nome\}/g, pedidoAtualizado.comprador.nome || 'Cliente')
+              .replace(/\{campanha\}/g, campanha.titulo)
+              .replace(/\{qtd\}/g, String(pedidoAtualizado.quantidade))
+              .replace(/\{numeros\}/g, numerosTexto);
+
+            const paraClean = pedidoAtualizado.comprador.whatsapp.replace(/\D/g, '');
+            const ddiPara = paraClean.startsWith('55') ? paraClean : `55${paraClean}`;
+
+            await db.enfileirarMensagem({
+              ownerId: campanha.ownerId || '',
+              campanhaId: campanha.id,
+              pedidoId: pedidoAtualizado.id,
+              para: ddiPara,
+              canal: campanha.remarketing.canal || 'whatsapp',
+              texto: msgTexto,
+              tipo: 'pago',
+              chaveIdempotencia: `${pedidoAtualizado.id}:pago`
+            });
+          } catch (err) {
+            console.error('[Remarketing Pago] Erro ao enfileirar:', err);
+          }
+        }
+
         const ownerConfig = await db.getConfig(campanha.ownerId || '');
         const host = req ? `${req.protocol}://${req.get('host')}` : '';
         const baseUrl = (process.env.BASE_URL || process.env.APP_URL || host).replace(/\/$/, '');
@@ -954,6 +1060,7 @@ app.put('/api/admin/configuracoes', firebaseAuthMiddleware, async (req, res) => 
       metaCapiToken: b.metaCapiToken !== undefined ? String(b.metaCapiToken || '') : undefined,
       metaAdAccountId: b.metaAdAccountId !== undefined ? String(b.metaAdAccountId || '') : undefined,
       metaPixelId: b.metaPixelId !== undefined ? String(b.metaPixelId || '') : undefined,
+      notificameToken: b.notificameToken !== undefined ? String(b.notificameToken || '') : undefined,
       marca: b.marca !== undefined ? b.marca : undefined,
       redes: b.redes !== undefined ? b.redes : undefined
     });
@@ -1222,6 +1329,147 @@ app.get('/api/admin/pedidos', firebaseAuthMiddleware, async (req, res) => {
   }
 });
 
+// GET /api/admin/fila-mensagens -> Retorna todas as mensagens da fila para o painel admin (filtrado por organizador)
+app.get('/api/admin/fila-mensagens', firebaseAuthMiddleware, async (req, res) => {
+  try {
+    const campanhas = await db.getCampanhas((req as any).userId);
+    const campanhaIds = new Set(campanhas.map(c => c.id));
+    
+    const todas = await db.listarTodasMensagensFila();
+    const minhasMensagens = todas.filter(m => campanhaIds.has(m.campanhaId));
+    
+    return res.json(minhasMensagens);
+  } catch (err: any) {
+    console.error('Erro ao listar fila de mensagens para admin:', err);
+    return res.status(500).json({ error: 'Erro ao buscar fila de mensagens.' });
+  }
+});
+
+// POST /api/admin/fila-mensagens/limpar -> Cancela todas as mensagens pendentes da fila do organizador
+app.post('/api/admin/fila-mensagens/limpar', firebaseAuthMiddleware, async (req, res) => {
+  try {
+    const campanhas = await db.getCampanhas((req as any).userId);
+    const campanhaIds = new Set(campanhas.map(c => c.id));
+    
+    const todas = await db.listarTodasMensagensFila();
+    const minhasMensagens = todas.filter(m => campanhaIds.has(m.campanhaId));
+    
+    let canceladas = 0;
+    for (const msg of minhasMensagens) {
+      if (msg.status === 'pendente' || msg.status === 'erro') {
+        await db.marcarStatusMensagem(msg.id, 'cancelada', 'Cancelada pelo administrador');
+        canceladas++;
+      }
+    }
+    
+    return res.json({ success: true, count: canceladas });
+  } catch (err: any) {
+    console.error('Erro ao limpar fila de mensagens para admin:', err);
+    return res.status(500).json({ error: 'Erro ao limpar fila.' });
+  }
+});
+
+// ============================================================================
+// --- Endpoints de Integração com o WhatsApp Worker Externo ---
+// ============================================================================
+
+// Middleware para verificar CRON_SECRET nos endpoints do cron/tarefas
+function verificarCronSecret(req: Request, res: Response, next: NextFunction) {
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret || !cronSecret.trim()) {
+    return res.status(503).json({ error: 'CRON_SECRET não configurado' });
+  }
+
+  const cronSecretVal = cronSecret.trim();
+  const secretRecebido = (
+    (req.headers['x-cron-secret'] as string) ||
+    (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : null) ||
+    (req.query.secret as string) ||
+    ''
+  ).trim();
+
+  if (!secretRecebido || secretRecebido !== cronSecretVal) {
+    return res.status(401).json({ error: 'Não autorizado. Chave secreta inválida.' });
+  }
+  next();
+}
+
+// Middleware para verificar WORKER_SECRET nos endpoints do worker de WhatsApp
+function verificarWorkerSecret(req: Request, res: Response, next: NextFunction) {
+  const workerSecret = process.env.WORKER_SECRET;
+  if (!workerSecret || !workerSecret.trim()) {
+    return res.status(503).json({ error: 'WORKER_SECRET não configurado' });
+  }
+
+  const workerSecretVal = workerSecret.trim();
+  const secretRecebido = (
+    (req.headers['x-worker-secret'] as string) ||
+    (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : null) ||
+    (req.query.secret as string) ||
+    ''
+  ).trim();
+
+  if (!secretRecebido || secretRecebido !== workerSecretVal) {
+    return res.status(401).json({ error: 'Não autorizado. Chave secreta de worker inválida.' });
+  }
+  next();
+}
+
+// GET /api/worker/fila?limit=10 -> Busca mensagens pendentes de WhatsApp para o worker
+app.get('/api/worker/fila', verificarWorkerSecret, async (req, res) => {
+  try {
+    const limitNum = Number(req.query.limit) || 10;
+    const pendentes = await db.listarFilaPendente(limitNum);
+    
+    // Retorna apenas mensagens destinadas ao WhatsApp (canal 'whatsapp' ou 'ambos')
+    const whatsPendentes = pendentes.filter(m => m.canal === 'whatsapp' || m.canal === 'ambos');
+    
+    return res.json(whatsPendentes);
+  } catch (err: any) {
+    console.error('Erro ao buscar fila para o worker:', err);
+    return res.status(500).json({ error: 'Erro ao buscar mensagens.' });
+  }
+});
+
+// POST /api/worker/fila/:id/status -> Atualiza o status da mensagem após envio
+app.post('/api/worker/fila/:id/status', verificarWorkerSecret, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, erro } = req.body;
+    
+    if (!['enviada', 'erro'].includes(status)) {
+      return res.status(400).json({ error: 'Status inválido para atualização pelo worker.' });
+    }
+    
+    const atualizada = await db.marcarStatusMensagem(id, status, erro);
+    return res.json({ success: true, mensagem: atualizada });
+  } catch (err: any) {
+    console.error('Erro ao atualizar status da mensagem do worker:', err);
+    return res.status(500).json({ error: 'Erro ao atualizar status.' });
+  }
+});
+
+// POST /api/worker/status -> Permite ao worker notificar o status do WhatsApp Web
+app.post('/api/worker/status', verificarWorkerSecret, async (req, res) => {
+  try {
+    const { conectado, numero } = req.body;
+    globalWorkerStatus = {
+      conectado: Boolean(conectado),
+      numero: numero || undefined,
+      atualizadoEm: new Date().toISOString()
+    };
+    return res.json({ success: true, status: globalWorkerStatus });
+  } catch (err: any) {
+    console.error('Erro ao registrar status do worker:', err);
+    return res.status(500).json({ error: 'Erro ao registrar status.' });
+  }
+});
+
+// GET /api/admin/worker/status -> Retorna o status atual do worker para o admin
+app.get('/api/admin/worker/status', firebaseAuthMiddleware, async (req, res) => {
+  return res.json(globalWorkerStatus);
+});
+
 // GET /api/admin/campanhas/:id/pedidos -> Lista pedidos e compradores (somente o dono)
 app.get('/api/admin/campanhas/:id/pedidos', firebaseAuthMiddleware, async (req, res) => {
   const { id } = req.params;
@@ -1271,22 +1519,8 @@ app.post('/api/admin/limpar-reservas', firebaseAuthMiddleware, async (_req, res)
 });
 
 // POST /api/tarefas/expirar-pedidos -> Expiração ativa de pedidos e liberação de cotas (CRON / Cloud Scheduler)
-app.post('/api/tarefas/expirar-pedidos', async (req, res) => {
+app.post('/api/tarefas/expirar-pedidos', verificarCronSecret, async (req, res) => {
   try {
-    const cronSecretVal = (process.env.CRON_SECRET || 'rifazone_cron_secret_default').trim();
-    const secretRecebido = (
-      (req.headers['x-cron-secret'] as string) ||
-      (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : null) ||
-      (req.query.secret as string) ||
-      ''
-    ).trim();
-
-    if (!secretRecebido || secretRecebido !== cronSecretVal) {
-      return res.status(401).json({
-        error: 'Não autorizado. Header X-Cron-Secret ou token Bearer inválido.'
-      });
-    }
-
     const resultado = await db.limparReservasExpiradas();
     const cotasLiberadas = typeof resultado === 'number' ? resultado : resultado.cotasLiberadas;
     const pedidosExpirados = typeof resultado === 'number' ? 0 : resultado.pedidosExpirados;
@@ -1344,31 +1578,16 @@ app.post('/api/pedidos/validar-cupom', async (req, res) => {
   }
 });
 
-// POST /api/tarefas/remarketing -> Motor de envio de notificações de remarketing
-app.post('/api/tarefas/remarketing', async (req, res) => {
+// POST /api/tarefas/remarketing -> Motor de enfileiramento de remarketing (padrão outbox)
+app.post('/api/tarefas/remarketing', verificarCronSecret, async (req, res) => {
   try {
-    const cronSecretVal = (process.env.CRON_SECRET || 'rifazone_cron_secret_default').trim();
-    const secretRecebido = (
-      (req.headers['x-cron-secret'] as string) ||
-      (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : null) ||
-      (req.query.secret as string) ||
-      ''
-    ).trim();
-
-    if (!secretRecebido || secretRecebido !== cronSecretVal) {
-      return res.status(401).json({
-        error: 'Não autorizado. Header X-Cron-Secret ou token Bearer inválido.'
-      });
-    }
-
-    const emailNotificador = new EmailNotificador();
     const campanhas = await db.getCampanhas();
     const campanhasAtivas = campanhas.filter(c => c.remarketing && c.remarketing.ativo);
 
     if (campanhasAtivas.length === 0) {
       return res.json({
         success: true,
-        disparados: 0,
+        enfileirados: 0,
         mensagem: 'Nenhuma campanha com remarketing ativo no momento.',
         timestamp: new Date().toISOString()
       });
@@ -1380,11 +1599,20 @@ app.post('/api/tarefas/remarketing', async (req, res) => {
     const host = req.get('host') || 'localhost:3000';
     const baseUrl = process.env.APP_URL || `${protocol}://${host}`;
 
-    let totalDisparados = 0;
+    let totalEnfileirados = 0;
     const detalhes: any[] = [];
 
     for (const campanha of campanhasAtivas) {
       const configRem = campanha.remarketing!;
+      
+      // Se "somente se campanha ativa" for verdadeiro, ignoramos se a campanha não estiver publicada
+      if (configRem.somenteSeCampanhaAtiva && campanha.status !== 'publicada') {
+        continue;
+      }
+
+      const regrasNaoPagou = configRem.regrasNaoPagou || [];
+      if (regrasNaoPagou.length === 0) continue;
+
       const pedidosCampanha = todosPedidos.filter(p => p.campanhaId === campanha.id);
 
       for (const p of pedidosCampanha) {
@@ -1392,63 +1620,20 @@ app.post('/api/tarefas/remarketing', async (req, res) => {
         const jaEnviados = new Set(p.remarketingEnviado || []);
         let mudouPedido = false;
 
-        // 1. Regras de "Aguardando" (pedidos pendentes)
-        if (p.status === 'pendente' && configRem.aguardando && configRem.aguardando.length > 0) {
-          const expiraMs = new Date(p.expiraEm).getTime();
+        const expiraMs = new Date(p.expiraEm).getTime();
+
+        // 1. Regras para pedidos pendentes (faltandoMin)
+        if (p.status === 'pendente') {
           const faltaMinutos = Math.max(0, Math.ceil((expiraMs - agoraMs) / (60 * 1000)));
 
-          for (const regra of configRem.aguardando) {
-            const ruleKey = regra.id || `aguardando_${regra.faltaMin}`;
+          for (const regra of regrasNaoPagou) {
+            if (regra.faltandoMin === undefined) continue;
+
+            const ruleKey = `faltando_${regra.faltandoMin}`;
             if (jaEnviados.has(ruleKey)) continue;
 
-            // Dispara quando FALTA X min p/ expirar
-            if (faltaMinutos <= regra.faltaMin && faltaMinutos > 0) {
-              const link = `${baseUrl}/c/${campanha.codigo}?pedido=${p.id}`;
-              const msgTexto = (regra.mensagem || '')
-                .replace(/\{nome\}/g, p.comprador.nome || 'Cliente')
-                .replace(/\{campanha\}/g, campanha.titulo)
-                .replace(/\{link\}/g, link)
-                .replace(/\{cupom\}/g, '')
-                .replace(/\{minutos\}/g, String(faltaMinutos));
-
-              if (p.comprador.email) {
-                await emailNotificador.enviarEmail({
-                  destinatarioEmail: p.comprador.email,
-                  destinatarioTelefone: p.comprador.whatsapp,
-                  nomeComprador: p.comprador.nome,
-                  tituloCampanha: campanha.titulo,
-                  mensagemTexto: msgTexto,
-                  linkCheckout: link
-                });
-              }
-
-              jaEnviados.add(ruleKey);
-              p.remarketingEnviado = Array.from(jaEnviados);
-              mudouPedido = true;
-              totalDisparados++;
-
-              detalhes.push({
-                pedidoId: p.id,
-                comprador: p.comprador.nome,
-                tipo: 'aguardando',
-                regra: ruleKey,
-                faltaMinutos
-              });
-            }
-          }
-        }
-
-        // 2. Regras de "Expirado" (pedidos expirados)
-        if (p.status === 'expirado' && configRem.expirado && configRem.expirado.length > 0) {
-          const expiraMs = new Date(p.expiraEm).getTime();
-          const aposMinutos = Math.max(0, Math.floor((agoraMs - expiraMs) / (60 * 1000)));
-
-          for (const regra of configRem.expirado) {
-            const ruleKey = regra.id || `expirado_${regra.aposMin}`;
-            if (jaEnviados.has(ruleKey)) continue;
-
-            // Dispara X min APÓS expirar
-            if (aposMinutos >= regra.aposMin) {
+            // Dispara quando falta X minutos ou menos para expirar
+            if (faltaMinutos <= regra.faltandoMin && faltaMinutos > 0) {
               const cupomParam = regra.cupom ? `&cupom=${encodeURIComponent(regra.cupom)}` : '';
               const link = `${baseUrl}/c/${campanha.codigo}?pedido=${p.id}${cupomParam}`;
               const msgTexto = (regra.mensagem || '')
@@ -1456,29 +1641,84 @@ app.post('/api/tarefas/remarketing', async (req, res) => {
                 .replace(/\{campanha\}/g, campanha.titulo)
                 .replace(/\{link\}/g, link)
                 .replace(/\{cupom\}/g, regra.cupom || '')
-                .replace(/\{minutos\}/g, String(aposMinutos));
+                .replace(/\{minutos\}/g, String(faltaMinutos))
+                .replace(/\{numeros\}/g, p.numeros.join(', '));
 
-              if (p.comprador.email) {
-                await emailNotificador.enviarEmail({
-                  destinatarioEmail: p.comprador.email,
-                  destinatarioTelefone: p.comprador.whatsapp,
-                  nomeComprador: p.comprador.nome,
-                  tituloCampanha: campanha.titulo,
-                  mensagemTexto: msgTexto,
-                  linkCheckout: link,
-                  cupom: regra.cupom
-                });
-              }
+              const paraClean = p.comprador.whatsapp.replace(/\D/g, '');
+              const ddiPara = paraClean.startsWith('55') ? paraClean : `55${paraClean}`;
+
+              await db.enfileirarMensagem({
+                ownerId: campanha.ownerId || '',
+                campanhaId: campanha.id,
+                pedidoId: p.id,
+                para: ddiPara,
+                canal: configRem.canal || 'whatsapp',
+                texto: msgTexto,
+                tipo: 'nao_pagou',
+                chaveIdempotencia: `${p.id}:${ruleKey}`
+              }).catch(err => console.error('[Fila Remarketing] Erro ao enfileirar:', err));
 
               jaEnviados.add(ruleKey);
               p.remarketingEnviado = Array.from(jaEnviados);
               mudouPedido = true;
-              totalDisparados++;
+              totalEnfileirados++;
 
               detalhes.push({
                 pedidoId: p.id,
                 comprador: p.comprador.nome,
-                tipo: 'expirado',
+                tipo: 'faltandoMin',
+                regra: ruleKey,
+                faltaMinutos
+              });
+            }
+          }
+        }
+
+        // 2. Regras para pedidos expirados (aposExpirarMin)
+        if (p.status === 'expirado') {
+          const aposMinutos = Math.max(0, Math.floor((agoraMs - expiraMs) / (60 * 1000)));
+
+          for (const regra of regrasNaoPagou) {
+            if (regra.aposExpirarMin === undefined) continue;
+
+            const ruleKey = `apos_${regra.aposExpirarMin}`;
+            if (jaEnviados.has(ruleKey)) continue;
+
+            // Dispara X minutos ou mais após expirar
+            if (aposMinutos >= regra.aposExpirarMin) {
+              const cupomParam = regra.cupom ? `&cupom=${encodeURIComponent(regra.cupom)}` : '';
+              const link = `${baseUrl}/c/${campanha.codigo}?pedido=${p.id}${cupomParam}`;
+              const msgTexto = (regra.mensagem || '')
+                .replace(/\{nome\}/g, p.comprador.nome || 'Cliente')
+                .replace(/\{campanha\}/g, campanha.titulo)
+                .replace(/\{link\}/g, link)
+                .replace(/\{cupom\}/g, regra.cupom || '')
+                .replace(/\{minutos\}/g, String(aposMinutos))
+                .replace(/\{numeros\}/g, p.numeros.join(', '));
+
+              const paraClean = p.comprador.whatsapp.replace(/\D/g, '');
+              const ddiPara = paraClean.startsWith('55') ? paraClean : `55${paraClean}`;
+
+              await db.enfileirarMensagem({
+                ownerId: campanha.ownerId || '',
+                campanhaId: campanha.id,
+                pedidoId: p.id,
+                para: ddiPara,
+                canal: configRem.canal || 'whatsapp',
+                texto: msgTexto,
+                tipo: 'nao_pagou',
+                chaveIdempotencia: `${p.id}:${ruleKey}`
+              }).catch(err => console.error('[Fila Remarketing] Erro ao enfileirar:', err));
+
+              jaEnviados.add(ruleKey);
+              p.remarketingEnviado = Array.from(jaEnviados);
+              mudouPedido = true;
+              totalEnfileirados++;
+
+              detalhes.push({
+                pedidoId: p.id,
+                comprador: p.comprador.nome,
+                tipo: 'aposExpirarMin',
                 regra: ruleKey,
                 aposMinutos
               });
@@ -1494,13 +1734,167 @@ app.post('/api/tarefas/remarketing', async (req, res) => {
 
     return res.json({
       success: true,
-      disparados: totalDisparados,
+      enfileirados: totalEnfileirados,
       detalhes,
       timestamp: new Date().toISOString()
     });
   } catch (err: any) {
-    console.error('Erro no motor de remarketing:', err);
+    console.error('Erro no motor de enfileiramento de remarketing:', err);
     return res.status(500).json({ error: 'Erro ao processar fila de remarketing.' });
+  }
+});
+
+// POST /api/tarefas/processar-fila -> Envia as mensagens pendentes da fila (outbox)
+app.post('/api/tarefas/processar-fila', verificarCronSecret, async (req, res) => {
+  try {
+    const pendentes = await db.listarFilaPendente(20);
+    if (pendentes.length === 0) {
+      return res.json({
+        success: true,
+        processados: 0,
+        mensagem: 'Nenhuma mensagem pendente na fila.',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    let totalSucesso = 0;
+    let totalErro = 0;
+    const detalhes: any[] = [];
+
+    for (const msg of pendentes) {
+      if (msg.status !== 'pendente') continue;
+
+      const config = await db.getConfig(msg.ownerId);
+      const rawToken = config?.notificameToken || process.env.NOTIFICAME_API_TOKEN;
+      const token = rawToken ? decryptToken(rawToken) : null;
+
+      const canal = msg.canal || 'whatsapp';
+
+      // Simula envio em desenvolvimento/preview se não houver credencial configurada
+      if (!token && process.env.NODE_ENV !== 'production') {
+        await db.marcarStatusMensagem(msg.id, 'enviada');
+        totalSucesso++;
+        detalhes.push({ id: msg.id, para: msg.para, status: 'simulado' });
+        continue;
+      }
+
+      if (!token) {
+        await db.marcarStatusMensagem(msg.id, 'erro', 'Token do Notificame não configurado nas configurações do organizador.');
+        totalErro++;
+        detalhes.push({ id: msg.id, para: msg.para, status: 'erro', erro: 'Token não configurado' });
+        continue;
+      }
+
+      let sucessoWhatsapp = true;
+      let erroWhatsapp = '';
+      let sucessoEmail = true;
+      let erroEmail = '';
+
+      if (canal === 'whatsapp' || canal === 'ambos') {
+        try {
+          const response = await fetch('https://api.notificame.com.br/v1/messages', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Api-Key': token,
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              to: msg.para,
+              number: msg.para,
+              message: msg.texto,
+              body: msg.texto,
+              type: 'text'
+            })
+          });
+
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            sucessoWhatsapp = false;
+            const msgErro = data.message || data.error || `HTTP ${response.status}`;
+            if (response.status === 402 || String(msgErro).toLowerCase().includes('saldo') || String(msgErro).toLowerCase().includes('balance') || String(msgErro).toLowerCase().includes('credit')) {
+              erroWhatsapp = `Falta de Saldo: ${msgErro}`;
+            } else {
+              erroWhatsapp = `Erro API Notificame: ${msgErro}`;
+            }
+          }
+        } catch (err: any) {
+          sucessoWhatsapp = false;
+          erroWhatsapp = `Conexão falhou: ${err.message || err}`;
+        }
+      }
+
+      if (canal === 'email' || canal === 'ambos') {
+        try {
+          const pedido = await db.getPedido(msg.pedidoId);
+          if (pedido && pedido.comprador && pedido.comprador.email) {
+            const emailNotificador = new EmailNotificador();
+            const resEmail = await emailNotificador.enviarEmail({
+              destinatarioEmail: pedido.comprador.email,
+              destinatarioTelefone: pedido.comprador.whatsapp,
+              nomeComprador: pedido.comprador.nome,
+              tituloCampanha: 'RifaZone',
+              mensagemTexto: msg.texto
+            });
+            if (!resEmail.sucesso) {
+              sucessoEmail = false;
+              erroEmail = resEmail.erro || 'Falha no envio do e-mail';
+            }
+          } else {
+            sucessoEmail = false;
+            erroEmail = 'Comprador sem e-mail válido';
+          }
+        } catch (err: any) {
+          sucessoEmail = false;
+          erroEmail = `Erro e-mail: ${err.message || err}`;
+        }
+      }
+
+      if (canal === 'ambos') {
+        if (sucessoWhatsapp && sucessoEmail) {
+          await db.marcarStatusMensagem(msg.id, 'enviada');
+          totalSucesso++;
+          detalhes.push({ id: msg.id, para: msg.para, status: 'enviada' });
+        } else {
+          const errCombined = `WhatsApp: ${sucessoWhatsapp ? 'OK' : erroWhatsapp} | E-mail: ${sucessoEmail ? 'OK' : erroEmail}`;
+          await db.marcarStatusMensagem(msg.id, 'erro', errCombined);
+          totalErro++;
+          detalhes.push({ id: msg.id, para: msg.para, status: 'erro', erro: errCombined });
+        }
+      } else if (canal === 'whatsapp') {
+        if (sucessoWhatsapp) {
+          await db.marcarStatusMensagem(msg.id, 'enviada');
+          totalSucesso++;
+          detalhes.push({ id: msg.id, para: msg.para, status: 'enviada' });
+        } else {
+          await db.marcarStatusMensagem(msg.id, 'erro', erroWhatsapp);
+          totalErro++;
+          detalhes.push({ id: msg.id, para: msg.para, status: 'erro', erro: erroWhatsapp });
+        }
+      } else {
+        if (sucessoEmail) {
+          await db.marcarStatusMensagem(msg.id, 'enviada');
+          totalSucesso++;
+          detalhes.push({ id: msg.id, para: msg.para, status: 'enviada' });
+        } else {
+          await db.marcarStatusMensagem(msg.id, 'erro', erroEmail);
+          totalErro++;
+          detalhes.push({ id: msg.id, para: msg.para, status: 'erro', erro: erroEmail });
+        }
+      }
+    }
+
+    return res.json({
+      success: true,
+      processados: pendentes.length,
+      sucesso: totalSucesso,
+      erro: totalErro,
+      detalhes,
+      timestamp: new Date().toISOString()
+    });
+  } catch (err: any) {
+    console.error('Erro ao processar fila de outbox:', err);
+    return res.status(500).json({ error: 'Erro ao processar fila de outbox.' });
   }
 });
 
@@ -1508,6 +1902,16 @@ app.post('/api/tarefas/remarketing', async (req, res) => {
 // 3. VITE MIDDLEWARE & BOOTSTRAP
 // ----------------------------------------------------
 async function startServer() {
+  // Verificações de segurança no Boot
+  if (!process.env.CRON_SECRET || !process.env.CRON_SECRET.trim()) {
+    console.error('\x1b[31m%s\x1b[0m', '[ERRO CRÍTICO NO BOOT] CRON_SECRET não configurado!');
+    console.error('As rotas /api/tarefas/* retornarão status 503 até que o CRON_SECRET seja definido no ambiente.');
+  }
+  if (!process.env.WORKER_SECRET || !process.env.WORKER_SECRET.trim()) {
+    console.error('\x1b[31m%s\x1b[0m', '[ERRO CRÍTICO NO BOOT] WORKER_SECRET não configurado!');
+    console.error('As rotas /api/worker/* retornarão status 503 até que o WORKER_SECRET seja definido no ambiente.');
+  }
+
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },

@@ -1,43 +1,47 @@
 /**
- * Utilitários de manipulação de moeda (centavos inteiros) no backend.
- *
- * Prevenção de erros de precisão float:
- * Todos os valores monetários internos da aplicação (valorCota, promocoes.valor, ofertas.preco,
- * pedido.valorTotal, descontoPorValorTotal) são manipulados e persistidos como números inteiros de centavos.
- * Exemplo: R$ 0,35 = 35 centavos; R$ 1,50 = 150 centavos; R$ 15,00 = 1500 centavos.
- *
- * SUPOSIÇÃO DE MIGRAÇÃO DE DADOS LEGADOS:
- * - Se o valor tiver fração decimal (ex: 0.35, 1.5, 4.9), trata-se de valor legado em Reais
- *   e é convertido para centavos via Math.round(valor * 100).
- * - Se o valor for um número inteiro:
- *   - Em campanhas e pedidos recentes, já representa centavos inteiros.
+ * Utilitários de manipulação de moeda no backend.
  */
 
 export function toCents(value: number | string | undefined | null): number {
   if (value === undefined || value === null || value === '') return 0;
   const num = typeof value === 'string' ? parseFloat(value.replace(',', '.')) : Number(value);
   if (isNaN(num) || num <= 0) return 0;
-
-  // Se tem fração decimal (ex: 0.35, 4.90, 12.5), é valor legado em Reais
-  if (num % 1 !== 0) {
-    return Math.round(num * 100);
-  }
-
-  return Math.round(num);
+  return Math.round(num * 100);
 }
 
-export function toReais(cents: number | string | undefined | null): number {
-  const c = toCents(cents);
-  return Number((c / 100).toFixed(2));
+export function toReais(value: number | string | undefined | null): number {
+  if (value === undefined || value === null || value === '') return 0;
+  const num = typeof value === 'string' ? parseFloat(value.replace(',', '.')) : Number(value);
+  if (isNaN(num)) return 0;
+  if (num === 0) return 0;
+  // Se for decimal como 0.50 ou 12.50, já é em Reais
+  if (num % 1 !== 0) return num;
+  // Se for inteiro em centavos passados das funções de pagamento (ex: 2500 centavos -> 25.00, 50 centavos -> 0.50)
+  if (num >= 100) return Number((num / 100).toFixed(2));
+  return num;
 }
 
 export function formatarMoeda(value: number | string | undefined | null): string {
-  const cents = toCents(value);
-  const reais = cents / 100;
+  if (value === undefined || value === null || value === '') return 'R$ 0,00';
+  const num = typeof value === 'string' ? parseFloat(value.replace(',', '.')) : Number(value);
+  if (isNaN(num)) return 'R$ 0,00';
+  if (num === 0) return 'R$ 0,00 (Grátis)';
+
+  const absNum = Math.abs(num);
+  let decimals = 2;
+  if (absNum > 0 && absNum < 0.01) {
+    const str = num.toString();
+    if (str.includes('.')) {
+      decimals = Math.min(10, str.split('.')[1].length);
+    } else {
+      decimals = 4;
+    }
+  }
+
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  }).format(reais);
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals
+  }).format(num);
 }

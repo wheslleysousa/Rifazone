@@ -361,8 +361,10 @@ export const CampanhasFormView: React.FC<Props> = ({
   const valorCotaNum = Number(form.valorCota || 0);
   const arrecadacaoEstimada = totalCotasNum * valorCotaNum;
 
-  const tabKeys: TabType[] = ['basico', 'midia', 'premios', 'promocoes', 'upsell', 'extras'];
+  const tabKeys: TabType[] = ['basico', 'midia', 'premios', 'promocoes', 'upsell', 'extras', 'checkout'];
   const currentIndex = secaoAberta ? tabKeys.indexOf(secaoAberta) : 0;
+  const isUltimaEtapa = currentIndex === tabKeys.length - 1;
+  const isEdicao = !!(form.id);
 
   const irProximo = () => {
     if (currentIndex < tabKeys.length - 1) {
@@ -458,8 +460,8 @@ export const CampanhasFormView: React.FC<Props> = ({
               disabled={salvando}
               className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs flex items-center gap-2 shadow-lg shadow-emerald-500/20 transition active:scale-95"
             >
-              <Rocket className="w-4 h-4" />
-              <span>{salvando ? 'Salvando...' : 'Publicar Campanha'}</span>
+              <Save className="w-4 h-4" />
+              <span>{salvando ? 'Salvando...' : isEdicao ? 'Atualizar Campanha' : 'Publicar Campanha'}</span>
             </button>
           </div>
         </div>
@@ -473,15 +475,28 @@ export const CampanhasFormView: React.FC<Props> = ({
         )}
 
         {erro && (
-          <div className="mt-4 p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-xs text-red-300 flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
-            <span>{erro}</span>
+          <div className="mt-4 p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-xs text-red-300 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+              <span>{erro}</span>
+            </div>
+            <button
+              type="button"
+              onClick={async () => {
+                const erroTxt = `=== ERRO AO SALVAR CAMPANHA ===\nErro: ${erro}\nCampanha ID: ${form.id || 'nova'}\nTitulo: ${form.titulo}\nData: ${new Date().toISOString()}`;
+                await navigator.clipboard.writeText(erroTxt);
+                alert('Detalhes do erro copiados para a área de transferência! Cole aqui no chat para resolvermos.');
+              }}
+              className="px-2.5 py-1 bg-red-500/20 hover:bg-red-500/30 text-red-200 border border-red-500/40 rounded-lg text-[10px] font-black shrink-0 transition"
+            >
+              Copiar Erro
+            </button>
           </div>
         )}
 
       </div>
 
-      <form onSubmit={onSalvar} className="space-y-6">
+      <form onSubmit={(e) => e.preventDefault()} className="space-y-6">
         
         {secaoAberta !== 'tema' && (
           <div className="flex lg:hidden items-center justify-center bg-slate-900 border border-slate-800 rounded-xl p-1 mb-4">
@@ -2462,7 +2477,7 @@ export const CampanhasFormView: React.FC<Props> = ({
           </button>
 
           <div className="flex w-full sm:w-auto items-center gap-3">
-            {currentIndex < tabKeys.length - 1 ? (
+            {!isUltimaEtapa ? (
               <button
                 type="button"
                 onClick={irProximo}
@@ -2483,10 +2498,15 @@ export const CampanhasFormView: React.FC<Props> = ({
                     <Loader2 className="w-5 h-5 animate-spin" />
                     <span>Salvando...</span>
                   </>
+                ) : isEdicao ? (
+                  <>
+                    <Save className="w-5 h-5" />
+                    <span>Atualizar Campanha</span>
+                  </>
                 ) : (
                   <>
                     <Rocket className="w-5 h-5" />
-                    <span>Concluir & Publicar</span>
+                    <span>Publicar Campanha</span>
                   </>
                 )}
               </button>

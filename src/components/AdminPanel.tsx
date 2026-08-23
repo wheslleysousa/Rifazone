@@ -367,8 +367,8 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
   };
 
   // Salvar Campanha
-  const handleSalvarCampanha = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSalvarCampanha = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     setFormErro('');
     setSalvandoCampanha(true);
     try {
@@ -381,17 +381,23 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
         body: JSON.stringify(form)
       });
 
-      const salva = await res.json();
+      let salva: any = {};
+      try {
+        salva = await res.json();
+      } catch {
+        throw new Error('Resposta inesperada do servidor.');
+      }
+
       if (res.ok) {
         await carregarTudo();
         setLinkCampanha({ codigo: salva.codigo, titulo: salva.titulo });
         setLinkCopiado(false);
         setAbaAtiva('campanhas');
       } else {
-        setFormErro(salva.error || 'Erro ao salvar campanha.');
+        setFormErro(salva.error || `Erro ao salvar campanha. (HTTP ${res.status})`);
       }
-    } catch (err) {
-      setFormErro('Falha de conexão ao salvar.');
+    } catch (err: any) {
+      setFormErro(`Falha de conexão ao salvar: ${err?.message || 'Erro desconhecido'}`);
     } finally {
       setSalvandoCampanha(false);
     }
@@ -775,7 +781,6 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
       titulo: 'Personalização & Checkout',
       itens: [
         { id: 'checkouts', label: 'Checkouts', icon: <CreditCard className="w-4 h-4 text-indigo-400" /> },
-        { id: 'tema-editor', label: 'Temas & Cores', icon: <Palette className="w-4 h-4 text-pink-400" /> },
       ]
     },
     {

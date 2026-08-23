@@ -2,46 +2,81 @@ import React, { useState, useEffect } from 'react';
 import { CheckoutConfig, CheckoutSalvo, DEFAULT_CHECKOUT_CONFIG } from '../../types';
 import {
   CreditCard, QrCode, FileText, ShieldCheck, CheckCircle2,
-  Trash2, Edit3, Plus, Save, Sparkles, Copy, RefreshCw, Smartphone,
-  Monitor, AlertTriangle, ArrowLeft, Lock, Check
+  Trash2, Edit3, Plus, Save, RefreshCw, Smartphone,
+  Monitor, AlertTriangle, Clock, Zap, MessageSquare,
+  Palette, Type, X
 } from 'lucide-react';
 
 interface Props {
   authFetch: (url: string, options?: RequestInit) => Promise<Response>;
 }
 
+interface CheckoutConfigExtended extends CheckoutConfig {
+  corPrimaria?: string;
+  corFundo?: string;
+  fonteFamilia?: string;
+  textoBotao?: string;
+  textoRodape?: string;
+  bannerUrl?: string;
+  temporizadorAtivo?: boolean;
+  temporizadorMinutos?: number;
+  mensagemEscassez?: string;
+  selosExtras?: string[];
+}
+
+const SELOS_DISPONIVEIS = [
+  { id: 'ssl', icon: '🔒', label: 'SSL 256-bit' },
+  { id: 'seguro', icon: '🛡️', label: 'Pagamento Seguro' },
+  { id: 'aprovacao', icon: '✅', label: 'Aprovação Rápida' },
+  { id: 'comprador', icon: '🤝', label: 'Proteção ao Comprador' },
+  { id: 'estrelas', icon: '⭐', label: '5 Estrelas' },
+  { id: 'certificado', icon: '🏆', label: 'Certificado' },
+  { id: 'suporte', icon: '💬', label: 'Suporte 24h' },
+  { id: 'pix_oficial', icon: '🏦', label: 'Pix Banco Central' },
+];
+
+const FONTES = [
+  { value: 'Inter', label: 'Inter (Padrão)' },
+  { value: 'Montserrat', label: 'Montserrat' },
+  { value: 'Outfit', label: 'Outfit' },
+  { value: 'Roboto', label: 'Roboto' },
+  { value: 'Poppins', label: 'Poppins' },
+];
+
+const defaultExtended: CheckoutConfigExtended = {
+  ...DEFAULT_CHECKOUT_CONFIG,
+  corPrimaria: '#10b981',
+  corFundo: '#020617',
+  fonteFamilia: 'Inter',
+  textoBotao: 'Garantir Minha Cota Agora',
+  textoRodape: 'Pagamento processado com segurança. Suas cotas são geradas automaticamente após confirmação.',
+  bannerUrl: '',
+  temporizadorAtivo: false,
+  temporizadorMinutos: 10,
+  mensagemEscassez: '',
+  selosExtras: ['ssl', 'aprovacao'],
+};
+
 export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
   const [checkoutsSalvos, setCheckoutsSalvos] = useState<CheckoutSalvo[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState<{ tipo: 'sucesso' | 'erro'; texto: string } | null>(null);
-
-  // Form State
   const [editandoId, setEditandoId] = useState<string | null>(null);
-  const [nomeCheckout, setNomeCheckout] = useState('Novo Checkout Personalizado');
-  const [checkoutConfig, setCheckoutConfig] = useState<CheckoutConfig>(DEFAULT_CHECKOUT_CONFIG);
-
-  // Preview Mode Tab
+  const [formAberto, setFormAberto] = useState(false);
+  const [nomeCheckout, setNomeCheckout] = useState('Novo Checkout');
+  const [checkoutConfig, setCheckoutConfig] = useState<CheckoutConfigExtended>(defaultExtended);
   const [previewTab, setPreviewTab] = useState<'pix' | 'cartao' | 'boleto'>('pix');
   const [previewDevice, setPreviewDevice] = useState<'mobile' | 'desktop'>('mobile');
 
-  useEffect(() => {
-    carregarCheckouts();
-  }, []);
+  useEffect(() => { carregarCheckouts(); }, []);
 
   const carregarCheckouts = async () => {
     setCarregando(true);
     try {
       const res = await authFetch('/api/admin/checkouts');
-      if (res.ok) {
-        const data = await res.json();
-        setCheckoutsSalvos(data);
-      }
-    } catch (err) {
-      console.error('Erro ao carregar checkouts:', err);
-    } finally {
-      setCarregando(false);
-    }
+      if (res.ok) setCheckoutsSalvos(await res.json());
+    } catch { } finally { setCarregando(false); }
   };
 
   const handleSalvar = async () => {
@@ -49,590 +84,401 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
       setFeedbackMsg({ tipo: 'erro', texto: 'Informe um nome para o modelo de checkout.' });
       return;
     }
-
     if (!checkoutConfig.metodos.pix && !checkoutConfig.metodos.cartao && !checkoutConfig.metodos.boleto) {
-      setFeedbackMsg({ tipo: 'erro', texto: 'Selecione ao menos uma forma de pagamento (Pix, Cartão ou Boleto).' });
+      setFeedbackMsg({ tipo: 'erro', texto: 'Selecione ao menos uma forma de pagamento.' });
       return;
     }
-
-    setSalvando(true);
-    setFeedbackMsg(null);
+    setSalvando(true); setFeedbackMsg(null);
     try {
       const res = await authFetch('/api/admin/checkouts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: editandoId || undefined,
-          nome: nomeCheckout.trim(),
-          checkout: checkoutConfig
-        })
+        body: JSON.stringify({ id: editandoId || undefined, nome: nomeCheckout.trim(), checkout: checkoutConfig })
       });
-
-      if (!res.ok) {
-        const errJson = await res.json();
-        throw new Error(errJson.error || 'Erro ao salvar checkout.');
-      }
-
-      setFeedbackMsg({ tipo: 'sucesso', texto: 'Modelo de checkout salvo com sucesso!' });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Erro ao salvar.'); }
+      setFeedbackMsg({ tipo: 'sucesso', texto: 'Checkout salvo com sucesso!' });
       await carregarCheckouts();
+      setFormAberto(false); setEditandoId(null);
     } catch (err: any) {
-      setFeedbackMsg({ tipo: 'erro', texto: err.message || 'Falha ao salvar o checkout.' });
-    } finally {
-      setSalvando(false);
-    }
+      setFeedbackMsg({ tipo: 'erro', texto: err.message || 'Falha ao salvar.' });
+    } finally { setSalvando(false); }
   };
 
   const handleEditar = (item: CheckoutSalvo) => {
     setEditandoId(item.id);
     setNomeCheckout(item.nome);
-    setCheckoutConfig(item.checkout);
-    setFeedbackMsg(null);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setCheckoutConfig({ ...defaultExtended, ...item.checkout } as CheckoutConfigExtended);
+    setFormAberto(true); setFeedbackMsg(null);
+    setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
   };
 
-  const handleNovoCheckout = () => {
-    setEditandoId(null);
-    setNomeCheckout('Novo Checkout Personalizado');
-    setCheckoutConfig(DEFAULT_CHECKOUT_CONFIG);
-    setFeedbackMsg(null);
+  const handleNovo = () => {
+    setEditandoId(null); setNomeCheckout('Novo Checkout');
+    setCheckoutConfig(defaultExtended); setFormAberto(true); setFeedbackMsg(null);
   };
 
   const handleExcluir = async (id: string) => {
-    if (!confirm('Tem certeza que deseja excluir este modelo de checkout?')) return;
+    if (!confirm('Excluir este checkout?')) return;
     try {
       const res = await authFetch(`/api/admin/checkouts/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        if (editandoId === id) handleNovoCheckout();
-        await carregarCheckouts();
-      }
-    } catch (err) {
-      alert('Erro ao excluir checkout.');
-    }
+      if (res.ok) { if (editandoId === id) { setFormAberto(false); setEditandoId(null); } await carregarCheckouts(); }
+    } catch { alert('Erro ao excluir.'); }
   };
+
+  const upd = (patch: Partial<CheckoutConfigExtended>) => setCheckoutConfig(prev => ({ ...prev, ...patch }));
+  const updMetodos = (patch: Partial<CheckoutConfig['metodos']>) =>
+    setCheckoutConfig(prev => ({ ...prev, metodos: { ...prev.metodos, ...patch } }));
+  const updMsgs = (patch: Partial<NonNullable<CheckoutConfig['mensagens']>>) =>
+    setCheckoutConfig(prev => ({ ...prev, mensagens: { ...prev.mensagens, ...patch } }));
+  const toggleSelo = (id: string) => {
+    const atual = checkoutConfig.selosExtras || [];
+    upd({ selosExtras: atual.includes(id) ? atual.filter(s => s !== id) : [...atual, id] });
+  };
+
+  const primary = checkoutConfig.corPrimaria || '#10b981';
+  const bgColor = checkoutConfig.corFundo || '#020617';
 
   return (
     <div className="space-y-6 pb-12 animate-in fade-in-50">
-      
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900 border border-slate-800 p-5 rounded-2xl">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900 border border-slate-800 p-5 rounded-2xl">
         <div>
           <div className="flex items-center gap-2">
-            <CreditCard className="w-6 h-6 text-emerald-400" />
-            <h1 className="text-xl font-black text-white">Central de Checkouts Personalizáveis</h1>
+            <CreditCard className="w-5 h-5 text-indigo-400" />
+            <h1 className="text-xl font-black text-white">Central de Checkouts</h1>
           </div>
-          <p className="text-xs text-slate-400 mt-1">
-            Crie, personalize e gerencie os modelos de checkout que serão utilizados nas suas campanhas.
-          </p>
+          <p className="text-xs text-slate-400 mt-0.5">Crie experiências de pagamento personalizadas para cada campanha.</p>
         </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleNovoCheckout}
-            className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center gap-2 transition border border-slate-700"
-          >
-            <Plus className="w-4 h-4 text-emerald-400" />
-            Novo Checkout
+        {!formAberto && (
+          <button onClick={handleNovo} className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black rounded-xl flex items-center gap-2 transition shadow-lg shadow-indigo-600/20 active:scale-95">
+            <Plus className="w-4 h-4" /> Criar Novo Checkout
           </button>
-          <button
-            onClick={handleSalvar}
-            disabled={salvando}
-            className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black rounded-xl flex items-center gap-2 transition shadow-lg shadow-emerald-500/20 disabled:opacity-50"
-          >
-            <Save className="w-4 h-4" />
-            {salvando ? 'Salvando...' : 'Salvar Checkout'}
-          </button>
-        </div>
+        )}
       </div>
 
+      {/* Feedback */}
       {feedbackMsg && (
-        <div className={`p-4 rounded-xl border flex items-center gap-3 text-xs font-bold ${
-          feedbackMsg.tipo === 'sucesso'
-            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-            : 'bg-red-500/10 border-red-500/30 text-red-400'
-        }`}>
+        <div className={`p-4 rounded-xl border flex items-center gap-3 text-xs font-bold ${feedbackMsg.tipo === 'sucesso' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-red-500/10 border-red-500/30 text-red-400'}`}>
           {feedbackMsg.tipo === 'sucesso' ? <CheckCircle2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
-          <span>{feedbackMsg.texto}</span>
+          <span className="flex-1">{feedbackMsg.texto}</span>
+          <button onClick={() => setFeedbackMsg(null)}><X className="w-3.5 h-3.5" /></button>
         </div>
       )}
 
-      {/* Grid Principal: Formulário + Live Preview */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-
-        {/* Coluna Esquerda: Editor de Configurações */}
-        <div className="lg:col-span-7 space-y-6">
-
-          {/* Nome do Checkout */}
-          <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4">
-            <h2 className="text-sm font-bold text-white flex items-center gap-2 uppercase tracking-wider">
-              <Sparkles className="w-4 h-4 text-emerald-400" />
-              1. Identificação do Modelo
-            </h2>
-
+      {/* LISTA */}
+      {!formAberto && (
+        carregando ? (
+          <div className="flex items-center justify-center py-16 text-slate-500 gap-2">
+            <RefreshCw className="w-4 h-4 animate-spin" /><span className="text-sm">Carregando...</span>
+          </div>
+        ) : checkoutsSalvos.length === 0 ? (
+          <div className="bg-slate-900 border border-slate-800 border-dashed rounded-2xl p-12 text-center space-y-4">
+            <div className="w-14 h-14 bg-indigo-500/10 rounded-2xl flex items-center justify-center mx-auto">
+              <CreditCard className="w-7 h-7 text-indigo-400" />
+            </div>
             <div>
-              <label className="text-xs font-semibold text-slate-300 block mb-1.5">
-                Nome do Checkout *
-              </label>
-              <input
-                type="text"
-                value={nomeCheckout}
-                onChange={e => setNomeCheckout(e.target.value)}
-                placeholder="Ex: Checkout Oficial Pix + Cartão 12x"
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:border-emerald-500 focus:outline-none"
-              />
+              <h3 className="text-sm font-black text-white">Nenhum checkout criado ainda</h3>
+              <p className="text-xs text-slate-400 mt-1">Crie seu primeiro modelo de checkout personalizado.</p>
             </div>
+            <button onClick={handleNovo} className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black rounded-xl inline-flex items-center gap-2 transition">
+              <Plus className="w-4 h-4" /> Criar Primeiro Checkout
+            </button>
           </div>
-
-          {/* Formas de Pagamento Aceitas */}
-          <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4">
-            <h2 className="text-sm font-bold text-white flex items-center gap-2 uppercase tracking-wider">
-              <CreditCard className="w-4 h-4 text-emerald-400" />
-              2. Formas de Pagamento Habilitadas
-            </h2>
-
-            <div className="space-y-3">
-              {/* PIX */}
-              <label className={`flex items-center justify-between p-4 rounded-xl border cursor-pointer transition ${
-                checkoutConfig.metodos.pix
-                  ? 'bg-emerald-500/10 border-emerald-500/40 text-white'
-                  : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
-              }`}>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    checked={checkoutConfig.metodos.pix}
-                    onChange={e => setCheckoutConfig(prev => ({
-                      ...prev,
-                      metodos: { ...prev.metodos, pix: e.target.checked }
-                    }))}
-                    className="w-4 h-4 rounded text-emerald-500 bg-slate-900 border-slate-700"
-                  />
-                  <div className="flex items-center gap-2">
-                    <QrCode className="w-5 h-5 text-emerald-400" />
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {checkoutsSalvos.map(item => {
+              const cfg = item.checkout as CheckoutConfigExtended;
+              const cor = cfg.corPrimaria || '#10b981';
+              const selosBadges = SELOS_DISPONIVEIS.filter(s => (cfg.selosExtras || []).includes(s.id));
+              return (
+                <div key={item.id} className="group bg-slate-900 border border-slate-800 hover:border-indigo-500/40 rounded-2xl p-5 flex flex-col gap-4 transition-all">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: `${cor}20`, border: `1px solid ${cor}40` }}>
+                      <CreditCard className="w-5 h-5" style={{ color: cor }} />
+                    </div>
                     <div>
-                      <span className="text-xs font-bold block">Pix Transparente</span>
-                      <span className="text-[11px] text-slate-400">Aprovação imediata com QR Code e Copia e Cola</span>
+                      <h3 className="text-sm font-black text-white leading-tight">{item.nome}</h3>
+                      <p className="text-[10px] text-slate-500 font-mono">{item.id.slice(0, 8)}...</p>
                     </div>
                   </div>
+                  <div className="flex flex-wrap gap-2">
+                    {cfg.metodos?.pix !== false && <span className="px-2 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-bold rounded-lg flex items-center gap-1"><QrCode className="w-3 h-3" /> Pix</span>}
+                    {cfg.metodos?.cartao && <span className="px-2 py-1 bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] font-bold rounded-lg flex items-center gap-1"><CreditCard className="w-3 h-3" /> Cartão {cfg.parcelasMax}x</span>}
+                    {cfg.metodos?.boleto && <span className="px-2 py-1 bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] font-bold rounded-lg flex items-center gap-1"><FileText className="w-3 h-3" /> Boleto</span>}
+                  </div>
+                  {selosBadges.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {selosBadges.slice(0, 3).map(s => <span key={s.id} className="text-[10px] text-slate-400 bg-slate-800 px-2 py-0.5 rounded-md">{s.icon} {s.label}</span>)}
+                      {selosBadges.length > 3 && <span className="text-[10px] text-slate-500 bg-slate-800 px-2 py-0.5 rounded-md">+{selosBadges.length - 3}</span>}
+                    </div>
+                  )}
+                  <div className="flex gap-2 mt-auto">
+                    <button onClick={() => handleEditar(item)} className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-white text-[11px] font-black rounded-xl flex items-center justify-center gap-1.5 transition border border-slate-700">
+                      <Edit3 className="w-3.5 h-3.5 text-indigo-400" /> Editar
+                    </button>
+                    <button onClick={() => handleExcluir(item.id)} className="py-2.5 px-3 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl flex items-center justify-center transition border border-red-500/20">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
-                <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-500/20 text-emerald-300 rounded-full border border-emerald-500/30">
-                  Recomendado
+              );
+            })}
+          </div>
+        )
+      )}
+
+      {/* EDITOR */}
+      {formAberto && (
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+          <div className="xl:col-span-7 space-y-5">
+
+            {/* Voltar + Nome */}
+            <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4">
+              <div className="flex items-center justify-between">
+                <button onClick={() => { setFormAberto(false); setEditandoId(null); setFeedbackMsg(null); }} className="text-xs text-slate-400 hover:text-white transition">
+                  ← Voltar para lista
+                </button>
+                <span className="text-[10px] font-bold text-indigo-400 bg-indigo-500/10 px-2 py-1 rounded-lg border border-indigo-500/20">
+                  {editandoId ? 'Editando' : 'Novo Checkout'}
                 </span>
-              </label>
-
-              {/* CARTÃO DE CRÉDITO */}
-              <label className={`flex items-center justify-between p-4 rounded-xl border cursor-pointer transition ${
-                checkoutConfig.metodos.cartao
-                  ? 'bg-blue-500/10 border-blue-500/40 text-white'
-                  : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
-              }`}>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    checked={checkoutConfig.metodos.cartao}
-                    onChange={e => setCheckoutConfig(prev => ({
-                      ...prev,
-                      metodos: { ...prev.metodos, cartao: e.target.checked }
-                    }))}
-                    className="w-4 h-4 rounded text-blue-500 bg-slate-900 border-slate-700"
-                  />
-                  <div className="flex items-center gap-2">
-                    <CreditCard className="w-5 h-5 text-blue-400" />
-                    <div>
-                      <span className="text-xs font-bold block">Cartão de Crédito (até 12x)</span>
-                      <span className="text-[11px] text-slate-400">Tokenização segura direto no navegador via Mercado Pago</span>
-                    </div>
-                  </div>
-                </div>
-                <span className="text-[10px] font-bold px-2 py-0.5 bg-blue-500/20 text-blue-300 rounded-full border border-blue-500/30">
-                  Alta Conversão
-                </span>
-              </label>
-
-              {/* BOLETO BANCÁRIO */}
-              <label className={`flex items-center justify-between p-4 rounded-xl border cursor-pointer transition ${
-                checkoutConfig.metodos.boleto
-                  ? 'bg-amber-500/10 border-amber-500/40 text-white'
-                  : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
-              }`}>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    checked={checkoutConfig.metodos.boleto}
-                    onChange={e => setCheckoutConfig(prev => ({
-                      ...prev,
-                      metodos: { ...prev.metodos, boleto: e.target.checked }
-                    }))}
-                    className="w-4 h-4 rounded text-amber-500 bg-slate-900 border-slate-700"
-                  />
-                  <div className="flex items-center gap-2">
-                    <FileText className="w-5 h-5 text-amber-400" />
-                    <div>
-                      <span className="text-xs font-bold block">Boleto Bancário</span>
-                      <span className="text-[11px] text-slate-400">Emissão de boleto com código de barras e linha digitável</span>
-                    </div>
-                  </div>
-                </div>
-              </label>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-300 block mb-1.5">Nome do Modelo *</label>
+                <input type="text" value={nomeCheckout} onChange={e => setNomeCheckout(e.target.value)} placeholder="Ex: Checkout VIP Cartão 12x" className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none" />
+              </div>
             </div>
-          </div>
 
-          {/* Configuração de Parcelamento do Cartão */}
-          {checkoutConfig.metodos.cartao && (
-            <div className="bg-slate-900 border border-blue-500/30 p-5 rounded-2xl space-y-4 animate-in fade-in-50">
-              <h2 className="text-sm font-bold text-blue-400 flex items-center gap-2 uppercase tracking-wider">
-                <CreditCard className="w-4 h-4" />
-                3. Regras de Parcelamento no Cartão
+            {/* 1. Visual */}
+            <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4">
+              <h2 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
+                <Palette className="w-4 h-4 text-pink-400" /> 1. Identidade Visual
               </h2>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-semibold text-slate-300 block mb-1.5">
-                    Máximo de Parcelas Habilitado
-                  </label>
-                  <select
-                    value={checkoutConfig.parcelasMax}
-                    onChange={e => setCheckoutConfig(prev => ({ ...prev, parcelasMax: Number(e.target.value) }))}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:border-blue-500 focus:outline-none"
-                  >
-                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(n => (
-                      <option key={n} value={n}>
-                        {n === 1 ? '1x (Apenas à Vista)' : `Até ${n}x parceladas`}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-slate-300 block mb-1.5">
-                    Quem Absorve Taxa de Parcelamento
-                  </label>
-                  <select
-                    value={checkoutConfig.taxaParcelamento}
-                    onChange={e => setCheckoutConfig(prev => ({ ...prev, taxaParcelamento: e.target.value as any }))}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:border-blue-500 focus:outline-none"
-                  >
-                    <option value="comprador">Comprador (Sem juros para organizador)</option>
-                    <option value="organizador">Organizador (Oferecer Sem Juros)</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Textos & Mensagens Customizáveis */}
-          <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4">
-            <h2 className="text-sm font-bold text-white flex items-center gap-2 uppercase tracking-wider">
-              <FileText className="w-4 h-4 text-emerald-400" />
-              4. Textos e Mensagens do Checkout
-            </h2>
-
-            <div className="space-y-3.5">
-              <div>
-                <label className="text-xs font-semibold text-slate-300 block mb-1">
-                  Título Superior do Checkout
-                </label>
-                <input
-                  type="text"
-                  value={checkoutConfig.mensagens?.topo || ''}
-                  onChange={e => setCheckoutConfig(prev => ({
-                    ...prev,
-                    mensagens: { ...prev.mensagens, topo: e.target.value }
-                  }))}
-                  placeholder="Selecione a forma de pagamento:"
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-slate-300 block mb-1">
-                  Texto Explicativo Pix
-                </label>
-                <input
-                  type="text"
-                  value={checkoutConfig.mensagens?.pix || ''}
-                  onChange={e => setCheckoutConfig(prev => ({
-                    ...prev,
-                    mensagens: { ...prev.mensagens, pix: e.target.value }
-                  }))}
-                  placeholder="Aprovação imediata via Pix com QR Code e Copia e Cola."
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-slate-300 block mb-1">
-                  Texto Explicativo Cartão
-                </label>
-                <input
-                  type="text"
-                  value={checkoutConfig.mensagens?.cartao || ''}
-                  onChange={e => setCheckoutConfig(prev => ({
-                    ...prev,
-                    mensagens: { ...prev.mensagens, cartao: e.target.value }
-                  }))}
-                  placeholder="Pagamento rápido e seguro processado no cartão de crédito."
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-slate-300 block mb-1">
-                  Alerta de Reserva / Urgência
-                </label>
-                <input
-                  type="text"
-                  value={checkoutConfig.mensagens?.urgencia || ''}
-                  onChange={e => setCheckoutConfig(prev => ({
-                    ...prev,
-                    mensagens: { ...prev.mensagens, urgencia: e.target.value }
-                  }))}
-                  placeholder="Seus números estão reservados por tempo limitado. Conclua o pagamento!"
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Selos de Segurança */}
-          <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4">
-            <h2 className="text-sm font-bold text-white flex items-center gap-2 uppercase tracking-wider">
-              <ShieldCheck className="w-4 h-4 text-emerald-400" />
-              5. Selos e Gatilhos de Confiança
-            </h2>
-
-            <label className="flex items-center justify-between p-3.5 bg-slate-950 border border-slate-800 rounded-xl cursor-pointer">
-              <div className="flex items-center gap-2.5">
-                <ShieldCheck className="w-5 h-5 text-emerald-400" />
-                <div>
-                  <span className="text-xs font-bold text-white block">Exibir Selos de Segurança e Criptografia SSL</span>
-                  <span className="text-[11px] text-slate-400">Mostra ícones de garantia, SSL 256-bit e aprovação instantânea</span>
-                </div>
-              </div>
-              <input
-                type="checkbox"
-                checked={checkoutConfig.selosSeguranca}
-                onChange={e => setCheckoutConfig(prev => ({ ...prev, selosSeguranca: e.target.checked }))}
-                className="w-4 h-4 rounded text-emerald-500 bg-slate-900 border-slate-700"
-              />
-            </label>
-          </div>
-
-          {/* Lista de Checkouts Salvos */}
-          <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4">
-            <h2 className="text-sm font-bold text-white flex items-center gap-2 uppercase tracking-wider">
-              <Copy className="w-4 h-4 text-emerald-400" />
-              Modelos de Checkout Criados ({checkoutsSalvos.length})
-            </h2>
-
-            {carregando ? (
-              <div className="text-center py-6 text-xs text-slate-500">Carregando seus checkouts...</div>
-            ) : checkoutsSalvos.length === 0 ? (
-              <div className="p-6 text-center border border-dashed border-slate-800 rounded-xl">
-                <p className="text-xs text-slate-400">Você ainda não criou checkouts personalizados.</p>
-                <p className="text-[11px] text-slate-500 mt-1">Configure os dados acima e clique em "Salvar Checkout".</p>
-              </div>
-            ) : (
-              <div className="space-y-2.5">
-                {checkoutsSalvos.map(item => (
-                  <div
-                    key={item.id}
-                    className={`p-3.5 rounded-xl border flex items-center justify-between gap-3 transition ${
-                      editandoId === item.id
-                        ? 'bg-emerald-500/15 border-emerald-500/40 text-white'
-                        : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
-                    }`}
-                  >
-                    <div>
-                      <span className="text-xs font-bold block">{item.nome}</span>
-                      <div className="flex items-center gap-2 mt-1">
-                        {item.checkout.metodos.pix && <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded font-mono">PIX</span>}
-                        {item.checkout.metodos.cartao && <span className="text-[10px] bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded font-mono">Cartão {item.checkout.parcelasMax}x</span>}
-                        {item.checkout.metodos.boleto && <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded font-mono">Boleto</span>}
-                      </div>
-                    </div>
-
+              <div className="grid grid-cols-2 gap-4">
+                {[
+                  { label: 'Cor Primária (Botões)', key: 'corPrimaria', def: '#10b981' },
+                  { label: 'Cor de Fundo', key: 'corFundo', def: '#020617' },
+                ].map(c => (
+                  <div key={c.key}>
+                    <label className="text-xs font-bold text-slate-300 block mb-1.5">{c.label}</label>
                     <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleEditar(item)}
-                        className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-bold flex items-center gap-1 transition"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                        Editar
-                      </button>
-                      <button
-                        onClick={() => handleExcluir(item.id)}
-                        className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition"
-                        title="Excluir Checkout"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      <input type="color" value={(checkoutConfig as any)[c.key] || c.def} onChange={e => upd({ [c.key]: e.target.value })} className="w-10 h-10 rounded-lg border-0 cursor-pointer bg-transparent" />
+                      <input type="text" value={(checkoutConfig as any)[c.key] || c.def} onChange={e => upd({ [c.key]: e.target.value })} className="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-white focus:border-indigo-500 focus:outline-none" />
                     </div>
                   </div>
                 ))}
               </div>
-            )}
-          </div>
-
-        </div>
-
-        {/* Coluna Direita: LIVE PREVIEW DO CHECKOUT */}
-        <div className="lg:col-span-5 space-y-4 sticky top-6">
-          <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl space-y-3">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <span className="text-xs font-bold text-slate-300 flex items-center gap-2 uppercase tracking-wider">
-                <Monitor className="w-4 h-4 text-emerald-400" />
-                Live Preview do Checkout
-              </span>
-
-              <div className="flex items-center gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setPreviewDevice('mobile')}
-                  className={`p-1.5 rounded-lg text-xs transition ${previewDevice === 'mobile' ? 'bg-emerald-500 text-slate-950 font-bold' : 'text-slate-400'}`}
-                  title="Visão Mobile"
-                >
-                  <Smartphone className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPreviewDevice('desktop')}
-                  className={`p-1.5 rounded-lg text-xs transition ${previewDevice === 'desktop' ? 'bg-emerald-500 text-slate-950 font-bold' : 'text-slate-400'}`}
-                  title="Visão Desktop"
-                >
-                  <Monitor className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Container da Simulação */}
-            <div className={`mx-auto bg-slate-950 border border-slate-800 rounded-2xl p-4 shadow-2xl transition-all ${
-              previewDevice === 'mobile' ? 'max-w-xs' : 'w-full'
-            }`}>
-
-              {/* Simulação de Header do Modal */}
-              <div className="border-b border-slate-800 pb-3 mb-3 text-center">
-                <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest block">Reserva de Cotas</span>
-                <h3 className="text-sm font-black text-white mt-0.5">iPhone 16 Pro Max 256GB</h3>
-                <p className="text-xs text-slate-400 mt-1">10 cotas selecionadas • <strong className="text-emerald-400">R$ 5,00</strong></p>
-              </div>
-
-              {/* Alerta de Urgência */}
-              {checkoutConfig.mensagens?.urgencia && (
-                <div className="p-2.5 mb-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-[11px] text-amber-300 font-medium flex items-center gap-2">
-                  <Sparkles className="w-3.5 h-3.5 shrink-0 text-amber-400" />
-                  <span>{checkoutConfig.mensagens.urgencia}</span>
-                </div>
-              )}
-
-              {/* Botões de Seleção de Pagamento */}
-              <div className="mb-3 space-y-1">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                  {checkoutConfig.mensagens?.topo || 'Selecione a forma de pagamento:'}
+              <div>
+                <label className="text-xs font-bold text-slate-300 block mb-1.5">
+                  <Type className="w-3 h-3 inline mr-1" />Tipografia
                 </label>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {checkoutConfig.metodos.pix && (
-                    <button
-                      type="button"
-                      onClick={() => setPreviewTab('pix')}
-                      className={`p-2 rounded-xl border text-[11px] font-bold flex flex-col items-center gap-1 transition ${
-                        previewTab === 'pix' ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400' : 'bg-slate-900 border-slate-800 text-slate-400'
-                      }`}
-                    >
-                      <QrCode className="w-3.5 h-3.5" />
-                      <span>Pix</span>
+                <select value={checkoutConfig.fonteFamilia || 'Inter'} onChange={e => upd({ fonteFamilia: e.target.value })} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none">
+                  {FONTES.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-300 block mb-1.5">Banner de Topo (URL — opcional)</label>
+                <input type="url" value={checkoutConfig.bannerUrl || ''} onChange={e => upd({ bannerUrl: e.target.value })} placeholder="https://..." className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none" />
+              </div>
+            </div>
+
+            {/* 2. Métodos */}
+            <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4">
+              <h2 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
+                <CreditCard className="w-4 h-4 text-blue-400" /> 2. Métodos de Pagamento
+              </h2>
+              <div className="grid grid-cols-3 gap-3">
+                <div onClick={() => updMetodos({ pix: !checkoutConfig.metodos.pix })} className={`p-4 rounded-xl border cursor-pointer transition flex flex-col gap-2 ${checkoutConfig.metodos.pix !== false ? 'bg-emerald-500/10 border-emerald-500' : 'bg-slate-950 border-slate-800 hover:border-slate-700'}`}>
+                  <div className="flex items-center justify-between"><QrCode className="w-5 h-5 text-emerald-400" /><div className={`w-5 h-5 rounded-full border-2 ${checkoutConfig.metodos.pix !== false ? 'bg-emerald-500 border-emerald-500' : 'border-slate-600'} flex items-center justify-center`}>{checkoutConfig.metodos.pix !== false && <CheckCircle2 className="w-3 h-3 text-slate-950" />}</div></div>
+                  <div><p className="text-xs font-black text-white">Pix</p><p className="text-[10px] text-slate-400">Imediato</p></div>
+                </div>
+                <div onClick={() => updMetodos({ cartao: !checkoutConfig.metodos.cartao })} className={`p-4 rounded-xl border cursor-pointer transition flex flex-col gap-2 ${checkoutConfig.metodos.cartao ? 'bg-blue-500/10 border-blue-500' : 'bg-slate-950 border-slate-800 hover:border-slate-700'}`}>
+                  <div className="flex items-center justify-between"><CreditCard className="w-5 h-5 text-blue-400" /><div className={`w-5 h-5 rounded-full border-2 ${checkoutConfig.metodos.cartao ? 'bg-blue-500 border-blue-500' : 'border-slate-600'} flex items-center justify-center`}>{checkoutConfig.metodos.cartao && <CheckCircle2 className="w-3 h-3 text-slate-950" />}</div></div>
+                  <div><p className="text-xs font-black text-white">Cartão</p><p className="text-[10px] text-slate-400">Parcelado</p></div>
+                </div>
+                <div onClick={() => updMetodos({ boleto: !checkoutConfig.metodos.boleto })} className={`p-4 rounded-xl border cursor-pointer transition flex flex-col gap-2 ${checkoutConfig.metodos.boleto ? 'bg-amber-500/10 border-amber-500' : 'bg-slate-950 border-slate-800 hover:border-slate-700'}`}>
+                  <div className="flex items-center justify-between"><FileText className="w-5 h-5 text-amber-400" /><div className={`w-5 h-5 rounded-full border-2 ${checkoutConfig.metodos.boleto ? 'bg-amber-500 border-amber-500' : 'border-slate-600'} flex items-center justify-center`}>{checkoutConfig.metodos.boleto && <CheckCircle2 className="w-3 h-3 text-slate-950" />}</div></div>
+                  <div><p className="text-xs font-black text-white">Boleto</p><p className="text-[10px] text-slate-400">3 dias</p></div>
+                </div>
+              </div>
+              {checkoutConfig.metodos.cartao && (
+                <div className="p-4 bg-slate-950/80 border border-blue-900/40 rounded-xl grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] text-slate-400 block mb-1">Máx. Parcelas</label>
+                    <select value={checkoutConfig.parcelasMax} onChange={e => upd({ parcelasMax: Number(e.target.value) })} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none">
+                      {[1,2,3,4,5,6,7,8,9,10,11,12].map(n => <option key={n} value={n}>{n === 1 ? '1x à vista' : `Até ${n}x`}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-slate-400 block mb-1">Juros por</label>
+                    <select value={checkoutConfig.taxaParcelamento} onChange={e => upd({ taxaParcelamento: e.target.value as any })} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none">
+                      <option value="comprador">Comprador</option>
+                      <option value="organizador">Organizador (Sem juros)</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 3. Textos */}
+            <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4">
+              <h2 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
+                <MessageSquare className="w-4 h-4 text-purple-400" /> 3. Textos & Mensagens
+              </h2>
+              <div>
+                <label className="text-[11px] font-bold text-slate-400 block mb-1">Texto do Botão Principal</label>
+                <input type="text" value={checkoutConfig.textoBotao || ''} onChange={e => upd({ textoBotao: e.target.value })} placeholder="Garantir Minha Cota Agora" className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none" />
+              </div>
+              <div>
+                <label className="text-[11px] font-bold text-slate-400 block mb-1">Mensagem de Urgência (topo)</label>
+                <input type="text" value={checkoutConfig.mensagens?.urgencia || ''} onChange={e => updMsgs({ urgencia: e.target.value })} placeholder="⚡ Seus números estão reservados!" className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none" />
+              </div>
+              <div>
+                <label className="text-[11px] font-bold text-slate-400 block mb-1">Mensagem de Escassez</label>
+                <input type="text" value={checkoutConfig.mensagemEscassez || ''} onChange={e => upd({ mensagemEscassez: e.target.value })} placeholder="🔥 Apenas 47 cotas restantes!" className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none" />
+              </div>
+              <div>
+                <label className="text-[11px] font-bold text-slate-400 block mb-1">Instrução do Pix</label>
+                <input type="text" value={checkoutConfig.mensagens?.pix || ''} onChange={e => updMsgs({ pix: e.target.value })} placeholder="Escaneie o QR Code ou copie o código." className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none" />
+              </div>
+              <div>
+                <label className="text-[11px] font-bold text-slate-400 block mb-1">Mensagem de Sucesso</label>
+                <input type="text" value={checkoutConfig.mensagens?.sucesso || ''} onChange={e => updMsgs({ sucesso: e.target.value })} placeholder="🎉 Pagamento confirmado! Seus números foram gerados." className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none" />
+              </div>
+              <div>
+                <label className="text-[11px] font-bold text-slate-400 block mb-1">Texto de Rodapé</label>
+                <textarea value={checkoutConfig.textoRodape || ''} onChange={e => upd({ textoRodape: e.target.value })} rows={2} placeholder="Pagamento seguro com criptografia..." className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white focus:border-indigo-500 focus:outline-none resize-none" />
+              </div>
+            </div>
+
+            {/* 4. Temporizador */}
+            <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4">
+              <h2 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
+                <Clock className="w-4 h-4 text-amber-400" /> 4. Temporizador de Urgência
+              </h2>
+              <label className="flex items-center justify-between p-3 bg-slate-950/60 border border-slate-800 rounded-xl cursor-pointer">
+                <div>
+                  <p className="text-xs font-bold text-white">Ativar Contador Regressivo</p>
+                  <p className="text-[11px] text-slate-400">Exibe "Reserva expira em..." no checkout</p>
+                </div>
+                <div onClick={() => upd({ temporizadorAtivo: !checkoutConfig.temporizadorAtivo })} className={`relative w-11 h-6 rounded-full cursor-pointer transition-colors ${checkoutConfig.temporizadorAtivo ? 'bg-amber-500' : 'bg-slate-700'}`}>
+                  <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${checkoutConfig.temporizadorAtivo ? 'translate-x-6' : 'translate-x-1'}`} />
+                </div>
+              </label>
+              {checkoutConfig.temporizadorAtivo && (
+                <div>
+                  <label className="text-[11px] text-slate-400 block mb-1">Duração (minutos)</label>
+                  <select value={checkoutConfig.temporizadorMinutos || 10} onChange={e => upd({ temporizadorMinutos: Number(e.target.value) })} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none">
+                    {[5,10,15,20,30].map(m => <option key={m} value={m}>{m} minutos</option>)}
+                  </select>
+                </div>
+              )}
+            </div>
+
+            {/* 5. Selos */}
+            <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4">
+              <h2 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-400" /> 5. Selos de Segurança
+              </h2>
+              <label className="flex items-center justify-between p-3 bg-slate-950/60 border border-slate-800 rounded-xl cursor-pointer">
+                <div>
+                  <p className="text-xs font-bold text-white">Exibir Selos de Confiança</p>
+                  <p className="text-[11px] text-slate-400">Badges que aumentam a conversão</p>
+                </div>
+                <div onClick={() => upd({ selosSeguranca: !checkoutConfig.selosSeguranca })} className={`relative w-11 h-6 rounded-full cursor-pointer transition-colors ${checkoutConfig.selosSeguranca ? 'bg-emerald-500' : 'bg-slate-700'}`}>
+                  <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${checkoutConfig.selosSeguranca ? 'translate-x-6' : 'translate-x-1'}`} />
+                </div>
+              </label>
+              {checkoutConfig.selosSeguranca && (
+                <div className="grid grid-cols-2 gap-2">
+                  {SELOS_DISPONIVEIS.map(selo => {
+                    const ativo = (checkoutConfig.selosExtras || []).includes(selo.id);
+                    return (
+                      <div key={selo.id} onClick={() => toggleSelo(selo.id)} className={`p-2.5 rounded-xl border cursor-pointer transition flex items-center gap-2 ${ativo ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-300' : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'}`}>
+                        <span className="text-base">{selo.icon}</span>
+                        <span className="text-[10px] font-bold flex-1">{selo.label}</span>
+                        {ativo && <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Salvar */}
+            <div className="flex items-center gap-3">
+              <button onClick={handleSalvar} disabled={salvando} className="flex-1 py-3.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-black rounded-xl flex items-center justify-center gap-2 transition shadow-lg disabled:opacity-60 active:scale-[0.98]">
+                <Save className="w-5 h-5" />
+                {salvando ? 'Salvando...' : editandoId ? 'Atualizar Checkout' : 'Salvar Checkout'}
+              </button>
+              <button onClick={() => { setFormAberto(false); setEditandoId(null); }} className="py-3.5 px-5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl transition border border-slate-700">
+                Cancelar
+              </button>
+            </div>
+          </div>
+
+          {/* Preview */}
+          <div className="xl:col-span-5 space-y-4">
+            <div className="sticky top-6 space-y-4">
+              <div className="flex items-center justify-between bg-slate-900 border border-slate-800 p-3 rounded-2xl">
+                <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl">
+                  {(['mobile', 'desktop'] as const).map(d => (
+                    <button key={d} onClick={() => setPreviewDevice(d)} className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition ${previewDevice === d ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-300'}`}>
+                      {d === 'mobile' ? <Smartphone className="w-3.5 h-3.5" /> : <Monitor className="w-3.5 h-3.5" />}
+                      {d === 'mobile' ? 'Mobile' : 'Desktop'}
                     </button>
-                  )}
-                  {checkoutConfig.metodos.cartao && (
-                    <button
-                      type="button"
-                      onClick={() => setPreviewTab('cartao')}
-                      className={`p-2 rounded-xl border text-[11px] font-bold flex flex-col items-center gap-1 transition ${
-                        previewTab === 'cartao' ? 'bg-blue-500/20 border-blue-500 text-blue-400' : 'bg-slate-900 border-slate-800 text-slate-400'
-                      }`}
-                    >
-                      <CreditCard className="w-3.5 h-3.5" />
-                      <span>Cartão</span>
-                    </button>
-                  )}
-                  {checkoutConfig.metodos.boleto && (
-                    <button
-                      type="button"
-                      onClick={() => setPreviewTab('boleto')}
-                      className={`p-2 rounded-xl border text-[11px] font-bold flex flex-col items-center gap-1 transition ${
-                        previewTab === 'boleto' ? 'bg-amber-500/20 border-amber-500 text-amber-400' : 'bg-slate-900 border-slate-800 text-slate-400'
-                      }`}
-                    >
-                      <FileText className="w-3.5 h-3.5" />
-                      <span>Boleto</span>
-                    </button>
-                  )}
+                  ))}
+                </div>
+                <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl">
+                  {checkoutConfig.metodos.pix !== false && <button onClick={() => setPreviewTab('pix')} className={`px-2 py-1 rounded-lg text-[10px] font-bold transition ${previewTab === 'pix' ? 'bg-emerald-600 text-white' : 'text-slate-500'}`}>Pix</button>}
+                  {checkoutConfig.metodos.cartao && <button onClick={() => setPreviewTab('cartao')} className={`px-2 py-1 rounded-lg text-[10px] font-bold transition ${previewTab === 'cartao' ? 'bg-blue-600 text-white' : 'text-slate-500'}`}>Cartão</button>}
+                  {checkoutConfig.metodos.boleto && <button onClick={() => setPreviewTab('boleto')} className={`px-2 py-1 rounded-lg text-[10px] font-bold transition ${previewTab === 'boleto' ? 'bg-amber-600 text-white' : 'text-slate-500'}`}>Boleto</button>}
                 </div>
               </div>
 
-              {/* Corpo da Tela de Acordo com Aba Selecionada */}
-              {previewTab === 'pix' && (
-                <div className="space-y-2 text-center p-3 bg-slate-900 border border-slate-800 rounded-xl">
-                  <p className="text-[11px] text-slate-300 leading-tight">
-                    {checkoutConfig.mensagens?.pix || 'Aprovação imediata via Pix com QR Code e Copia e Cola.'}
-                  </p>
-                  <div className="w-24 h-24 bg-white p-1.5 rounded-lg mx-auto flex items-center justify-center">
-                    <QrCode className="w-20 h-20 text-slate-950" />
+              <div className={`${previewDevice === 'mobile' ? 'max-w-[360px] mx-auto' : 'w-full'} rounded-2xl border border-slate-700 overflow-hidden shadow-2xl`} style={{ fontFamily: checkoutConfig.fonteFamilia || 'Inter', backgroundColor: bgColor }}>
+                <div className="px-4 py-3 flex items-center justify-between border-b" style={{ borderColor: `${primary}30` }}>
+                  <h3 className="text-sm font-black text-white">Finalizar Compra</h3>
+                  <div className="w-7 h-7 bg-slate-800 rounded-full flex items-center justify-center text-slate-400 text-xs">✕</div>
+                </div>
+                <div className="p-4 space-y-3 max-h-[520px] overflow-y-auto">
+                  {checkoutConfig.bannerUrl && <img src={checkoutConfig.bannerUrl} alt="banner" className="w-full h-20 object-cover rounded-xl" onError={e => (e.currentTarget.style.display = 'none')} />}
+                  {checkoutConfig.mensagens?.urgencia && (
+                    <div className="p-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 animate-pulse" style={{ backgroundColor: `${primary}15`, border: `1px solid ${primary}40`, color: primary }}>
+                      <Zap className="w-3.5 h-3.5 shrink-0" />{checkoutConfig.mensagens.urgencia}
+                    </div>
+                  )}
+                  {checkoutConfig.temporizadorAtivo && (
+                    <div className="p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-center justify-between">
+                      <span className="text-[11px] text-amber-300 font-bold">⏱️ Reserva expira em</span>
+                      <span className="text-sm font-black text-amber-400 font-mono">{String(checkoutConfig.temporizadorMinutos || 10).padStart(2,'0')}:00</span>
+                    </div>
+                  )}
+                  {checkoutConfig.mensagemEscassez && (
+                    <div className="p-2 bg-red-500/10 border border-red-500/20 rounded-xl text-[11px] font-bold text-red-400 text-center">{checkoutConfig.mensagemEscassez}</div>
+                  )}
+                  <div className="space-y-2">
+                    {['Nome completo', 'WhatsApp', 'E-mail'].map(f => (
+                      <div key={f} className="h-9 bg-slate-900/80 border border-slate-700/50 rounded-xl px-3 flex items-center text-xs text-slate-500">{f}</div>
+                    ))}
                   </div>
-                  <button className="w-full py-2 bg-emerald-500 text-slate-950 font-black text-xs rounded-lg shadow-md">
-                    COPIAR CÓDIGO PIX (R$ 5,00)
+                  <button className="w-full py-3.5 rounded-xl text-sm font-black text-slate-950 shadow-lg" style={{ backgroundColor: primary, boxShadow: `0 8px 20px ${primary}40` }}>
+                    {checkoutConfig.textoBotao || 'Garantir Minha Cota Agora'} →
                   </button>
-                </div>
-              )}
-
-              {previewTab === 'cartao' && (
-                <div className="space-y-2 p-3 bg-slate-900 border border-slate-800 rounded-xl">
-                  <p className="text-[11px] text-slate-300 leading-tight mb-2">
-                    {checkoutConfig.mensagens?.cartao || 'Pagamento rápido e seguro processado no cartão de crédito.'}
-                  </p>
-                  <div className="space-y-2 text-[11px]">
-                    <div className="bg-slate-950 border border-slate-700 p-2 rounded-lg text-slate-400">
-                      0000 0000 0000 0000
+                  {checkoutConfig.selosSeguranca && (checkoutConfig.selosExtras || []).length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 justify-center pt-1">
+                      {SELOS_DISPONIVEIS.filter(s => (checkoutConfig.selosExtras || []).includes(s.id)).map(s => (
+                        <span key={s.id} className="text-[9px] text-slate-500 flex items-center gap-1 bg-slate-900/60 border border-slate-800 px-2 py-1 rounded-lg">{s.icon} {s.label}</span>
+                      ))}
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="bg-slate-950 border border-slate-700 p-2 rounded-lg text-slate-400">MM/AA</div>
-                      <div className="bg-slate-950 border border-slate-700 p-2 rounded-lg text-slate-400">CVV</div>
-                    </div>
-                    <div className="bg-slate-950 border border-slate-700 p-2 rounded-lg text-slate-200 font-bold">
-                      Parcelas: até {checkoutConfig.parcelasMax}x de R$ {(5 / checkoutConfig.parcelasMax).toFixed(2).replace('.', ',')}
-                    </div>
-                  </div>
-                  <button className="w-full py-2 bg-blue-500 text-white font-black text-xs rounded-lg shadow-md mt-2">
-                    PAGAR NO CARTÃO (R$ 5,00)
-                  </button>
+                  )}
+                  {checkoutConfig.textoRodape && <p className="text-[10px] text-slate-600 text-center leading-snug">🔒 {checkoutConfig.textoRodape}</p>}
                 </div>
-              )}
-
-              {previewTab === 'boleto' && (
-                <div className="space-y-2 text-center p-3 bg-slate-900 border border-slate-800 rounded-xl">
-                  <p className="text-[11px] text-slate-300 leading-tight">
-                    Emissão de boleto bancário com vencimento em até 3 dias.
-                  </p>
-                  <button className="w-full py-2 bg-amber-500 text-slate-950 font-black text-xs rounded-lg shadow-md">
-                    GERAR BOLETO BANCÁRIO
-                  </button>
-                </div>
-              )}
-
-              {/* Selos de Segurança no Preview */}
-              {checkoutConfig.selosSeguranca && (
-                <div className="mt-3 pt-3 border-t border-slate-800 flex items-center justify-center gap-3 text-[10px] text-slate-400">
-                  <span className="flex items-center gap-1"><ShieldCheck className="w-3 h-3 text-emerald-400" /> SSL 256-bit</span>
-                  <span>•</span>
-                  <span className="flex items-center gap-1"><Lock className="w-3 h-3 text-emerald-400" /> Compra Segura</span>
-                </div>
-              )}
-
+              </div>
+              <p className="text-center text-[10px] text-slate-600">Preview ao vivo — edite os campos acima para ver as mudanças</p>
             </div>
           </div>
         </div>
-
-      </div>
-
+      )}
     </div>
   );
 };

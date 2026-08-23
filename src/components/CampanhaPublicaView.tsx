@@ -374,10 +374,21 @@ export const CampanhaPublicaView: React.FC<Props> = ({
     return () => clearInterval(interval);
   }, [data?.campanha?.agendamentoAtivo, data?.campanha?.dataInicio, data?.campanha?.dataTermino]);
 
-  // Função para calcular idade pela data de nascimento
+  // Função para calcular idade pela data de nascimento (suporta DD/MM/AAAA e AAAA-MM-DD)
   const calcularIdade = (dataNascStr: string): number | null => {
     if (!dataNascStr) return null;
-    const nasc = new Date(dataNascStr);
+    let nasc: Date;
+    if (dataNascStr.includes('/')) {
+      const parts = dataNascStr.split('/');
+      if (parts.length !== 3 || parts[2].length !== 4) return null;
+      const dia = parseInt(parts[0], 10);
+      const mes = parseInt(parts[1], 10);
+      const ano = parseInt(parts[2], 10);
+      if (isNaN(dia) || isNaN(mes) || isNaN(ano) || mes < 1 || mes > 12 || dia < 1 || dia > 31 || ano < 1900) return null;
+      nasc = new Date(ano, mes - 1, dia);
+    } else {
+      nasc = new Date(dataNascStr);
+    }
     if (isNaN(nasc.getTime())) return null;
     const hoje = new Date();
     let idade = hoje.getFullYear() - nasc.getFullYear();
@@ -386,6 +397,14 @@ export const CampanhaPublicaView: React.FC<Props> = ({
       idade--;
     }
     return idade;
+  };
+
+  // Formatação de data de nascimento DD/MM/AAAA (ex: 01062004 -> 01/06/2004)
+  const formatDataNascimento = (val: string) => {
+    const raw = val.replace(/\D/g, '').slice(0, 8);
+    if (raw.length <= 2) return raw;
+    if (raw.length <= 4) return `${raw.slice(0, 2)}/${raw.slice(2)}`;
+    return `${raw.slice(0, 2)}/${raw.slice(2, 4)}/${raw.slice(4)}`;
   };
 
   // Formatação de telefone
@@ -943,7 +962,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                   key={idx}
                   type="button"
                   onClick={() => setQuantidade(promo.quantidade)}
-                  className={`relative p-3 rounded-xl border text-center transition ${
+                  className={`relative pt-3 pb-2 px-3 rounded-xl border text-center transition flex flex-col items-center gap-1 ${
                     selecionado
                       ? 'border-[var(--brand)] text-white shadow-md'
                       : 'bg-slate-800/60 border-slate-700/80 text-slate-200 hover:bg-slate-800'
@@ -953,20 +972,20 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                     borderColor: 'var(--brand)'
                   } : undefined}
                 >
-                  {promo.destaque && (
-                    <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-amber-500 text-slate-950 font-black text-[9px] uppercase tracking-wider rounded-full shadow">
-                      Mais Popular
-                    </span>
-                  )}
                   <span className="block text-sm font-black text-white">
                     +{promo.quantidade}
                   </span>
                   <span
-                    className="block text-xs font-extrabold mt-0.5"
+                    className="block text-xs font-extrabold"
                     style={{ color: 'var(--brand)' }}
                   >
                     {formatarMoeda(promo.valor)}
                   </span>
+                  {promo.destaque && (
+                    <span className="mt-1 px-1.5 py-0.5 bg-amber-500 text-slate-950 font-black text-[8px] uppercase tracking-wider rounded-md shadow w-full text-center">
+                      + Popular
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -1834,13 +1853,13 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                   </div>
                 )}
 
-                {/* Data de Nascimento para Cálculo Automático de Idade */}
+                {/* Data de Nascimento para Cálculo Automático de Idade (Sem calendário nativo, digitação direta 01062004) */}
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-xs font-semibold text-slate-300 block">
                       Data de Nascimento *
                     </label>
-                    {dataNascimento && (
+                    {dataNascimento && dataNascimento.length === 10 && (
                       <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
                         (calcularIdade(dataNascimento) || 0) >= 18
                           ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
@@ -1854,9 +1873,12 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                   </div>
                   <input
                     id="input-nascimento-comprador"
-                    type="date"
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="DD/MM/AAAA (ex: 01/06/2004)"
+                    maxLength={10}
                     value={dataNascimento}
-                    onChange={e => setDataNascimento(e.target.value)}
+                    onChange={e => setDataNascimento(formatDataNascimento(e.target.value))}
                     className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-mono text-white focus:border-[var(--brand)] focus:outline-none"
                     required
                   />
@@ -2419,6 +2441,60 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                 type="button"
                 onClick={() => setOrganizadorModalAberto(false)}
                 className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE DIAGNÓSTICO DE ERRO PARA SUPORTE */}
+      {erroDiagnostico && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-red-500/40 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2 text-red-400">
+                <AlertCircle className="w-5 h-5" />
+                <h3 className="text-base font-black text-white">{erroDiagnostico.titulo}</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setErroDiagnostico(null)}
+                className="w-8 h-8 rounded-full bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center transition"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-300">{erroDiagnostico.mensagem}</p>
+
+            <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-[11px] font-mono text-slate-400 max-h-48 overflow-y-auto">
+              <pre className="whitespace-pre-wrap break-all">
+                {typeof erroDiagnostico.detalhes === 'string'
+                  ? erroDiagnostico.detalhes
+                  : JSON.stringify(erroDiagnostico.detalhes, null, 2)}
+              </pre>
+            </div>
+
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={async () => {
+                  const textoParaCopiar = `=== DIAGNÓSTICO DE ERRO RIFAZONE ===\nTítulo: ${erroDiagnostico.titulo}\nMensagem: ${erroDiagnostico.mensagem}\nDetalhes:\n${typeof erroDiagnostico.detalhes === 'string' ? erroDiagnostico.detalhes : JSON.stringify(erroDiagnostico.detalhes, null, 2)}\nData: ${new Date().toISOString()}`;
+                  await navigator.clipboard.writeText(textoParaCopiar);
+                  setErroCopiado(true);
+                  setTimeout(() => setErroCopiado(false), 3000);
+                }}
+                className="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center gap-2 transition"
+              >
+                <Copy className="w-4 h-4" />
+                {erroCopiado ? 'Copiado para Área de Transferência!' : 'Copiar Diagnóstico do Erro'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setErroDiagnostico(null)}
+                className="py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-xs transition"
               >
                 Fechar
               </button>

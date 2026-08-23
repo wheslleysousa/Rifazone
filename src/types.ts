@@ -213,6 +213,8 @@ export interface Campanha {
   localSorteio: string; // ex: "Loteria Federal"
   dataSorteio: string | null; // ISO string
   agendamentoAtivo?: boolean;
+  metaPixelId?: string | null;
+  metaCampaignId?: string | null; // Adicionado para associação com campanhas do Facebook
   dataInicio?: string | null;
   dataTermino?: string | null;
   descontoPorValorTotal?: { aPartirDeValor: number; valorCotaComDesconto: number }[];
@@ -319,6 +321,8 @@ export interface ConfigOrganizador {
   // Meta Ads (Marketing API) — para a aba de Analytics
   metaAccessToken?: string | null;  // segredo — nunca retornado ao cliente
   metaAdAccountId?: string | null;  // ex: act_1234567890
+  metaConexaoTipo?: 'oauth' | 'manual' | null;
+  metaConectadoEm?: string | null;
   notificameToken?: string | null;  // segredo — para envio via WhatsApp Notificame
   atualizadaEm: string;
 }

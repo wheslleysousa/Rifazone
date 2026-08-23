@@ -123,7 +123,7 @@ export const PixPaymentModal: React.FC<Props> = ({
     const interval = setInterval(async () => {
       if (cancelado) return;
       try {
-        const res = await fetch(`/api/pedidos/${pedidoId}/status`);
+        const res = await fetch(`/api/pedidos/${pedidoId}/status?t=${Date.now()}`);
         if (res.ok) {
           const data = await res.json();
           if (data.status === 'pago' && !cancelado) {

@@ -295,8 +295,9 @@ export const CampanhaPublicaView: React.FC<Props> = ({
       const json: CampanhaPublicaResponse = await res.json();
       setData(json);
 
-      if (json.marca?.metaPixelId && json.campanha) {
-        trackViewContent(json.marca.metaPixelId, {
+      const pixelId = json.campanha?.metaPixelId || json.marca?.metaPixelId;
+      if (pixelId && json.campanha) {
+        trackViewContent(pixelId, {
           contentIds: [json.campanha.id],
           contentName: json.campanha.titulo,
           value: json.campanha.valorCota
@@ -506,8 +507,9 @@ export const CampanhaPublicaView: React.FC<Props> = ({
     if (modoPreview) {
       return;
     }
-    if (data?.marca?.metaPixelId && campanha) {
-      trackInitiateCheckout(data.marca.metaPixelId, {
+    const pixelId = campanha?.metaPixelId || data?.marca?.metaPixelId;
+    if (pixelId && campanha) {
+      trackInitiateCheckout(pixelId, {
         contentIds: [campanha.id],
         value: valorTotalAtual,
         numItems: quantidade
@@ -623,8 +625,9 @@ export const CampanhaPublicaView: React.FC<Props> = ({
 
     setEnviandoPedido(true);
 
-    if (data?.marca?.metaPixelId && campanha) {
-      trackAddPaymentInfo(data.marca.metaPixelId, {
+    const pixelId = campanha?.metaPixelId || data?.marca?.metaPixelId;
+    if (pixelId && campanha) {
+      trackAddPaymentInfo(pixelId, {
         contentIds: [campanha.id],
         value: valorTotalAtual
       });
@@ -678,8 +681,9 @@ export const CampanhaPublicaView: React.FC<Props> = ({
       // Sorteio Gratuito
       if (pedidoJson.metodoPagamento === 'gratis' || campanha.modalidade === 'gratis') {
         setCheckoutAberto(false);
-        if (data?.marca?.metaPixelId && campanha) {
-          trackPurchase(data.marca.metaPixelId, {
+        const pixelId = campanha?.metaPixelId || data?.marca?.metaPixelId;
+        if (pixelId && campanha) {
+          trackPurchase(pixelId, {
             contentIds: [campanha.id],
             value: 0,
             numItems: 1
@@ -741,8 +745,9 @@ export const CampanhaPublicaView: React.FC<Props> = ({
         setCheckoutAberto(false);
 
         // Sucesso no Cartão
-        if (data?.marca?.metaPixelId && campanha) {
-          trackPurchase(data.marca.metaPixelId, {
+        const pixelId = campanha?.metaPixelId || data?.marca?.metaPixelId;
+        if (pixelId && campanha) {
+          trackPurchase(pixelId, {
             contentIds: [campanha.id],
             value: pedidoJson.valorTotal,
             numItems: pedidoJson.quantidade
@@ -971,6 +976,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
         {/* Seletor Manual / Digitação Direta (- / +) */}
         <div className="flex items-center justify-between p-3 bg-slate-950 border border-slate-800 rounded-xl gap-3">
           <button
+            type="button"
             onClick={() => setQuantidade(q => Math.max(campanha.minPorCompra || 1, q - 1))}
             className="w-10 h-10 rounded-lg bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center font-bold transition active:scale-95 shrink-0"
             aria-label="Diminuir cotas"
@@ -1002,6 +1008,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
           </div>
 
           <button
+            type="button"
             onClick={() => setQuantidade(q => Math.min(campanha.maxPorCompra || 500000, q + 1))}
             style={{ backgroundColor: 'var(--btn)', color: 'var(--btn-txt)' }}
             className="w-10 h-10 rounded-lg flex items-center justify-center font-bold transition active:scale-95 shrink-0 hover:opacity-90 shadow-sm"
@@ -1201,24 +1208,24 @@ export const CampanhaPublicaView: React.FC<Props> = ({
 
     switch (secaoId) {
       case 'banner':
-        return <SecaoBanner />;
+        return SecaoBanner();
       case 'barraProgresso':
       case 'progresso':
-        return <SecaoBarraProgresso />;
+        return SecaoBarraProgresso();
       case 'cotas':
-        return <SecaoCotas />;
+        return SecaoCotas();
       case 'premios':
-        return <SecaoPremios />;
+        return SecaoPremios();
       case 'premiadas':
       case 'cotasPremiadas':
-        return <SecaoCotasPremiadas />;
+        return SecaoCotasPremiadas();
       case 'ranking':
-        return <SecaoRanking />;
+        return SecaoRanking();
       case 'regulamento':
       case 'descricao':
-        return <SecaoRegulamento />;
+        return SecaoRegulamento();
       case 'ganhadores':
-        return <SecaoGanhadores />;
+        return SecaoGanhadores();
       default:
         return null;
     }
@@ -2125,8 +2132,9 @@ export const CampanhaPublicaView: React.FC<Props> = ({
           compradorWhatsapp={pixModalData.compradorWhatsapp || whatsapp.replace(/\D/g, '')}
           tituloCampanha={campanha.titulo}
           onSuccess={() => {
-            if (data?.marca?.metaPixelId && campanha && pixModalData) {
-              trackPurchase(data.marca.metaPixelId, {
+            const pixelId = campanha?.metaPixelId || data?.marca?.metaPixelId;
+            if (pixelId && campanha && pixModalData) {
+              trackPurchase(pixelId, {
                 contentIds: [campanha.id],
                 value: pixModalData.valorTotal,
                 numItems: pixModalData.quantidade

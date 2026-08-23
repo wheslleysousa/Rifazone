@@ -41,6 +41,8 @@ export function sanitizarCampanha(
     localSorteio: String(data.localSorteio ?? base?.localSorteio ?? 'Loteria Federal'),
     dataSorteio: data.dataSorteio !== undefined ? (data.dataSorteio || null) : (base?.dataSorteio ?? null),
     agendamentoAtivo: data.agendamentoAtivo !== undefined ? Boolean(data.agendamentoAtivo) : (base?.agendamentoAtivo ?? false),
+    metaPixelId: data.metaPixelId !== undefined ? (data.metaPixelId ? String(data.metaPixelId).trim() : null) : (base?.metaPixelId ?? null),
+    metaCampaignId: data.metaCampaignId !== undefined ? (data.metaCampaignId ? String(data.metaCampaignId).trim() : null) : (base?.metaCampaignId ?? null),
     dataInicio: data.dataInicio !== undefined ? (data.dataInicio || null) : (base?.dataInicio ?? null),
     dataTermino: data.dataTermino !== undefined ? (data.dataTermino || null) : (base?.dataTermino ?? null),
     descontoPorValorTotal: Array.isArray(data.descontoPorValorTotal)
@@ -719,6 +721,9 @@ async function processarConfirmacaoPedido(pedidoId: string, paymentId?: string, 
 
 // GET /api/pedidos/:id/status -> Polling de status do pedido com reconciliação no MP
 app.get('/api/pedidos/:id/status', async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   try {
     const { id } = req.params;
     const pedido = await db.getPedido(id);
@@ -1039,6 +1044,119 @@ app.post('/api/admin/configuracoes/desconectar', firebaseAuthMiddleware, async (
   }
 });
 
+// GET /api/auth/facebook/url -> Gera o link oficial para conexão OAuth do Facebook Ads / Login
+app.get('/api/auth/facebook/url', firebaseAuthMiddleware, async (req, res) => {
+  const appId = (process.env.VITE_FACEBOOK_APP_ID || process.env.FACEBOOK_APP_ID || '').trim();
+  const appSecret = (process.env.FACEBOOK_APP_SECRET || '').trim();
+  const baseUrl = (process.env.BASE_URL || process.env.APP_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+  const redirectUri = `${baseUrl}/api/auth/facebook/callback`;
+
+  if (!appId || !appSecret) {
+    return res.status(400).json({
+      configured: false,
+      error: 'VITE_FACEBOOK_APP_ID ou FACEBOOK_APP_SECRET não configurados nas variáveis de ambiente do servidor.',
+      redirectUri
+    });
+  }
+
+  const statePayload = {
+    uid: (req as any).userId,
+    email: (req as any).userEmail,
+    ts: Date.now()
+  };
+  const state = Buffer.from(JSON.stringify(statePayload)).toString('base64url');
+
+  const authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${encodeURIComponent(appId)}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}&scope=ads_read,ads_management,business_management`;
+
+  return res.json({
+    configured: true,
+    url: authUrl,
+    redirectUri
+  });
+});
+
+// GET /api/auth/facebook/callback -> Recebe a autorização do Facebook OAuth
+app.get('/api/auth/facebook/callback', async (req, res) => {
+  const { code, state, error: fbError, error_description } = req.query;
+
+  if (fbError) {
+    console.error('Erro retornado pelo Facebook OAuth:', fbError, error_description);
+    return res.redirect(`/?fb_oauth=erro&msg=${encodeURIComponent(String(error_description || fbError))}`);
+  }
+
+  if (!code || !state) {
+    return res.redirect('/?fb_oauth=erro&msg=Codigo+ou+state+ausente');
+  }
+
+  try {
+    const decoded = JSON.parse(Buffer.from(String(state), 'base64url').toString('utf-8'));
+    const userId = decoded.uid;
+
+    if (!userId) {
+      throw new Error('Identificação do usuário organizador não encontrada no state.');
+    }
+
+    const appId = (process.env.VITE_FACEBOOK_APP_ID || process.env.FACEBOOK_APP_ID || '').trim();
+    const clientSecret = (process.env.FACEBOOK_APP_SECRET || '').trim();
+    const baseUrl = (process.env.BASE_URL || process.env.APP_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+    const redirectUri = `${baseUrl}/api/auth/facebook/callback`;
+
+    const tokenRes = await fetch(`https://graph.facebook.com/v18.0/oauth/access_token?client_id=${encodeURIComponent(appId)}&redirect_uri=${encodeURIComponent(redirectUri)}&client_secret=${encodeURIComponent(clientSecret)}&code=${encodeURIComponent(String(code))}`);
+    const tokenData = await tokenRes.json();
+
+    if (!tokenRes.ok || !tokenData.access_token) {
+      console.error('Erro na resposta do token OAuth Facebook:', tokenData);
+      const errMsg = tokenData.error?.message || 'Falha ao trocar código pelo token do Facebook';
+      return res.redirect(`/?fb_oauth=erro&msg=${encodeURIComponent(errMsg)}`);
+    }
+
+    const accessToken = tokenData.access_token;
+
+    let adAccountId: string | null = null;
+    try {
+      const accountsRes = await fetch(`https://graph.facebook.com/v18.0/me/adaccounts?fields=account_id,name&access_token=${encodeURIComponent(accessToken)}`);
+      const accountsData = await accountsRes.json();
+      if (accountsData && Array.isArray(accountsData.data) && accountsData.data.length > 0) {
+        const acc = accountsData.data[0];
+        const rawId = acc.account_id || acc.id;
+        adAccountId = rawId.startsWith('act_') ? rawId : `act_${rawId}`;
+      }
+    } catch (accErr) {
+      console.warn('Não foi possível buscar contas de anúncios automaticamente no callback FB:', accErr);
+    }
+
+    await db.saveConfig(userId, {
+      metaAccessToken: accessToken,
+      metaAdAccountId: adAccountId || undefined,
+      metaConexaoTipo: 'oauth',
+      metaConectadoEm: new Date().toISOString()
+    });
+
+    console.log(`Organizador ${userId} conectou Facebook com sucesso via OAuth! Ad Account: ${adAccountId || 'Não detectada'}`);
+    return res.redirect('/?fb_oauth=sucesso');
+  } catch (err: any) {
+    console.error('Erro no callback OAuth Facebook:', err);
+    return res.redirect(`/?fb_oauth=erro&msg=${encodeURIComponent(err.message || 'Erro inesperado')}`);
+  }
+});
+
+// POST /api/admin/configuracoes/desconectar-facebook -> Desconecta a conta do Facebook
+app.post('/api/admin/configuracoes/desconectar-facebook', firebaseAuthMiddleware, async (req, res) => {
+  try {
+    await db.saveConfig((req as any).userId, {
+      metaAccessToken: '',
+      metaAdAccountId: '',
+      metaConexaoTipo: null,
+      metaConectadoEm: null
+    });
+
+    return res.json({ success: true, facebookConfigurado: false });
+  } catch (err: any) {
+    console.error('Erro ao desconectar Facebook:', err);
+    return res.status(500).json({ error: 'Erro ao desconectar conta do Facebook.' });
+  }
+});
+
 // PUT /api/admin/configuracoes -> Salva configurações (pagamento manual, marca, redes, pixel, Meta Ads)
 app.put('/api/admin/configuracoes', firebaseAuthMiddleware, async (req, res) => {
   try {
@@ -1250,6 +1368,31 @@ app.put('/api/admin/campanhas/:id', firebaseAuthMiddleware, async (req, res) => 
   } catch (err: any) {
     console.error('Erro ao atualizar campanha:', err);
     return res.status(500).json({ error: 'Erro ao atualizar campanha.' });
+  }
+});
+
+// PUT /api/admin/campanhas/:id/meta-link -> Associa uma campanha do RifaZone a uma Campanha do Meta Ads
+app.put('/api/admin/campanhas/:id/meta-link', firebaseAuthMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { metaCampaignId } = req.body;
+    
+    const existente = await db.getCampanhaById(id);
+    if (!existente) {
+      return res.status(404).json({ error: 'Campanha não encontrada.' });
+    }
+    if (existente.ownerId !== (req as any).userId) {
+      return res.status(403).json({ error: 'Acesso negado.' });
+    }
+
+    existente.metaCampaignId = metaCampaignId || null;
+    existente.atualizadaEm = new Date().toISOString();
+    
+    await db.saveCampanha(existente);
+    return res.json({ success: true, metaCampaignId: existente.metaCampaignId });
+  } catch (err) {
+    console.error('Erro ao vincular Meta Campaign:', err);
+    return res.status(500).json({ error: 'Erro ao vincular campanha do Meta.' });
   }
 });
 

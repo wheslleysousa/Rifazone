@@ -1,6 +1,89 @@
 <!doctype html>
 <html lang="en">
   <head>
+    <script>
+      (function() {
+        try {
+          // Preemptively define window.fetch with a silent setter to prevent
+          // Uncaught TypeErrors when extensions or third-party scripts try to polyfill fetch
+          // in environments where it's locked down.
+          var originalFetch = window.fetch;
+          var desc = Object.getOwnPropertyDescriptor(window, 'fetch');
+          if (!desc || desc.configurable) {
+            Object.defineProperty(window, 'fetch', {
+              get: function() { return originalFetch; },
+              set: function(val) {
+                console.info('[Sandbox] Ignored attempt to overwrite window.fetch');
+              },
+              configurable: false,
+              enumerable: true
+            });
+          }
+          if (typeof globalThis !== 'undefined') {
+            var gDesc = Object.getOwnPropertyDescriptor(globalThis, 'fetch');
+            if (!gDesc || gDesc.configurable) {
+              Object.defineProperty(globalThis, 'fetch', {
+                get: function() { return originalFetch; },
+                set: function(val) { console.info('[Sandbox] Ignored globalThis.fetch'); },
+                configurable: false,
+                enumerable: true
+              });
+            }
+          }
+        } catch (e) {}
+
+        var handleFetchErrorText = function(errorMsg) {
+          if (!errorMsg) return false;
+          var msgLower = errorMsg.toLowerCase();
+          return (
+            msgLower.indexOf('cannot set property fetch') !== -1 ||
+            msgLower.indexOf('property fetch of') !== -1 ||
+            msgLower.indexOf('has only a getter') !== -1 ||
+            msgLower.indexOf('redefine property: fetch') !== -1
+          );
+        };
+
+        var originalOnerror = window.onerror;
+        window.onerror = function(message, source, lineno, colno, error) {
+          var errorMsg = typeof message === 'string' ? message : (message && message.toString ? message.toString() : '');
+          var errorObjMsg = (error && error.message) || '';
+          
+          if (handleFetchErrorText(errorMsg) || handleFetchErrorText(errorObjMsg)) {
+            console.info('[RifaZone Sandbox] Erro de escrita em window.fetch silenciado via inline window.onerror.');
+            return true; // Suppresses the error entirely
+          }
+          if (originalOnerror) {
+            return originalOnerror.apply(this, arguments);
+          }
+          return false;
+        };
+
+        window.addEventListener('error', function(event) {
+          var msg = event.message || '';
+          var errorObjMsg = (event.error && event.error.message) || '';
+          if (handleFetchErrorText(msg) || handleFetchErrorText(errorObjMsg)) {
+            try {
+              event.preventDefault();
+              event.stopImmediatePropagation();
+              event.stopPropagation();
+            } catch (e) {}
+            console.info('[RifaZone Sandbox] Erro de escrita em window.fetch silenciado via inline event listener.');
+          }
+        }, { capture: true });
+
+        window.addEventListener('unhandledrejection', function(event) {
+          var msg = (event.reason && event.reason.message) || '';
+          if (handleFetchErrorText(msg)) {
+            try {
+              event.preventDefault();
+              event.stopImmediatePropagation();
+              event.stopPropagation();
+            } catch (e) {}
+            console.info('[RifaZone Sandbox] Rejeição de escrita em window.fetch silenciada via inline promise handler.');
+          }
+        }, { capture: true });
+      })();
+    </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>RifaZone — Rifas e Sorteios com Pix</title>

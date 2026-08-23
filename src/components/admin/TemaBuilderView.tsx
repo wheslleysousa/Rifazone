@@ -349,11 +349,7 @@ export const TemaBuilderView: React.FC<Props> = ({
       { numero: '04567', premio: 'R$ 250 no Pix', status: 'disponivel', pedidoId: null },
       { numero: '08999', premio: 'R$ 100 no Pix', status: 'disponivel', pedidoId: null }
     ],
-    promocoes: (campanha.promocoes && campanha.promocoes.length > 0) ? campanha.promocoes : [
-      { quantidade: 20, valor: 8.00, descontoPorcentagem: 20, destaque: false },
-      { quantidade: 50, valor: 17.50, descontoPorcentagem: 30, destaque: true, textoBadge: 'MAIS POPULAR' },
-      { quantidade: 100, valor: 30.00, descontoPorcentagem: 40, destaque: false }
-    ],
+    promocoes: (campanha.promocoes && campanha.promocoes.length > 0) ? campanha.promocoes : [],
     descontoPorValorTotal: campanha.descontoPorValorTotal || [],
     ofertasRelampago: campanha.ofertasRelampago || [],
     criadaEm: campanha.criadaEm || new Date().toISOString(),

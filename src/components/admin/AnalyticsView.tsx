@@ -47,6 +47,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
       cpc: number;
       impressions: number;
       comprasMeta: number;
+      campaigns?: any[];
     };
     rifazone?: {
       faturamento: number;
@@ -62,32 +63,80 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
     };
   } | null>(null);
 
-  // Form de configuração do Meta Ads
-  const [mostrarModalConfig, setMostrarModalConfig] = useState(false);
-  const [metaAccessTokenInput, setMetaAccessTokenInput] = useState('');
-  const [metaAdAccountIdInput, setMetaAdAccountIdInput] = useState('');
-  const [metaPixelIdInput, setMetaPixelIdInput] = useState('');
-  const [metaCapiTokenInput, setMetaCapiTokenInput] = useState('');
-  const [salvandoMetaConfig, setSalvandoMetaConfig] = useState(false);
-  const [configSuccessMsg, setConfigSuccessMsg] = useState('');
-  const [configErrorMsg, setConfigErrorMsg] = useState('');
+  const [conectandoFacebook, setConectandoFacebook] = useState(false);
 
-  // Carregar dados de configuracoes atuais para preencher os inputs mascarados
-  const carregarMetaConfig = async () => {
+  const handleConectarFacebook = async () => {
+    setConectandoFacebook(true);
     try {
-      const res = await authFetch('/api/admin/configuracoes');
-      if (res.ok) {
-        const json = await res.json();
-        setMetaAdAccountIdInput(json.metaAdAccountId || '');
-        setMetaPixelIdInput(json.metaPixelId || '');
-        if (json.metaTokenMascara) {
-          setMetaAccessTokenInput(json.metaTokenMascara);
-        }
-        if (json.metaCapiTokenMascara) {
-          setMetaCapiTokenInput(json.metaCapiTokenMascara);
-        }
+      const res = await authFetch('/api/auth/facebook/url');
+      const json = await res.json();
+      if (res.ok && json.url) {
+        // Usa window.open para evitar bloqueios de iframe no AI Studio
+        const width = 600;
+        const height = 700;
+        const left = (window.innerWidth - width) / 2;
+        const top = (window.innerHeight - height) / 2;
+        
+        window.open(json.url, 'fb_oauth', `width=${width},height=${height},top=${top},left=${left}`);
+        
+        // Pede pro usuário recarregar a página após logar no popup
+        alert('Uma nova janela foi aberta para conectar sua conta do Facebook.\n\nSe a janela não abriu, permita os popups no seu navegador.\n\nApós autorizar no Facebook, recarregue esta página para ver seus dados.');
+      } else {
+        alert(json.error || 'Erro ao gerar URL de conexão do Facebook. (Configure as variáveis no Render)');
       }
-    } catch (e) {}
+    } catch (err: any) {
+      alert('Falha ao conectar com o Facebook.');
+    } finally {
+      setConectandoFacebook(false);
+    }
+  };
+
+  const handleDesconectarFacebook = async () => {
+    if (!confirm('Deseja desconectar sua conta do Facebook?')) return;
+    try {
+      const res = await authFetch('/api/admin/configuracoes/desconectar-facebook', { method: 'POST' });
+      if (res.ok) {
+        buscarInsights();
+      } else {
+        alert('Erro ao desconectar conta.');
+      }
+    } catch (err) {
+      alert('Erro ao desconectar.');
+    }
+  };
+
+  const handleVincularCampanha = async (rifaId: string, metaCampaignId: string) => {
+    try {
+      const res = await authFetch(`/api/admin/campanhas/${rifaId}/meta-link`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ metaCampaignId })
+      });
+      if (res.ok) {
+        // Remove a vinculação dessa Meta Campaign de qualquer outra rifa primeiro
+        campanhas.forEach(c => {
+          if (c.metaCampaignId === metaCampaignId && c.id !== rifaId) {
+            c.metaCampaignId = null;
+          }
+        });
+        
+        // Atualiza a Rifa selecionada na interface
+        if (rifaId) {
+          const idx = campanhas.findIndex(c => c.id === rifaId);
+          if (idx !== -1) {
+            campanhas[idx].metaCampaignId = metaCampaignId || null;
+          }
+        }
+        
+        // Força renderização chamando um clone ou apenas atualizando state. 
+        // O buscarInsights atualiza o state, disparando render.
+        buscarInsights(); 
+      } else {
+        alert('Erro ao salvar vinculação.');
+      }
+    } catch (err) {
+      alert('Erro ao vincular.');
+    }
   };
 
   const buscarInsights = async () => {
@@ -116,45 +165,8 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
   };
 
   useEffect(() => {
-    carregarMetaConfig();
     buscarInsights();
   }, [campanhaIdSelecionada]);
-
-  const handleSalvarMetaConfig = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSalvandoMetaConfig(true);
-    setConfigSuccessMsg('');
-    setConfigErrorMsg('');
-
-    try {
-      const res = await authFetch('/api/admin/configuracoes', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          metaAccessToken: metaAccessTokenInput.includes('••••') ? undefined : metaAccessTokenInput,
-          metaCapiToken: metaCapiTokenInput.includes('••••') ? undefined : metaCapiTokenInput,
-          metaAdAccountId: metaAdAccountIdInput.trim(),
-          metaPixelId: metaPixelIdInput.trim()
-        })
-      });
-
-      const json = await res.json();
-      if (res.ok) {
-        setConfigSuccessMsg('Configurações do Meta Ads e Conversions API salvas com sucesso!');
-        setTimeout(() => {
-          setMostrarModalConfig(false);
-          setConfigSuccessMsg('');
-          buscarInsights();
-        }, 1200);
-      } else {
-        setConfigErrorMsg(json.error || 'Erro ao salvar credenciais do Meta.');
-      }
-    } catch (err: any) {
-      setConfigErrorMsg('Falha ao salvar configurações.');
-    } finally {
-      setSalvandoMetaConfig(false);
-    }
-  };
 
   // Cálculo alternativo local caso Meta não esteja conectado
   const pedidosPagosLocais = pedidos.filter(p => {
@@ -179,22 +191,39 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
           </div>
           <h1 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
             <BarChart3 className="w-6 h-6 text-emerald-400" />
-            Analytics & Meta Ads
+            Meta Ads
           </h1>
           <p className="text-slate-400 text-xs max-w-2xl">
-            Cruze em tempo real o gasto em anúncios do Facebook/Instagram com o faturamento real do RifaZone e meça o ROAS verdadeiro das suas campanhas.
+            Acompanhe o desempenho das suas campanhas de tráfego, veja o gasto real da sua conta de anúncios e descubra o seu verdadeiro Lucro e ROAS (Retorno Sobre Investimento).
           </p>
         </div>
 
         <div className="flex items-center gap-2 self-start sm:self-center">
-          <button
-            type="button"
-            onClick={() => { setMostrarModalConfig(true); setConfigErrorMsg(''); setConfigSuccessMsg(''); }}
-            className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 flex items-center gap-2 transition"
-          >
-            <Sliders className="w-4 h-4 text-emerald-400" />
-            Configurar Meta Ads / Pixel
-          </button>
+          {insightsData?.conectado ? (
+            <div className="flex items-center gap-2">
+              <span className="px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold rounded-xl flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                Conectado ({insightsData.adAccountId})
+              </span>
+              <button
+                type="button"
+                onClick={handleDesconectarFacebook}
+                className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs font-bold rounded-xl border border-rose-500/30 transition"
+              >
+                Desconectar
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={handleConectarFacebook}
+              disabled={conectandoFacebook}
+              className="px-4 py-2.5 bg-sky-600 hover:bg-sky-500 text-white text-xs font-black rounded-xl shadow-lg shadow-sky-600/20 flex items-center gap-2 transition disabled:opacity-50"
+            >
+              <Zap className="w-4 h-4" />
+              {conectandoFacebook ? 'Conectando...' : 'Conectar Conta do Facebook'}
+            </button>
+          )}
           
           <button
             type="button"
@@ -236,9 +265,9 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
               <HelpCircle className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-sm font-black text-white">Conecte sua Conta de Anúncios da Meta</h3>
+              <h3 className="text-sm font-black text-white">Conecte sua Conta do Facebook para Ver o ROAS e Gastos</h3>
               <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                Para visualizar o gasto exato do Gerenciador de Anúncios e calcular o ROAS automaticamente, forneça seu <strong>Token da Marketing API</strong> e seu <strong>ID da Conta de Anúncios (act_...)</strong>.
+                Clique no botão abaixo para fazer login com sua conta do Facebook e autorizar o RifaZone a consultar os dados de anúncios automaticamente. Cada cliente gerencia sua própria conta com 1 clique!
               </p>
               <p className="text-[11px] text-amber-400/90 mt-2 font-mono">
                 ⚠️ {erroInsights}
@@ -249,21 +278,13 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
           <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-800">
             <button
               type="button"
-              onClick={() => { setMostrarModalConfig(true); setConfigErrorMsg(''); }}
-              className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-emerald-500/20 flex items-center gap-2 transition"
+              onClick={handleConectarFacebook}
+              disabled={conectandoFacebook}
+              className="px-5 py-2.5 bg-sky-600 hover:bg-sky-500 text-white font-black text-xs rounded-xl shadow-lg shadow-sky-600/20 flex items-center gap-2 transition disabled:opacity-50"
             >
               <Zap className="w-4 h-4" />
-              Conectar Meta Ads Agora
+              {conectandoFacebook ? 'Redirecionando...' : 'Conectar com o Facebook'}
             </button>
-            <a
-              href="https://developers.facebook.com/apps"
-              target="_blank"
-              rel="noreferrer"
-              className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl border border-slate-700 flex items-center gap-1.5 transition"
-            >
-              Tutorial do Meta Developers
-              <ExternalLink className="w-3.5 h-3.5 opacity-70" />
-            </a>
           </div>
         </div>
       )}
@@ -392,6 +413,107 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
         </div>
       )}
 
+      {/* TRACKING E VINCULAÇÃO DE CAMPANHAS META ADS */}
+      {insightsData?.conectado && insightsData.meta?.campaigns && insightsData.meta.campaigns.length > 0 && (
+        <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <h3 className="text-sm font-black text-white flex items-center gap-2">
+              <Zap className="w-4 h-4 text-sky-400" />
+              Sincronização de Campanhas (Meta Ads ➔ RifaZone)
+            </h3>
+          </div>
+          <p className="text-xs text-slate-400 max-w-3xl">
+            Vincule cada campanha de anúncio do Facebook à sua respectiva Rifa. Assim, podemos cruzar o que foi <strong>gasto no Meta</strong> com o <strong>faturamento real de PIX</strong> para revelar o lucro verdadeiro.
+          </p>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs text-slate-300">
+              <thead className="bg-slate-950 text-slate-400 uppercase font-mono text-[10px]">
+                <tr>
+                  <th className="p-3">Campanha do Facebook (Anúncio)</th>
+                  <th className="p-3">Status</th>
+                  <th className="p-3">Gasto Meta</th>
+                  <th className="p-3 bg-slate-900/50">Associar à Rifa</th>
+                  <th className="p-3 text-emerald-400">Receita Rifa</th>
+                  <th className="p-3 text-right">Lucro Líquido</th>
+                  <th className="p-3 text-right">ROAS Real</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/80">
+                {insightsData.meta.campaigns.map((fbCamp: any) => {
+                  // Procura se tem rifa vinculada
+                  const rifaVinculada = campanhas.find(c => c.metaCampaignId === fbCamp.id);
+                  
+                  let faturamentoRifa = 0;
+                  if (rifaVinculada) {
+                    const pedidosRifa = pedidos.filter(p => p.campanhaId === rifaVinculada.id && p.status === 'pago');
+                    faturamentoRifa = pedidosRifa.reduce((acc, p) => acc + (p.valorTotal || 0), 0);
+                  }
+
+                  const lucro = faturamentoRifa - (fbCamp.spend || 0);
+                  const roas = fbCamp.spend > 0 ? (faturamentoRifa / fbCamp.spend) : 0;
+                  const isPositive = lucro >= 0;
+
+                  return (
+                    <tr key={fbCamp.id} className="hover:bg-slate-800/50 transition">
+                      <td className="p-3 font-bold text-white max-w-[200px] truncate" title={fbCamp.name}>
+                        {fbCamp.name}
+                      </td>
+                      <td className="p-3">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                          fbCamp.status === 'ACTIVE'
+                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                            : 'bg-slate-800 text-slate-400 border border-slate-700'
+                        }`}>
+                          {fbCamp.status}
+                        </span>
+                      </td>
+                      <td className="p-3 font-mono text-rose-400">
+                        R$ {Number(fbCamp.spend || 0).toFixed(2)}
+                      </td>
+                      <td className="p-3 bg-slate-900/50">
+                        <select
+                          className="w-full bg-slate-950 border border-slate-800 text-xs text-white rounded-lg px-2 py-1.5 focus:border-sky-500 focus:outline-none"
+                          value={rifaVinculada?.id || ''}
+                          onChange={(e) => {
+                            const selectedRifaId = e.target.value;
+                            if (selectedRifaId) {
+                              handleVincularCampanha(selectedRifaId, fbCamp.id);
+                            } else if (rifaVinculada) {
+                              handleVincularCampanha(rifaVinculada.id, '');
+                            }
+                          }}
+                        >
+                          <option value="">-- Não Associada --</option>
+                          {campanhas.map(c => (
+                            <option key={c.id} value={c.id}>{c.titulo}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="p-3 font-mono text-emerald-400">
+                        R$ {faturamentoRifa.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className={`p-3 font-mono text-right font-black ${isPositive && faturamentoRifa > 0 ? 'text-emerald-400' : (faturamentoRifa > 0 ? 'text-rose-400' : 'text-slate-500')}`}>
+                        R$ {lucro.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="p-3 text-right">
+                        {roas > 0 ? (
+                          <span className={`px-2 py-1 rounded-lg text-xs font-black ${roas >= 2 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                            {roas.toFixed(2)}x
+                          </span>
+                        ) : (
+                          <span className="text-slate-600">-</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* COMPARATIVO POR CAMPANHA */}
       <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
         <h3 className="text-sm font-black text-white flex items-center gap-2">
@@ -451,133 +573,6 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
           </table>
         </div>
       </div>
-
-      {/* MODAL DE CONFIGURAÇÃO DE META ADS & CONVERSIONS API */}
-      {mostrarModalConfig && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto">
-          <div className="relative w-full max-w-xl bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-5 animate-in zoom-in-95 my-8 text-white">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-sky-500/20 text-sky-400 flex items-center justify-center border border-sky-500/30">
-                  <Sliders className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-base font-black text-white">Conexão Meta Ads & Conversions API</h3>
-                  <p className="text-[11px] text-slate-400">Credenciais para rastreamento server-side e sincronização do Gerenciador de Anúncios.</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setMostrarModalConfig(false)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800"
-              >
-                ✕
-              </button>
-            </div>
-
-            {configSuccessMsg && (
-              <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-300 text-xs font-bold flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                {configSuccessMsg}
-              </div>
-            )}
-
-            {configErrorMsg && (
-              <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-300 text-xs font-bold flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-red-400" />
-                {configErrorMsg}
-              </div>
-            )}
-
-            <form onSubmit={handleSalvarMetaConfig} className="space-y-4 text-xs">
-              {/* 1. PIXEL ID */}
-              <div className="space-y-1">
-                <label className="font-bold text-slate-300 block">
-                  1. ID do Meta Pixel (Injetado nas Páginas Públicas)
-                </label>
-                <input
-                  type="text"
-                  placeholder="Ex: 1234567890"
-                  value={metaPixelIdInput}
-                  onChange={e => setMetaPixelIdInput(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-white font-mono focus:border-emerald-500 focus:outline-none"
-                />
-                <span className="text-[10px] text-slate-500 block">
-                  ID numérico que aparece em Meta Events Manager / Configurações do Pixel.
-                </span>
-              </div>
-
-              {/* 2. CAPI TOKEN */}
-              <div className="space-y-1">
-                <label className="font-bold text-slate-300 block">
-                  2. Token de Acesso CAPI (Conversions API - Server-Side)
-                </label>
-                <input
-                  type="password"
-                  placeholder="Ex: EAAG..."
-                  value={metaCapiTokenInput}
-                  onChange={e => setMetaCapiTokenInput(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-white font-mono focus:border-emerald-500 focus:outline-none"
-                />
-                <span className="text-[10px] text-slate-500 block">
-                  Gerado em Gerenciador de Eventos → Configurações → API de Conversões → "Gerar Token de Acesso".
-                </span>
-              </div>
-
-              {/* 3. MARKETING API ACCESS TOKEN */}
-              <div className="space-y-1">
-                <label className="font-bold text-slate-300 block">
-                  3. Token da Marketing API (Para Consultar Gastos em Anúncios)
-                </label>
-                <input
-                  type="password"
-                  placeholder="Ex: EAAG..."
-                  value={metaAccessTokenInput}
-                  onChange={e => setMetaAccessTokenInput(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-white font-mono focus:border-emerald-500 focus:outline-none"
-                />
-                <span className="text-[10px] text-slate-500 block">
-                  Token do usuário de sistema ou aplicativo Meta Developers com permissão <code className="text-sky-400">ads_read</code>.
-                </span>
-              </div>
-
-              {/* 4. AD ACCOUNT ID */}
-              <div className="space-y-1">
-                <label className="font-bold text-slate-300 block">
-                  4. ID da Conta de Anúncios Meta (Ad Account ID)
-                </label>
-                <input
-                  type="text"
-                  placeholder="Ex: act_1234567890 ou 1234567890"
-                  value={metaAdAccountIdInput}
-                  onChange={e => setMetaAdAccountIdInput(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-white font-mono focus:border-emerald-500 focus:outline-none"
-                />
-                <span className="text-[10px] text-slate-500 block">
-                  Encontrado no URL do Gerenciador de Anúncios (ex: act_1020304050).
-                </span>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setMostrarModalConfig(false)}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={salvandoMetaConfig}
-                  className="px-5 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl shadow-lg shadow-emerald-500/20 flex items-center gap-1.5 transition disabled:opacity-50"
-                >
-                  {salvandoMetaConfig ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
-                  {salvandoMetaConfig ? 'Salvando...' : 'Salvar Credenciais Criptografadas'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

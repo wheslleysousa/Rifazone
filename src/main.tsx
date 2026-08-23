@@ -41,6 +41,7 @@ if (typeof window !== 'undefined') {
     if (handleFetchErrorText(msg) || handleFetchErrorText(errorObjMsg)) {
       try {
         event.preventDefault();
+        event.stopImmediatePropagation();
         event.stopPropagation();
       } catch (e) {}
       console.info('[RifaZone Sandbox] Erro de escrita em window.fetch silenciado via event listener.');
@@ -53,54 +54,12 @@ if (typeof window !== 'undefined') {
     if (handleFetchErrorText(msg)) {
       try {
         event.preventDefault();
+        event.stopImmediatePropagation();
         event.stopPropagation();
       } catch (e) {}
       console.info('[RifaZone Sandbox] Rejeição de escrita em window.fetch silenciada.');
     }
   }, { capture: true });
-}
-
-// Prevents third-party scripts (e.g. Meta/Facebook Pixel, analytics) from crashing when they try to monkey-patch window.fetch in sandboxed iframe environments where window.fetch is a getter-only property.
-try {
-  if (typeof window !== 'undefined' && window.fetch) {
-    const originalFetch = window.fetch;
-    let currentFetch = originalFetch;
-    try {
-      Object.defineProperty(window, 'fetch', {
-        configurable: true,
-        enumerable: true,
-        get() {
-          return currentFetch;
-        },
-        set(newFetch) {
-          currentFetch = newFetch;
-        }
-      });
-    } catch (definePropertyError) {
-      console.warn('[RifaZone] Não foi possível definir getter/setter em window.fetch diretamente, tentando fallback.', definePropertyError);
-      
-      // Fallback: Check if Window.prototype.fetch exists and try to patch there
-      const windowProto = Object.getPrototypeOf(window);
-      if (windowProto && 'fetch' in windowProto) {
-        try {
-          Object.defineProperty(windowProto, 'fetch', {
-            configurable: true,
-            enumerable: true,
-            get() {
-              return currentFetch;
-            },
-            set(newFetch) {
-              currentFetch = newFetch;
-            }
-          });
-        } catch (protoError) {
-          console.error('[RifaZone] Falha crítica ao tentar redefinir fetch no protótipo de Window:', protoError);
-        }
-      }
-    }
-  }
-} catch (globalError) {
-  console.error('[RifaZone] Erro na inicialização do wrapper de fetch:', globalError);
 }
 
 createRoot(document.getElementById('root')!).render(

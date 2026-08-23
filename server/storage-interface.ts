@@ -13,6 +13,8 @@ export interface DadosConfig {
   metaCapiToken?: string | null;
   metaAccessToken?: string | null;
   metaAdAccountId?: string | null;
+  metaConexaoTipo?: 'oauth' | 'manual' | null;
+  metaConectadoEm?: string | null;
   notificameToken?: string | null;
 }
 

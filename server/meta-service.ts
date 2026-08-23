@@ -113,7 +113,10 @@ export async function dispararMetaCapiPurchase({ pedido, campanha, config, baseU
   }
 }
 
-export interface MetaInsightsResult {
+export interface MetaCampaign {
+  id: string;
+  name: string;
+  status: string;
   spend: number;
   reach: number;
   clicks: number;
@@ -122,8 +125,18 @@ export interface MetaInsightsResult {
   comprasMeta: number;
 }
 
+export interface MetaInsightsResult {
+  spend: number;
+  reach: number;
+  clicks: number;
+  cpc: number;
+  impressions: number;
+  comprasMeta: number;
+  campaigns: MetaCampaign[];
+}
+
 /**
- * Consulta a Marketing API da Meta (/{act_id}/insights)
+ * Consulta a Marketing API da Meta (/{act_id}/insights) e lista campanhas
  */
 export async function buscarInsightsMetaAds({
   metaAccessToken,
@@ -137,26 +150,34 @@ export async function buscarInsightsMetaAds({
     actId = `act_${actId}`;
   }
 
+  // Busca totais da conta
   const fields = 'spend,reach,clicks,cpc,impressions,actions';
-  const url = `https://graph.facebook.com/v18.0/${actId}/insights?fields=${fields}&date_preset=maximum&access_token=${encodeURIComponent(metaAccessToken)}`;
+  const urlTotal = `https://graph.facebook.com/v18.0/${actId}/insights?fields=${fields}&date_preset=maximum&access_token=${encodeURIComponent(metaAccessToken)}`;
+  
+  // Busca lista de campanhas e seus insights
+  const urlCampaigns = `https://graph.facebook.com/v18.0/${actId}/campaigns?fields=id,name,status,insights.date_preset(maximum){spend,reach,clicks,cpc,impressions,actions}&limit=50&access_token=${encodeURIComponent(metaAccessToken)}`;
 
-  const res = await fetch(url);
-  const json = await res.json();
+  const [resTotal, resCamp] = await Promise.all([
+    fetch(urlTotal),
+    fetch(urlCampaigns)
+  ]);
 
-  if (!res.ok || json.error) {
-    const err = json.error || {};
-    throw new Error(err.message || 'Erro ao comunicar com a Meta Marketing API.');
+  const jsonTotal = await resTotal.json();
+  const jsonCamp = await resCamp.json();
+
+  if (!resTotal.ok || jsonTotal.error) {
+    const err = jsonTotal.error || {};
+    throw new Error(err.message || 'Erro ao comunicar com a Meta Marketing API (Insights Totais).');
   }
 
-  const item = (json.data && json.data[0]) || {};
-
+  const item = (jsonTotal.data && jsonTotal.data[0]) || {};
   const spend = parseFloat(item.spend || '0');
   const reach = parseInt(item.reach || '0', 10);
   const clicks = parseInt(item.clicks || '0', 10);
   const cpc = parseFloat(item.cpc || '0');
   const impressions = parseInt(item.impressions || '0', 10);
-
   let comprasMeta = 0;
+
   if (Array.isArray(item.actions)) {
     const purchaseAction = item.actions.find((a: any) =>
       a.action_type === 'purchase' ||
@@ -168,12 +189,47 @@ export async function buscarInsightsMetaAds({
     }
   }
 
+  const campaigns: MetaCampaign[] = [];
+  if (jsonCamp.data && Array.isArray(jsonCamp.data)) {
+    for (const c of jsonCamp.data) {
+      const cInsights = (c.insights && c.insights.data && c.insights.data[0]) || {};
+      
+      let cCompras = 0;
+      if (Array.isArray(cInsights.actions)) {
+        const pAction = cInsights.actions.find((a: any) =>
+          a.action_type === 'purchase' ||
+          a.action_type === 'offsite_conversion.fb_pixel_purchase' ||
+          a.action_type === 'omni_purchase'
+        );
+        if (pAction) {
+          cCompras = parseInt(pAction.value || '0', 10);
+        }
+      }
+
+      campaigns.push({
+        id: c.id,
+        name: c.name || 'Campanha Desconhecida',
+        status: c.status || 'UNKNOWN',
+        spend: parseFloat(cInsights.spend || '0'),
+        reach: parseInt(cInsights.reach || '0', 10),
+        clicks: parseInt(cInsights.clicks || '0', 10),
+        cpc: parseFloat(cInsights.cpc || '0'),
+        impressions: parseInt(cInsights.impressions || '0', 10),
+        comprasMeta: cCompras
+      });
+    }
+  }
+
+  // Ordenar campanhas por gasto
+  campaigns.sort((a, b) => b.spend - a.spend);
+
   return {
     spend,
     reach,
     clicks,
     cpc,
     impressions,
-    comprasMeta
+    comprasMeta,
+    campaigns
   };
 }

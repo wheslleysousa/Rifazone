@@ -35,6 +35,9 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
   const [password, setPassword] = useState('');
   const [loginErro, setLoginErro] = useState('');
   const [carregandoLogin, setCarregandoLogin] = useState(false);
+  const [aceitouTermos, setAceitouTermos] = useState(false);
+  const [modalTermosAberto, setModalTermosAberto] = useState(false);
+  const [modalPrivacidadeAberto, setModalPrivacidadeAberto] = useState(false);
 
   // Authenticated fetch with Firebase token
   const authFetch = async (url: string, options: RequestInit = {}) => {
@@ -224,6 +227,7 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const mpOauth = params.get('mp_oauth');
+    const fbOauth = params.get('fb_oauth');
     const msg = params.get('msg');
 
     if (mpOauth === 'sucesso') {
@@ -235,6 +239,16 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
     } else if (mpOauth === 'erro') {
       setAbaAtiva('configuracoes');
       setConfigErro(`Erro ao conectar com Mercado Pago: ${msg || 'Autorização não concluída.'}`);
+      setConfigMsg('');
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (fbOauth === 'sucesso') {
+      setAbaAtiva('analytics');
+      setConfigMsg('🎉 Conta do Facebook / Meta Ads conectada com sucesso via OAuth!');
+      setConfigErro('');
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (fbOauth === 'erro') {
+      setAbaAtiva('analytics');
+      setConfigErro(`Erro ao conectar com Facebook: ${msg || 'Autorização não concluída.'}`);
       setConfigMsg('');
       window.history.replaceState({}, document.title, window.location.pathname);
     }
@@ -296,6 +310,10 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginErro('');
+    if (modoCadastro && !aceitouTermos) {
+      setLoginErro('Você deve aceitar os Termos de Uso e a Política de Privacidade para criar uma conta.');
+      return;
+    }
     setCarregandoLogin(true);
     try {
       if (modoCadastro) {
@@ -611,9 +629,39 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
               </div>
             </div>
 
+            {modoCadastro && (
+              <div className="flex items-start gap-2.5 pt-1">
+                <input
+                  type="checkbox"
+                  id="aceite-termos-cadastro"
+                  checked={aceitouTermos}
+                  onChange={e => setAceitouTermos(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 rounded bg-slate-950 border-slate-700 text-emerald-500 focus:ring-emerald-500 cursor-pointer"
+                />
+                <label htmlFor="aceite-termos-cadastro" className="text-[11px] text-slate-400 leading-snug cursor-pointer">
+                  Li e concordo com os{' '}
+                  <button
+                    type="button"
+                    onClick={() => setModalTermosAberto(true)}
+                    className="text-emerald-400 underline font-medium hover:text-emerald-300"
+                  >
+                    Termos de Uso
+                  </button>{' '}
+                  e a{' '}
+                  <button
+                    type="button"
+                    onClick={() => setModalPrivacidadeAberto(true)}
+                    className="text-emerald-400 underline font-medium hover:text-emerald-300"
+                  >
+                    Política de Privacidade
+                  </button>.
+                </label>
+              </div>
+            )}
+
             {loginErro && (
               <p className="text-xs text-red-400 font-medium flex items-center gap-1">
-                <AlertCircle className="w-3.5 h-3.5" />
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                 {loginErro}
               </p>
             )}
@@ -658,6 +706,24 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
               {modoCadastro ? 'Fazer login' : 'Cadastre-se grátis'}
             </button>
           </p>
+
+          <div className="flex items-center justify-center gap-3 text-[11px] text-slate-500 pt-4 border-t border-slate-800 mt-4">
+            <button
+              type="button"
+              onClick={() => setModalTermosAberto(true)}
+              className="hover:text-slate-300 transition"
+            >
+              Termos de Uso
+            </button>
+            <span>•</span>
+            <button
+              type="button"
+              onClick={() => setModalPrivacidadeAberto(true)}
+              className="hover:text-slate-300 transition"
+            >
+              Política de Privacidade
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -669,7 +735,7 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
       titulo: 'Principal',
       itens: [
         { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-4 h-4" /> },
-        { id: 'analytics', label: 'Analytics & Meta Ads', icon: <BarChart3 className="w-4 h-4 text-emerald-400" /> },
+        { id: 'analytics', label: 'Meta Ads', icon: <BarChart3 className="w-4 h-4 text-emerald-400" /> },
         { id: 'remarketing', label: 'Remarketing', icon: <MessageSquare className="w-4 h-4" /> },
       ]
     },
@@ -1687,6 +1753,70 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
                     Sim, Excluir Campanha
                   </>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL TERMOS DE USO */}
+      {modalTermosAberto && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 max-w-2xl w-full shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <h3 className="text-lg font-black text-white">Termos de Uso da Plataforma</h3>
+              <button
+                onClick={() => setModalTermosAberto(false)}
+                className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-300 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="space-y-4 text-xs text-slate-300 leading-relaxed">
+              <p><strong>1. Aceitação dos Termos:</strong> Ao se cadastrar e utilizar o painel de gestão, você concorda expressamente com estes Termos de Uso e com a nossa Política de Privacidade.</p>
+              <p><strong>2. Conta do Organizador:</strong> O usuário é o único responsável pela veracidade dos dados cadastrados, pela segurança de sua senha e por todas as campanhas de arrecadação criadas em sua conta.</p>
+              <p><strong>3. Integração com Gateway de Pagamento:</strong> A plataforma permite conectar seu gateway (como Mercado Pago) para recebimento direto. A RifaZone não retém valores de transações diretas entre organizadores e participantes.</p>
+              <p><strong>4. Conformidade Legal:</strong> O organizador declara estar em total conformidade com as leis vigentes em sua jurisdição aplicáveis a sorteios, arrecadações e proteção ao consumidor.</p>
+              <p><strong>5. Modificações:</strong> Reservamo-nos o direito de atualizar estes termos a qualquer momento, notificando os usuários ativos em caso de alterações substanciais.</p>
+            </div>
+            <div className="pt-2 flex justify-end">
+              <button
+                onClick={() => setModalTermosAberto(false)}
+                className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl shadow-lg transition"
+              >
+                Entendido
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL POLÍTICA DE PRIVACIDADE */}
+      {modalPrivacidadeAberto && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 max-w-2xl w-full shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <h3 className="text-lg font-black text-white">Política de Privacidade</h3>
+              <button
+                onClick={() => setModalPrivacidadeAberto(false)}
+                className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-300 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="space-y-4 text-xs text-slate-300 leading-relaxed">
+              <p><strong>1. Coleta de Dados:</strong> Coletamos informações fornecidas no cadastro (nome, e-mail) e dados transacionais estritamente necessários para a operação das campanhas e segurança da plataforma.</p>
+              <p><strong>2. Uso das Informações:</strong> Seus dados são utilizados para autenticação segura via Firebase Authentication, gerenciamento de campanhas, emissão de relatórios e suporte técnico.</p>
+              <p><strong>3. Segurança de Dados:</strong> Empregamos criptografia de ponta e padrões rigorosos de segurança em nuvem para proteger suas informações contra acesso não autorizado.</p>
+              <p><strong>4. Compartilhamento:</strong> Não comercializamos seus dados pessoais. O compartilhamento ocorre apenas quando necessário com provedores de infraestrutura (Firebase/Google Cloud) e gateways de pagamento autorizados por você.</p>
+              <p><strong>5. Seus Direitos:</strong> Você pode a qualquer momento solicitar a exportação ou exclusão definitiva de seus dados e conta diretamente pelo painel ou suporte.</p>
+            </div>
+            <div className="pt-2 flex justify-end">
+              <button
+                onClick={() => setModalPrivacidadeAberto(false)}
+                className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl shadow-lg transition"
+              >
+                Entendido
               </button>
             </div>
           </div>

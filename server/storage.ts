@@ -1,9 +1,10 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { Campanha, Cota, Pedido, Comprador, RankingItem, CotaPremiada, ConfigOrganizador } from '../src/types.js';
+import { Campanha, Cota, Pedido, Comprador, RankingItem, CotaPremiada, ConfigOrganizador, EstiloSalvo, TemaCampanha } from '../src/types.js';
 import { Storage, EstatisticasCampanha, MeusNumerosResult, ConfirmarPedidoResult, SorteioResult, DadosConfig } from './storage-interface.js';
 import { mergeConfig } from './config-utils.js';
+import { decryptToken } from './crypto-utils.js';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 if (!fs.existsSync(DATA_DIR)) {
@@ -15,6 +16,7 @@ const COTAS_FILE = path.join(DATA_DIR, 'cotas.json');
 const PEDIDOS_FILE = path.join(DATA_DIR, 'pedidos.json');
 const COMPRADORES_FILE = path.join(DATA_DIR, 'compradores.json');
 const CONFIGS_FILE = path.join(DATA_DIR, 'configuracoes.json');
+const ESTILOS_FILE = path.join(DATA_DIR, 'estilos.json');
 
 function loadJson<T>(file: string, fallback: T): T {
   try {
@@ -111,6 +113,8 @@ export class FileStorage implements Storage {
   private compradores: Map<string, Comprador> = new Map();
   // Configurações de pagamento por organizador (key = ownerId)
   private configs: Map<string, ConfigOrganizador> = new Map();
+  // Estilos de temas salvos
+  private estilos: Map<string, EstiloSalvo> = new Map();
 
   constructor() {
     this.loadAll();
@@ -143,10 +147,17 @@ export class FileStorage implements Storage {
 
     const configsList = loadJson<ConfigOrganizador[]>(CONFIGS_FILE, []);
     configsList.forEach(c => this.configs.set(c.ownerId, c));
+
+    const estilosList = loadJson<EstiloSalvo[]>(ESTILOS_FILE, []);
+    estilosList.forEach(e => this.estilos.set(e.id, e));
   }
 
   private saveConfigs() {
     saveJson(CONFIGS_FILE, Array.from(this.configs.values()));
+  }
+
+  private saveEstilos() {
+    saveJson(ESTILOS_FILE, Array.from(this.estilos.values()));
   }
 
   private saveCampanhas() {
@@ -508,38 +519,48 @@ export class FileStorage implements Storage {
     return config;
   }
 
-  // Retorna o Access Token do Mercado Pago do organizador dono da campanha.
+  // Retorna o Access Token do Mercado Pago do organizador dono da campanha (descriptografado).
   public async getMpTokenPorCampanha(campanhaId: string): Promise<string | null> {
     const campanha = this.campanhas.get(campanhaId);
     if (!campanha || !campanha.ownerId) return null;
     const config = this.configs.get(campanha.ownerId);
-    return config?.mpAccessToken || null;
+    return decryptToken(config?.mpAccessToken) || null;
   }
 
   // --- Limpeza de reservas expiradas ---
-  public async limparReservasExpiradas(): Promise<number> {
+  public async limparReservasExpiradas(): Promise<{ cotasLiberadas: number; pedidosExpirados: number }> {
     const agora = Date.now();
-    let limpos = 0;
+    let cotasLiberadas = 0;
+    let pedidosExpirados = 0;
 
     for (const [key, cota] of this.cotas.entries()) {
       if (cota.status === 'reservado' && cota.reservadoAte && new Date(cota.reservadoAte).getTime() <= agora) {
         this.cotas.delete(key);
-        limpos++;
+        cotasLiberadas++;
       }
     }
 
     for (const pedido of this.pedidos.values()) {
       if (pedido.status === 'pendente' && new Date(pedido.expiraEm).getTime() <= agora) {
         pedido.status = 'expirado';
+        pedidosExpirados++;
+        for (const [key, cota] of this.cotas.entries()) {
+          if (cota.pedidoId === pedido.id && cota.status === 'reservado') {
+            this.cotas.delete(key);
+            cotasLiberadas++;
+          }
+        }
       }
     }
 
-    if (limpos > 0) {
+    if (cotasLiberadas > 0) {
       this.saveCotas();
+    }
+    if (pedidosExpirados > 0) {
       this.savePedidos();
     }
 
-    return limpos;
+    return { cotasLiberadas, pedidosExpirados };
   }
 
   // --- Apuração / Sorteio de Campanha ---
@@ -582,5 +603,35 @@ export class FileStorage implements Storage {
     await this.saveCampanha(campanha);
 
     return { campanha, ganhador };
+  }
+
+  // --- Estilos de Tema Salvos ---
+  public async salvarEstilo(ownerId: string, estilo: { id?: string; nome: string; tema: TemaCampanha }): Promise<EstiloSalvo> {
+    const id = estilo.id || `estilo-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+    const estiloSalvo: EstiloSalvo = {
+      id,
+      ownerId,
+      nome: estilo.nome.trim() || 'Estilo Sem Nome',
+      tema: estilo.tema,
+      criadoEm: new Date().toISOString()
+    };
+    this.estilos.set(id, estiloSalvo);
+    this.saveEstilos();
+    return estiloSalvo;
+  }
+
+  public async listarEstilos(ownerId: string): Promise<EstiloSalvo[]> {
+    return Array.from(this.estilos.values())
+      .filter(e => !e.ownerId || e.ownerId === ownerId)
+      .sort((a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime());
+  }
+
+  public async excluirEstilo(ownerId: string, id: string): Promise<boolean> {
+    const estilo = this.estilos.get(id);
+    if (!estilo) return false;
+    if (estilo.ownerId && estilo.ownerId !== ownerId) return false;
+    this.estilos.delete(id);
+    this.saveEstilos();
+    return true;
   }
 }

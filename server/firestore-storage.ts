@@ -3,9 +3,10 @@ import { getFirestore, type Firestore, type Transaction } from 'firebase-admin/f
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { Campanha, Cota, Pedido, Comprador, RankingItem, CotaPremiada, ConfigOrganizador } from '../src/types.js';
+import { Campanha, Cota, Pedido, Comprador, RankingItem, CotaPremiada, ConfigOrganizador, EstiloSalvo, TemaCampanha } from '../src/types.js';
 import { Storage, EstatisticasCampanha, MeusNumerosResult, ConfirmarPedidoResult, SorteioResult, DadosConfig } from './storage-interface.js';
 import { mergeConfig } from './config-utils.js';
+import { decryptToken } from './crypto-utils.js';
 
 // Lê o databaseId (Firestore nomeado) do config do Firebase.
 function getDatabaseId(): string | undefined {
@@ -77,6 +78,7 @@ export class FirestoreStorage implements Storage {
   private pedidosCol() { return this.db.collection('pedidos'); }
   private compradoresCol() { return this.db.collection('compradores'); }
   private configsCol() { return this.db.collection('configuracoes'); }
+  private estilosCol(ownerId: string) { return this.db.collection('estilos').doc(ownerId).collection('temas'); }
 
   // --- Campanhas ---
   public async getCampanhas(ownerId?: string): Promise<Campanha[]> {
@@ -404,42 +406,59 @@ export class FirestoreStorage implements Storage {
     const campanha = await this.getCampanhaById(campanhaId);
     if (!campanha || !campanha.ownerId) return null;
     const config = await this.getConfig(campanha.ownerId);
-    return config?.mpAccessToken || null;
+    return decryptToken(config?.mpAccessToken) || null;
   }
 
   // --- Limpeza de reservas expiradas ---
-  public async limparReservasExpiradas(): Promise<number> {
+  public async limparReservasExpiradas(): Promise<{ cotasLiberadas: number; pedidosExpirados: number }> {
     const nowIso = new Date().toISOString();
-    let limpos = 0;
+    let cotasLiberadas = 0;
+    let pedidosExpirados = 0;
 
-    // Marca pedidos pendentes vencidos como expirados
+    // 1. Marca pedidos pendentes vencidos como 'expirado'
     const pedSnap = await this.pedidosCol()
       .where('status', '==', 'pendente')
       .where('expiraEm', '<=', nowIso)
       .get();
+
+    const expiredPedidoIds = new Set<string>();
     for (let i = 0; i < pedSnap.docs.length; i += 400) {
       const chunk = pedSnap.docs.slice(i, i + 400);
       const batch = this.db.batch();
-      chunk.forEach(doc => batch.update(doc.ref, { status: 'expirado' }));
+      chunk.forEach(doc => {
+        batch.update(doc.ref, { status: 'expirado' });
+        pedidosExpirados++;
+        expiredPedidoIds.add(doc.id);
+      });
       await batch.commit();
     }
 
-    // Apaga cotas reservadas vencidas (percorre campanhas)
+    // 2. Apaga cotas reservadas vencidas (reservadoAte <= nowIso ou vinculadas a pedidos expirados)
     const campSnap = await this.campanhasCol().get();
     for (const campDoc of campSnap.docs) {
       const cotasSnap = await this.cotasCol(campDoc.id)
         .where('status', '==', 'reservado')
-        .where('reservadoAte', '<=', nowIso)
         .get();
-      for (let i = 0; i < cotasSnap.docs.length; i += 400) {
-        const chunk = cotasSnap.docs.slice(i, i + 400);
+
+      const cotasParaDeletar = cotasSnap.docs.filter(doc => {
+        const data = doc.data();
+        const vencidoPorData = Boolean(data.reservadoAte && data.reservadoAte <= nowIso);
+        const vencidoPorPedido = Boolean(data.pedidoId && expiredPedidoIds.has(data.pedidoId));
+        return vencidoPorData || vencidoPorPedido;
+      });
+
+      for (let i = 0; i < cotasParaDeletar.length; i += 400) {
+        const chunk = cotasParaDeletar.slice(i, i + 400);
         const batch = this.db.batch();
-        chunk.forEach(doc => { batch.delete(doc.ref); limpos++; });
+        chunk.forEach(doc => {
+          batch.delete(doc.ref);
+          cotasLiberadas++;
+        });
         await batch.commit();
       }
     }
 
-    return limpos;
+    return { cotasLiberadas, pedidosExpirados };
   }
 
   // --- Apuração / Sorteio de Campanha ---
@@ -484,5 +503,33 @@ export class FirestoreStorage implements Storage {
     await this.saveCampanha(campanha);
 
     return { campanha, ganhador };
+  }
+
+  // --- Estilos de Tema Salvos ---
+  public async salvarEstilo(ownerId: string, estilo: { id?: string; nome: string; tema: TemaCampanha }): Promise<EstiloSalvo> {
+    const id = estilo.id || `estilo-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+    const estiloSalvo: EstiloSalvo = {
+      id,
+      ownerId,
+      nome: estilo.nome.trim() || 'Estilo Sem Nome',
+      tema: estilo.tema,
+      criadoEm: new Date().toISOString()
+    };
+    await this.estilosCol(ownerId).doc(id).set(estiloSalvo);
+    return estiloSalvo;
+  }
+
+  public async listarEstilos(ownerId: string): Promise<EstiloSalvo[]> {
+    const snap = await this.estilosCol(ownerId).get();
+    const lista = snap.docs.map(d => d.data() as EstiloSalvo);
+    return lista.sort((a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime());
+  }
+
+  public async excluirEstilo(ownerId: string, id: string): Promise<boolean> {
+    const docRef = this.estilosCol(ownerId).doc(id);
+    const doc = await docRef.get();
+    if (!doc.exists) return false;
+    await docRef.delete();
+    return true;
   }
 }

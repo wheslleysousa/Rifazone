@@ -1,29 +1,54 @@
 import React, { useState, useEffect } from 'react';
-import { CampanhaPublicaResponse, Promocao, OfertaRelampago } from '../types';
+import { Campanha, CampanhaPublicaResponse, Promocao, OfertaRelampago, TemaCampanha, TEMA_PADRAO, DEFAULT_CHECKOUT_CONFIG } from '../types';
 import { 
-  Trophy, Flame, Sparkles, ShieldCheck, Ticket, Users, HelpCircle, 
-  ChevronDown, ChevronUp, Plus, Minus, Check, Gift, Search, Info,
-  Smartphone, Share2, Instagram, AlertTriangle, Copy, XCircle, CheckCircle2,
-  User, Edit
+  Trophy, Flame, Sparkles, ShieldCheck, Ticket, Users,
+  ChevronDown, ChevronUp, Plus, Minus, Gift, Info,
+  Smartphone, Share2, Instagram, AlertTriangle, Copy, CheckCircle2,
+  User, CreditCard, QrCode, FileText, Lock, Shield
 } from 'lucide-react';
 import { UpsellModal } from './UpsellModal';
 import { PixPaymentModal } from './PixPaymentModal';
+import { BoletoPaymentModal } from './BoletoPaymentModal';
+import { CartaoSuccessModal } from './CartaoSuccessModal';
 import { MeusNumerosModal } from './MeusNumerosModal';
 import { MeusDadosModal } from './MeusDadosModal';
+import { formatarMoeda, toCents, toReais } from '../lib/money';
+import { 
+  initMetaPixel, 
+  trackViewContent, 
+  trackInitiateCheckout, 
+  trackAddPaymentInfo, 
+  trackPurchase 
+} from '../lib/meta-pixel';
+import { 
+  formatarNumeroCartao, 
+  formatarValidade, 
+  criarCardTokenMercadoPago, 
+  detectarBandeiraCartao 
+} from '../lib/mercadopago-client';
 
 interface Props {
-  codigo: string;
-  onNavigateAdmin: () => void;
+  codigo?: string;
+  onNavigateAdmin?: () => void;
+  modoPreview?: boolean;
+  previewCampanha?: Campanha;
+  previewTema?: TemaCampanha;
 }
 
-export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }) => {
+export const CampanhaPublicaView: React.FC<Props> = ({
+  codigo = '',
+  onNavigateAdmin,
+  modoPreview = false,
+  previewCampanha,
+  previewTema
+}) => {
   const [data, setData] = useState<CampanhaPublicaResponse | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
 
   // Seleção de cotas
   const [quantidade, setQuantidade] = useState<number>(10);
-  const [cotasManuais, setCotasManuais] = useState<string[]>([]);
+  const [cotasManuais] = useState<string[]>([]);
   const [descricaoAberta, setDescricaoAberta] = useState(false);
 
   // Form Comprador Modal Checkout
@@ -37,6 +62,42 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
   const [compradorSalvo, setCompradorSalvo] = useState<{ nome: string; whatsapp: string } | null>(null);
   const [formErro, setFormErro] = useState('');
   const [enviandoPedido, setEnviandoPedido] = useState(false);
+
+  // Checkout Transparente: Métodos de Pagamento & Cartão
+  const [metodoPagamento, setMetodoPagamento] = useState<'pix' | 'cartao' | 'boleto'>('pix');
+  const [cartaoNumero, setCartaoNumero] = useState('');
+  const [cartaoNome, setCartaoNome] = useState('');
+  const [cartaoValidade, setCartaoValidade] = useState('');
+  const [cartaoCvv, setCartaoCvv] = useState('');
+  const [cartaoCpf, setCartaoCpf] = useState('');
+  const [cartaoParcelas, setCartaoParcelas] = useState<number>(1);
+
+  // Modals de Pagamento
+  const [boletoModalData, setBoletoModalData] = useState<{
+    pedidoId: string;
+    boletoUrl?: string;
+    boletoBarcode?: string;
+    linhaDigitavel?: string;
+    valorTotal: number;
+    quantidade: number;
+    expiraEm: string;
+    compradorNome?: string;
+    compradorWhatsapp?: string;
+  } | null>(null);
+
+  const [cartaoSuccessModalData, setCartaoSuccessModalData] = useState<{
+    pedidoId: string;
+    valorTotal: number;
+    quantidade: number;
+    numeros: string[];
+    cartaoInfo?: {
+      ultimosDigitos?: string;
+      bandeira?: string;
+      parcelas?: number;
+      status?: string;
+    };
+    compradorNome?: string;
+  } | null>(null);
 
   // Menu Lateral Drawer
   const [menuAberto, setMenuAberto] = useState(false);
@@ -53,7 +114,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
   // Modal Meus Dados
   const [meusDadosAberto, setMeusDadosAberto] = useState(false);
 
-  // Modal de Diagnóstico de Erro (para copiar para o suporte)
+  // Modal de Diagnóstico de Erro (para suporte)
   const [erroDiagnostico, setErroDiagnostico] = useState<{
     titulo: string;
     mensagem: string;
@@ -82,9 +143,21 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
   // Meus Números Modal
   const [meusNumerosAberto, setMeusNumerosAberto] = useState(false);
 
-  // Inicializar dados do comprador do localStorage
+  // Cupom de Desconto
+  const [cupomInput, setCupomInput] = useState('');
+  const [cupomAplicado, setCupomAplicado] = useState<{ codigo: string; descontoPct: number; mensagem?: string } | null>(null);
+  const [validandoCupom, setValidandoCupom] = useState(false);
+  const [cupomErro, setCupomErro] = useState('');
+
+  // Inicializar dados do comprador do localStorage e Cupom da URL
   useEffect(() => {
     try {
+      const params = new URLSearchParams(window.location.search);
+      const c = params.get('cupom');
+      if (c) {
+        setCupomInput(c.toUpperCase());
+      }
+
       const savedNome = localStorage.getItem('rifazone_comprador_nome') || localStorage.getItem('rifapix_comprador_nome');
       const savedPhone = localStorage.getItem('rifazone_comprador_whatsapp') || localStorage.getItem('rifapix_comprador_whatsapp');
       const savedCpf = localStorage.getItem('rifazone_comprador_cpf') || localStorage.getItem('rifapix_comprador_cpf');
@@ -100,8 +173,67 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
     } catch (e) {}
   }, []);
 
+  const handleValidarCupom = async (codOverride?: string) => {
+    const cod = (codOverride || cupomInput).trim().toUpperCase();
+    if (!cod || !data?.campanha?.id) return;
+
+    setValidandoCupom(true);
+    setCupomErro('');
+    try {
+      const res = await fetch('/api/pedidos/validar-cupom', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ campanhaId: data.campanha.id, cupom: cod })
+      });
+      const json = await res.json();
+      if (res.ok && json.valido) {
+        setCupomAplicado({
+          codigo: json.codigo,
+          descontoPct: json.descontoPct,
+          mensagem: json.mensagem
+        });
+        setCupomInput(json.codigo);
+      } else {
+        setCupomErro(json.error || 'Cupom de desconto inválido.');
+        setCupomAplicado(null);
+      }
+    } catch (e) {
+      setCupomErro('Erro ao validar cupom.');
+    } finally {
+      setValidandoCupom(false);
+    }
+  };
+
   // Carregar dados da campanha
   const carregarCampanha = async () => {
+    if (modoPreview && previewCampanha) {
+      setData({
+        campanha: previewCampanha,
+        estatisticas: {
+          totalCotas: previewCampanha.totalCotas || 10000,
+          vendidas: Math.round((previewCampanha.totalCotas || 10000) * 0.45),
+          reservadas: Math.round((previewCampanha.totalCotas || 10000) * 0.05),
+          disponiveis: Math.round((previewCampanha.totalCotas || 10000) * 0.5),
+          percentualVendido: 45
+        },
+        ranking: [
+          { posicao: 1, nome: 'Carlos E.', quantidadeCotas: 250 },
+          { posicao: 2, nome: 'Mariana S.', quantidadeCotas: 180 },
+          { posicao: 3, nome: 'João P.', quantidadeCotas: 120 }
+        ]
+      });
+      if (previewCampanha.promocoes && previewCampanha.promocoes.length > 0) {
+        const promoDestaque = previewCampanha.promocoes.find(p => p.destaque) || previewCampanha.promocoes[0];
+        setQuantidade(promoDestaque.quantidade);
+      } else {
+        setQuantidade(previewCampanha.minPorCompra || 10);
+      }
+      setCarregando(false);
+      return;
+    }
+
+    if (!codigo) return;
+
     try {
       setCarregando(true);
       const res = await fetch(`/api/campanhas/${codigo}`);
@@ -110,6 +242,14 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
       }
       const json: CampanhaPublicaResponse = await res.json();
       setData(json);
+
+      if (json.marca?.metaPixelId && json.campanha) {
+        trackViewContent(json.marca.metaPixelId, {
+          contentIds: [json.campanha.id],
+          contentName: json.campanha.titulo,
+          value: json.campanha.valorCota
+        });
+      }
 
       // Seta default quantidade
       if (json.campanha.promocoes && json.campanha.promocoes.length > 0) {
@@ -127,14 +267,13 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
 
   useEffect(() => {
     carregarCampanha();
-  }, [codigo]);
+  }, [codigo, modoPreview, previewCampanha]);
 
   // Efeito do Contador Regressivo (Início e Término)
   useEffect(() => {
     const camp = data?.campanha;
     if (!camp) return;
 
-    // Se o agendamento não estiver ativo, reseta o contador
     if (camp.agendamentoAtivo === false) {
       setTempoRestante(null);
       return;
@@ -146,7 +285,6 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
       const fim = camp.dataTermino ? new Date(camp.dataTermino).getTime() : null;
 
       if (inicio && agora < inicio) {
-        // Ainda não iniciou
         const diff = inicio - agora;
         const dias = Math.floor(diff / (1000 * 60 * 60 * 24));
         const horas = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
@@ -154,7 +292,6 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
         const segundos = Math.floor((diff % (1000 * 60)) / 1000);
         setTempoRestante({ dias, horas, minutos, segundos, status: 'aguardando_inicio' });
       } else if (fim && agora < fim) {
-        // Em andamento
         const diff = fim - agora;
         const dias = Math.floor(diff / (1000 * 60 * 60 * 24));
         const horas = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
@@ -162,7 +299,6 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
         const segundos = Math.floor((diff % (1000 * 60)) / 1000);
         setTempoRestante({ dias, horas, minutos, segundos, status: 'em_andamento' });
       } else if (fim && agora >= fim) {
-        // Já encerrou
         setTempoRestante({ dias: 0, horas: 0, minutos: 0, segundos: 0, status: 'encerrada' });
         clearInterval(interval);
       } else {
@@ -185,6 +321,14 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
       idade--;
     }
     return idade;
+  };
+
+  // Formatação de telefone
+  const formatWhatsapp = (val: string) => {
+    const raw = val.replace(/\D/g, '').slice(0, 11);
+    if (raw.length <= 2) return raw;
+    if (raw.length <= 7) return `(${raw.slice(0, 2)}) ${raw.slice(2)}`;
+    return `(${raw.slice(0, 2)}) ${raw.slice(2, 7)}-${raw.slice(7)}`;
   };
 
   if (carregando) {
@@ -218,35 +362,103 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
 
   const { campanha, estatisticas, ranking } = data;
 
-  // Cálculo de valor com suporte a pacotes e desconto progressivo
-  const calcularValorTotal = (qtd: number) => {
-    if (campanha.promocoes && campanha.promocoes.length > 0) {
-      const promo = campanha.promocoes.find(p => p.quantidade === qtd);
-      if (promo) return promo.valor;
+  // Resolução do tema ativo com fallbacks seguros para o TEMA_PADRAO (aceita previewTema se fornecido)
+  const temaAtivo = previewTema || campanha.tema;
+  const tema: TemaCampanha = {
+    ...TEMA_PADRAO,
+    ...(temaAtivo || {}),
+    cores: { ...TEMA_PADRAO.cores, ...(temaAtivo?.cores || {}) },
+    botao: { ...TEMA_PADRAO.botao, ...(temaAtivo?.botao || {}) },
+    tipografia: { ...TEMA_PADRAO.tipografia, ...(temaAtivo?.tipografia || {}) },
+    layout: {
+      ordem: (temaAtivo?.layout?.ordem && temaAtivo.layout.ordem.length > 0)
+        ? temaAtivo.layout.ordem
+        : TEMA_PADRAO.layout.ordem,
+      visivel: { ...TEMA_PADRAO.layout.visivel, ...(temaAtivo?.layout?.visivel || {}) }
     }
-    const valorBase = qtd * campanha.valorCota;
+  };
+
+  // Variáveis CSS aplicadas no container raiz
+  const rootCssVariables = {
+    '--brand': tema.cores.primaria,
+    '--brand-2': tema.cores.destaque,
+    '--bg': tema.cores.fundo,
+    '--texto': tema.cores.texto,
+    '--btn': tema.cores.botao,
+    '--btn-txt': tema.cores.textoBotao,
+  } as React.CSSProperties;
+
+  // Helpers de classes de estilo baseadas no tema
+  const getBtnRoundingClass = (formato?: string) => {
+    if (formato === 'reto') return 'rounded-none';
+    if (formato === 'pill') return 'rounded-full';
+    return 'rounded-xl';
+  };
+
+  const getBtnSizeClass = (tamanho?: string) => {
+    if (tamanho === 'sm') return 'py-2.5 px-4 text-xs';
+    if (tamanho === 'lg') return 'py-4 px-6 text-base';
+    return 'py-3 px-5 text-sm';
+  };
+
+  const getTitleSizeClass = (tamanho?: string) => {
+    if (tamanho === 'sm') return 'text-lg sm:text-xl';
+    if (tamanho === 'lg') return 'text-2xl sm:text-3xl';
+    return 'text-xl sm:text-2xl';
+  };
+
+  const getFontFamilyClass = (fonte?: string) => {
+    if (fonte === 'serif') return 'font-serif';
+    if (fonte === 'display') return 'font-sans tracking-tight';
+    return 'font-sans';
+  };
+
+  // Cálculo de valor com suporte a pacotes e desconto progressivo
+  const calcularValorTotal = (qtd: number): number => {
+    if (campanha.promocoes && campanha.promocoes.length > 0) {
+      const promo = campanha.promocoes.find(p => Number(p.quantidade) === qtd);
+      if (promo) return toReais(toCents(promo.valor));
+    }
+    const valorBaseCents = qtd * toCents(campanha.valorCota);
     if (campanha.descontoPorValorTotal && campanha.descontoPorValorTotal.length > 0) {
-      const regrasOrdenadas = [...campanha.descontoPorValorTotal].sort((a, b) => b.aPartirDeValor - a.aPartirDeValor);
-      const regraValida = regrasOrdenadas.find(r => valorBase >= r.aPartirDeValor);
-      if (regraValida) {
-        return Number((qtd * regraValida.valorCotaComDesconto).toFixed(2));
+      const regrasOrdenadas = [...campanha.descontoPorValorTotal].sort(
+        (a, b) => toCents(b.aPartirDeValor) - toCents(a.aPartirDeValor)
+      );
+      const regraValida = regrasOrdenadas.find(r => valorBaseCents >= toCents(r.aPartirDeValor));
+      if (regraValida && toCents(regraValida.valorCotaComDesconto) > 0) {
+        return toReais(qtd * toCents(regraValida.valorCotaComDesconto));
       }
     }
-    return Number(valorBase.toFixed(2));
+    return toReais(valorBaseCents);
   };
 
-  const valorTotalAtual = calcularValorTotal(quantidade);
-
-  // Formatação de telefone
-  const formatWhatsapp = (val: string) => {
-    const raw = val.replace(/\D/g, '').slice(0, 11);
-    if (raw.length <= 2) return raw;
-    if (raw.length <= 7) return `(${raw.slice(0, 2)}) ${raw.slice(2)}`;
-    return `(${raw.slice(0, 2)}) ${raw.slice(2, 7)}-${raw.slice(7)}`;
-  };
+  const valorSemCupom = calcularValorTotal(quantidade);
+  const valorTotalAtual = cupomAplicado
+    ? toReais(Math.round(toCents(valorSemCupom) * (1 - cupomAplicado.descontoPct / 100)))
+    : valorSemCupom;
 
   // Botão Comprar / Iniciar Checkout
   const handleIniciarCompra = () => {
+    if (modoPreview) {
+      return;
+    }
+    if (data?.marca?.metaPixelId && campanha) {
+      trackInitiateCheckout(data.marca.metaPixelId, {
+        contentIds: [campanha.id],
+        value: valorTotalAtual,
+        numItems: quantidade
+      });
+    }
+    // Determina o método inicial de pagamento conforme configuração do checkout
+    const chk = campanha.checkout || DEFAULT_CHECKOUT_CONFIG;
+    if (chk.metodos?.pix) {
+      setMetodoPagamento('pix');
+    } else if (chk.metodos?.cartao) {
+      setMetodoPagamento('cartao');
+    } else if (chk.metodos?.boleto) {
+      setMetodoPagamento('boleto');
+    }
+
     if (campanha.ofertasRelampago && campanha.ofertasRelampago.length > 0) {
       setOfertaSelecionada(campanha.ofertasRelampago[0]);
       setUpsellAberto(true);
@@ -266,7 +478,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
     setCheckoutAberto(true);
   };
 
-  // Submit Pedido e Geração Pix
+  // Submit Pedido e Checkout Transparente (Pix, Cartão, Boleto)
   const handleEnviarPedido = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormErro('');
@@ -300,19 +512,62 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
       }
     }
 
-    if (campanha.exigirCpf && (!cpf || cpf.replace(/\D/g, '').length !== 11)) {
-      setFormErro('Informe um CPF válido com 11 dígitos.');
+    // Validação de CPF
+    const cleanCpf = cpf.replace(/\D/g, '');
+    if ((campanha.exigirCpf || metodoPagamento === 'boleto') && cleanCpf.length !== 11) {
+      setFormErro('Informe um CPF válido com 11 dígitos (obrigatório para emissão de boleto bancário).');
       return;
     }
 
-    if (campanha.exigirEmail && (!email || !email.includes('@'))) {
-      setFormErro('Informe um endereço de e-mail válido.');
+    // Validação de E-mail
+    if ((campanha.exigirEmail || metodoPagamento === 'cartao') && (!email || !email.includes('@'))) {
+      setFormErro('Informe um endereço de e-mail válido para confirmação do pagamento.');
       return;
+    }
+
+    // Validação específica de Cartão de Crédito
+    if (metodoPagamento === 'cartao') {
+      const numCartaoLimpo = cartaoNumero.replace(/\D/g, '');
+      if (numCartaoLimpo.length < 13 || numCartaoLimpo.length > 19) {
+        setFormErro('Informe um número de cartão de crédito válido.');
+        return;
+      }
+      if (!cartaoNome.trim() || cartaoNome.trim().length < 3) {
+        setFormErro('Informe o nome impresso no cartão de crédito.');
+        return;
+      }
+      const partesValidade = cartaoValidade.split('/');
+      if (partesValidade.length !== 2 || !partesValidade[0] || !partesValidade[1]) {
+        setFormErro('Informe a validade do cartão no formato MM/AA.');
+        return;
+      }
+      const mesNum = parseInt(partesValidade[0], 10);
+      if (isNaN(mesNum) || mesNum < 1 || mesNum > 12) {
+        setFormErro('Mês de validade do cartão inválido.');
+        return;
+      }
+      if (!cartaoCvv || cartaoCvv.replace(/\D/g, '').length < 3) {
+        setFormErro('Informe o código de segurança (CVV) do cartão com 3 ou 4 dígitos.');
+        return;
+      }
+      const cpfCartaoLimpo = (cartaoCpf || cpf).replace(/\D/g, '');
+      if (cpfCartaoLimpo.length !== 11) {
+        setFormErro('Informe o CPF do titular do cartão (11 dígitos).');
+        return;
+      }
     }
 
     setEnviandoPedido(true);
 
+    if (data?.marca?.metaPixelId && campanha) {
+      trackAddPaymentInfo(data.marca.metaPixelId, {
+        contentIds: [campanha.id],
+        value: valorTotalAtual
+      });
+    }
+
     try {
+      // 1. Cria o Pedido no Backend
       const res = await fetch('/api/pedidos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -323,27 +578,29 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
           comprador: {
             nome: nome.trim(),
             whatsapp: cleanWhatsapp,
-            cpf: cpf.trim() || undefined,
+            cpf: cpf.trim() || cartaoCpf.trim() || undefined,
             email: email.trim() || undefined
           },
-          ofertaRelampagoId: ofertaSelecionada ? (ofertaSelecionada.id || 'oferta-1') : undefined
+          ofertaRelampagoId: ofertaSelecionada ? (ofertaSelecionada.id || 'oferta-1') : undefined,
+          metodoPagamento,
+          cupom: cupomAplicado?.codigo || (cupomInput ? cupomInput.trim().toUpperCase() : undefined)
         })
       });
 
       const pedidoJson = await res.json();
 
       if (!res.ok) {
-        setFormErro(pedidoJson.error || 'Erro ao gerar pedido e Pix.');
+        setFormErro(pedidoJson.error || 'Erro ao gerar pedido.');
         setErroDiagnostico({
-          titulo: pedidoJson.isMpError ? 'Erro na API do Mercado Pago' : 'Falha ao Gerar Pix',
-          mensagem: pedidoJson.error || 'Não foi possível gerar a cobrança Pix.',
+          titulo: pedidoJson.isMpError ? 'Erro na API do Mercado Pago' : 'Falha ao Processar Pagamento',
+          mensagem: pedidoJson.error || 'Não foi possível processar seu pedido.',
           detalhes: pedidoJson.detalhes || pedidoJson,
           isTestToken: pedidoJson.isTestToken
         });
         return;
       }
 
-      setCheckoutAberto(false);
+      // Salva dados locais do comprador para agilizar próximas compras
       try {
         localStorage.setItem('rifazone_comprador_nome', nome.trim());
         localStorage.setItem('rifazone_comprador_whatsapp', cleanWhatsapp);
@@ -352,6 +609,98 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
         setCompradorSalvo({ nome: nome.trim(), whatsapp: cleanWhatsapp });
       } catch (e) {}
 
+      // 2. Fluxo Específico por Método
+
+      // A) CARTÃO DE CRÉDITO — Tokenização Client-Side e Cobrança
+      if (metodoPagamento === 'cartao') {
+        const partesValidade = cartaoValidade.split('/');
+        const mes = partesValidade[0].trim();
+        const ano = partesValidade[1].trim();
+        const cpfTitular = (cartaoCpf || cpf).replace(/\D/g, '');
+
+        // Tokenização 100% Client-Side via Mercado Pago
+        const tokenRes = await criarCardTokenMercadoPago({
+          numero: cartaoNumero,
+          nomeTitular: cartaoNome,
+          cpfTitular,
+          mesExpiracao: mes,
+          anoExpiracao: ano,
+          cvv: cartaoCvv
+        }, data?.marca?.mpPublicKey);
+
+        // Envia apenas o Token para cobrança segura
+        const resCartao = await fetch(`/api/pedidos/${pedidoJson.pedidoId}/pagar-cartao`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token: tokenRes.token,
+            installments: cartaoParcelas || 1,
+            paymentMethodId: tokenRes.paymentMethodId,
+            issuerId: tokenRes.issuerId,
+            payerEmail: email.trim() || 'comprador@rifazone.com'
+          })
+        });
+
+        const cartaoData = await resCartao.json();
+
+        if (!resCartao.ok || cartaoData.error) {
+          setFormErro(cartaoData.error || 'Cartão não autorizado pelo emissor.');
+          setErroDiagnostico({
+            titulo: 'Pagamento no Cartão Não Aprovado',
+            mensagem: cartaoData.error || 'O pagamento não pôde ser aprovado.',
+            detalhes: cartaoData.detalhes || cartaoData
+          });
+          return;
+        }
+
+        setCheckoutAberto(false);
+
+        // Sucesso no Cartão
+        if (data?.marca?.metaPixelId && campanha) {
+          trackPurchase(data.marca.metaPixelId, {
+            contentIds: [campanha.id],
+            value: pedidoJson.valorTotal,
+            numItems: pedidoJson.quantidade
+          }, pedidoJson.pedidoId);
+        }
+
+        setCartaoSuccessModalData({
+          pedidoId: pedidoJson.pedidoId,
+          valorTotal: pedidoJson.valorTotal,
+          quantidade: pedidoJson.quantidade,
+          numeros: cartaoData.numeros || [],
+          cartaoInfo: {
+            ultimosDigitos: tokenRes.ultimosDigitos,
+            bandeira: tokenRes.bandeira,
+            parcelas: cartaoParcelas,
+            status: cartaoData.status
+          },
+          compradorNome: nome.trim()
+        });
+
+        carregarCampanha();
+        return;
+      }
+
+      // B) BOLETO BANCÁRIO
+      if (metodoPagamento === 'boleto') {
+        setCheckoutAberto(false);
+        setBoletoModalData({
+          pedidoId: pedidoJson.pedidoId,
+          boletoUrl: pedidoJson.boletoUrl,
+          boletoBarcode: pedidoJson.boletoBarcode,
+          linhaDigitavel: pedidoJson.linhaDigitavel,
+          valorTotal: pedidoJson.valorTotal,
+          quantidade: pedidoJson.quantidade,
+          expiraEm: pedidoJson.expiraEm,
+          compradorNome: nome.trim(),
+          compradorWhatsapp: cleanWhatsapp
+        });
+        return;
+      }
+
+      // C) PIX (Padrão)
+      setCheckoutAberto(false);
       setPixModalData({
         pedidoId: pedidoJson.pedidoId,
         pixCopiaCola: pedidoJson.pixCopiaCola,
@@ -365,10 +714,10 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
       });
 
     } catch (err: any) {
-      setFormErro('Erro de conexão com o servidor. Tente novamente.');
+      setFormErro(err.message || 'Erro de conexão com o servidor. Tente novamente.');
       setErroDiagnostico({
-        titulo: 'Erro de Conexão com o Servidor',
-        mensagem: err.message || 'Falha ao enviar requisição para o servidor.',
+        titulo: 'Erro no Processamento do Pagamento',
+        mensagem: err.message || 'Falha ao processar pagamento.',
         detalhes: err.stack || String(err)
       });
     } finally {
@@ -376,10 +725,417 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
     }
   };
 
+  // --- SUBCOMPONENTES DE SEÇÃO EXTRAÍDOS ---
+
+  // 1. Seção Banner / Hero
+  const SecaoBanner = () => {
+    return (
+      <div className="relative rounded-2xl overflow-hidden border border-slate-800 shadow-2xl bg-slate-900">
+        <img
+          src={campanha.bannerUrl}
+          alt={campanha.titulo}
+          className="w-full aspect-[16/9] object-cover"
+        />
+        
+        {campanha.selo && (campanha.exibirSelo ?? true) && (
+          <div className="absolute top-3 left-3 px-3 py-1 bg-amber-500 text-slate-950 font-black text-xs uppercase tracking-wider rounded-full shadow-lg flex items-center gap-1">
+            <Flame className="w-3.5 h-3.5 fill-slate-950" />
+            {campanha.selo}
+          </div>
+        )}
+
+        <div className="p-4 bg-gradient-to-t from-slate-950 via-slate-900 to-transparent">
+          <div
+            className="flex items-center gap-2 text-xs font-semibold mb-1"
+            style={{ color: 'var(--brand)' }}
+          >
+            <ShieldCheck className="w-4 h-4" />
+            <span>Sorteio oficial: {campanha.localSorteio}</span>
+          </div>
+          <h1 className={`font-black text-white leading-tight ${getTitleSizeClass(tema.tipografia.tamanhoTitulo)}`}>
+            {campanha.titulo}
+          </h1>
+          {campanha.subtitulo && (
+            <p className="text-slate-300 text-xs mt-1">
+              {campanha.subtitulo}
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // 2. Seção Barra de Progresso
+  const SecaoBarraProgresso = () => {
+    if (campanha.exibirBarraProgresso === false) return null;
+    return (
+      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-sm">
+        <div className="flex items-center justify-between text-xs mb-2">
+          <span className="text-slate-400 font-medium">Progresso do sorteio</span>
+          <span className="font-extrabold" style={{ color: 'var(--brand)' }}>
+            {estatisticas.percentualVendido}% vendido
+          </span>
+        </div>
+        <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden p-0.5 border border-slate-700/50">
+          <div
+            className="h-full rounded-full transition-all duration-500 shadow-sm"
+            style={{
+              width: `${Math.min(100, Math.max(2, estatisticas.percentualVendido))}%`,
+              background: `linear-gradient(to right, var(--brand), var(--brand-2, var(--brand)))`
+            }}
+          />
+        </div>
+        {(campanha.exibirQtdCotas ?? true) && (
+          <div className="flex justify-between text-[11px] text-slate-400 mt-2">
+            <span>{estatisticas.vendidas.toLocaleString('pt-BR')} cotas vendidas</span>
+            <span>{estatisticas.disponiveis.toLocaleString('pt-BR')} disponíveis</span>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // 3. Seção Seletor de Cotas
+  const SecaoCotas = () => {
+    return (
+      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <span
+              className="text-[11px] font-bold uppercase tracking-wider block"
+              style={{ color: 'var(--brand)' }}
+            >
+              Passo 1
+            </span>
+            <h2 className="text-base font-black text-white">
+              Escolha a quantidade de cotas
+            </h2>
+          </div>
+          <div className="text-right">
+            <span className="text-[11px] text-slate-400 block">Por apenas</span>
+            <span className="text-sm font-extrabold" style={{ color: 'var(--brand)' }}>
+              {formatarMoeda(campanha.valorCota)} / cota
+            </span>
+          </div>
+        </div>
+
+        {/* Botões Rápidos de Pacotes / Promoções */}
+        {campanha.promocoes && campanha.promocoes.length > 0 && (
+          <div className="grid grid-cols-3 gap-2">
+            {campanha.promocoes.map((promo: Promocao, idx: number) => {
+              const selecionado = quantidade === promo.quantidade;
+              return (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => setQuantidade(promo.quantidade)}
+                  className={`relative p-3 rounded-xl border text-center transition ${
+                    selecionado
+                      ? 'border-[var(--brand)] text-white shadow-md'
+                      : 'bg-slate-800/60 border-slate-700/80 text-slate-200 hover:bg-slate-800'
+                  }`}
+                  style={selecionado ? {
+                    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                    borderColor: 'var(--brand)'
+                  } : undefined}
+                >
+                  {promo.destaque && (
+                    <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-amber-500 text-slate-950 font-black text-[9px] uppercase tracking-wider rounded-full shadow">
+                      Mais Popular
+                    </span>
+                  )}
+                  <span className="block text-sm font-black text-white">
+                    +{promo.quantidade}
+                  </span>
+                  <span
+                    className="block text-xs font-extrabold mt-0.5"
+                    style={{ color: 'var(--brand)' }}
+                  >
+                    {formatarMoeda(promo.valor)}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Seletor Manual / Digitação Direta (- / +) */}
+        <div className="flex items-center justify-between p-3 bg-slate-950 border border-slate-800 rounded-xl gap-3">
+          <button
+            onClick={() => setQuantidade(q => Math.max(campanha.minPorCompra || 1, q - 1))}
+            className="w-10 h-10 rounded-lg bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center font-bold transition active:scale-95 shrink-0"
+            aria-label="Diminuir cotas"
+          >
+            <Minus className="w-4 h-4" />
+          </button>
+
+          <div className="flex-1 text-center space-y-1">
+            <div className="flex items-center justify-center gap-1.5">
+              <input
+                type="number"
+                min={campanha.minPorCompra || 1}
+                max={campanha.maxPorCompra || 500000}
+                value={quantidade}
+                onChange={e => {
+                  const v = Number(e.target.value);
+                  setQuantidade(isNaN(v) || v < 1 ? 1 : v);
+                }}
+                className="w-20 bg-slate-900 border border-slate-700 rounded-lg py-1 px-2 text-center text-lg font-black text-white focus:border-[var(--brand)] focus:outline-none font-mono"
+              />
+              <span className="text-sm font-bold text-slate-200">cotas</span>
+            </div>
+            <span
+              className="text-xs font-extrabold block"
+              style={{ color: 'var(--brand)' }}
+            >
+              Total: {formatarMoeda(valorTotalAtual)}
+            </span>
+          </div>
+
+          <button
+            onClick={() => setQuantidade(q => Math.min(campanha.maxPorCompra || 500000, q + 1))}
+            style={{ backgroundColor: 'var(--btn)', color: 'var(--btn-txt)' }}
+            className="w-10 h-10 rounded-lg flex items-center justify-center font-bold transition active:scale-95 shrink-0 hover:opacity-90 shadow-sm"
+            aria-label="Aumentar cotas"
+          >
+            <Plus className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  // 4. Seção Prêmios Oficiais
+  const SecaoPremios = () => {
+    if (campanha.exibirPremios === false || !campanha.premios || campanha.premios.length === 0) return null;
+    return (
+      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-1.5">
+          <Trophy className="w-4 h-4 text-amber-400" />
+          Premiação Oficial
+        </h3>
+        <div className="space-y-2">
+          {campanha.premios.map((premio, idx) => (
+            <div
+              key={idx}
+              className="flex items-center gap-3 p-3 rounded-xl bg-slate-800/50 border border-slate-700/60"
+            >
+              <div className="w-7 h-7 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-300 flex items-center justify-center font-black text-xs">
+                {premio.posicao}º
+              </div>
+              <span className="text-sm font-bold text-white">
+                {premio.descricao}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  // 5. Seção Cotas Premiadas (Instantâneas)
+  const SecaoCotasPremiadas = () => {
+    if (campanha.exibirCotasPremiadas === false || !campanha.cotasPremiadas || campanha.cotasPremiadas.length === 0) return null;
+    return (
+      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+            <Gift className="w-4 h-4" style={{ color: 'var(--brand)' }} />
+            Cotas Premiadas (Ganhe no Pix na Hora)
+          </h3>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {campanha.cotasPremiadas.map((cp, idx) => (
+            <div
+              key={idx}
+              className={`p-3 rounded-xl border text-xs ${
+                cp.status === 'encontrada'
+                  ? 'bg-slate-800/30 border-slate-800 text-slate-500 opacity-60'
+                  : 'bg-emerald-500/10 border-emerald-500/30 text-white'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-1">
+                <span
+                  className="font-mono font-black text-sm"
+                  style={{ color: cp.status === 'encontrada' ? undefined : 'var(--brand)' }}
+                >
+                  {cp.numero}
+                </span>
+                <span className={`text-[10px] font-bold uppercase px-1.5 py-0.2 rounded ${
+                  cp.status === 'encontrada' ? 'bg-slate-800 text-slate-400' : 'bg-emerald-500/20 text-emerald-300'
+                }`}>
+                  {cp.status === 'encontrada' ? 'Ganha' : 'Disponível'}
+                </span>
+              </div>
+              <span className="block font-medium text-slate-300 text-[11px] truncate">
+                {cp.premio}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  // 6. Seção Top Compradores / Ranking
+  const SecaoRanking = () => {
+    if (campanha.exibirRanking === false || campanha.exibirCompradores === false || !ranking || ranking.length === 0) return null;
+    return (
+      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-1.5">
+          <Users className="w-4 h-4" style={{ color: 'var(--brand)' }} />
+          Top Compradores
+        </h3>
+        <div className="space-y-2">
+          {ranking.map((item) => (
+            <div
+              key={item.posicao}
+              className="flex items-center justify-between p-2.5 rounded-xl bg-slate-800/40 border border-slate-700/40 text-xs"
+            >
+              <div className="flex items-center gap-2.5">
+                <span className={`w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] ${
+                  item.posicao === 1 ? 'bg-amber-400 text-slate-950' : 'bg-slate-700 text-slate-300'
+                }`}>
+                  {item.posicao}
+                </span>
+                <span className="font-semibold text-white truncate max-w-[150px]">
+                  {item.nome}
+                </span>
+              </div>
+              <span
+                className="font-extrabold font-mono"
+                style={{ color: 'var(--brand)' }}
+              >
+                {item.quantidadeCotas} cotas
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  // 7. Seção Regulamento & Informações
+  const SecaoRegulamento = () => {
+    return (
+      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm">
+        <button
+          onClick={() => setDescricaoAberta(!descricaoAberta)}
+          className="w-full flex items-center justify-between text-left"
+        >
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+            <Info className="w-4 h-4 text-slate-400" />
+            Regulamento & Informações
+          </span>
+          {descricaoAberta ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+        </button>
+
+        {descricaoAberta && (
+          <div
+            className="mt-4 pt-4 border-t border-slate-800 text-slate-300 text-xs leading-relaxed space-y-2"
+            dangerouslySetInnerHTML={{ __html: campanha.descricao }}
+          />
+        )}
+      </div>
+    );
+  };
+
+  // 8. Seção Ganhadores da Campanha
+  const SecaoGanhadores = () => {
+    if (campanha.exibirPaginaGanhadores === false) return null;
+    return (
+      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-3">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+          <Trophy className="w-4 h-4 text-amber-400" />
+          Ganhadores da Campanha
+        </h3>
+
+        {campanha.ganhador ? (
+          <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center gap-3">
+            <div
+              className="w-10 h-10 rounded-full flex items-center justify-center font-black text-lg shadow"
+              style={{ backgroundColor: 'var(--brand)', color: 'var(--btn-txt)' }}
+            >
+              🏆
+            </div>
+            <div>
+              <h4 className="text-sm font-extrabold text-white">
+                {campanha.ganhador.nome}
+              </h4>
+              <p
+                className="text-xs font-mono font-bold"
+                style={{ color: 'var(--brand)' }}
+              >
+                Cota Contemplada: #{campanha.ganhador.cota}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="p-4 bg-slate-950/60 border border-dashed border-slate-800 rounded-xl text-center">
+            <p className="text-xs text-slate-400">
+              Ainda não há ganhadores para a campanha
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Mapeamento dinâmico de seções para a renderização baseada na ordem do layout
+  const renderizarSecao = (secaoId: string) => {
+    // Verifica se a visibilidade foi desativada no tema
+    if (tema.layout.visivel[secaoId] === false) {
+      return null;
+    }
+
+    switch (secaoId) {
+      case 'banner':
+        return <SecaoBanner />;
+      case 'barraProgresso':
+      case 'progresso':
+        return <SecaoBarraProgresso />;
+      case 'cotas':
+        return <SecaoCotas />;
+      case 'premios':
+        return <SecaoPremios />;
+      case 'premiadas':
+      case 'cotasPremiadas':
+        return <SecaoCotasPremiadas />;
+      case 'ranking':
+        return <SecaoRanking />;
+      case 'regulamento':
+      case 'descricao':
+        return <SecaoRegulamento />;
+      case 'ganhadores':
+        return <SecaoGanhadores />;
+      default:
+        return null;
+    }
+  };
+
+  // Lista de seções a serem renderizadas na ordem configurada
+  const secoesParaRenderizar = tema.layout.ordem;
+
+  // Adiciona 'barraProgresso' e 'ganhadores' se não estiverem na ordem explícita, preservando layout original
+  const ordemEfetiva = [...secoesParaRenderizar];
+  if (!ordemEfetiva.includes('barraProgresso') && !ordemEfetiva.includes('progresso') && tema.layout.visivel.barraProgresso !== false) {
+    const bannerIdx = ordemEfetiva.indexOf('banner');
+    if (bannerIdx !== -1) {
+      ordemEfetiva.splice(bannerIdx + 1, 0, 'barraProgresso');
+    } else {
+      ordemEfetiva.unshift('barraProgresso');
+    }
+  }
+  if (!ordemEfetiva.includes('ganhadores') && tema.layout.visivel.ganhadores !== false) {
+    ordemEfetiva.push('ganhadores');
+  }
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-emerald-500 selection:text-slate-950">
-      
-      {/* Top Navbar com Menu Lateral conforme layout solicitado */}
+    <div
+      style={rootCssVariables}
+      className={`min-h-screen bg-[var(--bg,#020617)] text-[var(--texto,#f8fafc)] selection:bg-[var(--brand,#10b981)] selection:text-slate-950 ${getFontFamilyClass(tema.tipografia.fonte)}`}
+    >
+      {/* Top Navbar com Menu Lateral */}
       <header className="sticky top-0 z-40 bg-slate-950/95 backdrop-blur-md border-b border-slate-800">
         <div className="max-w-xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
@@ -387,10 +1143,13 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
               <img
                 src={campanha.organizadorFoto}
                 alt={campanha.organizadorNome || 'Organizador'}
-                className="w-9 h-9 rounded-full object-cover border border-emerald-500/50 shadow-md"
+                className="w-9 h-9 rounded-full object-cover border border-[var(--brand)]/50 shadow-md"
               />
             ) : (
-              <div className="w-9 h-9 rounded-full bg-emerald-500 flex items-center justify-center font-black text-slate-950 text-base shadow-md shadow-emerald-500/20">
+              <div
+                className="w-9 h-9 rounded-full flex items-center justify-center font-black text-base shadow-md"
+                style={{ backgroundColor: 'var(--brand)', color: 'var(--btn-txt)' }}
+              >
                 {(campanha.organizadorNome || 'Rifa')[0].toUpperCase()}
               </div>
             )}
@@ -399,7 +1158,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
                 {campanha.titulo}
               </span>
               <span className="text-[10px] text-slate-400 font-medium block">
-                {campanha.organizadorNome || 'Wheslley Sousa'}
+                {campanha.organizadorNome || 'Organizador Oficial'}
               </span>
             </div>
           </div>
@@ -410,19 +1169,24 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
               type="button"
               onClick={() => setMeusNumerosAberto(true)}
               className="flex items-center gap-1.5 text-xs font-bold px-2.5 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 transition"
+              style={{
+                color: 'var(--brand)',
+                borderColor: 'var(--brand)',
+                backgroundColor: 'rgba(16, 185, 129, 0.12)'
+              }}
             >
               <Ticket className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Meus Números</span>
             </button>
 
-            {/* Três botões do lado direito / Menu */}
+            {/* Menu Lateral */}
             <button
               id="btn-abrir-menu-lateral"
               type="button"
               onClick={() => setMenuAberto(true)}
               className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 transition shadow"
             >
-              <span className="text-emerald-400 font-extrabold text-sm">≡</span>
+              <span className="font-extrabold text-sm" style={{ color: 'var(--brand)' }}>≡</span>
               <span>MENU</span>
             </button>
           </div>
@@ -447,7 +1211,8 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
                 <button
                   type="button"
                   onClick={() => setMeusNumerosAberto(true)}
-                  className="text-emerald-400 hover:text-emerald-300 font-bold underline"
+                  className="font-bold underline"
+                  style={{ color: 'var(--brand)' }}
                 >
                   Ver cotas
                 </button>
@@ -465,15 +1230,18 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
               <div className="flex items-center justify-between pb-4 border-b border-slate-800">
                 <div className="flex items-center gap-3">
                   {campanha.organizadorFoto ? (
-                    <img src={campanha.organizadorFoto} alt="Perfil" className="w-10 h-10 rounded-full object-cover border border-emerald-500/50" />
+                    <img src={campanha.organizadorFoto} alt="Perfil" className="w-10 h-10 rounded-full object-cover border border-[var(--brand)]/50" />
                   ) : (
-                    <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center font-black text-slate-950">
+                    <div
+                      className="w-10 h-10 rounded-full flex items-center justify-center font-black"
+                      style={{ backgroundColor: 'var(--brand)', color: 'var(--btn-txt)' }}
+                    >
                       {(campanha.organizadorNome || 'O')[0]}
                     </div>
                   )}
                   <div>
                     <h4 className="text-sm font-bold text-white leading-tight">
-                      {campanha.organizadorNome || 'Wheslley Sousa'}
+                      {campanha.organizadorNome || 'Organizador Oficial'}
                     </h4>
                     <span className="text-[11px] text-slate-400">Organizador Oficial</span>
                   </div>
@@ -488,7 +1256,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
                   onClick={() => { setMenuAberto(false); setMeusNumerosAberto(true); }}
                   className="w-full p-3 bg-slate-800 hover:bg-slate-700/80 rounded-xl text-xs font-bold text-slate-200 flex items-center gap-2.5 transition"
                 >
-                  <Ticket className="w-4 h-4 text-emerald-400" />
+                  <Ticket className="w-4 h-4" style={{ color: 'var(--brand)' }} />
                   <span>Meus Números / Buscar Cotas</span>
                 </button>
 
@@ -496,7 +1264,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
                   onClick={() => { setMenuAberto(false); setMeusDadosAberto(true); }}
                   className="w-full p-3 bg-slate-800 hover:bg-slate-700/80 rounded-xl text-xs font-bold text-slate-200 flex items-center gap-2.5 transition"
                 >
-                  <User className="w-4 h-4 text-emerald-400" />
+                  <User className="w-4 h-4" style={{ color: 'var(--brand)' }} />
                   <span>Meus Dados Cadastrados</span>
                 </button>
 
@@ -507,7 +1275,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
                     rel="noreferrer"
                     className="w-full p-3 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 rounded-xl text-xs font-bold text-emerald-300 flex items-center gap-2.5 transition"
                   >
-                    <Smartphone className="w-4 h-4 text-emerald-400" />
+                    <Smartphone className="w-4 h-4" style={{ color: 'var(--brand)' }} />
                     <span>Suporte WhatsApp</span>
                   </a>
                 )}
@@ -538,10 +1306,9 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
               </div>
             </div>
 
-            {/* DIREITOS AUTORAIS NO FINAL DO MENU */}
             <div className="pt-4 border-t border-slate-800 text-center">
               <p className="text-[11px] text-slate-500 font-medium">
-                {campanha.organizadorNome || 'Wheslley Sousa'} - todos os direitos reservados
+                {campanha.organizadorNome || 'RifaZone'} - todos os direitos reservados
               </p>
             </div>
           </div>
@@ -555,10 +1322,11 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
             href={`https://wa.me/55${campanha.organizadorWhatsapp.replace(/\D/g, '')}`}
             target="_blank"
             rel="noreferrer"
-            className="w-11 h-11 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/30 transition hover:scale-105"
+            style={{ backgroundColor: 'var(--brand)', color: 'var(--btn-txt)' }}
+            className="w-11 h-11 rounded-full flex items-center justify-center shadow-lg transition hover:scale-105"
             title="WhatsApp de Suporte"
           >
-            <Smartphone className="w-5 h-5 fill-slate-950" />
+            <Smartphone className="w-5 h-5 fill-current" />
           </a>
         )}
         {campanha.organizadorInstagram && (
@@ -588,9 +1356,9 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
         </button>
       </div>
 
-      {/* Main Container */}
+      {/* Main Container com Renderização das Seções na Ordem do Tema */}
       <main className="max-w-xl mx-auto px-4 pb-28 pt-3 space-y-4">
-
+        
         {/* BANNER CAMPANHA PAUSADA / DESATIVADA */}
         {(campanha.status === 'pausada' || campanha.status === 'inativa' || campanha.status === 'rascunho') && (
           <div className="bg-amber-500/15 border-2 border-amber-500/40 rounded-2xl p-4 text-center shadow-lg animate-in fade-in">
@@ -607,7 +1375,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
         )}
         
         {/* CONTADOR REGRESSIVO DA CAMPANHA */}
-        {tempoRestante && (
+        {tempoRestante && tema.layout.visivel.contador !== false && (
           <div className={`bg-gradient-to-r ${
             tempoRestante.status === 'aguardando_inicio'
               ? 'from-amber-950/90 via-slate-900 to-amber-950/90 border-amber-500/40'
@@ -621,7 +1389,9 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
                 : tempoRestante.status === 'encerrada'
                 ? 'text-red-400'
                 : 'text-emerald-400'
-            }`}>
+            }`}
+            style={tempoRestante.status === 'em_andamento' ? { color: 'var(--brand)' } : undefined}
+            >
               {tempoRestante.status === 'aguardando_inicio' && '⏳ Faltam para o INÍCIO da campanha:'}
               {tempoRestante.status === 'em_andamento' && '⏳ A campanha ENCERRA em:'}
               {tempoRestante.status === 'encerrada' && '🏁 Campanha Encerrada'}
@@ -653,7 +1423,9 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
                     : tempoRestante.status === 'encerrada'
                     ? 'text-red-400'
                     : 'text-emerald-400'
-                }`}>
+                }`}
+                style={tempoRestante.status === 'em_andamento' ? { color: 'var(--brand)' } : undefined}
+                >
                   {String(tempoRestante.segundos).padStart(2, '0')}
                 </span>
                 <span className="text-[9px] text-slate-400 uppercase font-medium mt-1 block">Seg</span>
@@ -674,310 +1446,27 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
           </div>
         )}
 
-        {/* Banner + Selo */}
-        <div className="relative rounded-2xl overflow-hidden border border-slate-800 shadow-2xl bg-slate-900">
-          <img
-            src={campanha.bannerUrl}
-            alt={campanha.titulo}
-            className="w-full aspect-[16/9] object-cover"
-          />
-          
-          {campanha.selo && (campanha.exibirSelo ?? true) && (
-            <div className="absolute top-3 left-3 px-3 py-1 bg-amber-500 text-slate-950 font-black text-xs uppercase tracking-wider rounded-full shadow-lg flex items-center gap-1">
-              <Flame className="w-3.5 h-3.5 fill-slate-950" />
-              {campanha.selo}
-            </div>
-          )}
-
-          <div className="p-4 bg-gradient-to-t from-slate-950 via-slate-900 to-transparent">
-            <div className="flex items-center gap-2 text-xs font-semibold text-emerald-400 mb-1">
-              <ShieldCheck className="w-4 h-4" />
-              <span>Sorteio oficial: {campanha.localSorteio}</span>
-            </div>
-            <h1 className="text-xl sm:text-2xl font-black text-white leading-tight">
-              {campanha.titulo}
-            </h1>
-            {campanha.subtitulo && (
-              <p className="text-slate-300 text-xs mt-1">
-                {campanha.subtitulo}
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* Barra de Progresso */}
-        {(campanha.exibirBarraProgresso ?? true) && (
-          <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-sm">
-            <div className="flex items-center justify-between text-xs mb-2">
-              <span className="text-slate-400 font-medium">Progresso do sorteio</span>
-              <span className="text-emerald-400 font-extrabold">{estatisticas.percentualVendido}% vendido</span>
-            </div>
-            <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden p-0.5 border border-slate-700/50">
-              <div
-                className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-500 shadow-sm"
-                style={{ width: `${Math.min(100, Math.max(2, estatisticas.percentualVendido))}%` }}
-              />
-            </div>
-            {(campanha.exibirQtdCotas ?? true) && (
-              <div className="flex justify-between text-[11px] text-slate-400 mt-2">
-                <span>{estatisticas.vendidas.toLocaleString('pt-BR')} cotas vendidas</span>
-                <span>{estatisticas.disponiveis.toLocaleString('pt-BR')} disponíveis</span>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Bloco: ESCOLHA A QUANTIDADE DE COTAS */}
-        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider block">
-                Passo 1
-              </span>
-              <h2 className="text-base font-black text-white">
-                Escolha a quantidade de cotas
-              </h2>
-            </div>
-            <div className="text-right">
-              <span className="text-[11px] text-slate-400 block">Por apenas</span>
-              <span className="text-sm font-extrabold text-emerald-400">
-                R$ {campanha.valorCota.toFixed(2).replace('.', ',')} / cota
-              </span>
-            </div>
-          </div>
-
-          {/* Botões Rápidos de Pacotes / Promoções */}
-          {campanha.promocoes && campanha.promocoes.length > 0 && (
-            <div className="grid grid-cols-3 gap-2">
-              {campanha.promocoes.map((promo: Promocao, idx: number) => {
-                const selecionado = quantidade === promo.quantidade;
-                return (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => setQuantidade(promo.quantidade)}
-                    className={`relative p-3 rounded-xl border text-center transition ${
-                      selecionado
-                        ? 'bg-emerald-500/20 border-emerald-500 text-white shadow-md shadow-emerald-500/10'
-                        : 'bg-slate-800/60 border-slate-700/80 text-slate-200 hover:bg-slate-800'
-                    }`}
-                  >
-                    {promo.destaque && (
-                      <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-amber-500 text-slate-950 font-black text-[9px] uppercase tracking-wider rounded-full shadow">
-                        Mais Popular
-                      </span>
-                    )}
-                    <span className="block text-sm font-black text-white">
-                      +{promo.quantidade}
-                    </span>
-                    <span className="block text-xs font-extrabold text-emerald-400 mt-0.5">
-                      R$ {promo.valor.toFixed(2).replace('.', ',')}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Seletor Manual / Digitação Direta (- / +) */}
-          <div className="flex items-center justify-between p-3 bg-slate-950 border border-slate-800 rounded-xl gap-3">
-            <button
-              onClick={() => setQuantidade(q => Math.max(campanha.minPorCompra || 1, q - 1))}
-              className="w-10 h-10 rounded-lg bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center font-bold transition active:scale-95 shrink-0"
-              aria-label="Diminuir cotas"
-            >
-              <Minus className="w-4 h-4" />
-            </button>
-
-            <div className="flex-1 text-center space-y-1">
-              <div className="flex items-center justify-center gap-1.5">
-                <input
-                  type="number"
-                  min={campanha.minPorCompra || 1}
-                  max={campanha.maxPorCompra || 500000}
-                  value={quantidade}
-                  onChange={e => {
-                    const v = Number(e.target.value);
-                    setQuantidade(isNaN(v) || v < 1 ? 1 : v);
-                  }}
-                  className="w-20 bg-slate-900 border border-slate-700 rounded-lg py-1 px-2 text-center text-lg font-black text-white focus:border-emerald-500 focus:outline-none font-mono"
-                />
-                <span className="text-sm font-bold text-slate-200">cotas</span>
-              </div>
-              <span className="text-xs text-emerald-400 font-extrabold block">
-                Total: R$ {valorTotalAtual.toFixed(2).replace('.', ',')}
-              </span>
-            </div>
-
-            <button
-              onClick={() => setQuantidade(q => Math.min(campanha.maxPorCompra || 500000, q + 1))}
-              className="w-10 h-10 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 flex items-center justify-center font-bold transition active:scale-95 shrink-0"
-              aria-label="Aumentar cotas"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-
-        {/* Seção: Prêmios */}
-        {(campanha.exibirPremios ?? true) && campanha.premios && campanha.premios.length > 0 && (
-          <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-1.5">
-              <Trophy className="w-4 h-4 text-amber-400" />
-              Premiação Oficial
-            </h3>
-            <div className="space-y-2">
-              {campanha.premios.map((premio, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-center gap-3 p-3 rounded-xl bg-slate-800/50 border border-slate-700/60"
-                >
-                  <div className="w-7 h-7 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-300 flex items-center justify-center font-black text-xs">
-                    {premio.posicao}º
-                  </div>
-                  <span className="text-sm font-bold text-white">
-                    {premio.descricao}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Seção: Cotas Premiadas (Instantâneas) */}
-        {(campanha.exibirCotasPremiadas ?? true) && campanha.cotasPremiadas && campanha.cotasPremiadas.length > 0 && (
-          <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                <Gift className="w-4 h-4 text-emerald-400" />
-                Cotas Premiadas (Ganhe no Pix na Hora)
-              </h3>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              {campanha.cotasPremiadas.map((cp, idx) => (
-                <div
-                  key={idx}
-                  className={`p-3 rounded-xl border text-xs ${
-                    cp.status === 'encontrada'
-                      ? 'bg-slate-800/30 border-slate-800 text-slate-500 opacity-60'
-                      : 'bg-emerald-500/10 border-emerald-500/30 text-white'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-mono font-black text-emerald-400 text-sm">
-                      {cp.numero}
-                    </span>
-                    <span className={`text-[10px] font-bold uppercase px-1.5 py-0.2 rounded ${
-                      cp.status === 'encontrada' ? 'bg-slate-800 text-slate-400' : 'bg-emerald-500/20 text-emerald-300'
-                    }`}>
-                      {cp.status === 'encontrada' ? 'Ganha' : 'Disponível'}
-                    </span>
-                  </div>
-                  <span className="block font-medium text-slate-300 text-[11px] truncate">
-                    {cp.premio}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Seção: Regulamento / Descrição */}
-        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm">
-          <button
-            onClick={() => setDescricaoAberta(!descricaoAberta)}
-            className="w-full flex items-center justify-between text-left"
-          >
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-              <Info className="w-4 h-4 text-slate-400" />
-              Regulamento & Informações
-            </span>
-            {descricaoAberta ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
-          </button>
-
-          {descricaoAberta && (
-            <div
-              className="mt-4 pt-4 border-t border-slate-800 text-slate-300 text-xs leading-relaxed space-y-2"
-              dangerouslySetInnerHTML={{ __html: campanha.descricao }}
-            />
-          )}
-        </div>
-
-        {/* Seção: Ranking dos Maiores Compradores */}
-        {(campanha.exibirRanking ?? true) && (campanha.exibirCompradores ?? true) && ranking && ranking.length > 0 && (
-          <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-1.5">
-              <Users className="w-4 h-4 text-emerald-400" />
-              Top Compradores
-            </h3>
-            <div className="space-y-2">
-              {ranking.map((item) => (
-                <div
-                  key={item.posicao}
-                  className="flex items-center justify-between p-2.5 rounded-xl bg-slate-800/40 border border-slate-700/40 text-xs"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <span className={`w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] ${
-                      item.posicao === 1 ? 'bg-amber-400 text-slate-950' : 'bg-slate-700 text-slate-300'
-                    }`}>
-                      {item.posicao}
-                    </span>
-                    <span className="font-semibold text-white truncate max-w-[150px]">
-                      {item.nome}
-                    </span>
-                  </div>
-                  <span className="font-extrabold text-emerald-400 font-mono">
-                    {item.quantidadeCotas} cotas
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Seção: Ganhadores da Campanha */}
-        {(campanha.exibirPaginaGanhadores ?? true) && (
-          <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-              <Trophy className="w-4 h-4 text-amber-400" />
-              Ganhadores da Campanha
-            </h3>
-
-            {campanha.ganhador ? (
-              <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center font-black text-lg">
-                  🏆
-                </div>
-                <div>
-                  <h4 className="text-sm font-extrabold text-white">
-                    {campanha.ganhador.nome}
-                  </h4>
-                  <p className="text-xs text-emerald-400 font-mono font-bold">
-                    Cota Contemplada: #{campanha.ganhador.cota}
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="p-4 bg-slate-950/60 border border-dashed border-slate-800 rounded-xl text-center">
-                <p className="text-xs text-slate-400">
-                  Ainda não há ganhadores para a campanha
-                </p>
-              </div>
-            )}
-          </div>
-        )}
+        {/* Renderização dinâmica das seções configuradas no Tema */}
+        {ordemEfetiva.map((secaoKey, idx) => (
+          <React.Fragment key={`${secaoKey}-${idx}`}>
+            {renderizarSecao(secaoKey)}
+          </React.Fragment>
+        ))}
 
       </main>
 
       {/* Barra Fixa Inferior de Compra Instantânea */}
-      <footer className="fixed bottom-0 left-0 right-0 z-30 bg-slate-950/95 backdrop-blur-md border-t border-slate-800 p-3">
+      <footer className={`${modoPreview ? 'sticky' : 'fixed'} bottom-0 left-0 right-0 z-30 bg-slate-950/95 backdrop-blur-md border-t border-slate-800 p-3`}>
         <div className="max-w-xl mx-auto flex items-center justify-between gap-3">
           <div>
             <span className="text-[10px] uppercase font-bold text-slate-400 block">
               {quantidade} cotas selecionadas
             </span>
-            <span className="text-lg font-black text-emerald-400 leading-none">
-              R$ {valorTotalAtual.toFixed(2).replace('.', ',')}
+            <span
+              className="text-lg font-black leading-none"
+              style={{ color: 'var(--brand)' }}
+            >
+              {formatarMoeda(valorTotalAtual)}
             </span>
           </div>
 
@@ -991,20 +1480,34 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
               campanha.status === 'inativa' ||
               campanha.status === 'rascunho'
             }
-            className={`flex-1 py-3 px-5 font-black rounded-xl text-sm shadow-lg flex items-center justify-center gap-2 transition active:scale-[0.98] ${
+            style={
+              tempoRestante?.status === 'aguardando_inicio' ||
+              tempoRestante?.status === 'encerrada' ||
+              campanha.status === 'pausada' ||
+              campanha.status === 'inativa' ||
+              campanha.status === 'rascunho'
+                ? undefined
+                : {
+                    backgroundColor: 'var(--btn)',
+                    color: 'var(--btn-txt)',
+                  }
+            }
+            className={`flex-1 font-black flex items-center justify-center gap-2 transition active:scale-[0.98] ${getBtnRoundingClass(tema.botao.formato)} ${getBtnSizeClass(tema.botao.tamanho)} ${
+              tema.botao.sombra ? 'shadow-lg' : ''
+            } ${
               campanha.status === 'pausada' || campanha.status === 'inativa' || campanha.status === 'rascunho'
                 ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40 cursor-not-allowed shadow-none'
                 : tempoRestante?.status === 'aguardando_inicio'
                 ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40 cursor-not-allowed shadow-none'
                 : tempoRestante?.status === 'encerrada'
                 ? 'bg-red-500/20 text-red-400 border border-red-500/40 cursor-not-allowed shadow-none'
-                : 'bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 shadow-emerald-500/25'
+                : 'hover:opacity-95'
             }`}
           >
             <Sparkles className={`w-4 h-4 ${
               tempoRestante?.status === 'aguardando_inicio' || tempoRestante?.status === 'encerrada' || campanha.status === 'pausada' || campanha.status === 'inativa'
                 ? 'text-current'
-                : 'fill-slate-950'
+                : 'fill-current'
             }`} />
             {campanha.status === 'pausada' || campanha.status === 'inativa' || campanha.status === 'rascunho'
               ? 'CAMPANHA PAUSADA'
@@ -1012,7 +1515,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
               ? 'AGUARDANDO INÍCIO DAS VENDAS'
               : tempoRestante?.status === 'encerrada'
               ? 'VENDAS ENCERRADAS'
-              : 'PARTICIPAR DO SORTEIO'}
+              : (tema.botao.cta || 'PARTICIPAR DO SORTEIO').toUpperCase()}
           </button>
         </div>
       </footer>
@@ -1029,117 +1532,333 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
 
       {/* Modal Formulário de Checkout */}
       {checkoutAberto && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md overflow-y-auto">
-          <div className="relative w-full max-w-md bg-slate-900 border border-slate-700/80 rounded-2xl p-6 shadow-2xl text-white my-8">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md overflow-y-auto">
+          <div className="relative w-full max-w-lg bg-slate-900 border border-slate-700/80 rounded-3xl p-5 sm:p-6 shadow-2xl text-white my-6 max-h-[92vh] overflow-y-auto">
+            
+            {/* Header do Checkout */}
             <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
               <div>
-                <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider block">
-                  Identificação do Comprador
+                <span
+                  className="text-[11px] font-bold uppercase tracking-wider block"
+                  style={{ color: 'var(--brand)' }}
+                >
+                  {campanha.checkout?.mensagens?.topo || 'Checkout Transparente e Seguro'}
                 </span>
                 <h3 className="text-lg font-black text-white">
-                  Seus dados para o sorteio
+                  Concluir sua Participação
                 </h3>
               </div>
               <button
                 onClick={() => setCheckoutAberto(false)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800"
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition"
               >
                 ✕
               </button>
             </div>
 
+            {/* Mensagem de Urgência / Banner Topo */}
+            {campanha.checkout?.mensagens?.urgencia && (
+              <div className="mb-4 p-2.5 bg-amber-500/15 border border-amber-500/30 rounded-xl text-xs font-semibold text-amber-300 flex items-center gap-2 animate-pulse">
+                <Flame className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                <span>{campanha.checkout.mensagens.urgencia}</span>
+              </div>
+            )}
+
+            {/* SELETOR DE MÉTODOS DE PAGAMENTO */}
+            {(() => {
+              const chk = campanha.checkout || DEFAULT_CHECKOUT_CONFIG;
+              const metodosAtivos = [
+                ...(chk.metodos?.pix !== false ? ['pix'] : []),
+                ...(chk.metodos?.cartao ? ['cartao'] : []),
+                ...(chk.metodos?.boleto ? ['boleto'] : [])
+              ];
+
+              if (metodosAtivos.length <= 1) return null;
+
+              return (
+                <div className="mb-4 space-y-1.5">
+                  <label className="text-[11px] font-bold text-slate-300 block uppercase tracking-wider">
+                    Forma de Pagamento:
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {chk.metodos?.pix !== false && (
+                      <button
+                        type="button"
+                        onClick={() => setMetodoPagamento('pix')}
+                        className={`p-2.5 rounded-xl border text-xs font-bold flex flex-col items-center justify-center gap-1.5 transition ${
+                          metodoPagamento === 'pix'
+                            ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400 shadow-md'
+                            : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        <QrCode className="w-4 h-4" />
+                        <span>Pix</span>
+                      </button>
+                    )}
+
+                    {chk.metodos?.cartao && (
+                      <button
+                        type="button"
+                        onClick={() => setMetodoPagamento('cartao')}
+                        className={`p-2.5 rounded-xl border text-xs font-bold flex flex-col items-center justify-center gap-1.5 transition ${
+                          metodoPagamento === 'cartao'
+                            ? 'bg-blue-500/20 border-blue-500 text-blue-400 shadow-md'
+                            : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        <CreditCard className="w-4 h-4" />
+                        <span>Cartão</span>
+                      </button>
+                    )}
+
+                    {chk.metodos?.boleto && (
+                      <button
+                        type="button"
+                        onClick={() => setMetodoPagamento('boleto')}
+                        className={`p-2.5 rounded-xl border text-xs font-bold flex flex-col items-center justify-center gap-1.5 transition ${
+                          metodoPagamento === 'boleto'
+                            ? 'bg-amber-500/20 border-amber-500 text-amber-400 shadow-md'
+                            : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        <FileText className="w-4 h-4" />
+                        <span>Boleto</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
             <form onSubmit={handleEnviarPedido} className="space-y-3.5">
-              <div>
-                <label className="text-xs font-semibold text-slate-300 block mb-1">
-                  Nome completo *
-                </label>
-                <input
-                  id="input-nome-comprador"
-                  type="text"
-                  placeholder="Ex: João da Silva"
-                  value={nome}
-                  onChange={e => setNome(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-emerald-500 focus:outline-none"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-slate-300 block mb-1">
-                  WhatsApp com DDD (para receber os números) *
-                </label>
-                <input
-                  id="input-whatsapp-comprador"
-                  type="tel"
-                  placeholder="(11) 99999-9999"
-                  value={whatsapp}
-                  onChange={e => setWhatsapp(formatWhatsapp(e.target.value))}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-mono text-white focus:border-emerald-500 focus:outline-none"
-                  required
-                />
-              </div>
-
-              {campanha.exigirCpf && (
+              
+              {/* DADOS PESSOAIS DO COMPRADOR */}
+              <div className="space-y-3">
                 <div>
                   <label className="text-xs font-semibold text-slate-300 block mb-1">
-                    CPF *
+                    Nome completo *
                   </label>
                   <input
-                    id="input-cpf-comprador"
+                    id="input-nome-comprador"
                     type="text"
-                    placeholder="000.000.000-00"
-                    value={cpf}
-                    onChange={e => setCpf(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-mono text-white focus:border-emerald-500 focus:outline-none"
+                    placeholder="Ex: João da Silva"
+                    value={nome}
+                    onChange={e => setNome(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-[var(--brand)] focus:outline-none"
                     required
                   />
                 </div>
-              )}
 
-              {campanha.exigirEmail && (
                 <div>
                   <label className="text-xs font-semibold text-slate-300 block mb-1">
-                    E-mail *
+                    WhatsApp com DDD (para receber os números) *
                   </label>
                   <input
-                    id="input-email-comprador"
-                    type="email"
-                    placeholder="seuemail@exemplo.com"
-                    value={email}
-                    onChange={e => setEmail(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-emerald-500 focus:outline-none"
+                    id="input-whatsapp-comprador"
+                    type="tel"
+                    placeholder="(11) 99999-9999"
+                    value={whatsapp}
+                    onChange={e => setWhatsapp(formatWhatsapp(e.target.value))}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-mono text-white focus:border-[var(--brand)] focus:outline-none"
                     required
                   />
                 </div>
-              )}
 
-              {/* Data de Nascimento para Cálculo Automático de Idade */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-semibold text-slate-300 block">
-                    Data de Nascimento *
-                  </label>
-                  {dataNascimento && (
-                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
-                      (calcularIdade(dataNascimento) || 0) >= 18
-                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                        : 'bg-red-500/20 text-red-400 border border-red-500/30'
-                    }`}>
-                      {calcularIdade(dataNascimento) !== null
-                        ? `Idade: ${calcularIdade(dataNascimento)} anos`
-                        : 'Data inválida'}
-                    </span>
-                  )}
+                {(campanha.exigirCpf || metodoPagamento === 'boleto') && (
+                  <div>
+                    <label className="text-xs font-semibold text-slate-300 block mb-1">
+                      CPF * {metodoPagamento === 'boleto' && <span className="text-amber-400 font-normal text-[11px]">(obrigatório para boleto)</span>}
+                    </label>
+                    <input
+                      id="input-cpf-comprador"
+                      type="text"
+                      placeholder="000.000.000-00"
+                      value={cpf}
+                      onChange={e => setCpf(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-mono text-white focus:border-[var(--brand)] focus:outline-none"
+                      required
+                    />
+                  </div>
+                )}
+
+                {(campanha.exigirEmail || metodoPagamento === 'cartao') && (
+                  <div>
+                    <label className="text-xs font-semibold text-slate-300 block mb-1">
+                      E-mail * {metodoPagamento === 'cartao' && <span className="text-blue-400 font-normal text-[11px]">(para comprovante do cartão)</span>}
+                    </label>
+                    <input
+                      id="input-email-comprador"
+                      type="email"
+                      placeholder="seuemail@exemplo.com"
+                      value={email}
+                      onChange={e => setEmail(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-[var(--brand)] focus:outline-none"
+                      required
+                    />
+                  </div>
+                )}
+
+                {/* Data de Nascimento para Cálculo Automático de Idade */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-semibold text-slate-300 block">
+                      Data de Nascimento *
+                    </label>
+                    {dataNascimento && (
+                      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                        (calcularIdade(dataNascimento) || 0) >= 18
+                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                          : 'bg-red-500/20 text-red-400 border border-red-500/30'
+                      }`}>
+                        {calcularIdade(dataNascimento) !== null
+                          ? `Idade: ${calcularIdade(dataNascimento)} anos`
+                          : 'Data inválida'}
+                      </span>
+                    )}
+                  </div>
+                  <input
+                    id="input-nascimento-comprador"
+                    type="date"
+                    value={dataNascimento}
+                    onChange={e => setDataNascimento(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-mono text-white focus:border-[var(--brand)] focus:outline-none"
+                    required
+                  />
                 </div>
-                <input
-                  id="input-nascimento-comprador"
-                  type="date"
-                  value={dataNascimento}
-                  onChange={e => setDataNascimento(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-mono text-white focus:border-emerald-500 focus:outline-none"
-                  required
-                />
               </div>
+
+              {/* CAMPOS ESPECÍFICOS DE CARTÃO DE CRÉDITO */}
+              {metodoPagamento === 'cartao' && (
+                <div className="p-4 bg-slate-950 border border-blue-500/30 rounded-2xl space-y-3 animate-in fade-in-50">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                    <span className="text-xs font-bold text-blue-400 flex items-center gap-1.5">
+                      <CreditCard className="w-3.5 h-3.5" />
+                      Dados do Cartão de Crédito
+                    </span>
+                    {cartaoNumero && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 bg-blue-500/20 text-blue-300 rounded-full border border-blue-500/30">
+                        {detectarBandeiraCartao(cartaoNumero).nome}
+                      </span>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-300 block mb-1">
+                      Número do Cartão *
+                    </label>
+                    <input
+                      id="input-cartao-numero"
+                      type="text"
+                      placeholder="0000 0000 0000 0000"
+                      maxLength={19}
+                      value={cartaoNumero}
+                      onChange={e => setCartaoNumero(formatarNumeroCartao(e.target.value))}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-mono text-white focus:border-blue-500 focus:outline-none"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-300 block mb-1">
+                      Nome impresso no Cartão *
+                    </label>
+                    <input
+                      id="input-cartao-nome"
+                      type="text"
+                      placeholder="Como está gravado no cartão"
+                      value={cartaoNome}
+                      onChange={e => setCartaoNome(e.target.value.toUpperCase())}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white uppercase focus:border-blue-500 focus:outline-none"
+                      required
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-300 block mb-1">
+                        Validade (MM/AA) *
+                      </label>
+                      <input
+                        id="input-cartao-validade"
+                        type="text"
+                        placeholder="MM/AA"
+                        maxLength={5}
+                        value={cartaoValidade}
+                        onChange={e => setCartaoValidade(formatarValidade(e.target.value))}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-mono text-white text-center focus:border-blue-500 focus:outline-none"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-300 block mb-1">
+                        CVV / Código *
+                      </label>
+                      <input
+                        id="input-cartao-cvv"
+                        type="password"
+                        placeholder="123"
+                        maxLength={4}
+                        value={cartaoCvv}
+                        onChange={e => setCartaoCvv(e.target.value.replace(/\D/g, ''))}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-mono text-white text-center focus:border-blue-500 focus:outline-none"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  {/* CPF do Titular se diferente */}
+                  {!cpf && (
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-300 block mb-1">
+                        CPF do Titular do Cartão *
+                      </label>
+                      <input
+                        id="input-cartao-cpf-titular"
+                        type="text"
+                        placeholder="000.000.000-00"
+                        value={cartaoCpf}
+                        onChange={e => setCartaoCpf(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-mono text-white focus:border-blue-500 focus:outline-none"
+                        required
+                      />
+                    </div>
+                  )}
+
+                  {/* Seleção de Parcelamento */}
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-300 block mb-1">
+                      Opções de Parcelamento
+                    </label>
+                    <select
+                      id="select-cartao-parcelas"
+                      value={cartaoParcelas}
+                      onChange={e => setCartaoParcelas(Number(e.target.value))}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:border-blue-500 focus:outline-none"
+                    >
+                      {(() => {
+                        const maxP = Math.min(campanha.checkout?.parcelasMax || 12, 12);
+                        const totalAtual = valorTotalAtual + (ofertaSelecionada ? ofertaSelecionada.preco : 0);
+                        const opts = [];
+                        for (let i = 1; i <= maxP; i++) {
+                          const valorParcela = totalAtual / i;
+                          // Só exibe parcelas cujo valor seja no mínimo R$ 5,00 (ou 1x)
+                          if (i === 1 || valorParcela >= 5.0) {
+                            opts.push(
+                              <option key={i} value={i}>
+                                {i === 1
+                                  ? `1x de ${formatarMoeda(totalAtual)} (À vista)`
+                                  : `${i}x de ${formatarMoeda(valorParcela)} sem juros`}
+                              </option>
+                            );
+                          }
+                        }
+                        return opts;
+                      })()}
+                    </select>
+                  </div>
+                </div>
+              )}
 
               {/* Confirmação Idade Mínima (+18 anos) */}
               <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl">
@@ -1149,16 +1868,61 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
                     type="checkbox"
                     checked={maiorIdade}
                     onChange={e => setMaiorIdade(e.target.checked)}
-                    className="w-4 h-4 mt-0.5 rounded text-emerald-500 bg-slate-900 border-slate-700 focus:ring-emerald-500"
+                    className="w-4 h-4 mt-0.5 rounded text-emerald-500 bg-slate-900 border-slate-700 focus:ring-[var(--brand)]"
                   />
                   <span className="text-xs text-slate-200 font-medium leading-tight">
-                    <strong className="text-emerald-400 block">Idade mínima 18 anos:</strong>
+                    <strong className="block" style={{ color: 'var(--brand)' }}>Idade mínima 18 anos:</strong>
                     Declaro que tenho 18 anos ou mais e estou de acordo com o regulamento do sorteio.
                   </span>
                 </label>
               </div>
 
-              {/* Resumo */}
+              {/* CAMPO DE CUPOM DE DESCONTO */}
+              <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                <label className="text-[11px] font-bold text-slate-300 flex items-center justify-between">
+                  <span>Tem um cupom de desconto?</span>
+                  {cupomAplicado && (
+                    <span className="text-emerald-400 text-[10px] uppercase font-mono font-bold">
+                      {cupomAplicado.descontoPct}% OFF APLICADO
+                    </span>
+                  )}
+                </label>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    placeholder="Digite o código (ex: VOLTA10)"
+                    value={cupomInput}
+                    onChange={e => {
+                      setCupomInput(e.target.value.toUpperCase());
+                      setCupomErro('');
+                    }}
+                    className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white uppercase font-mono font-bold focus:border-[var(--brand)] focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleValidarCupom()}
+                    disabled={validandoCupom || !cupomInput.trim()}
+                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-lg border border-slate-700 transition disabled:opacity-50"
+                  >
+                    {validandoCupom ? 'Aplicando...' : cupomAplicado ? 'Atualizar' : 'Aplicar'}
+                  </button>
+                </div>
+
+                {cupomAplicado && (
+                  <p className="text-[11px] text-emerald-400 font-bold flex items-center gap-1">
+                    ✓ Cupom {cupomAplicado.codigo} ativado ({cupomAplicado.descontoPct}% de desconto)!
+                  </p>
+                )}
+
+                {cupomErro && (
+                  <p className="text-[11px] text-rose-400 font-medium">
+                    ⚠️ {cupomErro}
+                  </p>
+                )}
+              </div>
+
+              {/* Resumo Financeiro */}
               <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-3 text-xs space-y-1">
                 <div className="flex justify-between text-slate-300">
                   <span>Cotas:</span>
@@ -1167,30 +1931,49 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
                   </span>
                 </div>
                 <div className="flex justify-between text-slate-300 border-t border-slate-700/50 pt-1">
-                  <span>Total a pagar via Pix:</span>
-                  <span className="font-extrabold text-emerald-400 text-sm">
-                    R$ {(valorTotalAtual + (ofertaSelecionada ? ofertaSelecionada.preco : 0)).toFixed(2).replace('.', ',')}
+                  <span>Total a pagar via {metodoPagamento === 'cartao' ? 'Cartão' : metodoPagamento === 'boleto' ? 'Boleto' : 'Pix'}:</span>
+                  <span className="font-extrabold text-sm" style={{ color: 'var(--brand)' }}>
+                    {formatarMoeda(valorTotalAtual + (ofertaSelecionada ? ofertaSelecionada.preco : 0))}
                   </span>
                 </div>
               </div>
 
+              {/* Selos de Segurança e Criptografia */}
+              {(campanha.checkout?.selosSeguranca !== false) && (
+                <div className="flex items-center justify-center gap-4 py-1 text-[10px] text-slate-400 border-t border-slate-800/80 pt-2">
+                  <span className="flex items-center gap-1">
+                    <Lock className="w-3 h-3 text-emerald-400" />
+                    Criptografia SSL 256-bit
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <ShieldCheck className="w-3 h-3 text-blue-400" />
+                    Mercado Pago Oficial
+                  </span>
+                </div>
+              )}
+
               {formErro && (
-                <p className="text-xs text-red-400 font-medium">{formErro}</p>
+                <p className="text-xs text-red-400 font-medium bg-red-950/40 border border-red-800/40 p-2.5 rounded-xl">{formErro}</p>
               )}
 
               <button
                 id="btn-confirmar-gerar-pix"
                 type="submit"
                 disabled={enviandoPedido}
-                className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-sm shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 transition active:scale-[0.98]"
+                style={{ backgroundColor: 'var(--btn)', color: 'var(--btn-txt)' }}
+                className={`w-full py-3.5 font-black rounded-xl text-sm shadow-lg flex items-center justify-center gap-2 transition active:scale-[0.98] ${getBtnRoundingClass(tema.botao.formato)} hover:opacity-90`}
               >
                 {enviandoPedido ? (
                   <span className="flex items-center gap-2">
                     <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
-                    Gerando Pix Oficial...
+                    {metodoPagamento === 'cartao' ? 'Processando Cartão com Segurança...' : metodoPagamento === 'boleto' ? 'Gerando Boleto Bancário...' : 'Gerando Pix Oficial...'}
                   </span>
                 ) : (
-                  'GERAR PIX AGORA'
+                  metodoPagamento === 'cartao'
+                    ? 'PAGAR COM CARTÃO AGORA'
+                    : metodoPagamento === 'boleto'
+                    ? 'GERAR BOLETO BANCÁRIO'
+                    : 'GERAR PIX AGORA'
                 )}
               </button>
             </form>
@@ -1212,6 +1995,13 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
           compradorWhatsapp={pixModalData.compradorWhatsapp || whatsapp.replace(/\D/g, '')}
           tituloCampanha={campanha.titulo}
           onSuccess={() => {
+            if (data?.marca?.metaPixelId && campanha && pixModalData) {
+              trackPurchase(data.marca.metaPixelId, {
+                contentIds: [campanha.id],
+                value: pixModalData.valorTotal,
+                numItems: pixModalData.quantidade
+              }, pixModalData.pedidoId);
+            }
             carregarCampanha();
           }}
           onClose={() => {
@@ -1220,6 +2010,64 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
           }}
           onVerMeusNumeros={() => {
             setPixModalData(null);
+            setMeusNumerosAberto(true);
+            carregarCampanha();
+          }}
+          onGerarNovoPix={() => {
+            setPixModalData(null);
+            carregarCampanha();
+            setTimeout(() => {
+              const el = document.getElementById('btn-confirmar-gerar-pix') || document.getElementById('input-nome-comprador');
+              if (el) el.scrollIntoView({ behavior: 'smooth' });
+            }, 100);
+          }}
+        />
+      )}
+
+      {/* Modal Boleto Gerado */}
+      {boletoModalData && (
+        <BoletoPaymentModal
+          pedidoId={boletoModalData.pedidoId}
+          boletoUrl={boletoModalData.boletoUrl}
+          boletoBarcode={boletoModalData.boletoBarcode}
+          linhaDigitavel={boletoModalData.linhaDigitavel}
+          valorTotal={boletoModalData.valorTotal}
+          quantidade={boletoModalData.quantidade}
+          expiraEm={boletoModalData.expiraEm}
+          compradorNome={boletoModalData.compradorNome}
+          compradorWhatsapp={boletoModalData.compradorWhatsapp}
+          tituloCampanha={campanha.titulo}
+          onSuccess={() => {
+            carregarCampanha();
+          }}
+          onClose={() => {
+            setBoletoModalData(null);
+            carregarCampanha();
+          }}
+          onVerMeusNumeros={() => {
+            setBoletoModalData(null);
+            setMeusNumerosAberto(true);
+            carregarCampanha();
+          }}
+        />
+      )}
+
+      {/* Modal Sucesso Cartão de Crédito */}
+      {cartaoSuccessModalData && (
+        <CartaoSuccessModal
+          pedidoId={cartaoSuccessModalData.pedidoId}
+          valorTotal={cartaoSuccessModalData.valorTotal}
+          quantidade={cartaoSuccessModalData.quantidade}
+          numeros={cartaoSuccessModalData.numeros}
+          cartaoInfo={cartaoSuccessModalData.cartaoInfo}
+          compradorNome={cartaoSuccessModalData.compradorNome}
+          tituloCampanha={campanha.titulo}
+          onClose={() => {
+            setCartaoSuccessModalData(null);
+            carregarCampanha();
+          }}
+          onVerMeusNumeros={() => {
+            setCartaoSuccessModalData(null);
             setMeusNumerosAberto(true);
             carregarCampanha();
           }}
@@ -1307,10 +2155,9 @@ export const CampanhaPublicaView: React.FC<Props> = ({ codigo, onNavigateAdmin }
                     setErroCopiado(true);
                     setTimeout(() => setErroCopiado(false), 3500);
                   }}
+                  style={{ backgroundColor: 'var(--btn)', color: 'var(--btn-txt)' }}
                   className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition ${
-                    erroCopiado
-                      ? 'bg-emerald-500 text-slate-950'
-                      : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/20'
+                    erroCopiado ? 'opacity-80' : 'hover:opacity-90 shadow-lg'
                   }`}
                 >
                   {erroCopiado ? (

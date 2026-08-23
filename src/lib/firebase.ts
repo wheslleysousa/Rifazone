@@ -13,12 +13,14 @@ import {
   type User
 } from 'firebase/auth';
 import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 // Initialize Firebase
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
+export const storage = firebaseConfig.storageBucket ? getStorage(app, `gs://${firebaseConfig.storageBucket}`) : getStorage(app);
 export const googleProvider = new GoogleAuthProvider();
 
 // --- Helpers de autenticação do organizador (RifaZone) ---

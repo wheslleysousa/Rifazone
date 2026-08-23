@@ -4,10 +4,11 @@ import {
   Youtube, FileText, CheckCircle2, AlertCircle, ArrowLeft,
   LayoutGrid, HelpCircle, Flame, Lock, Eye, Star, Info, Rocket,
   Upload, Camera, Link as LinkIcon, RefreshCw, ChevronRight, ChevronLeft,
-  DollarSign, Clock, MapPin, Tag, Check, Sparkle, GripVertical
+  DollarSign, Clock, MapPin, Tag, Check, Sparkle, GripVertical, Palette
 } from 'lucide-react';
-import { Campanha, Premio, CotaPremiada, Promocao, OfertaRelampago } from '../../types';
-import { compressAndReadImage } from '../../lib/image-upload';
+import { Campanha, Premio, CotaPremiada, Promocao, OfertaRelampago, TEMA_PADRAO } from '../../types';
+import { uploadImageToStorage, compressAndReadImage } from '../../lib/image-upload';
+import { TemaBuilderView } from './TemaBuilderView';
 
 interface Props {
   form: Partial<Campanha>;
@@ -21,7 +22,7 @@ interface Props {
   onVerPrevia?: () => void;
 }
 
-type TabType = 'basico' | 'midia' | 'premios' | 'promocoes' | 'upsell' | 'extras';
+type TabType = 'basico' | 'midia' | 'premios' | 'promocoes' | 'upsell' | 'extras' | 'tema';
 
 export const CampanhasFormView: React.FC<Props> = ({
   form,
@@ -54,8 +55,8 @@ export const CampanhasFormView: React.FC<Props> = ({
   const handleOrganizadorFotoUpload = async (file: File) => {
     try {
       setCarregandoOrganizadorFoto(true);
-      const dataUrl = await compressAndReadImage(file, 400, 400, 0.85);
-      setForm(prev => ({ ...prev, organizadorFoto: dataUrl }));
+      const url = await uploadImageToStorage(file, 'organizadores', 400, 400, 0.85);
+      setForm(prev => ({ ...prev, organizadorFoto: url }));
     } catch (err: any) {
       alert(err.message || 'Erro ao carregar foto do organizador.');
     } finally {
@@ -79,15 +80,16 @@ export const CampanhasFormView: React.FC<Props> = ({
     { id: 'premios', label: '3. Prêmios & Bilhetes Premiados', icon: Trophy, desc: 'Prêmio principal e cotas instantâneas' },
     { id: 'promocoes', label: '4. Pacotes & Descontos', icon: Zap, desc: 'Combos de cotas promocionais' },
     { id: 'upsell', label: '5. Ofertas Relâmpago', icon: Flame, desc: 'Aumente o ticket no checkout' },
-    { id: 'extras', label: '6. Brindes & Roleta', icon: Gift, desc: 'E-book digital e roleta bônus' }
+    { id: 'extras', label: '6. Brindes & Roleta', icon: Gift, desc: 'E-book digital e roleta bônus' },
+    { id: 'tema', label: '7. Personalizar Tema', icon: Palette, desc: 'Cores, botão CTA, tipografia e blocos' }
   ];
 
   // Upload handlers
   const processarArquivoBanner = async (file: File) => {
     setCarregandoBanner(true);
     try {
-      const base64 = await compressAndReadImage(file, 1200, 1200, 0.82);
-      setForm(prev => ({ ...prev, bannerUrl: base64 }));
+      const url = await uploadImageToStorage(file, 'banners', 1200, 1200, 0.82);
+      setForm(prev => ({ ...prev, bannerUrl: url }));
     } catch (err: any) {
       alert(err.message || 'Erro ao carregar a foto.');
     } finally {
@@ -108,7 +110,7 @@ export const CampanhasFormView: React.FC<Props> = ({
     setCarregandoCarrossel(true);
     try {
       const novasFotos = await Promise.all(
-        files.map(f => compressAndReadImage(f, 1200, 1200, 0.82))
+        files.map(f => uploadImageToStorage(f, 'carrossel', 1200, 1200, 0.82))
       );
       const fotosAtuais = form.fotosCarrossel || [];
       setForm(prev => ({ ...prev, fotosCarrossel: [...fotosAtuais, ...novasFotos] }));
@@ -2019,6 +2021,20 @@ export const CampanhasFormView: React.FC<Props> = ({
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* ABA 7: PERSONALIZAR TEMA & LAYOUT */}
+        {abaInterna === 'tema' && (
+          <div className="animate-in fade-in">
+            <TemaBuilderView
+              campanha={form}
+              onChangeCampanha={setForm}
+              tema={form.tema || TEMA_PADRAO}
+              onChangeTema={(novoTema) => setForm(prev => ({ ...prev, tema: novoTema }))}
+              onSalvar={onSalvar}
+              salvando={salvando}
+            />
           </div>
         )}
 

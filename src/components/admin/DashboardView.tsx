@@ -5,6 +5,7 @@ import {
   Calendar, Zap, Share2, Ticket, Sparkles, AlertCircle, X
 } from 'lucide-react';
 import { Campanha, Pedido } from '../../types';
+import { formatarMoeda } from '../../lib/money';
 
 interface Props {
   campanhas: any[];
@@ -324,7 +325,7 @@ export const DashboardView: React.FC<Props> = ({
             </div>
           </div>
           <div className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-            {ocultarValores ? '••••••' : `R$ ${faturamentoTotal.toFixed(2).replace('.', ',')}`}
+            {ocultarValores ? '••••••' : formatarMoeda(faturamentoTotal)}
           </div>
           <div className="flex items-center gap-1.5 text-xs text-emerald-400 mt-2 font-medium">
             <TrendingUp className="w-3.5 h-3.5" />
@@ -379,7 +380,7 @@ export const DashboardView: React.FC<Props> = ({
             </div>
           </div>
           <div className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-            {ocultarValores ? '••••••' : `R$ ${ticketMedio.toFixed(2).replace('.', ',')}`}
+            {ocultarValores ? '••••••' : formatarMoeda(ticketMedio)}
           </div>
           <div className="text-xs text-slate-400 mt-2">
             {totalCompradoresUnicos} clientes distintos
@@ -506,7 +507,7 @@ export const DashboardView: React.FC<Props> = ({
                       {comp.cotas} cotas
                     </span>
                     <span className="text-[11px] text-slate-400">
-                      {ocultarValores ? '••••••' : `R$ ${comp.total.toFixed(2).replace('.', ',')}`}
+                      {ocultarValores ? '••••••' : formatarMoeda(comp.total)}
                     </span>
                   </div>
                 </div>

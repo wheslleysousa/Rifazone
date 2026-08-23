@@ -39,6 +39,139 @@ export interface RoletaItem {
   chancePct: number;
 }
 
+export interface TemaCampanha {
+  cores: {
+    primaria: string;
+    destaque: string;
+    fundo: string;
+    texto: string;
+    botao: string;
+    textoBotao: string;
+  };
+  botao: {
+    formato: 'reto' | 'arredondado' | 'pill';
+    tamanho: 'sm' | 'md' | 'lg';
+    sombra: boolean;
+    cta: string;
+  };
+  tipografia: {
+    fonte: 'sans' | 'serif' | 'display';
+    tamanhoTitulo: 'sm' | 'md' | 'lg';
+  };
+  layout: {
+    ordem: string[]; // ex: ['banner', 'cotas', 'premios', 'premiadas', 'ranking', 'regulamento']
+    visivel: Record<string, boolean>; // ex: { ranking:true, barraProgresso:true, contador:true, provaSocial:false }
+  };
+}
+
+export interface EstiloSalvo {
+  id: string;
+  ownerId?: string;
+  nome: string;
+  tema: TemaCampanha;
+  criadoEm: string;
+}
+
+export const TEMA_PADRAO: TemaCampanha = {
+  cores: {
+    primaria: '#10b981',
+    destaque: '#059669',
+    fundo: '#0f172a',
+    texto: '#f8fafc',
+    botao: '#10b981',
+    textoBotao: '#022c22'
+  },
+  botao: {
+    formato: 'arredondado',
+    tamanho: 'md',
+    sombra: true,
+    cta: 'Participar do Sorteio'
+  },
+  tipografia: {
+    fonte: 'sans',
+    tamanhoTitulo: 'md'
+  },
+  layout: {
+    ordem: ['banner', 'cotas', 'premios', 'premiadas', 'ranking', 'regulamento'],
+    visivel: {
+      banner: true,
+      cotas: true,
+      premios: true,
+      premiadas: true,
+      ranking: true,
+      regulamento: true,
+      barraProgresso: true,
+      contador: true,
+      provaSocial: true,
+      organizador: true
+    }
+  }
+};
+
+export interface CheckoutConfig {
+  metodos: {
+    pix: boolean;
+    cartao: boolean;
+    boleto: boolean;
+  };
+  parcelasMax: number; // ex: 1 a 12
+  taxaParcelamento: 'comprador' | 'organizador';
+  mensagens: {
+    topo?: string;
+    pix?: string;
+    cartao?: string;
+    sucesso?: string;
+    urgencia?: string;
+  };
+  selosSeguranca: boolean;
+}
+
+export const DEFAULT_CHECKOUT_CONFIG: CheckoutConfig = {
+  metodos: {
+    pix: true,
+    cartao: false,
+    boleto: false
+  },
+  parcelasMax: 1,
+  taxaParcelamento: 'comprador',
+  mensagens: {
+    topo: 'Selecione a forma de pagamento:',
+    pix: 'Aprovação imediata via Pix com QR Code e Copia e Cola.',
+    cartao: 'Pagamento rápido e seguro processado no cartão.',
+    sucesso: 'Seu pagamento foi confirmado! Seus números foram gerados com sucesso.',
+    urgencia: 'Seus números estão reservados por tempo limitado. Conclua o pagamento!'
+  },
+  selosSeguranca: true
+};
+
+export interface CupomDesconto {
+  id?: string;
+  codigo: string; // ex: 'VOLTA10' ou 'QUERO20'
+  descontoPct: number; // ex: 10 para 10%
+  ativo?: boolean;
+  criadoEm?: string;
+}
+
+export interface RegraRemarketingAguardando {
+  id?: string;
+  faltaMin: number; // dispara quando FALTA X min p/ expirar
+  mensagem: string;
+}
+
+export interface RegraRemarketingExpirado {
+  id?: string;
+  aposMin: number; // dispara X min APÓS expirar
+  cupom?: string;
+  descontoPct?: number;
+  mensagem: string;
+}
+
+export interface RemarketingConfig {
+  ativo: boolean;
+  aguardando: RegraRemarketingAguardando[];
+  expirado: RegraRemarketingExpirado[];
+}
+
 export interface Campanha {
   id: string;
   ownerId?: string; // uid do organizador (Firebase Auth) dono da campanha
@@ -93,6 +226,10 @@ export interface Campanha {
   tempoAnimacaoSorteioSegundos?: number;
   exigirEmail: boolean;
   exigirCpf: boolean;
+  tema?: TemaCampanha;
+  checkout?: CheckoutConfig;
+  remarketing?: RemarketingConfig;
+  cupons?: CupomDesconto[];
   status: 'rascunho' | 'publicada' | 'pausada' | 'encerrada';
   numeroSorteado: string | null;
   ganhador?: {
@@ -156,6 +293,7 @@ export interface ConfigOrganizador {
   redes?: RedesSociais;
   // Pixels & Anúncios
   metaPixelId?: string | null;      // público — injetado na página pública
+  metaCapiToken?: string | null;    // segredo — para Conversions API (server-side)
   // Meta Ads (Marketing API) — para a aba de Analytics
   metaAccessToken?: string | null;  // segredo — nunca retornado ao cliente
   metaAdAccountId?: string | null;  // ex: act_1234567890
@@ -170,6 +308,7 @@ export interface MarcaPublica {
   corDestaque: string | null;
   redes: RedesSociais;
   metaPixelId: string | null;
+  mpPublicKey?: string | null;
 }
 
 export interface Comprador {
@@ -195,9 +334,24 @@ export interface Pedido {
   quantidade: number;
   valorTotal: number;
   status: 'pendente' | 'pago' | 'expirado' | 'cancelado';
+  metodoPagamento?: 'pix' | 'cartao' | 'boleto';
   mpPaymentId: string | null;
   pixCopiaCola: string | null;
   pixQrCodeBase64: string | null;
+  boletoUrl?: string | null;
+  boletoLinhaDigitavel?: string | null;
+  boletoCodigoBarras?: string | null;
+  cartaoInfo?: {
+    brand?: string;
+    ultimosDigitos?: string;
+    parcelas?: number;
+  } | null;
+  cupomAplicado?: {
+    codigo: string;
+    descontoPct: number;
+    valorDesconto: number;
+  } | null;
+  remarketingEnviado?: string[]; // IDs/Chaves das regras já disparadas
   expiraEm: string; // ISO string
   criadoEm: string;
   pagoEm: string | null;

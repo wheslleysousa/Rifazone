@@ -5,7 +5,7 @@ import {
   Users, Ticket, RotateCw, Settings, LogOut, RefreshCw,
   Eye, Edit3, Link2, Copy, CheckCircle2, AlertCircle, Menu, X, Mail, Lock, User as UserIcon, Key,
   ExternalLink, Zap, Unlink, ShieldCheck, HelpCircle, ChevronDown, ChevronUp, Info,
-  Trophy, Trash2, Play, Pause, Camera, Sparkles
+  Trophy, Trash2, Play, Pause, Camera, Sparkles, Palette, BarChart3
 } from 'lucide-react';
 import {
   auth, observarAuth, cadastrarComEmail, entrarComEmail, entrarComGoogle, sair,
@@ -15,6 +15,7 @@ import {
 
 // Sub-components import
 import { DashboardView } from './admin/DashboardView';
+import { AnalyticsView } from './admin/AnalyticsView';
 import { RemarketingView } from './admin/RemarketingView';
 import { ClientesView } from './admin/ClientesView';
 import { SorteadorView } from './admin/SorteadorView';
@@ -667,6 +668,7 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
       titulo: 'Principal',
       itens: [
         { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-4 h-4" /> },
+        { id: 'analytics', label: 'Analytics & Meta Ads', icon: <BarChart3 className="w-4 h-4 text-emerald-400" /> },
         { id: 'remarketing', label: 'Remarketing', icon: <MessageSquare className="w-4 h-4" /> },
       ]
     },
@@ -808,9 +810,23 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
             />
           )}
 
+          {/* ANALYTICS & META ADS */}
+          {abaAtiva === 'analytics' && (
+            <AnalyticsView
+              campanhas={campanhas}
+              pedidos={pedidos}
+              authFetch={authFetch}
+            />
+          )}
+
           {/* 2. REMARKETING */}
           {abaAtiva === 'remarketing' && (
-            <RemarketingView pedidos={pedidos} onRefresh={carregarTudo} />
+            <RemarketingView
+              campanhas={campanhas}
+              pedidos={pedidos}
+              onRefresh={carregarTudo}
+              authFetch={authFetch}
+            />
           )}
 
           {/* 3. HISTÓRICO DE CLIENTES */}
@@ -1043,6 +1059,17 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
                             setForm(c);
                             setAbaAtiva('nova');
                           }}
+                          className="p-2 bg-slate-800 hover:bg-emerald-500/20 hover:text-emerald-300 text-slate-300 rounded-xl transition border border-slate-700/60"
+                          title="Personalizar Tema & Cores"
+                        >
+                          <Palette className="w-4 h-4 text-emerald-400" />
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setForm(c);
+                            setAbaAtiva('nova');
+                          }}
                           className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition border border-slate-700/60"
                           title="Editar Campanha"
                         >
@@ -1100,7 +1127,7 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
                     Pedidos e Transações Pix ({pedidos.length})
                   </h1>
                   <p className="text-slate-400 text-xs mt-0.5">
-                    Histórico detalhado de reservas, pagamentos efetuados e bilhetes gerados.
+                    Histórico detalhado de reservas (aguardando), pagamentos efetuados e pedidos expirados.
                   </p>
                 </div>
 
@@ -1140,10 +1167,13 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
                           <td className="p-3.5 font-extrabold text-white">{p.quantidade} cotas</td>
                           <td className="p-3.5 font-bold text-emerald-400">R$ {p.valorTotal.toFixed(2).replace('.', ',')}</td>
                           <td className="p-3.5">
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
-                              p.status === 'pago' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'
+                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase border ${
+                              p.status === 'pago' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' :
+                              p.status === 'expirado' ? 'bg-rose-500/20 text-rose-300 border-rose-500/30' :
+                              p.status === 'cancelado' ? 'bg-slate-500/20 text-slate-400 border-slate-500/30' :
+                              'bg-amber-500/20 text-amber-300 border-amber-500/30'
                             }`}>
-                              {p.status}
+                              {p.status === 'pendente' ? 'AGUARDANDO' : p.status}
                             </span>
                           </td>
                           <td className="p-3.5 text-slate-400">

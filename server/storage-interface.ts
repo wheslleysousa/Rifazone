@@ -1,4 +1,4 @@
-import { Campanha, Pedido, Comprador, RankingItem, CotaPremiada, ConfigOrganizador, MarcaConfig, RedesSociais } from '../src/types.js';
+import { Campanha, Pedido, Comprador, RankingItem, CotaPremiada, ConfigOrganizador, MarcaConfig, RedesSociais, EstiloSalvo, TemaCampanha } from '../src/types.js';
 
 // Campos que o organizador pode salvar nas configurações
 export interface DadosConfig {
@@ -10,6 +10,7 @@ export interface DadosConfig {
   marca?: MarcaConfig;
   redes?: RedesSociais;
   metaPixelId?: string | null;
+  metaCapiToken?: string | null;
   metaAccessToken?: string | null;
   metaAdAccountId?: string | null;
 }
@@ -74,6 +75,11 @@ export interface Storage {
   getMpTokenPorCampanha(campanhaId: string): Promise<string | null>;
 
   // Manutenção / apuração
-  limparReservasExpiradas(): Promise<number>;
+  limparReservasExpiradas(): Promise<{ cotasLiberadas: number; pedidosExpirados: number } | number>;
   realizarSorteio(campanhaId: string, numeroSorteado: string): Promise<SorteioResult>;
+
+  // Estilos de tema salvos pelo organizador
+  salvarEstilo(ownerId: string, estilo: { id?: string; nome: string; tema: TemaCampanha }): Promise<EstiloSalvo>;
+  listarEstilos(ownerId: string): Promise<EstiloSalvo[]>;
+  excluirEstilo(ownerId: string, id: string): Promise<boolean>;
 }

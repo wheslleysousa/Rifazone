@@ -1,8 +1,10 @@
 import { ConfigOrganizador } from '../src/types.js';
 import { DadosConfig } from './storage-interface.js';
+import { encryptToken, decryptToken } from './crypto-utils.js';
 
 // Mescla os dados recebidos numa ConfigOrganizador existente (ou cria uma nova),
-// preservando campos não enviados. Tokens só são sobrescritos com valor não-vazio.
+// preservando campos não enviados. Tokens só são sobrescritos com valor não-vazio
+// e são armazenados criptografados com AES-256-GCM.
 export function mergeConfig(ownerId: string, existente: ConfigOrganizador | null, dados: DadosConfig): ConfigOrganizador {
   const soSeInformado = (novo: string | null | undefined, atual: string | null | undefined) =>
     novo !== undefined && novo !== '' ? (novo ? String(novo).trim() : null) : (atual ?? null);
@@ -10,10 +12,23 @@ export function mergeConfig(ownerId: string, existente: ConfigOrganizador | null
   // Token do Mercado Pago: '' ou null explicito = desconectar; undefined = manter
   let mpAccessToken: string | null = existente?.mpAccessToken ?? null;
   if (dados.mpAccessToken !== undefined) {
-    mpAccessToken = dados.mpAccessToken && String(dados.mpAccessToken).trim() ? String(dados.mpAccessToken).trim() : null;
+    const raw = dados.mpAccessToken && String(dados.mpAccessToken).trim() ? String(dados.mpAccessToken).trim() : null;
+    mpAccessToken = raw ? encryptToken(raw) : null;
   }
   // Ao conectar manualmente um token novo, marca tipo/data se não vierem explícitos
   const conectouAgora = !!mpAccessToken && mpAccessToken !== (existente?.mpAccessToken ?? null);
+
+  let metaAccessToken: string | null = existente?.metaAccessToken ?? null;
+  if (dados.metaAccessToken !== undefined) {
+    const raw = dados.metaAccessToken && String(dados.metaAccessToken).trim() ? String(dados.metaAccessToken).trim() : null;
+    metaAccessToken = raw ? encryptToken(raw) : null;
+  }
+
+  let metaCapiToken: string | null = existente?.metaCapiToken ?? null;
+  if (dados.metaCapiToken !== undefined) {
+    const raw = dados.metaCapiToken && String(dados.metaCapiToken).trim() ? String(dados.metaCapiToken).trim() : null;
+    metaCapiToken = raw ? encryptToken(raw) : null;
+  }
 
   return {
     ownerId,
@@ -28,7 +43,8 @@ export function mergeConfig(ownerId: string, existente: ConfigOrganizador | null
     mpConectadoEm: dados.mpConectadoEm !== undefined
       ? dados.mpConectadoEm
       : (conectouAgora && !existente?.mpConectadoEm ? new Date().toISOString() : (existente?.mpConectadoEm ?? null)),
-    metaAccessToken: soSeInformado(dados.metaAccessToken, existente?.metaAccessToken),
+    metaAccessToken,
+    metaCapiToken,
     metaAdAccountId: dados.metaAdAccountId !== undefined
       ? (dados.metaAdAccountId ? String(dados.metaAdAccountId).trim() : null)
       : (existente?.metaAdAccountId ?? null),
@@ -47,16 +63,23 @@ function mascarar(token: string | null | undefined): string | null {
 }
 
 // Vista das configurações para o PAINEL do organizador (segredos mascarados).
+// Descriptografa internamente apenas para extrair a máscara e NUNCA retorna o token puro.
 export function configParaPainel(config: ConfigOrganizador | null) {
+  const plainMp = decryptToken(config?.mpAccessToken);
+  const plainMeta = decryptToken(config?.metaAccessToken);
+  const plainCapi = decryptToken(config?.metaCapiToken);
+
   return {
-    mpConfigurado: !!config?.mpAccessToken,
-    mpTokenMascara: mascarar(config?.mpAccessToken),
+    mpConfigurado: !!plainMp,
+    mpTokenMascara: mascarar(plainMp),
     mpPublicKey: config?.mpPublicKey || null,
     mpConexaoTipo: config?.mpConexaoTipo || null,
     mpUserId: config?.mpUserId ?? null,
     mpConectadoEm: config?.mpConectadoEm || null,
-    metaConfigurado: !!config?.metaAccessToken,
-    metaTokenMascara: mascarar(config?.metaAccessToken),
+    metaConfigurado: !!plainMeta,
+    metaTokenMascara: mascarar(plainMeta),
+    metaCapiConfigurado: !!plainCapi,
+    metaCapiTokenMascara: mascarar(plainCapi),
     metaAdAccountId: config?.metaAdAccountId || null,
     metaPixelId: config?.metaPixelId || null,
     marca: {
@@ -79,6 +102,7 @@ export function configParaMarcaPublica(config: ConfigOrganizador | null) {
     corPrincipal: config?.marca?.corPrincipal || null,
     corDestaque: config?.marca?.corDestaque || null,
     redes: config?.redes || {},
-    metaPixelId: config?.metaPixelId || null
+    metaPixelId: config?.metaPixelId || null,
+    mpPublicKey: config?.mpPublicKey || process.env.MP_PUBLIC_KEY || null
   };
 }

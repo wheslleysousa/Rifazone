@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { QrCode, Copy, Check, Clock, AlertCircle, Sparkles, CheckCircle2, ArrowRight, Share2, Ticket, MessageCircle } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import QRCode from 'qrcode';
+import { formatarMoeda } from '../lib/money';
 
 interface Props {
   pedidoId: string;
@@ -17,6 +18,7 @@ interface Props {
   onSuccess: (numeros: string[]) => void;
   onClose: () => void;
   onVerMeusNumeros?: () => void;
+  onGerarNovoPix?: () => void;
 }
 
 export const PixPaymentModal: React.FC<Props> = ({
@@ -32,7 +34,8 @@ export const PixPaymentModal: React.FC<Props> = ({
   tituloCampanha,
   onSuccess,
   onClose,
-  onVerMeusNumeros
+  onVerMeusNumeros,
+  onGerarNovoPix
 }) => {
   const [copiado, setCopiado] = useState(false);
   const [numerosCopiados, setNumerosCopiados] = useState(false);
@@ -281,20 +284,46 @@ export const PixPaymentModal: React.FC<Props> = ({
           </div>
         ) : status === 'expirado' ? (
           /* Status: EXPIRADO */
-          <div className="text-center py-6">
-            <div className="w-14 h-14 bg-red-500/20 border border-red-500/40 rounded-full flex items-center justify-center mx-auto mb-4 text-red-400">
-              <AlertCircle className="w-8 h-8" />
+          <div className="text-center py-6 animate-in zoom-in-95 duration-200">
+            <div className="w-16 h-16 bg-red-500/20 border-2 border-red-500/40 rounded-full flex items-center justify-center mx-auto mb-4 text-red-400 shadow-lg">
+              <AlertCircle className="w-9 h-9" />
             </div>
-            <h3 className="text-xl font-bold text-white mb-2">Tempo de Reserva Expirado</h3>
-            <p className="text-slate-300 text-sm mb-6">
-              O tempo de 10 minutos para pagar este Pix se esgotou e as cotas foram liberadas novamente.
+
+            <span className="text-[11px] font-extrabold uppercase tracking-wider text-red-400 bg-red-500/10 px-3 py-1 rounded-full border border-red-500/30 inline-block mb-3">
+              Status do Pedido: EXPIRADO
+            </span>
+
+            <h3 className="text-2xl font-black text-white mb-2">
+              Tempo de Reserva Expirado
+            </h3>
+            <p className="text-slate-300 text-xs mb-6 max-w-xs mx-auto leading-relaxed">
+              O tempo limite para pagamento deste Pix se esgotou e as cotas reservadas foram liberadas novamente.
             </p>
-            <button
-              onClick={onClose}
-              className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl transition"
-            >
-              Tentar Novamente
-            </button>
+
+            <div className="space-y-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  if (onGerarNovoPix) {
+                    onGerarNovoPix();
+                  } else {
+                    onClose();
+                  }
+                }}
+                className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-sm transition shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2"
+              >
+                <Sparkles className="w-4 h-4" />
+                Gerar Novo Pix
+              </button>
+
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-xs transition"
+              >
+                Fechar
+              </button>
+            </div>
           </div>
         ) : (
           /* Status: PENDENTE - QR CODE E COPIA E COLA */
@@ -324,7 +353,7 @@ export const PixPaymentModal: React.FC<Props> = ({
               <div className="text-right">
                 <span className="text-xs text-slate-400 block">Total a pagar</span>
                 <span className="text-lg font-black text-emerald-400">
-                  R$ {valorTotal.toFixed(2).replace('.', ',')}
+                  {formatarMoeda(valorTotal)}
                 </span>
               </div>
             </div>
@@ -392,6 +421,24 @@ export const PixPaymentModal: React.FC<Props> = ({
                 </button>
               </div>
             </div>
+
+            {/* Botão de simulação exibido apenas em transações mock/ambiente de desenvolvimento */}
+            {isMock && (
+              <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-center">
+                <span className="text-[11px] text-amber-300 block mb-2 font-medium">
+                  🧪 Modo de Simulação Ativo (Ambiente de Testes)
+                </span>
+                <button
+                  type="button"
+                  onClick={handleSimularPagamento}
+                  disabled={simulando}
+                  className="w-full py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-xs transition flex items-center justify-center gap-1.5 shadow-sm"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  {simulando ? 'Aprovando...' : 'Simular Pagamento Aprovado'}
+                </button>
+              </div>
+            )}
 
             {/* Aviso de Aguardando */}
             <div className="flex items-center gap-2 p-3 bg-slate-800/80 border border-slate-700/80 rounded-xl text-slate-300 text-xs mb-5">

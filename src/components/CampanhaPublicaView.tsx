@@ -425,7 +425,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
     );
   }
 
-  const { campanha, estatisticas, ranking } = data;
+  const { campanha, estatisticas, ranking, marca } = data;
 
   // Resolução do tema ativo com fallbacks seguros para o TEMA_PADRAO (aceita previewTema se fornecido)
   const temaAtivo = previewTema || campanha.tema;
@@ -1257,7 +1257,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
       <header className="sticky top-0 z-40 bg-slate-950/95 backdrop-blur-md border-b border-slate-800">
         <div className="max-w-xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <img src="/logorifazone.png.jpeg" alt="RifaZone" className="w-7 h-7 rounded-lg object-cover" />
+            <img src={marca?.logoUrl || "/logorifazone.png.jpeg"} alt="RifaZone" className="w-7 h-7 rounded-lg object-cover" />
             <button
               type="button"
               onClick={() => setOrganizadorModalAberto(true)}

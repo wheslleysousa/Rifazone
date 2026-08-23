@@ -63,9 +63,13 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
       cpm: number;
       ctr: number;
       impressions: number;
+      frequency: number;
+      uniqueClicks: number;
       comprasMeta: number;
       viewContent: number;
       initiateCheckout: number;
+      addPaymentInfo: number;
+      landingPageViews: number;
       campaigns?: any[];
     };
     rifazone?: {
@@ -103,12 +107,16 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
     { id: 'spend', label: 'Gasto Meta' },
     { id: 'reach', label: 'Alcance' },
     { id: 'impressions', label: 'Impressões' },
+    { id: 'frequency', label: 'Frequência' },
     { id: 'clicks', label: 'Cliques' },
+    { id: 'uniqueClicks', label: 'Cliques Únicos' },
     { id: 'cpc', label: 'CPC' },
     { id: 'cpm', label: 'CPM' },
     { id: 'ctr', label: 'CTR %' },
     { id: 'viewContent', label: 'Visualizações PV' },
+    { id: 'landingPageViews', label: 'Visualizações Destino' },
     { id: 'initiateCheckout', label: 'Checkouts' },
+    { id: 'addPaymentInfo', label: 'Info. Pagamento' },
     { id: 'comprasMeta', label: 'Compras Pixel' },
     { id: 'vincular', label: 'Vincular Rifa' },
     { id: 'receita', label: 'Receita Rifa' },
@@ -617,11 +625,12 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                 <BarChart
                   layout="vertical"
                   data={[
+                    { name: 'Alcance', value: insightsData.meta.reach, color: '#6366f1' },
                     { name: 'Cliques', value: insightsData.meta.clicks, color: '#38bdf8' },
-                    { name: 'Visualizações PV', value: insightsData.meta.viewContent, color: '#2dd4bf' },
+                    { name: 'Visitas PV', value: insightsData.meta.viewContent, color: '#2dd4bf' },
                     { name: 'Checkouts', value: insightsData.meta.initiateCheckout, color: '#818cf8' },
                     { name: 'Vendas Meta', value: insightsData.meta.comprasMeta, color: '#34d399' },
-                    { name: 'Vendas Reais (PIX)', value: insightsData.rifazone?.pedidosPagos || 0, color: '#10b981' }
+                    { name: 'Vendas Reais', value: insightsData.rifazone?.pedidosPagos || 0, color: '#10b981' }
                   ]}
                   margin={{ top: 20, right: 80, left: 20, bottom: 20 }}
                 >
@@ -640,8 +649,8 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                   />
                   <Bar dataKey="value" radius={[0, 8, 8, 0]} barSize={32}>
                     {
-                      [1,2,3,4,5].map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={['#38bdf8', '#2dd4bf', '#818cf8', '#34d399', '#10b981'][index]} />
+                      [1,2,3,4,5,6].map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={['#6366f1', '#38bdf8', '#2dd4bf', '#818cf8', '#34d399', '#10b981'][index]} />
                       ))
                     }
                     <LabelList dataKey="value" position="right" fill="#cbd5e1" fontSize={11} fontWeight="bold" />
@@ -790,9 +799,16 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                   {colunasAtivas.includes('spend') && <th className="p-3">Gasto Meta</th>}
                   {colunasAtivas.includes('reach') && <th className="p-3">Alcance</th>}
                   {colunasAtivas.includes('impressions') && <th className="p-3">Impressões</th>}
+                  {colunasAtivas.includes('frequency') && <th className="p-3">Frequência</th>}
                   {colunasAtivas.includes('clicks') && <th className="p-3">Cliques</th>}
+                  {colunasAtivas.includes('uniqueClicks') && <th className="p-3">Cliques Únicos</th>}
                   {colunasAtivas.includes('cpc') && <th className="p-3">CPC</th>}
+                  {colunasAtivas.includes('cpm') && <th className="p-3">CPM</th>}
                   {colunasAtivas.includes('ctr') && <th className="p-3">CTR</th>}
+                  {colunasAtivas.includes('viewContent') && <th className="p-3">Visitas PV</th>}
+                  {colunasAtivas.includes('landingPageViews') && <th className="p-3">Destino</th>}
+                  {colunasAtivas.includes('initiateCheckout') && <th className="p-3">Checkouts</th>}
+                  {colunasAtivas.includes('addPaymentInfo') && <th className="p-3">Info Pag.</th>}
                   {colunasAtivas.includes('comprasMeta') && <th className="p-3">Compras Pixel</th>}
                   {colunasAtivas.includes('vincular') && <th className="p-3 bg-slate-900/50">Associar à Rifa</th>}
                   {colunasAtivas.includes('receita') && <th className="p-3 text-emerald-400">Receita Rifa</th>}
@@ -845,12 +861,16 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                       )}
                       {colunasAtivas.includes('reach') && <td className="p-3 font-mono text-slate-400">{fbCamp.reach?.toLocaleString()}</td>}
                       {colunasAtivas.includes('impressions') && <td className="p-3 font-mono text-slate-400">{fbCamp.impressions?.toLocaleString()}</td>}
+                      {colunasAtivas.includes('frequency') && <td className="p-3 font-mono text-slate-400">{fbCamp.frequency?.toFixed(2)}</td>}
                       {colunasAtivas.includes('clicks') && <td className="p-3 font-mono text-slate-400">{fbCamp.clicks?.toLocaleString()}</td>}
+                      {colunasAtivas.includes('uniqueClicks') && <td className="p-3 font-mono text-slate-400">{fbCamp.uniqueClicks?.toLocaleString()}</td>}
                       {colunasAtivas.includes('cpc') && <td className="p-3 font-mono text-slate-400">R$ {fbCamp.cpc?.toFixed(2)}</td>}
                       {colunasAtivas.includes('cpm') && <td className="p-3 font-mono text-slate-400">R$ {fbCamp.cpm?.toFixed(2)}</td>}
                       {colunasAtivas.includes('ctr') && <td className="p-3 font-mono text-slate-400">{fbCamp.ctr?.toFixed(2)}%</td>}
                       {colunasAtivas.includes('viewContent') && <td className="p-3 font-mono text-slate-400">{fbCamp.viewContent?.toLocaleString()}</td>}
+                      {colunasAtivas.includes('landingPageViews') && <td className="p-3 font-mono text-slate-400">{fbCamp.landingPageViews?.toLocaleString()}</td>}
                       {colunasAtivas.includes('initiateCheckout') && <td className="p-3 font-mono text-slate-400">{fbCamp.initiateCheckout?.toLocaleString()}</td>}
+                      {colunasAtivas.includes('addPaymentInfo') && <td className="p-3 font-mono text-slate-400">{fbCamp.addPaymentInfo?.toLocaleString()}</td>}
                       {colunasAtivas.includes('comprasMeta') && (
                         <td className="p-3">
                           <div className="flex items-center gap-1.5">

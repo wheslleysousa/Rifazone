@@ -13,6 +13,7 @@ import {
   atualizarPerfilUsuario, atualizarEmailUsuario, atualizarSenhaUsuario,
   traduzErroAuth, type User
 } from '../lib/firebase';
+import { toReais } from '../lib/money';
 
 // Sub-components lazy loaded
 const DashboardView = React.lazy(() => import('./admin/DashboardView').then(m => ({ default: m.DashboardView })));
@@ -162,6 +163,7 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
   const [subAbaConfig, setSubAbaConfig] = useState<'perfil' | 'pix'>('perfil');
   const [perfilNome, setPerfilNome] = useState('');
   const [perfilFoto, setPerfilFoto] = useState('');
+  const [perfilLogo, setPerfilLogo] = useState('');
   const [perfilEmail, setPerfilEmail] = useState('');
   const [perfilSenha, setPerfilSenha] = useState('');
   const [salvandoPerfil, setSalvandoPerfil] = useState(false);
@@ -172,8 +174,11 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
       setPerfilNome(user.displayName || '');
       setPerfilFoto(user.photoURL || '');
       setPerfilEmail(user.email || '');
+      if (configPagamento?.marca?.logoUrl) {
+        setPerfilLogo(configPagamento.marca.logoUrl);
+      }
     }
-  }, [user]);
+  }, [user, configPagamento]);
 
   const handleSalvarPerfil = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -199,6 +204,20 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
         }
         await atualizarSenhaUsuario(perfilSenha);
         setPerfilSenha('');
+      }
+
+      // 4) Atualiza Logo da Marca na Config
+      if (perfilLogo.trim() !== (configPagamento?.marca?.logoUrl || '')) {
+        await authFetch('/api/admin/configuracoes', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            marca: {
+              ...configPagamento?.marca,
+              logoUrl: perfilLogo.trim() || null
+            }
+          })
+        });
       }
 
       // Recarrega o estado do usuário para refletir as alterações
@@ -285,6 +304,9 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
         const dataConf = await resConf.json();
         setConfigPagamento(dataConf);
         setMpPublicKeyInput(dataConf.mpPublicKey || '');
+        if (dataConf.marca?.logoUrl) {
+          setPerfilLogo(dataConf.marca.logoUrl);
+        }
       }
     } catch (e) {
       console.error(e);
@@ -528,12 +550,12 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
       youtubeUrl: '',
       modelo: 'aleatorio',
       totalCotas: undefined,
-      valorCota: undefined,
+      valorCota: 0.50, // Em Reais para o form
       minPorCompra: undefined,
       maxPorCompra: undefined,
       localSorteio: 'Loteria Federal',
       selo: '',
-      tempoReservaMin: undefined,
+      tempoReservaMin: 15,
       exibirRanking: true,
       exibirBarraProgresso: true,
       exibirPaginaGanhadores: true,
@@ -545,7 +567,7 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
       tempoAnimacaoSorteioSegundos: 3,
       exigirEmail: false,
       exigirCpf: false,
-      status: 'publicada',
+      status: 'rascunho',
       premios: [],
       cotasPremiadas: [],
       promocoes: [],
@@ -572,7 +594,7 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
       <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
         <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl text-white">
           <div className="flex items-center gap-3 mb-6">
-            <img src="/logorifazone.png.jpeg" alt="RifaZone" className="w-12 h-12 rounded-2xl shadow-xl shadow-emerald-500/10 object-cover" />
+            <img src={configPagamento?.marca?.logoUrl || "/logorifazone.png.jpeg"} alt="RifaZone" className="w-12 h-12 rounded-2xl shadow-xl shadow-emerald-500/10 object-cover" />
             <div>
               <h1 className="text-xl font-black">RifaZone</h1>
               <p className="text-xs text-slate-400">
@@ -777,7 +799,7 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
         {/* Brand */}
         <div className="flex items-center justify-between px-5 h-16 border-b border-slate-800 shrink-0">
           <div className="flex items-center gap-2.5">
-            <img src="/logorifazone.png.jpeg" alt="RifaZone" className="w-8 h-8 rounded-lg object-cover" />
+            <img src={configPagamento?.marca?.logoUrl || "/logorifazone.png.jpeg"} alt="RifaZone" className="w-8 h-8 rounded-lg object-cover" />
             <div>
               <h2 className="text-base font-black text-white leading-none">RifaZone</h2>
               <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">Painel Pro</span>
@@ -857,7 +879,7 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
               <Menu className="w-6 h-6" />
             </button>
             <div className="flex items-center gap-2">
-              <img src="/logorifazone.png.jpeg" alt="RifaZone" className="w-7 h-7 rounded-lg object-cover" />
+              <img src={configPagamento?.marca?.logoUrl || "/logorifazone.png.jpeg"} alt="RifaZone" className="w-7 h-7 rounded-lg object-cover" />
               <span className="font-black text-white text-sm">RifaZone</span>
             </div>
           </div>
@@ -1449,6 +1471,21 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
                       placeholder="https://exemplo.com/sua-foto.png"
                       className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white font-mono focus:border-emerald-500 focus:outline-none"
                     />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-300 flex items-center gap-1">
+                      <Palette className="w-3.5 h-3.5 text-emerald-400" />
+                      Logo da Plataforma (Link da Imagem)
+                    </label>
+                    <input
+                      type="url"
+                      value={perfilLogo}
+                      onChange={e => setPerfilLogo(e.target.value)}
+                      placeholder="https://exemplo.com/seu-logo.png"
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white font-mono focus:border-emerald-500 focus:outline-none"
+                    />
+                    <p className="text-[10px] text-slate-500 ml-1">Este logo aparecerá no topo do painel e nas páginas públicas das rifas.</p>
                   </div>
 
                   <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-3.5">

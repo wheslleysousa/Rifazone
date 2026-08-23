@@ -16,7 +16,7 @@ import {
   buscarInsightsDeVariasContas,
   buscarTodasAsContasDeAnunciosDoUsuario
 } from './server/meta-service.js';
-import { toCents } from './server/money-utils.js';
+import { toCents, toReais } from './server/money-utils.js';
 import { EmailNotificador } from './server/notifications.js';
 import { Campanha, TEMA_PADRAO, DEFAULT_CHECKOUT_CONFIG } from './src/types.js';
 
@@ -42,7 +42,7 @@ export function sanitizarCampanha(
     youtubeUrl: data.youtubeUrl !== undefined ? (data.youtubeUrl ? String(data.youtubeUrl).trim() : null) : (base?.youtubeUrl ?? null),
     modelo: (data.modelo === 'manual' ? 'manual' : 'aleatorio') as 'aleatorio' | 'manual',
     totalCotas: Number(data.totalCotas ?? base?.totalCotas ?? 10000),
-    valorCota: toCents(data.valorCota ?? base?.valorCota ?? 50),
+    valorCota: data.valorCota !== undefined ? toCents(data.valorCota) : (base?.valorCota ?? 5000),
     minPorCompra: Number(data.minPorCompra ?? base?.minPorCompra ?? 1),
     maxPorCompra: Number(data.maxPorCompra ?? base?.maxPorCompra ?? 1000),
     localSorteio: String(data.localSorteio ?? base?.localSorteio ?? 'Loteria Federal'),
@@ -172,6 +172,38 @@ async function firebaseAuthMiddleware(req: Request, res: Response, next: NextFun
   }
 }
 
+/**
+ * Converte todos os campos monetários de uma campanha de centavos (DB) para reais (API).
+ */
+export function formatarCampanhaParaEnvio(c: any): any {
+  if (!c) return c;
+  return {
+    ...c,
+    valorCota: toReais(c.valorCota),
+    promocoes: c.promocoes?.map((p: any) => ({ ...p, valor: toReais(p.valor) })),
+    ofertasRelampago: c.ofertasRelampago?.map((o: any) => ({ ...o, preco: toReais(o.preco) })),
+    descontoPorValorTotal: c.descontoPorValorTotal?.map((d: any) => ({
+      aPartirDeValor: toReais(d.aPartirDeValor),
+      valorCotaComDesconto: toReais(d.valorCotaComDesconto)
+    }))
+  };
+}
+
+/**
+ * Converte todos os campos monetários de um pedido de centavos (DB) para reais (API).
+ */
+export function formatarPedidoParaEnvio(p: any): any {
+  if (!p) return p;
+  return {
+    ...p,
+    valorTotal: toReais(p.valorTotal),
+    cupomAplicado: p.cupomAplicado ? {
+      ...p.cupomAplicado,
+      valorDesconto: toReais(p.cupomAplicado.valorDesconto)
+    } : p.cupomAplicado
+  };
+}
+
 // ----------------------------------------------------
 // 1. ENDPOINTS PÚBLICOS
 // ----------------------------------------------------
@@ -214,15 +246,15 @@ app.get('/api/campanhas/:codigo', async (req, res) => {
     const marca = configParaMarcaPublica(configDono);
 
     return res.json({
-      campanha: {
+      campanha: formatarCampanhaParaEnvio({
         ...campanhaPublica,
         tema: campanhaPublica.tema || TEMA_PADRAO,
         checkout: campanhaPublica.checkout || DEFAULT_CHECKOUT_CONFIG
-      },
+      }),
       marca,
       estatisticas: {
         ...estatisticas,
-        arrecadado: Math.round(estatisticas.vendidas * toCents(campanha.valorCota))
+        arrecadado: toReais(estatisticas.vendidas * (campanha.valorCota || 0))
       },
       ranking,
       cotasOcupadas
@@ -279,24 +311,24 @@ app.post('/api/pedidos', async (req, res) => {
 
     // Calcular cotas totais e valor total em CENTAVOS INTEIROS (sem soma de floats)
     let totalQtd = Number(quantidade);
-    const valorUnitarioCents = toCents(campanha.valorCota);
+    const valorUnitarioCents = campanha.valorCota;
     let valorTotalCents = totalQtd * valorUnitarioCents;
 
     // Verificar se se encaixa em alguma promoção de pacote
     if (campanha.promocoes && campanha.promocoes.length > 0) {
       const promoExata = campanha.promocoes.find(p => Number(p.quantidade) === totalQtd);
       if (promoExata) {
-        valorTotalCents = toCents(promoExata.valor);
+        valorTotalCents = promoExata.valor;
       }
     }
 
     // Desconto progressivo por valor total (se configurado)
     if (campanha.descontoPorValorTotal && campanha.descontoPorValorTotal.length > 0) {
-      const regras = [...campanha.descontoPorValorTotal].sort((a, b) => toCents(b.aPartirDeValor) - toCents(a.aPartirDeValor));
+      const regras = [...campanha.descontoPorValorTotal].sort((a, b) => b.aPartirDeValor - a.aPartirDeValor);
       for (const regra of regras) {
-        const aPartirDe = toCents(regra.aPartirDeValor);
+        const aPartirDe = regra.aPartirDeValor;
         if (valorTotalCents >= aPartirDe) {
-          const valorComDesc = toCents(regra.valorCotaComDesconto);
+          const valorComDesc = regra.valorCotaComDesconto;
           if (valorComDesc > 0) {
             valorTotalCents = totalQtd * valorComDesc;
           }
@@ -310,7 +342,7 @@ app.post('/api/pedidos', async (req, res) => {
       const oferta = campanha.ofertasRelampago.find(o => o.id === ofertaRelampagoId || !o.id);
       if (oferta) {
         totalQtd += Number(oferta.cotasExtras || 0);
-        valorTotalCents += toCents(oferta.preco);
+        valorTotalCents += oferta.preco;
       }
     }
 
@@ -1385,10 +1417,10 @@ app.get('/api/admin/campanhas', firebaseAuthMiddleware, async (req, res) => {
   const comEstatisticas = await Promise.all(campanhas.map(async c => {
     const stats = await db.getEstatisticasCampanha(c.id, c.totalCotas);
     return {
-      ...c,
+      ...formatarCampanhaParaEnvio(c),
       estatisticas: {
         ...stats,
-        arrecadado: Math.round(stats.vendidas * toCents(c.valorCota))
+        arrecadado: toReais(stats.vendidas * c.valorCota)
       }
     };
   }));
@@ -1431,7 +1463,7 @@ app.post('/api/admin/campanhas', firebaseAuthMiddleware, async (req, res) => {
     );
 
     const salva = await db.saveCampanha(novaCampanha);
-    return res.status(201).json(salva);
+    return res.status(201).json(formatarCampanhaParaEnvio(salva));
   } catch (err: any) {
     console.error('Erro ao criar campanha:', err);
     return res.status(500).json({ error: 'Erro ao salvar nova campanha.' });
@@ -1461,7 +1493,7 @@ app.put('/api/admin/campanhas/:id', firebaseAuthMiddleware, async (req, res) => 
     );
 
     const salva = await db.saveCampanha(atualizada);
-    return res.json(salva);
+    return res.json(formatarCampanhaParaEnvio(salva));
   } catch (err: any) {
     console.error('Erro ao atualizar campanha:', err);
     return res.status(500).json({ error: 'Erro ao atualizar campanha.' });
@@ -1562,7 +1594,7 @@ app.get('/api/admin/pedidos', firebaseAuthMiddleware, async (req, res) => {
     const campanhaIds = new Set(campanhas.map(c => c.id));
     const todosPedidos = await db.getTodosPedidos();
     const meusPedidos = todosPedidos.filter(p => campanhaIds.has(p.campanhaId));
-    return res.json(meusPedidos);
+    return res.json(meusPedidos.map(formatarPedidoParaEnvio));
   } catch (err: any) {
     console.error('Erro ao buscar pedidos do organizador:', err);
     return res.status(500).json({ error: 'Erro ao buscar pedidos.' });

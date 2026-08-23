@@ -124,9 +124,13 @@ export interface MetaCampaign {
   cpm: number;
   ctr: number;
   impressions: number;
+  frequency: number;
+  uniqueClicks: number;
   comprasMeta: number;
   viewContent: number;
   initiateCheckout: number;
+  addPaymentInfo: number;
+  landingPageViews: number;
 }
 
 export interface MetaInsightsResult {
@@ -137,9 +141,13 @@ export interface MetaInsightsResult {
   cpm: number;
   ctr: number;
   impressions: number;
+  frequency: number;
+  uniqueClicks: number;
   comprasMeta: number;
   viewContent: number;
   initiateCheckout: number;
+  addPaymentInfo: number;
+  landingPageViews: number;
   campaigns: MetaCampaign[];
 }
 
@@ -159,11 +167,11 @@ export async function buscarInsightsMetaAds({
   }
 
   // Busca totais da conta
-  const fields = 'spend,reach,clicks,cpc,cpm,ctr,impressions,actions';
+  const fields = 'spend,reach,clicks,cpc,cpm,ctr,impressions,frequency,unique_clicks,actions';
   const urlTotal = `https://graph.facebook.com/v18.0/${actId}/insights?fields=${fields}&date_preset=maximum&access_token=${encodeURIComponent(metaAccessToken)}`;
   
   // Busca lista de campanhas e seus insights
-  const urlCampaigns = `https://graph.facebook.com/v18.0/${actId}/campaigns?fields=id,name,status,insights.date_preset(maximum){${fields}}&limit=50&access_token=${encodeURIComponent(metaAccessToken)}`;
+  const urlCampaigns = `https://graph.facebook.com/v18.0/${actId}/campaigns?fields=id,name,status,insights.date_preset(maximum){${fields}}&limit=100&access_token=${encodeURIComponent(metaAccessToken)}`;
 
   const [resTotal, resCamp] = await Promise.all([
     fetch(urlTotal),
@@ -186,10 +194,14 @@ export async function buscarInsightsMetaAds({
   const cpm = parseFloat(item.cpm || '0');
   const ctr = parseFloat(item.ctr || '0');
   const impressions = parseInt(item.impressions || '0', 10);
+  const frequency = parseFloat(item.frequency || '1');
+  const uniqueClicks = parseInt(item.unique_clicks || '0', 10);
   
   let comprasMeta = 0;
   let viewContent = 0;
   let initiateCheckout = 0;
+  let addPaymentInfo = 0;
+  let landingPageViews = 0;
 
   if (Array.isArray(item.actions)) {
     for (const a of item.actions) {
@@ -202,6 +214,10 @@ export async function buscarInsightsMetaAds({
         viewContent += val;
       } else if (type === 'initiate_checkout' || type === 'offsite_conversion.fb_pixel_initiate_checkout') {
         initiateCheckout += val;
+      } else if (type === 'add_payment_info' || type === 'offsite_conversion.fb_pixel_add_payment_info') {
+        addPaymentInfo += val;
+      } else if (type === 'landing_page_view') {
+        landingPageViews += val;
       }
     }
   }
@@ -214,6 +230,8 @@ export async function buscarInsightsMetaAds({
       let cCompras = 0;
       let cViewContent = 0;
       let cInitiateCheckout = 0;
+      let cAddPaymentInfo = 0;
+      let cLandingPageViews = 0;
 
       if (Array.isArray(cInsights.actions)) {
         for (const a of cInsights.actions) {
@@ -226,6 +244,10 @@ export async function buscarInsightsMetaAds({
             cViewContent += val;
           } else if (type === 'initiate_checkout' || type === 'offsite_conversion.fb_pixel_initiate_checkout') {
             cInitiateCheckout += val;
+          } else if (type === 'add_payment_info' || type === 'offsite_conversion.fb_pixel_add_payment_info') {
+            cAddPaymentInfo += val;
+          } else if (type === 'landing_page_view') {
+            cLandingPageViews += val;
           }
         }
       }
@@ -241,9 +263,13 @@ export async function buscarInsightsMetaAds({
         cpm: parseFloat(cInsights.cpm || '0'),
         ctr: parseFloat(cInsights.ctr || '0'),
         impressions: parseInt(cInsights.impressions || '0', 10),
+        frequency: parseFloat(cInsights.frequency || '1'),
+        uniqueClicks: parseInt(cInsights.unique_clicks || '0', 10),
         comprasMeta: cCompras,
         viewContent: cViewContent,
-        initiateCheckout: cInitiateCheckout
+        initiateCheckout: cInitiateCheckout,
+        addPaymentInfo: cAddPaymentInfo,
+        landingPageViews: cLandingPageViews
       });
     }
   }
@@ -259,9 +285,13 @@ export async function buscarInsightsMetaAds({
     cpm,
     ctr,
     impressions,
+    frequency,
+    uniqueClicks,
     comprasMeta,
     viewContent,
     initiateCheckout,
+    addPaymentInfo,
+    landingPageViews,
     campaigns
   };
 }
@@ -293,9 +323,13 @@ export async function buscarInsightsDeVariasContas({
     cpm: 0,
     ctr: 0,
     impressions: 0,
+    frequency: 1,
+    uniqueClicks: 0,
     comprasMeta: 0,
     viewContent: 0,
     initiateCheckout: 0,
+    addPaymentInfo: 0,
+    landingPageViews: 0,
     campaigns: []
   };
 
@@ -304,11 +338,16 @@ export async function buscarInsightsDeVariasContas({
     aggregate.reach += r.reach;
     aggregate.clicks += r.clicks;
     aggregate.impressions += r.impressions;
+    aggregate.uniqueClicks += r.uniqueClicks;
     aggregate.comprasMeta += r.comprasMeta;
     aggregate.viewContent += r.viewContent;
     aggregate.initiateCheckout += r.initiateCheckout;
+    aggregate.addPaymentInfo += r.addPaymentInfo;
+    aggregate.landingPageViews += r.landingPageViews;
     aggregate.campaigns.push(...r.campaigns);
   }
+
+  aggregate.frequency = aggregate.reach > 0 ? (aggregate.impressions / aggregate.reach) : 1;
 
   aggregate.cpc = aggregate.clicks > 0 ? (aggregate.spend / aggregate.clicks) : 0;
   aggregate.cpm = aggregate.impressions > 0 ? (aggregate.spend / (aggregate.impressions / 1000)) : 0;

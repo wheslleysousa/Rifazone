@@ -396,6 +396,7 @@ export interface ConfigOrganizador {
     chavePixRecebimento?: string;
     isencaoTaxaPublicacao?: boolean;
     nome?: string;
+    dataNascimento?: string;
     email?: string;
     documento?: string;
     tipoChavePix?: 'cpf' | 'cnpj' | 'email' | 'telefone' | 'aleatoria';

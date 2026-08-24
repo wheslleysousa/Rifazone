@@ -42,6 +42,7 @@ export const MetodosPagamentoView: React.FC<MetodosPagamentoViewProps> = ({
   const [carteiraTaxaPct, setCarteiraTaxaPct] = useState(5.0);
   const [carteiraTaxaSaque, setCarteiraTaxaSaque] = useState(4.50);
   const [carteiraNome, setCarteiraNome] = useState('');
+  const [carteiraDataNascimento, setCarteiraDataNascimento] = useState('');
   const [carteiraEmail, setCarteiraEmail] = useState('');
   const [carteiraDocumento, setCarteiraDocumento] = useState('');
   const [carteiraTipoPix, setCarteiraTipoPix] = useState<'cpf' | 'cnpj' | 'email' | 'telefone' | 'aleatoria'>('cpf');
@@ -109,6 +110,7 @@ export const MetodosPagamentoView: React.FC<MetodosPagamentoViewProps> = ({
           setCarteiraTaxaPct(data.carteiraConfig.taxaVendaPct ?? 5.0);
           setCarteiraTaxaSaque(data.carteiraConfig.taxaSaqueImediato ?? 4.50);
           setCarteiraNome(data.carteiraConfig.nome || data.nomeIdentificacao || '');
+          setCarteiraDataNascimento(data.carteiraConfig.dataNascimento || '');
           setCarteiraEmail(data.carteiraConfig.email || data.emailSuporte || '');
           setCarteiraDocumento(data.carteiraConfig.documento || '');
           setCarteiraTipoPix(data.carteiraConfig.tipoChavePix || 'cpf');
@@ -222,6 +224,7 @@ export const MetodosPagamentoView: React.FC<MetodosPagamentoViewProps> = ({
           taxaVendaPct: Number(carteiraTaxaPct),
           taxaSaqueImediato: Number(carteiraTaxaSaque),
           nome: carteiraNome.trim(),
+          dataNascimento: carteiraDataNascimento.trim(),
           email: carteiraEmail.trim(),
           documento: carteiraDocumento.trim(),
           tipoChavePix: carteiraTipoPix,
@@ -295,8 +298,8 @@ export const MetodosPagamentoView: React.FC<MetodosPagamentoViewProps> = ({
   };
 
   const gateways = [
-    { id: 'carteira', nome: 'Carteira do Sistema', tag: 'Efí Pay Integrada', desc: 'Isenção de chave API. Receba via Efí Pay com saldo em conta e saques automáticos no Pix.', icon: <Wallet className="w-5 h-5 text-emerald-400" /> },
-    { id: 'mercadopago', nome: 'Mercado Pago', tag: 'OAuth & API', desc: 'Conexão instantânea com liberação rápida dos pagamentos.', icon: <Zap className="w-5 h-5 text-blue-400" /> },
+    { id: 'carteira', nome: 'Carteira do Sistema', tag: 'Sistema do App', desc: 'O sistema do próprio aplicativo fará a transferência direta para a sua conta / chave Pix cadastrada.', icon: <Wallet className="w-5 h-5 text-emerald-400" /> },
+    { id: 'mercadopago', nome: 'Mercado Pago', tag: 'OAuth & API', desc: 'Conexão instantânea com liberação rápida dos pagamentos. Taxa padrão do gateway.', icon: <Zap className="w-5 h-5 text-blue-400" /> },
     ...(isAdminUser ? [{ id: 'efipay', nome: 'Efí Pay (Própria)', tag: 'API Direta (Admin)', desc: 'Sua conta Efí Pay individual com chaves de API próprias.', icon: <ShieldCheck className="w-5 h-5 text-orange-400" /> }] : []),
     { id: 'pushinpay', nome: 'PushinPay', tag: 'Gateway Especializado', desc: 'Baixa instantânea focada no ecossistema de campanhas e cotas.', icon: <ExternalLink className="w-5 h-5 text-indigo-400" /> },
     { id: 'pay2m', nome: 'Pay2M', tag: 'Baixa Automática', desc: 'Processamento Pix de alta velocidade com conciliação em tempo real.', icon: <CreditCard className="w-5 h-5 text-teal-400" /> },
@@ -305,6 +308,35 @@ export const MetodosPagamentoView: React.FC<MetodosPagamentoViewProps> = ({
     { id: 'paggo365', nome: 'Paggo365', tag: 'Especial Rifa', desc: 'Gateway projetado para sorteios com alta volumetria.', icon: <Globe className="w-5 h-5 text-rose-400" /> },
     { id: 'crypto', nome: 'Cripto / Web3', tag: 'USDT TRC20 / BEP20', desc: 'Aceite pagamentos descentralizados em criptomoedas.', icon: <Coins className="w-5 h-5 text-amber-400" /> },
   ];
+
+  const isGatewayConnected = (id: string) => {
+    if (id === 'carteira') return carteiraStatus === 'aprovado';
+    if (id === 'mercadopago') return Boolean(mpAccessToken.trim());
+    if (id === 'pushinpay') return Boolean(pushinToken.trim());
+    if (id === 'pay2m') return Boolean(pay2mClientId.trim() && pay2mSecretKey.trim());
+    if (id === 'paggue') return Boolean(paggueClientId.trim() && paggueClientSecret.trim());
+    if (id === 'zettpay') return Boolean(zettpayApiKey.trim());
+    if (id === 'paggo365') return Boolean(paggoApiKey.trim());
+    if (id === 'crypto') return Boolean(cryptoWallet.trim());
+    if (id === 'efipay') return Boolean(efiClientId.trim());
+    return false;
+  };
+
+  const handleDesconectar = async (gatewayId: string) => {
+    if (gatewayId === 'mercadopago') { setMpAccessToken(''); setMpPublicKey(''); }
+    if (gatewayId === 'pushinpay') { setPushinToken(''); }
+    if (gatewayId === 'pay2m') { setPay2mClientId(''); setPay2mSecretKey(''); }
+    if (gatewayId === 'paggue') { setPaggueClientId(''); setPaggueClientSecret(''); }
+    if (gatewayId === 'zettpay') { setZettpayApiKey(''); }
+    if (gatewayId === 'paggo365') { setPaggoApiKey(''); }
+    if (gatewayId === 'crypto') { setCryptoWallet(''); }
+    if (gatewayId === 'efipay') { setEfiClientId(''); setEfiClientSecret(''); setEfiChavePix(''); }
+    
+    if (metodoAtivo === gatewayId) {
+      setMetodoAtivo('carteira');
+    }
+    await handleSalvar(metodoAtivo === gatewayId ? 'carteira' : metodoAtivo, true);
+  };
 
   const webhookBaseUrl = window.location.origin;
   const gatewayAbertoInfo = gateways.find(g => g.id === modalGateway);
@@ -373,6 +405,7 @@ export const MetodosPagamentoView: React.FC<MetodosPagamentoViewProps> = ({
         {gateways.map(g => {
           const isAtivo = metodoAtivo === g.id;
           const isCarteira = g.id === 'carteira';
+          const connected = isGatewayConnected(g.id);
 
           return (
             <div
@@ -396,11 +429,15 @@ export const MetodosPagamentoView: React.FC<MetodosPagamentoViewProps> = ({
                     {g.icon}
                   </div>
                   <span className={`text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider ${
-                    isAtivo 
-                      ? 'bg-emerald-500 text-slate-950 shadow-sm shadow-emerald-500/30' 
-                      : 'bg-slate-800 text-slate-400 border border-slate-700'
+                    isCarteira && !carteiraStatus
+                      ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30'
+                      : isAtivo 
+                        ? 'bg-emerald-500 text-slate-950 shadow-sm shadow-emerald-500/30' 
+                        : connected
+                          ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                          : 'bg-slate-800 text-slate-400 border border-slate-700'
                   }`}>
-                    {isAtivo ? 'ATIVO NO SITE' : g.tag}
+                    {isCarteira && !carteiraStatus ? 'PENDENTE SOLICITAÇÃO' : isAtivo ? 'ATIVO NO SITE' : connected ? 'CONECTADO' : g.tag}
                   </span>
                 </div>
 
@@ -409,54 +446,123 @@ export const MetodosPagamentoView: React.FC<MetodosPagamentoViewProps> = ({
                 </h4>
                 <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">{g.desc}</p>
 
-                {isCarteira && carteiraChavePix && (
+                {isCarteira && carteiraStatus === 'aprovado' && carteiraChavePix && (
                   <div className="mt-3 p-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-[11px] text-emerald-300 flex items-center gap-1.5 font-mono">
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                     <span className="truncate">Pix de Saque: {carteiraChavePix}</span>
                   </div>
                 )}
+
+                {isCarteira && carteiraStatus === 'pendente' && (
+                  <div className="mt-3 p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-[11px] text-amber-300 flex items-center gap-2">
+                    <RefreshCw className="w-3.5 h-3.5 text-amber-400 animate-spin shrink-0" />
+                    <span>Aguardando confirmação (até 24h)</span>
+                  </div>
+                )}
               </div>
 
               <div className="mt-5 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setModalGateway(g.id as MetodoPagamentoAtivo);
-                  }}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/20 rounded-xl font-bold transition"
-                >
-                  <Settings className="w-3.5 h-3.5" />
-                  {isCarteira ? 'Meu Cadastro / Dados' : 'Configurar'}
-                </button>
+                {isCarteira ? (
+                  <>
+                    {!carteiraStatus ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setModalGateway('carteira');
+                        }}
+                        className="w-full py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black rounded-xl text-center transition shadow-md"
+                      >
+                        Fazer Solicitação
+                      </button>
+                    ) : carteiraStatus === 'pendente' ? (
+                      <span className="w-full text-center text-xs font-bold text-amber-400 py-1">
+                        Aguardando Aprovação (Até 24h)
+                      </span>
+                    ) : carteiraStatus === 'rejeitado' ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setModalGateway('carteira');
+                        }}
+                        className="w-full py-2 bg-rose-500 hover:bg-rose-400 text-white text-xs font-bold rounded-xl text-center transition"
+                      >
+                        Fazer Nova Solicitação
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setModalGateway('carteira');
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/20 rounded-xl font-bold transition"
+                        >
+                          <Settings className="w-3.5 h-3.5" />
+                          Meu Cadastro / Dados
+                        </button>
 
-                {isCarteira && onAbrirCarteira ? (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onAbrirCarteira();
-                    }}
-                    className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black rounded-xl shadow-md transition"
-                  >
-                    <span>Minha Carteira</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
+                        {onAbrirCarteira && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onAbrirCarteira();
+                            }}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black rounded-xl shadow-md transition"
+                          >
+                            <span>Minha Carteira</span>
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleSalvar(g.id as MetodoPagamentoAtivo, false);
-                    }}
-                    className={`text-xs font-bold transition px-2.5 py-1 rounded-lg ${
-                      isAtivo
-                        ? 'text-emerald-400 font-black'
-                        : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                    }`}
-                  >
-                    {isAtivo ? '✓ Principal' : 'Ativar no Site'}
-                  </button>
+                  <>
+                    {connected ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setModalGateway(g.id as MetodoPagamentoAtivo);
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/20 rounded-xl font-bold transition"
+                        >
+                          <Settings className="w-3.5 h-3.5" />
+                          Gerenciar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSalvar(g.id as MetodoPagamentoAtivo, false);
+                          }}
+                          className={`text-xs font-bold transition px-2.5 py-1 rounded-lg ${
+                            isAtivo
+                              ? 'text-emerald-400 font-black'
+                              : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                          }`}
+                        >
+                          {isAtivo ? '✓ Principal' : 'Usar como Padrão'}
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setModalGateway(g.id as MetodoPagamentoAtivo);
+                        }}
+                        className="w-full py-2 bg-sky-500 hover:bg-sky-400 text-slate-950 text-xs font-black rounded-xl text-center transition shadow-md"
+                      >
+                        Conectar
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -479,10 +585,13 @@ export const MetodosPagamentoView: React.FC<MetodosPagamentoViewProps> = ({
                 </div>
                 <div>
                   <h3 className="text-base font-black text-white flex items-center gap-2">
-                    Configurar {gatewayAbertoInfo?.nome}
+                    {modalGateway === 'carteira' && carteiraStatus !== 'aprovado' ? 'Solicitar Acesso à' : 'Configurar'} {gatewayAbertoInfo?.nome}
                   </h3>
                   <p className="text-xs text-slate-400">
-                    Defina suas credenciais e parâmetros operacionais.
+                    {modalGateway === 'carteira' && carteiraStatus !== 'aprovado' 
+                      ? 'Preencha os dados abaixo para receber transferências diretas.'
+                      : 'Gerencie sua conexão e credenciais de pagamento.'
+                    }
                   </p>
                 </div>
               </div>
@@ -497,30 +606,32 @@ export const MetodosPagamentoView: React.FC<MetodosPagamentoViewProps> = ({
 
             {/* Modal Body */}
             <div className="p-5 sm:p-6 overflow-y-auto space-y-5 custom-scrollbar">
-              {/* Opção de Ativar como Gateway Principal */}
-              <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl flex items-center justify-between gap-4">
-                <div>
-                  <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                    Definir como Gateway Ativo no Site
-                  </h4>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
-                    Quando ativo, todos os pagamentos Pix do site serão processados por este método.
-                  </p>
+              {/* Opção de Ativar como Gateway Principal (Apenas se for carteira aprovada ou outro gateway conectado) */}
+              {(modalGateway !== 'carteira' || carteiraStatus === 'aprovado') && (
+                <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl flex items-center justify-between gap-4">
+                  <div>
+                    <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                      Definir como Gateway Ativo no Site
+                    </h4>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Quando ativo, todos os pagamentos Pix do site serão processados por este método.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setMetodoAtivo(modalGateway)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-black transition border flex items-center gap-1.5 ${
+                      metodoAtivo === modalGateway
+                        ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-md shadow-emerald-500/20'
+                        : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+                    }`}
+                  >
+                    {metodoAtivo === modalGateway ? <Check className="w-3.5 h-3.5" /> : null}
+                    {metodoAtivo === modalGateway ? 'Método Ativo' : 'Tornar Ativo'}
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setMetodoAtivo(modalGateway)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition border flex items-center gap-1.5 ${
-                    metodoAtivo === modalGateway
-                      ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-md shadow-emerald-500/20'
-                      : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
-                  }`}
-                >
-                  {metodoAtivo === modalGateway ? <Check className="w-3.5 h-3.5" /> : null}
-                  {metodoAtivo === modalGateway ? 'Método Ativo' : 'Tornar Ativo'}
-                </button>
-              </div>
+              )}
 
               {/* 1. CARTEIRA DO SISTEMA (EFÍ PAY INTEGRADA) */}
               {modalGateway === 'carteira' && (
@@ -550,85 +661,363 @@ export const MetodosPagamentoView: React.FC<MetodosPagamentoViewProps> = ({
                   
                   {/* CADASTRO DE CONTA NA CARTEIRA */}
                   <div className="mt-4">
-                    {carteiraChavePix ? (
+                    {carteiraStatus === 'aprovado' ? (
                       <div className="p-4 bg-emerald-950/40 border border-emerald-500/40 rounded-2xl space-y-4">
                         <div className="flex items-center justify-between">
-                          <h5 className="text-xs font-black text-white uppercase tracking-wider">Sua Conta está Ativa</h5>
+                          <h5 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-400"/> Conta Aprovada
+                          </h5>
                         </div>
                         <div className="bg-slate-900/80 p-3.5 rounded-xl border border-slate-800 text-xs space-y-2">
                           <div className="flex justify-between"><span className="text-slate-400">Titular:</span> <span className="text-white font-bold">{carteiraNome}</span></div>
+                          <div className="flex justify-between"><span className="text-slate-400">CPF/CNPJ:</span> <span className="text-white font-bold">{carteiraDocumento}</span></div>
                           <div className="flex justify-between"><span className="text-slate-400">Chave Pix:</span> <span className="text-emerald-400 font-bold">{carteiraChavePix}</span></div>
                         </div>
                         <div className="flex justify-end gap-2">
-                          <button
-                            type="button"
-                            onClick={() => { setCarteiraChavePix(''); setCarteiraNome(''); }}
-                            className="px-4 py-2 bg-red-500/20 text-red-400 rounded-xl text-xs font-bold"
-                          >
-                            Excluir Conta
-                          </button>
                           <button
                             type="button"
                             onClick={() => {
                               setModalGateway(null);
                               if (onAbrirCarteira) onAbrirCarteira();
                             }}
-                            className="px-4 py-2 bg-emerald-500 text-slate-950 rounded-xl text-xs font-bold"
+                            className="px-4 py-2 bg-emerald-500 text-slate-950 rounded-xl text-xs font-bold w-full sm:w-auto"
                           >
-                            Abrir Carteira
+                            Abrir Minha Carteira
                           </button>
                         </div>
                       </div>
+                    ) : carteiraStatus === 'pendente' ? (
+                      <div className="p-6 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-center space-y-3">
+                        <RefreshCw className="w-10 h-10 text-amber-400 mx-auto animate-spin" />
+                        <div>
+                          <h4 className="text-sm font-black text-amber-300">Aguardando Confirmação</h4>
+                          <p className="text-xs text-slate-300 mt-2 leading-relaxed">
+                            Sua solicitação de uso da carteira foi enviada com sucesso. <br />
+                            <strong>Aguardando confirmação, esse processo pode levar até 24 horas.</strong>
+                          </p>
+                        </div>
+                      </div>
+                    ) : carteiraStatus === 'rejeitado' ? (
+                      <div className="p-6 bg-rose-500/10 border border-rose-500/30 rounded-2xl text-center space-y-3">
+                        <X className="w-10 h-10 text-rose-400 mx-auto" />
+                        <div>
+                          <h4 className="text-sm font-black text-rose-300">Solicitação Rejeitada</h4>
+                          <p className="text-xs text-slate-300 mt-1">Infelizmente sua solicitação não foi aprovada pelo administrador.</p>
+                        </div>
+                        <button onClick={() => setCarteiraStatus('')} className="px-4 py-2 mt-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold">Fazer Nova Solicitação</button>
+                      </div>
                     ) : (
                       <div className="p-4 bg-slate-950/50 border border-slate-800 rounded-2xl space-y-4">
-                        <h5 className="text-sm font-black text-white">Criar Conta na Carteira</h5>
+                        <h5 className="text-sm font-black text-white">Solicitar Acesso à Carteira do Sistema</h5>
                         <div className="space-y-3">
-                          <div className="space-y-1">
-                            <label className="text-[11px] font-bold text-slate-300">Nome Completo do Titular *</label>
-                            <input
-                              type="text"
-                              value={carteiraNome}
-                              onChange={e => setCarteiraNome(e.target.value)}
-                              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
-                            />
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <label className="text-[11px] font-bold text-slate-300">Nome Completo *</label>
+                              <input
+                                type="text"
+                                value={carteiraNome}
+                                onChange={e => setCarteiraNome(e.target.value)}
+                                placeholder="Seu nome completo"
+                                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[11px] font-bold text-slate-300">Data de Nascimento *</label>
+                              <input
+                                type="date"
+                                value={carteiraDataNascimento}
+                                onChange={e => setCarteiraDataNascimento(e.target.value)}
+                                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[11px] font-bold text-slate-300">E-mail *</label>
+                              <input
+                                type="email"
+                                value={carteiraEmail}
+                                onChange={e => setCarteiraEmail(e.target.value)}
+                                placeholder="seu@email.com"
+                                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[11px] font-bold text-slate-300">CPF ou CNPJ *</label>
+                              <input
+                                type="text"
+                                value={carteiraDocumento}
+                                onChange={e => setCarteiraDocumento(e.target.value)}
+                                placeholder="000.000.000-00"
+                                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                              />
+                            </div>
+                            <div className="space-y-1 sm:col-span-2">
+                              <label className="text-[11px] font-bold text-slate-300">Número de Celular (WhatsApp) *</label>
+                              <input
+                                type="text"
+                                value={carteiraTelefone}
+                                onChange={e => setCarteiraTelefone(e.target.value)}
+                                placeholder="(00) 00000-0000"
+                                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                              />
+                            </div>
                           </div>
-                          <div className="space-y-1">
-                            <label className="text-[11px] font-bold text-slate-300">Documento (CPF/CNPJ)</label>
-                            <input
-                              type="text"
-                              value={carteiraDocumento}
-                              onChange={e => setCarteiraDocumento(e.target.value)}
-                              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
-                            />
+
+                          <div className="space-y-3 pt-3 border-t border-slate-800">
+                            <div className="space-y-1">
+                              <label className="text-[11px] font-bold text-slate-300 block">Tipo de Chave Pix para Saque *</label>
+                              <select
+                                value={carteiraTipoPix}
+                                onChange={e => setCarteiraTipoPix(e.target.value as any)}
+                                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                              >
+                                <option value="cpf">CPF</option>
+                                <option value="cnpj">CNPJ</option>
+                                <option value="email">E-mail</option>
+                                <option value="telefone">Telefone</option>
+                                <option value="aleatoria">Chave Aleatória</option>
+                              </select>
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[11px] font-bold text-slate-300">Chave Pix Correspondente *</label>
+                              <input
+                                type="text"
+                                value={carteiraChavePix}
+                                onChange={e => setCarteiraChavePix(e.target.value)}
+                                placeholder="Digite sua chave pix aqui"
+                                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:border-emerald-500 focus:outline-none"
+                              />
+                            </div>
                           </div>
-                          <div className="space-y-1">
-                            <label className="text-[11px] font-bold text-slate-300">Chave Pix para Saques *</label>
-                            <input
-                              type="text"
-                              value={carteiraChavePix}
-                              onChange={e => setCarteiraChavePix(e.target.value)}
-                              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:border-emerald-500 focus:outline-none"
-                            />
-                          </div>
+
                           <button
                             type="button"
-                            disabled={salvando || !carteiraChavePix || !carteiraNome}
+                            disabled={salvando || !carteiraChavePix || !carteiraNome || !carteiraDocumento || !carteiraEmail || !carteiraTelefone}
                             onClick={async () => {
-                              await handleSalvar('carteira', false);
-                              if (onAbrirCarteira) {
-                                setModalGateway(null);
-                                onAbrirCarteira();
-                              }
+                              setCarteiraStatus('pendente');
+                              await handleSalvar('carteira', true);
                             }}
-                            className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 text-xs font-black rounded-xl"
+                            className="w-full py-3.5 mt-2 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 text-xs font-black rounded-xl shadow-lg shadow-emerald-500/20 transition flex items-center justify-center gap-2"
                           >
-                            Concluir Cadastro
+                            {salvando ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                            Fazer Solicitação
                           </button>
                         </div>
                       </div>
                     )}
                   </div>
 
+                </div>
+              )}
+
+              {/* OUTROS GATEWAYS DE PAGAMENTO */}
+              {modalGateway && modalGateway !== 'carteira' && (
+                <div className="space-y-4">
+                  <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl flex items-center justify-between">
+                    <div>
+                      <h5 className="text-xs font-black text-white flex items-center gap-1.5">
+                        Status da Conexão: {isGatewayConnected(modalGateway) ? (
+                          <span className="text-emerald-400 inline-flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" /> Conectado</span>
+                        ) : (
+                          <span className="text-slate-400 inline-flex items-center gap-1"><AlertCircle className="w-3.5 h-3.5" /> Desconectado</span>
+                        )}
+                      </h5>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Insira abaixo as credenciais de API fornecidas pelo seu gateway.
+                      </p>
+                    </div>
+                    {isGatewayConnected(modalGateway) && (
+                      <button
+                        type="button"
+                        onClick={() => handleDesconectar(modalGateway)}
+                        className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-xs font-bold rounded-xl transition"
+                      >
+                        Desconectar
+                      </button>
+                    )}
+                  </div>
+
+                  {modalGateway === 'mercadopago' && (
+                    <div className="space-y-3">
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-slate-300">Access Token (Mercado Pago)</label>
+                        <input
+                          type="password"
+                          value={mpAccessToken}
+                          onChange={e => setMpAccessToken(e.target.value)}
+                          placeholder="APP_USR-..."
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:border-emerald-500 focus:outline-none"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-slate-300">Public Key (Opcional)</label>
+                        <input
+                          type="text"
+                          value={mpPublicKey}
+                          onChange={e => setMpPublicKey(e.target.value)}
+                          placeholder="APP_USR-..."
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:border-emerald-500 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {modalGateway === 'pushinpay' && (
+                    <div className="space-y-3">
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-slate-300">Token de API (PushinPay)</label>
+                        <input
+                          type="password"
+                          value={pushinToken}
+                          onChange={e => setPushinToken(e.target.value)}
+                          placeholder="Bearer Token..."
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:border-emerald-500 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {modalGateway === 'pay2m' && (
+                    <div className="space-y-3">
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-slate-300">Client ID / API Key (Pay2M)</label>
+                        <input
+                          type="text"
+                          value={pay2mClientId}
+                          onChange={e => setPay2mClientId(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:border-emerald-500 focus:outline-none"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-slate-300">Secret Key (Pay2M)</label>
+                        <input
+                          type="password"
+                          value={pay2mSecretKey}
+                          onChange={e => setPay2mSecretKey(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:border-emerald-500 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {modalGateway === 'paggue' && (
+                    <div className="space-y-3">
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-slate-300">Client ID (Paggue)</label>
+                        <input
+                          type="text"
+                          value={paggueClientId}
+                          onChange={e => setPaggueClientId(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:border-emerald-500 focus:outline-none"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-slate-300">Client Secret (Paggue)</label>
+                        <input
+                          type="password"
+                          value={paggueClientSecret}
+                          onChange={e => setPaggueClientSecret(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:border-emerald-500 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {modalGateway === 'zettpay' && (
+                    <div className="space-y-3">
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-slate-300">API Key (ZettPay)</label>
+                        <input
+                          type="password"
+                          value={zettpayApiKey}
+                          onChange={e => setZettpayApiKey(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:border-emerald-500 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {modalGateway === 'paggo365' && (
+                    <div className="space-y-3">
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-slate-300">API Key (Paggo365)</label>
+                        <input
+                          type="password"
+                          value={paggoApiKey}
+                          onChange={e => setPaggoApiKey(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:border-emerald-500 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {modalGateway === 'crypto' && (
+                    <div className="space-y-3">
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-slate-300">Endereço da Carteira USDT</label>
+                        <input
+                          type="text"
+                          value={cryptoWallet}
+                          onChange={e => setCryptoWallet(e.target.value)}
+                          placeholder="0x... ou T..."
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:border-emerald-500 focus:outline-none"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-slate-300">Rede</label>
+                        <select
+                          value={cryptoNetwork}
+                          onChange={e => setCryptoNetwork(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                        >
+                          <option value="TRC20">TRC20 (Tron)</option>
+                          <option value="BEP20">BEP20 (Binance Smart Chain)</option>
+                          <option value="ERC20">ERC20 (Ethereum)</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+
+                  {modalGateway === 'efipay' && (
+                    <div className="space-y-3">
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-slate-300">Client ID (Efí Pay)</label>
+                        <input
+                          type="text"
+                          value={efiClientId}
+                          onChange={e => setEfiClientId(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:border-emerald-500 focus:outline-none"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-slate-300">Client Secret (Efí Pay)</label>
+                        <input
+                          type="password"
+                          value={efiClientSecret}
+                          onChange={e => setEfiClientSecret(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:border-emerald-500 focus:outline-none"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-slate-300">Chave Pix</label>
+                        <input
+                          type="text"
+                          value={efiChavePix}
+                          onChange={e => setEfiChavePix(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:border-emerald-500 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    disabled={salvando}
+                    onClick={() => handleSalvar(modalGateway as MetodoPagamentoAtivo, true)}
+                    className="w-full py-3.5 mt-2 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 text-xs font-black rounded-xl shadow-lg shadow-emerald-500/20 transition flex items-center justify-center gap-2"
+                  >
+                    {salvando ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                    Salvar e Conectar
+                  </button>
                 </div>
               )}
             </div>

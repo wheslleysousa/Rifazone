@@ -2,6 +2,18 @@ import express, { Request, Response, NextFunction } from 'express';
 import path from 'path';
 import crypto from 'crypto';
 
+const originalConsoleError = console.error;
+console.error = function (...args) {
+  if (args.some(arg => arg && typeof arg === 'object' && arg.message && typeof arg.message === 'string' && arg.message.includes('RESOURCE_EXHAUSTED'))) {
+    return;
+  }
+  if (args.some(arg => typeof arg === 'string' && arg.includes('RESOURCE_EXHAUSTED'))) {
+    return;
+  }
+  originalConsoleError.apply(console, args);
+};
+
+
 process.on('uncaughtException', (err: any) => {
   if (err && err.message && err.message.includes('RESOURCE_EXHAUSTED')) return;
   console.error('[UNCAUGHT EXCEPTION]', err);
@@ -1734,7 +1746,7 @@ app.get('/api/admin/meta/insights', firebaseAuthMiddleware, async (req, res) => 
       }
     });
   } catch (err: any) {
-    console.error('Erro ao consultar Marketing API do Meta:', err);
+    if (err && err.message && err.message.includes('RESOURCE_EXHAUSTED')) {} else { console.error('Erro ao consultar Marketing API do Meta:', err); }
     return res.status(500).json({
       conectado: false,
       error: err.message || 'Erro ao comunicar com a Marketing API da Meta.'
@@ -2009,7 +2021,7 @@ app.get('/api/admin/checkouts', firebaseAuthMiddleware, async (req, res) => {
     const checkouts = await db.listarCheckouts((req as any).userId);
     return res.json(checkouts);
   } catch (err: any) {
-    console.error('Erro ao listar checkouts:', err);
+    if (err && err.message && err.message.includes('RESOURCE_EXHAUSTED')) {} else { console.error('Erro ao listar checkouts:', err); }
     return res.status(500).json({ error: 'Erro ao listar checkouts salvos.' });
   }
 });

@@ -25,10 +25,13 @@ export interface DadosConfig {
     taxaSaqueImediato?: number;
     chavePixRecebimento?: string;
     nome?: string;
+    dataNascimento?: string;
     email?: string;
     documento?: string;
+    telefone?: string;
     tipoChavePix?: 'cpf' | 'cnpj' | 'email' | 'telefone' | 'aleatoria';
     chavePix?: string;
+    status?: 'pendente' | 'aprovado' | 'rejeitado';
     taxasPersonalizadas?: Record<string, {
       taxaVendaPct?: number;
       taxaSaqueImediato?: number;

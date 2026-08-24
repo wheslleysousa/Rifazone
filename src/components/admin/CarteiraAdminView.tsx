@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldCheck, Check, X, Clock, RefreshCw, Wallet, Users, ArrowUpRight, Settings } from 'lucide-react';
+import { ShieldCheck, Check, X, Clock, RefreshCw, Wallet, Users, ArrowUpRight, Settings, User } from 'lucide-react';
 
 interface CarteiraAdminViewProps {
   authFetch: (url: string, options?: RequestInit) => Promise<Response>;
@@ -16,6 +16,50 @@ export const CarteiraAdminView: React.FC<CarteiraAdminViewProps> = ({ authFetch 
   const [msgErro, setMsgErro] = useState('');
   const [usuarios, setUsuarios] = useState<any[]>([]);
   const [carregandoUsuarios, setCarregandoUsuarios] = useState(false);
+  const [usuariosCarteira, setUsuariosCarteira] = useState<any[]>([]);
+  const [usuariosExpandido, setUsuariosExpandido] = useState(false);
+
+  const carregarUsuariosCarteira = async () => {
+    setCarregandoUsuarios(true);
+    try {
+      const res = await authFetch('/api/admin/usuarios/carteira');
+      if (res.ok) {
+        const data = await res.json();
+        setUsuariosCarteira(data.usuarios || []);
+        if (data.taxasPersonalizadas) {
+          setTaxasPersonalizadasMap(data.taxasPersonalizadas);
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao carregar usuários da carteira:', err);
+    } finally {
+      setCarregandoUsuarios(false);
+    }
+  };
+
+  const handleSalvarUserTaxaDirect = async (targetUser: string, taxaVendaPct: number, taxaSaqueImediato: number) => {
+    try {
+      const res = await authFetch('/api/admin/usuarios/taxa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          targetUser,
+          taxaVendaPct,
+          taxaSaqueImediato,
+          observacao: 'Taxa atualizada via painel de usuários'
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.taxasPersonalizadas) {
+        setTaxasPersonalizadasMap(data.taxasPersonalizadas);
+        setMsgSucesso(`Taxas do usuário ${targetUser} atualizadas com sucesso!`);
+      } else {
+        setMsgErro(data.error || 'Erro ao atualizar taxa.');
+      }
+    } catch (err: any) {
+      setMsgErro(err.message || 'Erro ao conectar ao servidor.');
+    }
+  };
 
 
   const [efiClientId, setEfiClientId] = useState('');
@@ -348,6 +392,119 @@ export const CarteiraAdminView: React.FC<CarteiraAdminViewProps> = ({ authFetch 
             </div>
           </div>
         )}
+
+        {/* LISTA DE USUÁRIOS DA CARTEIRA / CONECTADOS */}
+        <div className="mt-6 pt-6 border-t border-slate-800 space-y-4">
+          <button
+            type="button"
+            onClick={() => {
+              setUsuariosExpandido(!usuariosExpandido);
+              if (!usuariosExpandido && usuariosCarteira.length === 0) {
+                carregarUsuariosCarteira();
+              }
+            }}
+            className="w-full py-3.5 px-4 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-2xl text-xs font-black text-white flex items-center justify-between transition shadow-md"
+          >
+            <span className="flex items-center gap-2">
+              <User className="w-4 h-4 text-emerald-400" />
+              👥 Usuários da Carteira do Sistema / Usuários Conectados
+            </span>
+            <span className="text-xs text-emerald-400 font-bold">
+              {usuariosExpandido ? '▲ Ocultar' : '▼ Expandir e Gerenciar'}
+            </span>
+          </button>
+
+          {usuariosExpandido && (
+            <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-4 animate-in fade-in">
+              <div className="flex items-center justify-between">
+                <h6 className="text-xs font-black text-white">Usuários Cadastrados ({usuariosCarteira.length})</h6>
+                <button
+                  type="button"
+                  onClick={carregarUsuariosCarteira}
+                  className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-bold rounded-lg flex items-center gap-1"
+                >
+                  <RefreshCw className={`w-3 h-3 ${carregandoUsuarios ? 'animate-spin' : ''}`} />
+                  Atualizar
+                </button>
+              </div>
+
+              {carregandoUsuarios ? (
+                <div className="py-6 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
+                  <RefreshCw className="w-4 h-4 animate-spin text-emerald-400" /> Carregando usuários...
+                </div>
+              ) : usuariosCarteira.length === 0 ? (
+                <div className="py-6 text-center text-xs text-slate-400">Nenhum usuário cadastrado na carteira ainda.</div>
+              ) : (
+                <div className="space-y-3 max-h-[400px] overflow-y-auto custom-scrollbar pr-1">
+                  {usuariosCarteira.map((u, idx) => {
+                    const custom = taxasPersonalizadasMap[u.ownerId.toLowerCase()] || {};
+                    return (
+                      <div key={idx} className="p-3.5 bg-slate-900 border border-slate-800 rounded-xl space-y-3 text-xs">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div>
+                            <p className="font-black text-white">{u.carteiraConfig?.nome || u.ownerId}</p>
+                            <p className="text-[11px] text-slate-400">{u.carteiraConfig?.email || u.ownerId}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                              {u.qtdCampanhas} Campanhas
+                            </span>
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                              R$ {(u.faturamentoTotal || 0).toFixed(2)} Faturados
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] text-slate-300 bg-slate-950 p-2.5 rounded-lg border border-slate-800">
+                          <div><span className="text-slate-500 block">CPF/CNPJ:</span> <span className="font-mono text-white">{u.carteiraConfig?.documento || '-'}</span></div>
+                          <div><span className="text-slate-500 block">Celular:</span> <span className="text-white">{u.carteiraConfig?.telefone || '-'}</span></div>
+                          <div className="col-span-2"><span className="text-slate-500 block">Chave Pix:</span> <span className="font-mono text-emerald-400 truncate block">{u.carteiraConfig?.chavePix || 'Não cadastrada'}</span></div>
+                        </div>
+
+                        {/* Editar Taxa Personalizada do Usuário */}
+                        <div className="pt-2 border-t border-slate-800 flex flex-col sm:flex-row items-center gap-2">
+                          <div className="flex-1 w-full grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-400 block">Taxa Venda (%)</label>
+                              <input
+                                type="number"
+                                step="0.1"
+                                defaultValue={custom.taxaVendaPct !== undefined ? custom.taxaVendaPct : globalTaxaVenda}
+                                id={`taxa-venda-${u.ownerId}`}
+                                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-400 block">Taxa Saque (R$)</label>
+                              <input
+                                type="number"
+                                step="0.1"
+                                defaultValue={custom.taxaSaqueImediato !== undefined ? custom.taxaSaqueImediato : globalTaxaSaque}
+                                id={`taxa-saque-${u.ownerId}`}
+                                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white"
+                              />
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const vendaInput = (document.getElementById(`taxa-venda-${u.ownerId}`) as HTMLInputElement)?.value;
+                              const saqueInput = (document.getElementById(`taxa-saque-${u.ownerId}`) as HTMLInputElement)?.value;
+                              await handleSalvarUserTaxaDirect(u.ownerId, Number(vendaInput), Number(saqueInput));
+                            }}
+                            className="w-full sm:w-auto px-3 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-lg transition shrink-0"
+                          >
+                            Salvar Taxa
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* DADOS MESTRE EFI PAY */}

@@ -1184,11 +1184,42 @@ app.get('/api/admin/configuracoes/todas', firebaseAuthMiddleware, async (req, re
   const userEmail = (req as any).userEmail || '';
   if (userEmail.toLowerCase() !== 'wheslleyaviz@gmail.com') return res.status(403).json({ error: 'Acesso negado' });
   const todas = await db.getTodasConfiguracoes();
-  const usuarios = todas.filter(t => t.config?.carteiraConfig?.nome || t.config?.carteiraConfig?.chavePix || t.config?.carteiraConfig?.status).map(t => ({
-    ownerId: t.ownerId,
-    carteiraConfig: t.config.carteiraConfig
-  }));
-  res.json({ usuarios });
+  
+  // Also get admin config to inspect custom tax rates
+  const adminConfig = await db.getConfig('wheslleyaviz@gmail.com');
+  const taxasPersonalizadas = adminConfig?.carteiraConfig?.taxasPersonalizadas || {};
+
+  const usuarios = [];
+  for (const t of todas) {
+    if (t.config?.carteiraConfig?.nome || t.config?.carteiraConfig?.chavePix || t.config?.carteiraConfig?.status || t.ownerId) {
+      // Get campaigns for this ownerId
+      const campanhas = await db.getCampanhas(t.ownerId);
+      const qtdCampanhas = campanhas.length;
+
+      // Get wallet balance / transactions for this ownerId
+      let faturamentoTotal = 0;
+      try {
+        const saldo = await db.getCarteiraSaldo(t.ownerId);
+        faturamentoTotal = saldo.totalArrecadado || 0;
+      } catch (err) {
+        // fallback if method fails
+      }
+
+      const ownerKey = t.ownerId.toLowerCase();
+      const ownerEmailKey = (t.config?.carteiraConfig?.email || '').toLowerCase();
+      const customTax = taxasPersonalizadas[ownerKey] || (ownerEmailKey ? taxasPersonalizadas[ownerEmailKey] : null);
+
+      usuarios.push({
+        ownerId: t.ownerId,
+        carteiraConfig: t.config.carteiraConfig || {},
+        qtdCampanhas,
+        faturamentoTotal,
+        customTax: customTax || null
+      });
+    }
+  }
+
+  res.json({ usuarios, taxasPersonalizadas });
 });
 
 app.get('/api/admin/configuracoes', firebaseAuthMiddleware, async (req, res) => {

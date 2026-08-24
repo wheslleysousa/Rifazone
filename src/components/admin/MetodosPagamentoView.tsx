@@ -298,15 +298,63 @@ export const MetodosPagamentoView: React.FC<MetodosPagamentoViewProps> = ({
   };
 
   const gateways = [
-    { id: 'carteira', nome: 'Carteira do Sistema', tag: 'Sistema do App', desc: 'O sistema do próprio aplicativo fará a transferência direta para a sua conta / chave Pix cadastrada.', icon: <Wallet className="w-5 h-5 text-emerald-400" /> },
-    { id: 'mercadopago', nome: 'Mercado Pago', tag: 'OAuth & API', desc: 'Conexão instantânea com liberação rápida dos pagamentos. Taxa padrão do gateway.', icon: <Zap className="w-5 h-5 text-blue-400" /> },
-    ...(isAdminUser ? [{ id: 'efipay', nome: 'Efí Pay (Própria)', tag: 'API Direta (Admin)', desc: 'Sua conta Efí Pay individual com chaves de API próprias.', icon: <ShieldCheck className="w-5 h-5 text-orange-400" /> }] : []),
-    { id: 'pushinpay', nome: 'PushinPay', tag: 'Gateway Especializado', desc: 'Baixa instantânea focada no ecossistema de campanhas e cotas.', icon: <ExternalLink className="w-5 h-5 text-indigo-400" /> },
-    { id: 'pay2m', nome: 'Pay2M', tag: 'Baixa Automática', desc: 'Processamento Pix de alta velocidade com conciliação em tempo real.', icon: <CreditCard className="w-5 h-5 text-teal-400" /> },
-    { id: 'paggue', nome: 'Paggue', tag: 'Gateway Pix', desc: 'API simplificada de split e liquidação de vendas.', icon: <Layers className="w-5 h-5 text-cyan-400" /> },
-    { id: 'zettpay', nome: 'ZettPay', tag: 'Baixa Automática', desc: 'Integração com confirmação de Pix via webhook.', icon: <Zap className="w-5 h-5 text-yellow-400" /> },
-    { id: 'paggo365', nome: 'Paggo365', tag: 'Especial Rifa', desc: 'Gateway projetado para sorteios com alta volumetria.', icon: <Globe className="w-5 h-5 text-rose-400" /> },
-    { id: 'crypto', nome: 'Cripto / Web3', tag: 'USDT TRC20 / BEP20', desc: 'Aceite pagamentos descentralizados em criptomoedas.', icon: <Coins className="w-5 h-5 text-amber-400" /> },
+    { 
+      id: 'carteira', 
+      nome: 'Carteira do Sistema', 
+      tag: 'Sistema do App', 
+      desc: `Taxa de ${carteiraTaxaPct}% por venda e R$ ${carteiraTaxaSaque.toFixed(2)} por saque/transferência automática para a sua chave Pix cadastrada.`, 
+      icon: <Wallet className="w-5 h-5 text-emerald-400" /> 
+    },
+    { 
+      id: 'mercadopago', 
+      nome: 'Mercado Pago', 
+      tag: 'OAuth & API', 
+      desc: 'Taxa Pix: ~0.99% (instantâneo) a 1.99% (liberação em 14 dias). Saques gratuitos para conta Mercado Pago.', 
+      icon: <Zap className="w-5 h-5 text-blue-400" /> 
+    },
+    ...(isAdminUser ? [{ id: 'efipay', nome: 'Efí Pay (Própria)', tag: 'API Direta (Admin)', desc: 'Taxas diretas da sua conta PJ Efí conforme tabela oficial de API Pix.', icon: <ShieldCheck className="w-5 h-5 text-orange-400" /> }] : []),
+    { 
+      id: 'pushinpay', 
+      nome: 'PushinPay', 
+      tag: 'Gateway Especializado', 
+      desc: 'Taxa Pix por transação com foco em alta performance e liquidação imediata para campanhas.', 
+      icon: <ExternalLink className="w-5 h-5 text-indigo-400" /> 
+    },
+    { 
+      id: 'pay2m', 
+      nome: 'Pay2M', 
+      tag: 'Baixa Automática', 
+      desc: 'Taxa Pix: ~1.20% a 2.30% por venda. Conciliação em tempo real e saques programados.', 
+      icon: <CreditCard className="w-5 h-5 text-teal-400" /> 
+    },
+    { 
+      id: 'paggue', 
+      nome: 'Paggue', 
+      tag: 'Gateway Pix', 
+      desc: 'Taxa Pix: ~1.50% por venda com split automático de comissões e liquidação rápida.', 
+      icon: <Layers className="w-5 h-5 text-cyan-400" /> 
+    },
+    { 
+      id: 'zettpay', 
+      nome: 'ZettPay', 
+      tag: 'Baixa Automática', 
+      desc: 'Taxa Pix competitiva por volume de vendas com confirmação instantânea via webhook.', 
+      icon: <Zap className="w-5 h-5 text-yellow-400" /> 
+    },
+    { 
+      id: 'paggo365', 
+      nome: 'Paggo365', 
+      tag: 'Especial Rifa', 
+      desc: 'Taxa Pix de ~2.99% por venda para sorteios e rifas de alta volumetria com suporte a picos.', 
+      icon: <Globe className="w-5 h-5 text-rose-400" /> 
+    },
+    { 
+      id: 'crypto', 
+      nome: 'Cripto / Web3', 
+      tag: 'USDT TRC20 / BEP20', 
+      desc: 'Sem taxa percentual de plataforma. Apenas taxa de rede (gas fee) da blockchain para transferência.', 
+      icon: <Coins className="w-5 h-5 text-amber-400" /> 
+    },
   ];
 
   const isGatewayConnected = (id: string) => {
@@ -437,7 +485,7 @@ export const MetodosPagamentoView: React.FC<MetodosPagamentoViewProps> = ({
                           ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
                           : 'bg-slate-800 text-slate-400 border border-slate-700'
                   }`}>
-                    {isCarteira && !carteiraStatus ? 'PENDENTE SOLICITAÇÃO' : isAtivo ? 'ATIVO NO SITE' : connected ? 'CONECTADO' : g.tag}
+                    {isCarteira && !carteiraStatus ? 'PENDENTE' : isAtivo ? 'ATIVO' : connected ? 'CONECTADO' : 'INATIVO'}
                   </span>
                 </div>
 
@@ -620,7 +668,13 @@ export const MetodosPagamentoView: React.FC<MetodosPagamentoViewProps> = ({
                   </div>
                   <button
                     type="button"
-                    onClick={() => setMetodoAtivo(modalGateway)}
+                    onClick={() => {
+                      if (modalGateway !== 'carteira' && !isGatewayConnected(modalGateway)) {
+                        setMsgErro('Você precisa preencher e salvar as credenciais deste gateway antes de ativá-lo.');
+                        return;
+                      }
+                      setMetodoAtivo(modalGateway);
+                    }}
                     className={`px-3 py-1.5 rounded-xl text-xs font-black transition border flex items-center gap-1.5 ${
                       metodoAtivo === modalGateway
                         ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-md shadow-emerald-500/20'
@@ -639,20 +693,12 @@ export const MetodosPagamentoView: React.FC<MetodosPagamentoViewProps> = ({
                   <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl space-y-2 text-xs">
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <h5 className="font-black text-emerald-300 flex items-center gap-1.5">
-                        <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                        Carteira Oficial com Tecnologia Efí Pay (Gerencianet)
+                        <Wallet className="w-4 h-4 text-emerald-400" />
+                        Carteira Oficial do Sistema
                       </h5>
-                      {isAdminUser && (
-                        <span className="px-2.5 py-0.5 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-full text-[10px] font-black uppercase tracking-wide">
-                          Painel Super Admin
-                        </span>
-                      )}
                     </div>
                     <p className="text-slate-300 text-[11px] leading-relaxed">
-                      {isAdminUser 
-                        ? 'Você está no modo Super Admin (wheslleyaviz@gmail.com). Aqui você define a taxa padrão global, insere as credenciais mestre da Efí Pay para todo o sistema e gerencia taxas customizadas (ex: 1%) para usuários específicos.'
-                        : 'Não é necessário contratar chaves de API próprias. As transações são geradas pela Efí Pay da plataforma. Seu saldo fica acumulado com retenção automática da sua taxa e você pode solicitar saques via Pix a qualquer momento.'
-                      }
+                      Cadastre seus dados e sua chave Pix para receber as transferências automáticas geradas pelas vendas do app, de acordo com as taxas e prazos configurados pelo sistema (ex: taxa por venda, taxa fixa de saque e período de liberação). Após o envio, aguarde a aprovação do administrador.
                     </p>
                   </div>
 
@@ -838,6 +884,12 @@ export const MetodosPagamentoView: React.FC<MetodosPagamentoViewProps> = ({
 
                   {modalGateway === 'mercadopago' && (
                     <div className="space-y-3">
+                      <div className="p-3.5 bg-blue-500/10 border border-blue-500/30 rounded-2xl text-[11px] text-blue-200 leading-relaxed space-y-1">
+                        <p className="font-black text-white">Como funciona e Taxas:</p>
+                        <p>O Mercado Pago processa pagamentos via Pix instantâneo. Taxa padrão de ~0.99% para saldo imediato ou até 1.99% com liberação em 14 dias. Os saques para sua conta bancária vinculada ao Mercado Pago são gratuitos.</p>
+                        <p className="font-black text-white pt-1">O que você precisa preencher:</p>
+                        <p>Acesse <span className="font-mono text-blue-300">Mercado Pago Developers &gt; Suas Integrações</span>, crie uma aplicação de Pagamentos Pix e copie o seu <strong>Access Token</strong> de produção (começa com <span className="font-mono">APP_USR-...</span>).</p>
+                      </div>
                       <div className="space-y-1">
                         <label className="text-[11px] font-bold text-slate-300">Access Token (Mercado Pago)</label>
                         <input
@@ -863,6 +915,12 @@ export const MetodosPagamentoView: React.FC<MetodosPagamentoViewProps> = ({
 
                   {modalGateway === 'pushinpay' && (
                     <div className="space-y-3">
+                      <div className="p-3.5 bg-indigo-500/10 border border-indigo-500/30 rounded-2xl text-[11px] text-indigo-200 leading-relaxed space-y-1">
+                        <p className="font-black text-white">Como funciona e Taxas:</p>
+                        <p>Gateway especializado em alta performance e liquidação imediata para campanhas e cotas de rifas. Cobrança de taxa fixa ou percentual por transação Pix liquidada.</p>
+                        <p className="font-black text-white pt-1">O que você precisa preencher:</p>
+                        <p>Acesse o painel da <span className="font-mono text-indigo-300">PushinPay</span>, vá em Integrações / API e copie o seu <strong>Token de API (Bearer Token)</strong>.</p>
+                      </div>
                       <div className="space-y-1">
                         <label className="text-[11px] font-bold text-slate-300">Token de API (PushinPay)</label>
                         <input
@@ -878,6 +936,12 @@ export const MetodosPagamentoView: React.FC<MetodosPagamentoViewProps> = ({
 
                   {modalGateway === 'pay2m' && (
                     <div className="space-y-3">
+                      <div className="p-3.5 bg-teal-500/10 border border-teal-500/30 rounded-2xl text-[11px] text-teal-200 leading-relaxed space-y-1">
+                        <p className="font-black text-white">Como funciona e Taxas:</p>
+                        <p>Processamento Pix de alta velocidade com conciliação em tempo real. Taxa média de ~1.20% a 2.30% por venda aprovada, com saques programados.</p>
+                        <p className="font-black text-white pt-1">O que você precisa preencher:</p>
+                        <p>No painel <span className="font-mono text-teal-300">Pay2M</span>, acesse Configurações &gt; Credenciais de API para gerar e copiar seu <strong>Client ID</strong> e <strong>Secret Key</strong>.</p>
+                      </div>
                       <div className="space-y-1">
                         <label className="text-[11px] font-bold text-slate-300">Client ID / API Key (Pay2M)</label>
                         <input
@@ -901,6 +965,12 @@ export const MetodosPagamentoView: React.FC<MetodosPagamentoViewProps> = ({
 
                   {modalGateway === 'paggue' && (
                     <div className="space-y-3">
+                      <div className="p-3.5 bg-cyan-500/10 border border-cyan-500/30 rounded-2xl text-[11px] text-cyan-200 leading-relaxed space-y-1">
+                        <p className="font-black text-white">Como funciona e Taxas:</p>
+                        <p>Gateway Pix com split automático de comissões e liquidação rápida. Taxa estimada de ~1.50% por venda.</p>
+                        <p className="font-black text-white pt-1">O que você precisa preencher:</p>
+                        <p>No painel da <span className="font-mono text-cyan-300">Paggue</span>, acesse Configurações da Conta &gt; Desenvolvedores para copiar o <strong>Client ID</strong> e o <strong>Client Secret</strong>.</p>
+                      </div>
                       <div className="space-y-1">
                         <label className="text-[11px] font-bold text-slate-300">Client ID (Paggue)</label>
                         <input
@@ -924,6 +994,12 @@ export const MetodosPagamentoView: React.FC<MetodosPagamentoViewProps> = ({
 
                   {modalGateway === 'zettpay' && (
                     <div className="space-y-3">
+                      <div className="p-3.5 bg-yellow-500/10 border border-yellow-500/30 rounded-2xl text-[11px] text-yellow-200 leading-relaxed space-y-1">
+                        <p className="font-black text-white">Como funciona e Taxas:</p>
+                        <p>Confirmação instantânea de Pix via webhook com taxa competitiva negociada por volume de vendas.</p>
+                        <p className="font-black text-white pt-1">O que você precisa preencher:</p>
+                        <p>Acesse sua conta <span className="font-mono text-yellow-300">ZettPay</span>, vá na seção de API e copie a sua <strong>API Key</strong> de produção.</p>
+                      </div>
                       <div className="space-y-1">
                         <label className="text-[11px] font-bold text-slate-300">API Key (ZettPay)</label>
                         <input
@@ -938,6 +1014,12 @@ export const MetodosPagamentoView: React.FC<MetodosPagamentoViewProps> = ({
 
                   {modalGateway === 'paggo365' && (
                     <div className="space-y-3">
+                      <div className="p-3.5 bg-rose-500/10 border border-rose-500/30 rounded-2xl text-[11px] text-rose-200 leading-relaxed space-y-1">
+                        <p className="font-black text-white">Como funciona e Taxas:</p>
+                        <p>Gateway projetado especificamente para sorteios e rifas de alta volumetria. Taxa Pix de ~2.99% com suporte robusto a picos de tráfego.</p>
+                        <p className="font-black text-white pt-1">O que você precisa preencher:</p>
+                        <p>No painel <span className="font-mono text-rose-300">Paggo365</span>, acesse a aba de Integrações e copie a sua <strong>API Key</strong>.</p>
+                      </div>
                       <div className="space-y-1">
                         <label className="text-[11px] font-bold text-slate-300">API Key (Paggo365)</label>
                         <input
@@ -952,6 +1034,12 @@ export const MetodosPagamentoView: React.FC<MetodosPagamentoViewProps> = ({
 
                   {modalGateway === 'crypto' && (
                     <div className="space-y-3">
+                      <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-[11px] text-amber-200 leading-relaxed space-y-1">
+                        <p className="font-black text-white">Como funciona e Taxas:</p>
+                        <p>Pagamentos descentralizados em criptomoedas (USDT). Não há cobrança de taxa percentual de plataforma, apenas a taxa de rede (gas fee) cobrada pela blockchain.</p>
+                        <p className="font-black text-white pt-1">O que você precisa preencher:</p>
+                        <p>Insira o <strong>Endereço da sua Carteira USDT</strong> e selecione a rede correspondente (ex: TRC20 para rede Tron com taxas mínimas).</p>
+                      </div>
                       <div className="space-y-1">
                         <label className="text-[11px] font-bold text-slate-300">Endereço da Carteira USDT</label>
                         <input

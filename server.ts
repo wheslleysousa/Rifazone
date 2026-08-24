@@ -1,6 +1,17 @@
 import express, { Request, Response, NextFunction } from 'express';
 import path from 'path';
 import crypto from 'crypto';
+
+process.on('uncaughtException', (err: any) => {
+  if (err && err.message && err.message.includes('RESOURCE_EXHAUSTED')) return;
+  console.error('[UNCAUGHT EXCEPTION]', err);
+});
+
+process.on('unhandledRejection', (reason: any, promise) => {
+  if (reason && reason.message && reason.message.includes('RESOURCE_EXHAUSTED')) return;
+  console.error('[UNHANDLED REJECTION]', reason);
+});
+
 import { createServer as createViteServer } from 'vite';
 import { db, usandoFirestore } from './server/db.js';
 import { mpService } from './server/mercadopago.js';
@@ -18,6 +29,7 @@ import {
 } from './server/meta-service.js';
 import { toCents, toReais } from './server/money-utils.js';
 import { EmailNotificador } from './server/notifications.js';
+import { gerarPixMultiGateway, consultarPagamentoAsaas, consultarPagamentoEfipay } from './server/gateways.js';
 import { Campanha, TEMA_PADRAO, DEFAULT_CHECKOUT_CONFIG } from './src/types.js';
 
 // Sanitiza e normaliza campos de Campanha de forma única para criação e edição (evita divergências)
@@ -130,8 +142,7 @@ export function sanitizarCampanha(
 }
 
 const app = express();
-// Render/Cloud Run injetam a porta via variável PORT.
-const PORT = Number(process.env.PORT) || 3000;
+const PORT = 3000;
 
 // Estado em memória do worker do WhatsApp Web
 let globalWorkerStatus = {
@@ -568,14 +579,30 @@ app.post('/api/pedidos', async (req, res) => {
       });
     }
 
-    // Default: Pix
-    const pixResult = await mpService.criarPix({
-      pedidoId,
-      valorTotal: valorTotalCents,
-      tituloCampanha: campanha.titulo,
-      comprador: compradorSalvo,
-      expiraEm
-    }, mpToken);
+    // Default: Pix (Multi-Gateway: Mercado Pago, Asaas, PushinPay, Efí, Carteira do Sistema)
+    const ownerConfig = await db.getConfig(campanha.ownerId || '');
+    const metodoAtivo = ownerConfig?.metodoAtivo || (mpToken ? 'mercadopago' : 'carteira');
+
+    let pixResult: { paymentId: string; pixCopiaCola: string; pixQrCodeBase64: string; isMock?: boolean };
+
+    if (metodoAtivo === 'mercadopago' || (mpToken && metodoAtivo !== 'carteira' && metodoAtivo !== 'asaas' && metodoAtivo !== 'pushinpay' && metodoAtivo !== 'efipay')) {
+      pixResult = await mpService.criarPix({
+        pedidoId,
+        valorTotal: valorTotalCents,
+        tituloCampanha: campanha.titulo,
+        comprador: compradorSalvo,
+        expiraEm
+      }, mpToken);
+    } else {
+      pixResult = await gerarPixMultiGateway({
+        pedidoId,
+        valorTotal: valorTotalCents,
+        tituloCampanha: campanha.titulo,
+        comprador: compradorSalvo,
+        expiraEm,
+        config: ownerConfig
+      });
+    }
 
     const novoPedido = await db.savePedido({
       id: pedidoId,
@@ -756,6 +783,45 @@ async function processarConfirmacaoPedido(pedidoId: string, paymentId?: string, 
         }
 
         const ownerConfig = await db.getConfig(campanha.ownerId || '');
+        const adminConfig = await db.getConfig('wheslleyaviz@gmail.com');
+        
+        // Se o organizador utiliza a Carteira do Sistema, credita o valor líquido com desconto automático da taxa percentual
+        const metodoAtivo = ownerConfig?.metodoAtivo || (ownerConfig?.mpAccessToken ? 'mercadopago' : 'carteira');
+        if (metodoAtivo === 'carteira' || ownerConfig?.carteiraConfig?.ativo) {
+          let taxaPct = 5.0;
+
+          if (adminConfig?.carteiraConfig?.taxasPersonalizadas) {
+            const ownerKey = (campanha.ownerId || '').toLowerCase();
+            const ownerEmailKey = (ownerConfig?.carteiraConfig?.email || '').toLowerCase();
+            const custom = adminConfig.carteiraConfig.taxasPersonalizadas[ownerKey] 
+                        || adminConfig.carteiraConfig.taxasPersonalizadas[ownerEmailKey];
+            if (custom && custom.taxaVendaPct !== undefined) {
+              taxaPct = Number(custom.taxaVendaPct);
+            } else if (ownerConfig?.carteiraConfig?.taxaVendaPct !== undefined) {
+              taxaPct = Number(ownerConfig.carteiraConfig.taxaVendaPct);
+            } else if (adminConfig?.carteiraConfig?.taxaVendaPct !== undefined) {
+              taxaPct = Number(adminConfig.carteiraConfig.taxaVendaPct);
+            }
+          } else if (ownerConfig?.carteiraConfig?.taxaVendaPct !== undefined) {
+            taxaPct = Number(ownerConfig.carteiraConfig.taxaVendaPct);
+          } else if (adminConfig?.carteiraConfig?.taxaVendaPct !== undefined) {
+            taxaPct = Number(adminConfig.carteiraConfig.taxaVendaPct);
+          }
+
+          try {
+            await db.creditarVendaCarteira(
+              campanha.ownerId || '',
+              toReais(pedidoAtualizado.valorTotal),
+              taxaPct,
+              pedidoAtualizado.id,
+              `Venda ${pedidoAtualizado.quantidade} cotas - ${campanha.titulo}`
+            );
+            console.log(`[Carteira] Saldo creditado com sucesso para ${campanha.ownerId}. Pedido: ${pedidoAtualizado.id}, Taxa Aplicada: ${taxaPct}%`);
+          } catch (carteiraErr) {
+            console.error('[Carteira] Erro ao creditar venda:', carteiraErr);
+          }
+        }
+
         const host = req ? `${req.protocol}://${req.get('host')}` : '';
         const baseUrl = (process.env.BASE_URL || process.env.APP_URL || host).replace(/\/$/, '');
         dispararMetaCapiPurchase({
@@ -787,9 +853,23 @@ app.get('/api/pedidos/:id/status', async (req, res) => {
 
     // Reconciliação se estiver pendente e tiver mpPaymentId
     if (pedido.status === 'pendente' && pedido.mpPaymentId) {
-      const mpToken = await db.getMpTokenPorCampanha(pedido.campanhaId);
-      const consulta = await mpService.consultarPagamento(pedido.mpPaymentId, mpToken);
-      if (consulta && consulta.approved) {
+      let aprovado = false;
+
+      if (pedido.mpPaymentId.startsWith('asaas_')) {
+        const campanha = await db.getCampanhaById(pedido.campanhaId);
+        const ownerConfig = campanha ? await db.getConfig(campanha.ownerId || '') : null;
+        aprovado = await consultarPagamentoAsaas(pedido.mpPaymentId, ownerConfig);
+      } else if (pedido.mpPaymentId.startsWith('efi_')) {
+        const campanha = await db.getCampanhaById(pedido.campanhaId);
+        const ownerConfig = campanha ? await db.getConfig(campanha.ownerId || '') : null;
+        aprovado = await consultarPagamentoEfipay(pedido.mpPaymentId, ownerConfig);
+      } else if (!pedido.mpPaymentId.startsWith('carteira_') && !pedido.mpPaymentId.startsWith('pushin_')) {
+        const mpToken = await db.getMpTokenPorCampanha(pedido.campanhaId);
+        const consulta = await mpService.consultarPagamento(pedido.mpPaymentId, mpToken);
+        aprovado = Boolean(consulta && consulta.approved);
+      }
+
+      if (aprovado) {
         await processarConfirmacaoPedido(pedido.id, pedido.mpPaymentId, req);
         const pedidoAtualizado = (await db.getPedido(pedido.id)) || pedido;
         return res.json({
@@ -954,6 +1034,107 @@ app.post('/api/webhooks/mercadopago', async (req, res) => {
   }
 });
 
+// POST /api/webhooks/asaas -> Webhook para confirmação de pagamentos Asaas
+app.post('/api/webhooks/asaas', async (req, res) => {
+  try {
+    const body = req.body;
+    const asaasTokenHeader = (req.headers['asaas-access-token'] || req.headers['access_token'] || '') as string;
+    console.log('[Webhook Asaas] Recebido evento:', body?.event, 'Payment ID:', body?.payment?.id);
+    const event = body?.event;
+    const payment = body?.payment;
+    
+    if (event === 'PAYMENT_RECEIVED' || event === 'PAYMENT_CONFIRMED') {
+      const externalReference = payment?.externalReference;
+      const paymentId = payment?.id;
+      
+      const todosPedidos = await db.getTodosPedidos();
+      let pedidoEncontrado = todosPedidos.find(p => p.id === externalReference || p.mpPaymentId === `asaas_${paymentId}`);
+      
+      if (!pedidoEncontrado && externalReference) {
+        pedidoEncontrado = (await db.getPedido(externalReference)) || undefined;
+      }
+
+      if (pedidoEncontrado) {
+        // Validação de token se o organizador configurou token de webhook
+        const campanha = await db.getCampanhaById(pedidoEncontrado.campanhaId);
+        if (campanha && campanha.ownerId) {
+          const config = await db.getConfig(campanha.ownerId);
+          if (config?.asaasConfig?.webhookToken) {
+            const rawWebhookToken = decryptToken(config.asaasConfig.webhookToken);
+            if (rawWebhookToken && asaasTokenHeader && asaasTokenHeader !== rawWebhookToken) {
+              console.warn('[Webhook Asaas] Token de autenticação do webhook inválido:', asaasTokenHeader);
+              return res.status(401).json({ error: 'Token de webhook inválido.' });
+            }
+          }
+        }
+
+        await processarConfirmacaoPedido(pedidoEncontrado.id, `asaas_${paymentId}`, req);
+        console.log(`[Webhook Asaas] Pedido ${pedidoEncontrado.id} confirmado com sucesso!`);
+      }
+    }
+    return res.status(200).json({ received: true });
+  } catch (err) {
+    console.error('[Webhook Asaas] Erro no processamento:', err);
+    return res.status(200).json({ received: true });
+  }
+});
+
+// POST /api/webhooks/pushinpay -> Webhook para confirmação de pagamentos PushinPay
+app.post('/api/webhooks/pushinpay', async (req, res) => {
+  try {
+    const body = req.body;
+    const status = body?.status;
+    const externalReference = body?.external_reference;
+    const id = body?.id;
+
+    if (status === 'paid' && externalReference) {
+      const pedido = await db.getPedido(externalReference);
+      if (pedido) {
+        await processarConfirmacaoPedido(pedido.id, `pushin_${id}`, req);
+        console.log(`[Webhook PushinPay] Pedido ${pedido.id} confirmado com sucesso!`);
+      }
+    }
+    return res.status(200).json({ received: true });
+  } catch (err) {
+    console.error('[Webhook PushinPay] Erro no processamento:', err);
+    return res.status(200).json({ received: true });
+  }
+});
+
+// POST /api/webhooks/efipay -> Webhook Pix Efí Pay (Gerencianet)
+app.post('/api/webhooks/efipay', async (req, res) => {
+  try {
+    const body = req.body;
+    console.log('[Webhook Efí Pay] Notificação recebida:', JSON.stringify(body).slice(0, 300));
+
+    // Validação inicial do webhook pela Efí Pay (manda objeto simples no cadastro)
+    if (req.headers['x-dns-prefetch-control'] || (body && body.chave && !body.pix)) {
+      return res.status(200).send('OK');
+    }
+
+    const pixList = body?.pix;
+    if (Array.isArray(pixList) && pixList.length > 0) {
+      for (const pixItem of pixList) {
+        const txid = pixItem.txid;
+        if (!txid) continue;
+
+        const todosPedidos = await db.getTodosPedidos();
+        const pedidoEncontrado = todosPedidos.find(p => p.mpPaymentId === `efi_${txid}` || p.id === txid);
+
+        if (pedidoEncontrado) {
+          await processarConfirmacaoPedido(pedidoEncontrado.id, `efi_${txid}`, req);
+          console.log(`[Webhook Efí Pay] Pedido ${pedidoEncontrado.id} confirmado com sucesso via Webhook!`);
+        }
+      }
+    }
+
+    return res.status(200).json({ received: true });
+  } catch (err) {
+    console.error('[Webhook Efí Pay] Erro no processamento:', err);
+    return res.status(200).json({ received: true });
+  }
+});
+
 // ----------------------------------------------------
 // 2. ENDPOINTS DO PAINEL ADMINISTRATIVO (PROTEGIDOS)
 // ----------------------------------------------------
@@ -968,17 +1149,126 @@ app.get('/api/admin/me', firebaseAuthMiddleware, (req, res) => {
 });
 
 // GET /api/admin/configuracoes -> Configurações do organizador (segredos mascarados)
+app.post('/api/admin/configuracoes/status-carteira', firebaseAuthMiddleware, async (req, res) => {
+  const userEmail = (req as any).userEmail || '';
+  if (userEmail.toLowerCase() !== 'wheslleyaviz@gmail.com') return res.status(403).json({ error: 'Acesso negado' });
+  const { userId, status } = req.body;
+  const config = await db.getConfig(userId);
+  if (config) {
+    const dados = {
+      carteiraConfig: {
+        ...config.carteiraConfig,
+        status
+      }
+    };
+    await db.saveConfig(userId, dados);
+    res.json({ success: true });
+  } else {
+    res.status(404).json({ error: 'Usuário não encontrado' });
+  }
+});
+
+app.get('/api/admin/configuracoes/todas', firebaseAuthMiddleware, async (req, res) => {
+  const userEmail = (req as any).userEmail || '';
+  if (userEmail.toLowerCase() !== 'wheslleyaviz@gmail.com') return res.status(403).json({ error: 'Acesso negado' });
+  const todas = await db.getTodasConfiguracoes();
+  const usuarios = todas.filter(t => t.config?.carteiraConfig?.nome || t.config?.carteiraConfig?.chavePix || t.config?.carteiraConfig?.status).map(t => ({
+    ownerId: t.ownerId,
+    carteiraConfig: t.config.carteiraConfig
+  }));
+  res.json({ usuarios });
+});
+
 app.get('/api/admin/configuracoes', firebaseAuthMiddleware, async (req, res) => {
-  const config = await db.getConfig((req as any).userId);
+  const userId = (req as any).userId;
+  const userEmail = (req as any).userEmail || '';
+  const isAdmin = userEmail.toLowerCase() === 'wheslleyaviz@gmail.com';
+
+  const config = await db.getConfig(userId);
+  const adminConfig = isAdmin ? config : await db.getConfig('wheslleyaviz@gmail.com');
+
   const baseUrl = (process.env.BASE_URL || process.env.APP_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
   const redirectUri = `${baseUrl}/api/auth/mercadopago/callback`;
 
+  // Calcula taxas de venda e saque aplicáveis ao perfil deste organizador
+  let taxaVendaAplicada = 5.0;
+  let taxaSaqueAplicada = 4.50;
+
+  if (adminConfig?.carteiraConfig?.taxasPersonalizadas) {
+    const ownerKey = userId.toLowerCase();
+    const ownerEmailKey = userEmail.toLowerCase();
+    const custom = adminConfig.carteiraConfig.taxasPersonalizadas[ownerKey] 
+                || adminConfig.carteiraConfig.taxasPersonalizadas[ownerEmailKey];
+    if (custom) {
+      if (custom.taxaVendaPct !== undefined) taxaVendaAplicada = Number(custom.taxaVendaPct);
+      if (custom.taxaSaqueImediato !== undefined) taxaSaqueAplicada = Number(custom.taxaSaqueImediato);
+    } else if (config?.carteiraConfig?.taxaVendaPct !== undefined) {
+      taxaVendaAplicada = Number(config.carteiraConfig.taxaVendaPct);
+    } else if (adminConfig?.carteiraConfig?.taxaVendaPct !== undefined) {
+      taxaVendaAplicada = Number(adminConfig.carteiraConfig.taxaVendaPct);
+    }
+  } else if (config?.carteiraConfig?.taxaVendaPct !== undefined) {
+    taxaVendaAplicada = Number(config.carteiraConfig.taxaVendaPct);
+  } else if (adminConfig?.carteiraConfig?.taxaVendaPct !== undefined) {
+    taxaVendaAplicada = Number(adminConfig.carteiraConfig.taxaVendaPct);
+  }
+
+  const painelConfig = configParaPainel(config);
+
   return res.json({
-    ...configParaPainel(config),
+    ...painelConfig,
+    carteiraConfig: {
+      ...painelConfig.carteiraConfig,
+      taxaVendaPct: taxaVendaAplicada,
+      taxaSaqueImediato: taxaSaqueAplicada,
+      taxasPersonalizadas: isAdmin ? adminConfig?.carteiraConfig?.taxasPersonalizadas || {} : undefined
+    },
+    isAdmin,
+    userEmail,
+    efipayConfig: isAdmin ? painelConfig.efipayConfig : undefined,
     oauthConfiguradoNoServidor: Boolean(process.env.MP_CLIENT_ID && process.env.MP_CLIENT_SECRET),
     oauthRedirectUri: redirectUri,
     mpClientIdConfigurado: Boolean(process.env.MP_CLIENT_ID)
   });
+});
+
+// POST /api/admin/usuarios/taxa -> Super Admin define taxa personalizada para um usuário específico
+app.post('/api/admin/usuarios/taxa', firebaseAuthMiddleware, async (req, res) => {
+  const userEmail = (req as any).userEmail || '';
+  if (userEmail.toLowerCase() !== 'wheslleyaviz@gmail.com') {
+    return res.status(403).json({ error: 'Apenas o Super Admin (wheslleyaviz@gmail.com) pode alterar taxas de usuários.' });
+  }
+
+  const { targetUser, taxaVendaPct, taxaSaqueImediato, observacao, remover } = req.body;
+  if (!targetUser || typeof targetUser !== 'string') {
+    return res.status(400).json({ error: 'Informe o e-mail ou ID do usuário.' });
+  }
+
+  const adminId = (req as any).userId;
+  const adminConfig = await db.getConfig(adminId);
+  const currentMap = { ...(adminConfig?.carteiraConfig?.taxasPersonalizadas || {}) };
+
+  const targetKey = targetUser.trim().toLowerCase();
+
+  if (remover) {
+    delete currentMap[targetKey];
+  } else {
+    currentMap[targetKey] = {
+      taxaVendaPct: taxaVendaPct !== undefined ? Number(taxaVendaPct) : 5.0,
+      taxaSaqueImediato: taxaSaqueImediato !== undefined ? Number(taxaSaqueImediato) : 4.50,
+      observacao: observacao || '',
+      atualizadoEm: new Date().toISOString()
+    };
+  }
+
+  await db.saveConfig(adminId, {
+    carteiraConfig: {
+      ...adminConfig?.carteiraConfig,
+      taxasPersonalizadas: currentMap
+    }
+  });
+
+  return res.json({ success: true, taxasPersonalizadas: currentMap });
 });
 
 // GET /api/auth/mercadopago/url -> Gera o link oficial para conexão OAuth do Mercado Pago
@@ -1212,12 +1502,12 @@ app.post('/api/admin/configuracoes/desconectar-facebook', firebaseAuthMiddleware
   }
 });
 
-// PUT /api/admin/configuracoes -> Salva configurações (pagamento manual, marca, redes, pixel, Meta Ads)
+// PUT /api/admin/configuracoes -> Salva configurações (pagamento multi-gateway, marca, redes, pixel, Meta Ads)
 app.put('/api/admin/configuracoes', firebaseAuthMiddleware, async (req, res) => {
   try {
     const b = req.body || {};
 
-    // Validação do Access Token do Mercado Pago
+    // Validação do Access Token do Mercado Pago se fornecido
     if (b.mpAccessToken && !/^(APP_USR-|TEST-)/.test(String(b.mpAccessToken).trim())) {
       return res.status(400).json({
         error: 'Access Token do Mercado Pago inválido (deve começar com "APP_USR-" ou "TEST-").'
@@ -1225,10 +1515,19 @@ app.put('/api/admin/configuracoes', firebaseAuthMiddleware, async (req, res) => 
     }
 
     const config = await db.saveConfig((req as any).userId, {
+      metodoAtivo: b.metodoAtivo !== undefined ? b.metodoAtivo : undefined,
       mpAccessToken: b.mpAccessToken !== undefined ? String(b.mpAccessToken || '') : undefined,
       mpPublicKey: b.mpPublicKey !== undefined ? String(b.mpPublicKey || '') : undefined,
-      // token manual informado aqui marca a conexão como 'manual'
       mpConexaoTipo: b.mpAccessToken ? 'manual' : undefined,
+      asaasConfig: b.asaasConfig !== undefined ? b.asaasConfig : undefined,
+      efipayConfig: b.efipayConfig !== undefined ? b.efipayConfig : undefined,
+      paggueConfig: b.paggueConfig !== undefined ? b.paggueConfig : undefined,
+      pushinpayConfig: b.pushinpayConfig !== undefined ? b.pushinpayConfig : undefined,
+      pay2mConfig: b.pay2mConfig !== undefined ? b.pay2mConfig : undefined,
+      zettpayConfig: b.zettpayConfig !== undefined ? b.zettpayConfig : undefined,
+      paggo365Config: b.paggo365Config !== undefined ? b.paggo365Config : undefined,
+      cryptoConfig: b.cryptoConfig !== undefined ? b.cryptoConfig : undefined,
+      carteiraConfig: b.carteiraConfig !== undefined ? b.carteiraConfig : undefined,
       metaAccessToken: b.metaAccessToken !== undefined ? String(b.metaAccessToken || '') : undefined,
       metaCapiToken: b.metaCapiToken !== undefined ? String(b.metaCapiToken || '') : undefined,
       metaAdAccountId: b.metaAdAccountId !== undefined ? String(b.metaAdAccountId || '') : undefined,
@@ -1242,6 +1541,103 @@ app.put('/api/admin/configuracoes', firebaseAuthMiddleware, async (req, res) => 
   } catch (err: any) {
     console.error('Erro ao salvar configurações:', err);
     return res.status(500).json({ error: 'Erro ao salvar configurações.' });
+  }
+});
+
+// GET /api/admin/carteira/saldo -> Saldo detalhado da Carteira do Sistema
+app.get('/api/admin/carteira/saldo', firebaseAuthMiddleware, async (req, res) => {
+  try {
+    const userId = (req as any).userId;
+    const saldo = await db.getCarteiraSaldo(userId);
+    return res.json(saldo);
+  } catch (err: any) {
+    console.error('Erro ao consultar saldo da carteira:', err);
+    return res.status(500).json({ error: 'Erro ao consultar saldo.' });
+  }
+});
+
+// GET /api/admin/carteira/transacoes -> Extrato de transações da carteira
+app.get('/api/admin/carteira/transacoes', firebaseAuthMiddleware, async (req, res) => {
+  try {
+    const userId = (req as any).userId;
+    const transacoes = await db.listarTransacoesCarteira(userId);
+    return res.json(transacoes);
+  } catch (err: any) {
+    console.error('Erro ao listar transações da carteira:', err);
+    return res.status(500).json({ error: 'Erro ao carregar extrato.' });
+  }
+});
+
+// GET /api/admin/carteira/saques -> Histórico de solicitações de saque
+app.get('/api/admin/carteira/saques', firebaseAuthMiddleware, async (req, res) => {
+  try {
+    const userId = (req as any).userId;
+    const saques = await db.listarSolicitacoesSaque(userId);
+    return res.json(saques);
+  } catch (err: any) {
+    console.error('Erro ao listar solicitações de saque:', err);
+    return res.status(500).json({ error: 'Erro ao carregar saques.' });
+  }
+});
+
+// POST /api/admin/carteira/solicitar-saque -> Solicita saque de saldo disponível
+app.post('/api/admin/carteira/solicitar-saque', firebaseAuthMiddleware, async (req, res) => {
+  try {
+    const userId = (req as any).userId;
+    const { valorSolicitado, modalidade, tipoChavePix, chavePix, bancoInfo } = req.body;
+
+    const valor = Number(valorSolicitado);
+    if (!valor || valor <= 0) {
+      return res.status(400).json({ error: 'Informe um valor de saque válido maior que zero.' });
+    }
+
+    const config = await db.getConfig(userId);
+    const adminConfig = await db.getConfig('wheslleyaviz@gmail.com');
+    const userEmail = (req as any).userEmail || '';
+    
+    let taxaImediato = 4.50;
+    if (adminConfig?.carteiraConfig?.taxasPersonalizadas) {
+      const ownerKey = userId.toLowerCase();
+      const ownerEmailKey = userEmail.toLowerCase();
+      const custom = adminConfig.carteiraConfig.taxasPersonalizadas[ownerKey] 
+                  || adminConfig.carteiraConfig.taxasPersonalizadas[ownerEmailKey];
+      if (custom && custom.taxaSaqueImediato !== undefined) {
+        taxaImediato = Number(custom.taxaSaqueImediato);
+      } else if (config?.carteiraConfig?.taxaSaqueImediato !== undefined) {
+        taxaImediato = Number(config.carteiraConfig.taxaSaqueImediato);
+      } else if (adminConfig?.carteiraConfig?.taxaSaqueImediato !== undefined) {
+        taxaImediato = Number(adminConfig.carteiraConfig.taxaSaqueImediato);
+      }
+    } else if (config?.carteiraConfig?.taxaSaqueImediato !== undefined) {
+      taxaImediato = Number(config.carteiraConfig.taxaSaqueImediato);
+    } else if (adminConfig?.carteiraConfig?.taxaSaqueImediato !== undefined) {
+      taxaImediato = Number(adminConfig.carteiraConfig.taxaSaqueImediato);
+    }
+
+    const isImediato = modalidade === 'imediato';
+    const taxaSaque = isImediato ? taxaImediato : 0;
+
+    if (valor <= taxaSaque && isImediato) {
+      return res.status(400).json({ error: `O valor do saque imediato deve ser superior à taxa de transferência (R$ ${taxaSaque.toFixed(2)}).` });
+    }
+
+    const valorLiquido = Number((valor - taxaSaque).toFixed(2));
+
+    const saque = await db.solicitarSaque({
+      ownerId: userId,
+      valorSolicitado: valor,
+      taxaSaque,
+      valorLiquido,
+      modalidade: isImediato ? 'imediato' : 'd_mais_um',
+      tipoChavePix: tipoChavePix || 'cpf',
+      chavePix: chavePix || '',
+      bancoInfo: bancoInfo || undefined
+    });
+
+    return res.status(201).json({ success: true, saque });
+  } catch (err: any) {
+    console.error('Erro ao solicitar saque:', err);
+    return res.status(400).json({ error: err.message || 'Erro ao processar solicitação de saque.' });
   }
 });
 

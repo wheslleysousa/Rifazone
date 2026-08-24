@@ -3,7 +3,7 @@ import { getFirestore, type Firestore, type Transaction } from 'firebase-admin/f
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { Campanha, Cota, Pedido, Comprador, RankingItem, CotaPremiada, ConfigOrganizador, EstiloSalvo, TemaCampanha, CheckoutSalvo, CheckoutConfig, MensagemFila } from '../src/types.js';
+import { Campanha, Cota, Pedido, Comprador, RankingItem, CotaPremiada, ConfigOrganizador, EstiloSalvo, TemaCampanha, CheckoutSalvo, CheckoutConfig, MensagemFila, CarteiraSaldo, TransacaoCarteira, SolicitacaoSaque } from '../src/types.js';
 import { Storage, EstatisticasCampanha, MeusNumerosResult, ConfirmarPedidoResult, SorteioResult, DadosConfig } from './storage-interface.js';
 import { mergeConfig } from './config-utils.js';
 import { decryptToken } from './crypto-utils.js';
@@ -81,6 +81,8 @@ export class FirestoreStorage implements Storage {
   private estilosCol(ownerId: string) { return this.db.collection('estilos').doc(ownerId).collection('temas'); }
   private checkoutsCol(ownerId: string) { return this.db.collection('checkouts').doc(ownerId).collection('itens'); }
   private filaCol() { return this.db.collection('mensagens_fila'); }
+  private transacoesCol() { return this.db.collection('transacoes_carteira'); }
+  private saquesCol() { return this.db.collection('solicitacoes_saque'); }
 
   // --- Campanhas ---
   public async getCampanhas(ownerId?: string): Promise<Campanha[]> {
@@ -394,6 +396,11 @@ export class FirestoreStorage implements Storage {
   }
 
   // --- Configurações de pagamento por organizador ---
+  public async getTodasConfiguracoes(): Promise<{ ownerId: string; config: ConfigOrganizador }[]> {
+    const snapshot = await this.configsCol().get();
+    return snapshot.docs.map(doc => ({ ownerId: doc.id, config: doc.data() as ConfigOrganizador }));
+  }
+
   public async getConfig(ownerId: string): Promise<ConfigOrganizador | null> {
     const doc = await this.configsCol().doc(ownerId).get();
     return doc.exists ? (doc.data() as ConfigOrganizador) : null;
@@ -420,47 +427,43 @@ export class FirestoreStorage implements Storage {
     let cotasLiberadas = 0;
     let pedidosExpirados = 0;
 
-    // 1. Marca pedidos pendentes vencidos como 'expirado'
+    // 1. Marca pedidos pendentes vencidos como 'expirado' e exclui cotas vinculadas
     const pedSnap = await this.pedidosCol()
       .where('status', '==', 'pendente')
       .where('expiraEm', '<=', nowIso)
       .get();
 
-    const expiredPedidoIds = new Set<string>();
-    for (let i = 0; i < pedSnap.docs.length; i += 400) {
-      const chunk = pedSnap.docs.slice(i, i + 400);
-      const batch = this.db.batch();
-      chunk.forEach(doc => {
-        batch.update(doc.ref, { status: 'expirado' });
-        pedidosExpirados++;
-        expiredPedidoIds.add(doc.id);
-      });
-      await batch.commit();
-    }
+    let operations: { ref: any, type: 'update' | 'delete', data?: any }[] = [];
 
-    // 2. Apaga cotas reservadas vencidas (reservadoAte <= nowIso ou vinculadas a pedidos expirados)
-    const campSnap = await this.campanhasCol().get();
-    for (const campDoc of campSnap.docs) {
-      const cotasSnap = await this.cotasCol(campDoc.id)
-        .where('status', '==', 'reservado')
-        .get();
-
-      const cotasParaDeletar = cotasSnap.docs.filter(doc => {
-        const data = doc.data();
-        const vencidoPorData = Boolean(data.reservadoAte && data.reservadoAte <= nowIso);
-        const vencidoPorPedido = Boolean(data.pedidoId && expiredPedidoIds.has(data.pedidoId));
-        return vencidoPorData || vencidoPorPedido;
-      });
-
-      for (let i = 0; i < cotasParaDeletar.length; i += 400) {
-        const chunk = cotasParaDeletar.slice(i, i + 400);
-        const batch = this.db.batch();
-        chunk.forEach(doc => {
-          batch.delete(doc.ref);
+    pedSnap.docs.forEach(doc => {
+      operations.push({ ref: doc.ref, type: 'update', data: { status: 'expirado' } });
+      pedidosExpirados++;
+      const pData = doc.data();
+      
+      // Enfileira exclusão das cotas vinculadas ao pedido expirado
+      if (pData.campanhaId && pData.numeros && Array.isArray(pData.numeros)) {
+        pData.numeros.forEach((num: any) => {
+          operations.push({ 
+            ref: this.cotasCol(pData.campanhaId).doc(String(num)), 
+            type: 'delete' 
+          });
           cotasLiberadas++;
         });
-        await batch.commit();
       }
+    });
+
+    // 2. Executa operações em lotes seguros (limite Firestore = 500 por batch)
+    for (let i = 0; i < operations.length; i += 400) {
+      const chunk = operations.slice(i, i + 400);
+      const batch = this.db.batch();
+      chunk.forEach(op => {
+        if (op.type === 'update') {
+          batch.update(op.ref, op.data);
+        } else if (op.type === 'delete') {
+          batch.delete(op.ref);
+        }
+      });
+      await batch.commit();
     }
 
     return { cotasLiberadas, pedidosExpirados };
@@ -616,5 +619,153 @@ export class FirestoreStorage implements Storage {
     const snap = await query.get();
     const lista = snap.docs.map(d => d.data() as MensagemFila);
     return lista.sort((a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime());
+  }
+
+  // --- CARTEIRA DO SISTEMA & SAQUES ---
+  public async getCarteiraSaldo(ownerId: string): Promise<CarteiraSaldo> {
+    const txSnap = await this.transacoesCol().where('ownerId', '==', ownerId).get();
+    const saqueSnap = await this.saquesCol().where('ownerId', '==', ownerId).get();
+
+    const transacoes = txSnap.docs.map(d => d.data() as TransacaoCarteira);
+    const saques = saqueSnap.docs.map(d => d.data() as SolicitacaoSaque);
+
+    let totalArrecadado = 0;
+    let totalTaxas = 0;
+    let saldoDisponivel = 0;
+
+    for (const t of transacoes) {
+      if (t.tipo === 'venda' && (t.status === 'concluida' || t.status === 'processando')) {
+        totalArrecadado += t.valorBruto;
+        totalTaxas += t.taxa;
+        saldoDisponivel += t.valorLiquido;
+      }
+    }
+
+    let totalSacado = 0;
+    let saldoPendente = 0;
+
+    for (const s of saques) {
+      if (s.status === 'pago' || s.status === 'aprovado') {
+        totalSacado += s.valorSolicitado;
+        saldoDisponivel -= s.valorSolicitado;
+      } else if (s.status === 'pendente') {
+        saldoPendente += s.valorSolicitado;
+        saldoDisponivel -= s.valorSolicitado;
+      }
+    }
+
+    return {
+      ownerId,
+      saldoDisponivel: Math.max(0, Number(saldoDisponivel.toFixed(2))),
+      saldoPendente: Number(saldoPendente.toFixed(2)),
+      totalArrecadado: Number(totalArrecadado.toFixed(2)),
+      totalSacado: Number(totalSacado.toFixed(2)),
+      totalTaxas: Number(totalTaxas.toFixed(2)),
+      atualizadoEm: new Date().toISOString()
+    };
+  }
+
+  public async creditarVendaCarteira(ownerId: string, valorBruto: number, taxaPct: number, pedidoId: string, descricao: string): Promise<TransacaoCarteira> {
+    const taxa = Number(((valorBruto * (taxaPct || 0)) / 100).toFixed(2));
+    const valorLiquido = Number((valorBruto - taxa).toFixed(2));
+    const id = `tx-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`;
+
+    const transacao: TransacaoCarteira = {
+      id,
+      ownerId,
+      tipo: 'venda',
+      valorBruto,
+      taxa,
+      valorLiquido,
+      status: 'concluida',
+      descricao: descricao || `Venda Pedido #${pedidoId}`,
+      referenciaId: pedidoId,
+      criadoEm: new Date().toISOString()
+    };
+
+    await this.transacoesCol().doc(id).set(transacao);
+    return transacao;
+  }
+
+  public async solicitarSaque(dados: Omit<SolicitacaoSaque, 'id' | 'criadoEm' | 'status'>): Promise<SolicitacaoSaque> {
+    const saldo = await this.getCarteiraSaldo(dados.ownerId);
+    if (dados.valorSolicitado <= 0) {
+      throw new Error('O valor do saque deve ser maior que zero.');
+    }
+    if (dados.valorSolicitado > saldo.saldoDisponivel) {
+      throw new Error(`Saldo insuficiente para saque. Disponível: R$ ${saldo.saldoDisponivel.toFixed(2)}`);
+    }
+
+    const id = `saque-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`;
+    const novoSaque: SolicitacaoSaque = {
+      ...dados,
+      id,
+      status: 'pendente',
+      criadoEm: new Date().toISOString()
+    };
+
+    // Remove campos undefined para o Firestore
+    const limpo = JSON.parse(JSON.stringify(novoSaque));
+    await this.saquesCol().doc(id).set(limpo);
+
+    // Registra transação de débito no extrato
+    const txId = `tx-saque-${id}`;
+    const transacaoDebito: TransacaoCarteira = {
+      id: txId,
+      ownerId: dados.ownerId,
+      tipo: 'saque',
+      valorBruto: dados.valorSolicitado,
+      taxa: dados.taxaSaque,
+      valorLiquido: dados.valorLiquido,
+      status: 'processando',
+      descricao: `Solicitação de Saque (${dados.modalidade === 'imediato' ? 'Imediato Pix' : 'D+1 Grátis'})`,
+      referenciaId: id,
+      criadoEm: new Date().toISOString()
+    };
+    await this.transacoesCol().doc(txId).set(transacaoDebito);
+
+    return novoSaque;
+  }
+
+  public async listarTransacoesCarteira(ownerId: string): Promise<TransacaoCarteira[]> {
+    const snap = await this.transacoesCol().where('ownerId', '==', ownerId).get();
+    const lista = snap.docs.map(d => d.data() as TransacaoCarteira);
+    return lista.sort((a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime());
+  }
+
+  public async listarSolicitacoesSaque(ownerId?: string): Promise<SolicitacaoSaque[]> {
+    let query: FirebaseFirestore.Query = this.saquesCol();
+    if (ownerId) {
+      query = query.where('ownerId', '==', ownerId);
+    }
+    const snap = await query.get();
+    const lista = snap.docs.map(d => d.data() as SolicitacaoSaque);
+    return lista.sort((a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime());
+  }
+
+  public async atualizarStatusSaque(saqueId: string, status: 'aprovado' | 'pago' | 'rejeitado', codigoAutenticacao?: string, observacao?: string): Promise<SolicitacaoSaque | null> {
+    const docRef = this.saquesCol().doc(saqueId);
+    const doc = await docRef.get();
+    if (!doc.exists) return null;
+
+    const saque = doc.data() as SolicitacaoSaque;
+    saque.status = status;
+    if (codigoAutenticacao) saque.codigoAutenticacao = codigoAutenticacao;
+    if (observacao) saque.observacao = observacao;
+    saque.processadoEm = new Date().toISOString();
+
+    const limpo = JSON.parse(JSON.stringify(saque));
+    await docRef.set(limpo);
+
+    const txId = `tx-saque-${saqueId}`;
+    const txRef = this.transacoesCol().doc(txId);
+    const txDoc = await txRef.get();
+    if (txDoc.exists) {
+      const tx = txDoc.data() as TransacaoCarteira;
+      tx.status = status === 'pago' ? 'concluida' : status === 'rejeitado' ? 'cancelada' : 'processando';
+      await txRef.set(tx);
+    }
+
+    return saque;
   }
 }

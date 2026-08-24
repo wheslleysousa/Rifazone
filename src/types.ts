@@ -384,7 +384,197 @@ export interface ConfigOrganizador {
   metaConexaoTipo?: 'oauth' | 'manual' | null;
   metaConectadoEm?: string | null;
   notificameToken?: string | null;  // segredo — para envio via WhatsApp Notificame
+  
+  // MÉTODOS DE PAGAMENTO E GATEWAYS
+  metodoAtivo?: 'carteira' | 'mercadopago' | 'asaas' | 'efipay' | 'pay2m' | 'paggue' | 'pushinpay' | 'zettpay' | 'paggo365' | 'pix_manual' | 'crypto' | 'manual';
+  
+  // Carteira do Sistema (Efí Pay Integrada)
+  carteiraConfig?: {
+    ativo?: boolean;
+    taxaVendaPct?: number; // ex: 5.0 para 5.0%
+    taxaSaqueImediato?: number; // ex: 4.50
+    chavePixRecebimento?: string;
+    isencaoTaxaPublicacao?: boolean;
+    nome?: string;
+    email?: string;
+    documento?: string;
+    tipoChavePix?: 'cpf' | 'cnpj' | 'email' | 'telefone' | 'aleatoria';
+    chavePix?: string;
+    telefone?: string;
+    status?: "pendente" | "aprovado" | "rejeitado";
+    // Map de taxas personalizadas por usuário (gerenciadas pelo Super Admin)
+    taxasPersonalizadas?: Record<string, {
+      taxaVendaPct?: number;
+      taxaSaqueImediato?: number;
+      observacao?: string;
+      atualizadoEm?: string;
+    }>;
+  };
+  
+  // Asaas (Direto)
+  asaasConfig?: {
+    apiKey?: string | null;
+    chavePix?: string | null;
+    webhookToken?: string | null;
+    ambiente?: 'producao' | 'sandbox';
+    repassarTaxa?: boolean;
+    ativo?: boolean;
+  };
+
+  // EFIPAY (Gerencianet)
+  efipayConfig?: {
+    clientId?: string | null;
+    clientSecret?: string | null;
+    chavePix?: string | null;
+    clientIdHomologacao?: string | null;
+    clientSecretHomologacao?: string | null;
+    chavePixHomologacao?: string | null;
+    ambiente?: 'producao' | 'homologacao';
+    certificadoBase64?: string | null;
+    certificadoNome?: string | null;
+    repassarTaxa?: boolean;
+    ativo?: boolean;
+  };
+
+  // Pay2M
+  pay2mConfig?: {
+    clientId?: string | null;
+    secretKey?: string | null;
+    clientSecret?: string | null;
+    repassarTaxa?: boolean;
+    ativo?: boolean;
+  };
+
+  // Paggue
+  paggueConfig?: {
+    clientId?: string | null;
+    clientKey?: string | null;
+    clientSecret?: string | null;
+    repassarTaxa?: boolean;
+    ativo?: boolean;
+  };
+
+  // PushinPay
+  pushinpayConfig?: {
+    token?: string | null;
+    repassarTaxa?: boolean;
+    ativo?: boolean;
+  };
+
+  // ZettPay
+  zettpayConfig?: {
+    apiKey?: string | null;
+    clientId?: string | null;
+    clientSecret?: string | null;
+    repassarTaxa?: boolean;
+    ativo?: boolean;
+  };
+
+  // Paggo365
+  paggo365Config?: {
+    apiKey?: string | null;
+    publicKey?: string | null;
+    secretKey?: string | null;
+    valorMinimo?: number;
+    ativo?: boolean;
+  };
+
+  // Pix Manual
+  pixManualConfig?: {
+    tipoChave: 'cpf_cnpj' | 'email' | 'telefone' | 'aleatoria';
+    chavePix: string;
+    nomeBeneficiario: string;
+    instrucoes?: string;
+    ativo?: boolean;
+  };
+
+  // Crypto (USDT/BTC)
+  cryptoConfig?: {
+    moeda?: 'USDT' | 'BTC';
+    rede?: string;
+    network?: string;
+    walletAddress?: string;
+    enderecoCarteira?: string;
+    nomeIdentificacao?: string;
+    ativo?: boolean;
+  };
+
   atualizadaEm: string;
+}
+
+export type MetodoPagamentoAtivo = 
+  | 'carteira'
+  | 'asaas'
+  | 'mercadopago'
+  | 'efipay'
+  | 'pushinpay'
+  | 'pay2m'
+  | 'paggue'
+  | 'zettpay'
+  | 'paggo365'
+  | 'crypto'
+  | 'manual';
+
+// Entidades de Carteira do Sistema & Saques
+export interface CarteiraSaldo {
+  ownerId?: string;
+  saldoTotal?: number;
+  saldoDisponivel: number;
+  saldoPendente: number;
+  totalVendido?: number;
+  totalArrecadado?: number;
+  totalSacado: number;
+  totalTaxasPagas?: number;
+  totalTaxas?: number;
+  atualizadoEm?: string;
+}
+
+export interface TransacaoCarteira {
+  id: string;
+  ownerId: string;
+  tipo: 'venda' | 'saque' | 'taxa_plataforma' | 'estorno';
+  valorBruto: number;
+  taxaPercentual?: number;
+  taxaValor?: number;
+  taxa?: number;
+  valorLiquido: number;
+  status: 'concluida' | 'processando' | 'pendente' | 'cancelada';
+  descricao: string;
+  pedidoId?: string;
+  referenciaId?: string;
+  criadoEm: string;
+}
+
+export interface SolicitacaoSaque {
+  id: string;
+  ownerId: string;
+  valorSolicitado: number;
+  taxaSaque: number;
+  valorLiquido: number;
+  modalidade: 'imediato' | 'd_mais_um' | 'dia_seguinte';
+  tipoChavePix?: 'cpf' | 'cnpj' | 'email' | 'telefone' | 'aleatoria';
+  chavePix?: string;
+  bancoInfo?: {
+    banco: string;
+    agencia: string;
+    conta: string;
+    digito?: string;
+    tipoConta?: string;
+    titular?: string;
+    documento?: string;
+  };
+  dadosBancarios?: {
+    banco: string;
+    agencia: string;
+    conta: string;
+    digito: string;
+    tipoConta: 'corrente' | 'poupanca';
+  };
+  status: 'pendente' | 'aprovado' | 'pago' | 'rejeitado';
+  codigoAutenticacao?: string;
+  criadoEm: string;
+  processadoEm?: string | null;
+  observacao?: string;
 }
 
 // Dados de marca seguros para expor na página pública (sem segredos)

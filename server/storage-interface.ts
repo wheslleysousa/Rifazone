@@ -1,4 +1,4 @@
-import { Campanha, Pedido, Comprador, RankingItem, CotaPremiada, ConfigOrganizador, MarcaConfig, RedesSociais, EstiloSalvo, TemaCampanha, MensagemFila, CheckoutSalvo, CheckoutConfig } from '../src/types.js';
+import { Campanha, Pedido, Comprador, RankingItem, CotaPremiada, ConfigOrganizador, MarcaConfig, RedesSociais, EstiloSalvo, TemaCampanha, MensagemFila, CheckoutSalvo, CheckoutConfig, CarteiraSaldo, TransacaoCarteira, SolicitacaoSaque } from '../src/types.js';
 
 // Campos que o organizador pode salvar nas configurações
 export interface DadosConfig {
@@ -16,6 +16,96 @@ export interface DadosConfig {
   metaConexaoTipo?: 'oauth' | 'manual' | null;
   metaConectadoEm?: string | null;
   notificameToken?: string | null;
+  
+  // Gateways & Carteira
+  metodoAtivo?: 'carteira' | 'mercadopago' | 'asaas' | 'efipay' | 'pay2m' | 'paggue' | 'pushinpay' | 'zettpay' | 'paggo365' | 'pix_manual' | 'crypto' | 'manual';
+  carteiraConfig?: {
+    ativo?: boolean;
+    taxaVendaPct?: number;
+    taxaSaqueImediato?: number;
+    chavePixRecebimento?: string;
+    nome?: string;
+    email?: string;
+    documento?: string;
+    tipoChavePix?: 'cpf' | 'cnpj' | 'email' | 'telefone' | 'aleatoria';
+    chavePix?: string;
+    taxasPersonalizadas?: Record<string, {
+      taxaVendaPct?: number;
+      taxaSaqueImediato?: number;
+      observacao?: string;
+      atualizadoEm?: string;
+    }>;
+  };
+  asaasConfig?: {
+    apiKey?: string | null;
+    chavePix?: string | null;
+    webhookToken?: string | null;
+    ambiente?: 'producao' | 'sandbox';
+    repassarTaxa?: boolean;
+    ativo?: boolean;
+  };
+  efipayConfig?: {
+    clientId?: string | null;
+    clientSecret?: string | null;
+    chavePix?: string | null;
+    clientIdHomologacao?: string | null;
+    clientSecretHomologacao?: string | null;
+    chavePixHomologacao?: string | null;
+    ambiente?: 'producao' | 'homologacao';
+    certificadoBase64?: string | null;
+    certificadoNome?: string | null;
+    repassarTaxa?: boolean;
+    ativo?: boolean;
+  };
+  pay2mConfig?: {
+    clientId?: string | null;
+    secretKey?: string | null;
+    clientSecret?: string | null;
+    repassarTaxa?: boolean;
+    ativo?: boolean;
+  };
+  paggueConfig?: {
+    clientId?: string | null;
+    clientKey?: string | null;
+    clientSecret?: string | null;
+    repassarTaxa?: boolean;
+    ativo?: boolean;
+  };
+  pushinpayConfig?: {
+    token?: string | null;
+    repassarTaxa?: boolean;
+    ativo?: boolean;
+  };
+  zettpayConfig?: {
+    apiKey?: string | null;
+    clientId?: string | null;
+    clientSecret?: string | null;
+    repassarTaxa?: boolean;
+    ativo?: boolean;
+  };
+  paggo365Config?: {
+    apiKey?: string | null;
+    publicKey?: string | null;
+    secretKey?: string | null;
+    valorMinimo?: number;
+    ativo?: boolean;
+  };
+  pixManualConfig?: {
+    tipoChave: 'cpf_cnpj' | 'email' | 'telefone' | 'aleatoria';
+    chavePix: string;
+    nomeBeneficiario: string;
+    instrucoes?: string;
+    ativo?: boolean;
+  };
+  cryptoConfig?: {
+    moeda?: 'USDT' | 'BTC';
+    rede?: string;
+    network?: string;
+    walletAddress?: string;
+    enderecoCarteira?: string;
+    nomeIdentificacao?: string;
+    ativo?: boolean;
+  };
 }
 
 export interface EstatisticasCampanha {
@@ -74,6 +164,7 @@ export interface Storage {
 
   // Configurações de pagamento (Mercado Pago por organizador)
   getConfig(ownerId: string): Promise<ConfigOrganizador | null>;
+  getTodasConfiguracoes(): Promise<{ ownerId: string; config: ConfigOrganizador }[]>;
   saveConfig(ownerId: string, dados: DadosConfig): Promise<ConfigOrganizador>;
   getMpTokenPorCampanha(campanhaId: string): Promise<string | null>;
 
@@ -96,4 +187,12 @@ export interface Storage {
   listarFilaPendente(limitNum: number): Promise<MensagemFila[]>;
   marcarStatusMensagem(id: string, status: 'pendente' | 'enviada' | 'erro' | 'cancelada', erro?: string): Promise<MensagemFila | null>;
   listarTodasMensagensFila(campanhaId?: string): Promise<MensagemFila[]>;
+
+  // Carteira do Sistema & Saques
+  getCarteiraSaldo(ownerId: string): Promise<CarteiraSaldo>;
+  creditarVendaCarteira(ownerId: string, valorBruto: number, taxaPct: number, pedidoId: string, descricao: string): Promise<TransacaoCarteira>;
+  solicitarSaque(dados: Omit<SolicitacaoSaque, 'id' | 'criadoEm' | 'status'>): Promise<SolicitacaoSaque>;
+  listarTransacoesCarteira(ownerId: string): Promise<TransacaoCarteira[]>;
+  listarSolicitacoesSaque(ownerId?: string): Promise<SolicitacaoSaque[]>;
+  atualizarStatusSaque(saqueId: string, status: 'aprovado' | 'pago' | 'rejeitado', codigoAutenticacao?: string, observacao?: string): Promise<SolicitacaoSaque | null>;
 }

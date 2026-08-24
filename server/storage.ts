@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { Campanha, Cota, Pedido, Comprador, RankingItem, CotaPremiada, ConfigOrganizador, EstiloSalvo, TemaCampanha, CheckoutSalvo, CheckoutConfig, MensagemFila } from '../src/types.js';
+import { Campanha, Cota, Pedido, Comprador, RankingItem, CotaPremiada, ConfigOrganizador, EstiloSalvo, TemaCampanha, CheckoutSalvo, CheckoutConfig, MensagemFila, CarteiraSaldo, TransacaoCarteira, SolicitacaoSaque } from '../src/types.js';
 import { Storage, EstatisticasCampanha, MeusNumerosResult, ConfirmarPedidoResult, SorteioResult, DadosConfig } from './storage-interface.js';
 import { mergeConfig } from './config-utils.js';
 import { decryptToken } from './crypto-utils.js';
@@ -19,6 +19,8 @@ const CONFIGS_FILE = path.join(DATA_DIR, 'configuracoes.json');
 const ESTILOS_FILE = path.join(DATA_DIR, 'estilos.json');
 const CHECKOUTS_FILE = path.join(DATA_DIR, 'checkouts.json');
 const FILA_FILE = path.join(DATA_DIR, 'fila.json');
+const TRANSACOES_CARTEIRA_FILE = path.join(DATA_DIR, 'transacoes_carteira.json');
+const SAQUES_FILE = path.join(DATA_DIR, 'saques.json');
 
 function loadJson<T>(file: string, fallback: T): T {
   try {
@@ -120,6 +122,8 @@ export class FileStorage implements Storage {
   // Checkouts salvos
   private checkouts: Map<string, CheckoutSalvo> = new Map();
   private fila: Map<string, MensagemFila> = new Map();
+  private transacoesCarteira: Map<string, TransacaoCarteira> = new Map();
+  private saques: Map<string, SolicitacaoSaque> = new Map();
 
   constructor() {
     this.loadAll();
@@ -161,6 +165,20 @@ export class FileStorage implements Storage {
 
     const filaList = loadJson<MensagemFila[]>(FILA_FILE, []);
     filaList.forEach(m => this.fila.set(m.id, m));
+
+    const transacoesList = loadJson<TransacaoCarteira[]>(TRANSACOES_CARTEIRA_FILE, []);
+    transacoesList.forEach(t => this.transacoesCarteira.set(t.id, t));
+
+    const saquesList = loadJson<SolicitacaoSaque[]>(SAQUES_FILE, []);
+    saquesList.forEach(s => this.saques.set(s.id, s));
+  }
+
+  private saveTransacoes() {
+    saveJson(TRANSACOES_CARTEIRA_FILE, Array.from(this.transacoesCarteira.values()));
+  }
+
+  private saveSaques() {
+    saveJson(SAQUES_FILE, Array.from(this.saques.values()));
   }
 
   private saveConfigs() {
@@ -527,6 +545,10 @@ export class FileStorage implements Storage {
   }
 
   // --- Configurações de pagamento por organizador ---
+  public async getTodasConfiguracoes(): Promise<{ ownerId: string; config: ConfigOrganizador }[]> {
+    return Object.entries((this as any).data.configs).map(([ownerId, config]) => ({ ownerId, config: config as any }));
+  }
+
   public async getConfig(ownerId: string): Promise<ConfigOrganizador | null> {
     return this.configs.get(ownerId) || null;
   }
@@ -733,5 +755,147 @@ export class FileStorage implements Storage {
       list = list.filter(m => m.campanhaId === campanhaId);
     }
     return list.sort((a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime());
+  }
+
+  // CARTEIRA DO SISTEMA & SAQUES
+  public async getCarteiraSaldo(ownerId: string): Promise<CarteiraSaldo> {
+    const transacoes = Array.from(this.transacoesCarteira.values()).filter(t => t.ownerId === ownerId);
+    const saques = Array.from(this.saques.values()).filter(s => s.ownerId === ownerId);
+
+    let totalArrecadado = 0;
+    let totalTaxas = 0;
+    let saldoDisponivel = 0;
+
+    for (const t of transacoes) {
+      if (t.tipo === 'venda' && (t.status === 'concluida' || t.status === 'processando')) {
+        totalArrecadado += t.valorBruto;
+        totalTaxas += t.taxa;
+        saldoDisponivel += t.valorLiquido;
+      }
+    }
+
+    let totalSacado = 0;
+    let saldoPendente = 0;
+
+    for (const s of saques) {
+      if (s.status === 'pago' || s.status === 'aprovado') {
+        totalSacado += s.valorSolicitado;
+        saldoDisponivel -= s.valorSolicitado;
+      } else if (s.status === 'pendente') {
+        saldoPendente += s.valorSolicitado;
+        saldoDisponivel -= s.valorSolicitado;
+      }
+    }
+
+    return {
+      ownerId,
+      saldoDisponivel: Math.max(0, Number(saldoDisponivel.toFixed(2))),
+      saldoPendente: Number(saldoPendente.toFixed(2)),
+      totalArrecadado: Number(totalArrecadado.toFixed(2)),
+      totalSacado: Number(totalSacado.toFixed(2)),
+      totalTaxas: Number(totalTaxas.toFixed(2)),
+      atualizadoEm: new Date().toISOString()
+    };
+  }
+
+  public async creditarVendaCarteira(ownerId: string, valorBruto: number, taxaPct: number, pedidoId: string, descricao: string): Promise<TransacaoCarteira> {
+    const taxa = Number(((valorBruto * (taxaPct || 0)) / 100).toFixed(2));
+    const valorLiquido = Number((valorBruto - taxa).toFixed(2));
+    const id = `tx-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`;
+
+    const transacao: TransacaoCarteira = {
+      id,
+      ownerId,
+      tipo: 'venda',
+      valorBruto,
+      taxa,
+      valorLiquido,
+      status: 'concluida',
+      descricao: descricao || `Venda Pedido #${pedidoId}`,
+      referenciaId: pedidoId,
+      criadoEm: new Date().toISOString()
+    };
+
+    this.transacoesCarteira.set(id, transacao);
+    this.saveTransacoes();
+    return transacao;
+  }
+
+  public async solicitarSaque(dados: Omit<SolicitacaoSaque, 'id' | 'criadoEm' | 'status'>): Promise<SolicitacaoSaque> {
+    const saldo = await this.getCarteiraSaldo(dados.ownerId);
+    if (dados.valorSolicitado <= 0) {
+      throw new Error('O valor do saque deve ser maior que zero.');
+    }
+    if (dados.valorSolicitado > saldo.saldoDisponivel) {
+      throw new Error(`Saldo insuficiente para saque. Disponível: R$ ${saldo.saldoDisponivel.toFixed(2)}`);
+    }
+
+    const id = `saque-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`;
+    const novoSaque: SolicitacaoSaque = {
+      ...dados,
+      id,
+      status: 'pendente',
+      criadoEm: new Date().toISOString()
+    };
+
+    this.saques.set(id, novoSaque);
+    this.saveSaques();
+
+    // Registra transação de débito no extrato
+    const txId = `tx-saque-${id}`;
+    const transacaoDebito: TransacaoCarteira = {
+      id: txId,
+      ownerId: dados.ownerId,
+      tipo: 'saque',
+      valorBruto: dados.valorSolicitado,
+      taxa: dados.taxaSaque,
+      valorLiquido: dados.valorLiquido,
+      status: 'processando',
+      descricao: `Solicitação de Saque (${dados.modalidade === 'imediato' ? 'Imediato Pix' : 'D+1 Grátis'})`,
+      referenciaId: id,
+      criadoEm: new Date().toISOString()
+    };
+    this.transacoesCarteira.set(txId, transacaoDebito);
+    this.saveTransacoes();
+
+    return novoSaque;
+  }
+
+  public async listarTransacoesCarteira(ownerId: string): Promise<TransacaoCarteira[]> {
+    return Array.from(this.transacoesCarteira.values())
+      .filter(t => t.ownerId === ownerId)
+      .sort((a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime());
+  }
+
+  public async listarSolicitacoesSaque(ownerId?: string): Promise<SolicitacaoSaque[]> {
+    let list = Array.from(this.saques.values());
+    if (ownerId) {
+      list = list.filter(s => s.ownerId === ownerId);
+    }
+    return list.sort((a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime());
+  }
+
+  public async atualizarStatusSaque(saqueId: string, status: 'aprovado' | 'pago' | 'rejeitado', codigoAutenticacao?: string, observacao?: string): Promise<SolicitacaoSaque | null> {
+    const saque = this.saques.get(saqueId);
+    if (!saque) return null;
+
+    saque.status = status;
+    if (codigoAutenticacao) saque.codigoAutenticacao = codigoAutenticacao;
+    if (observacao) saque.observacao = observacao;
+    saque.processadoEm = new Date().toISOString();
+
+    this.saques.set(saqueId, saque);
+    this.saveSaques();
+
+    // Atualiza status da transação correspondente
+    const txId = `tx-saque-${saqueId}`;
+    const tx = this.transacoesCarteira.get(txId);
+    if (tx) {
+      tx.status = status === 'pago' ? 'concluida' : status === 'rejeitado' ? 'cancelada' : 'processando';
+      this.transacoesCarteira.set(txId, tx);
+      this.saveTransacoes();
+    }
+
+    return saque;
   }
 }

@@ -1,4 +1,4 @@
-import { Campanha, Pedido, Comprador, RankingItem, CotaPremiada, ConfigOrganizador, MarcaConfig, RedesSociais, EstiloSalvo, TemaCampanha, MensagemFila } from '../src/types.js';
+import { Campanha, Pedido, Comprador, RankingItem, CotaPremiada, ConfigOrganizador, MarcaConfig, RedesSociais, EstiloSalvo, TemaCampanha, MensagemFila, CheckoutSalvo, CheckoutConfig } from '../src/types.js';
 
 // Campos que o organizador pode salvar nas configurações
 export interface DadosConfig {

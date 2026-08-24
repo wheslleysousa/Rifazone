@@ -116,6 +116,22 @@ export const TEMA_PADRAO: TemaCampanha = {
   }
 };
 
+export interface ConfirmacaoCompraConfig {
+  titulo?: string;
+  subtitulo?: string;
+  mensagemAgradecimento?: string;
+  exibirConfetes?: boolean;
+  exibirNumeros?: boolean;
+  exibirBotaoCopiar?: boolean;
+  exibirBotaoWhatsapp?: boolean;
+  exibirBotaoMeusNumeros?: boolean;
+  botaoGrupoVipAtivo?: boolean;
+  botaoGrupoVipTexto?: string;
+  botaoGrupoVipLink?: string;
+  bannerSucessoUrl?: string;
+  instrucoesPosCompra?: string;
+}
+
 export interface CheckoutConfig {
   metodos: {
     pix: boolean;
@@ -132,6 +148,17 @@ export interface CheckoutConfig {
     urgencia?: string;
   };
   selosSeguranca: boolean;
+  confirmacao?: ConfirmacaoCompraConfig;
+  corPrimaria?: string;
+  corFundo?: string;
+  fonteFamilia?: string;
+  textoBotao?: string;
+  textoRodape?: string;
+  bannerUrl?: string;
+  temporizadorAtivo?: boolean;
+  temporizadorMinutos?: number;
+  mensagemEscassez?: string;
+  selosExtras?: string[];
 }
 
 export const DEFAULT_CHECKOUT_CONFIG: CheckoutConfig = {
@@ -149,7 +176,31 @@ export const DEFAULT_CHECKOUT_CONFIG: CheckoutConfig = {
     sucesso: 'Seu pagamento foi confirmado! Seus números foram gerados com sucesso.',
     urgencia: 'Seus números estão reservados por tempo limitado. Conclua o pagamento!'
   },
-  selosSeguranca: true
+  selosSeguranca: true,
+  confirmacao: {
+    titulo: 'Pagamento Confirmado! 🎉',
+    subtitulo: 'Seu pagamento foi processado com sucesso. Seus números já estão salvos e vinculados ao seu WhatsApp!',
+    mensagemAgradecimento: 'Obrigado por participar! Boa sorte no sorteio!',
+    exibirConfetes: true,
+    exibirNumeros: true,
+    exibirBotaoCopiar: true,
+    exibirBotaoWhatsapp: true,
+    exibirBotaoMeusNumeros: true,
+    botaoGrupoVipAtivo: false,
+    botaoGrupoVipTexto: 'Entrar no Grupo VIP do WhatsApp',
+    botaoGrupoVipLink: '',
+    bannerSucessoUrl: '',
+    instrucoesPosCompra: 'Acompanhe a apuração e o sorteio oficial pelos nossos canais oficiais.'
+  },
+  corPrimaria: '#10b981',
+  corFundo: '#020617',
+  fonteFamilia: 'Inter',
+  textoBotao: 'GERAR PIX AGORA',
+  textoRodape: 'Pagamento 100% seguro com tecnologia criptografada de ponta a ponta.',
+  temporizadorAtivo: false,
+  temporizadorMinutos: 10,
+  mensagemEscassez: '🔥 Alta demanda: restam poucas cotas disponíveis para este sorteio!',
+  selosExtras: ['ssl', 'aprovacao']
 };
 
 export interface CupomDesconto {

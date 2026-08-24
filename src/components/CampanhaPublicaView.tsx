@@ -3,7 +3,7 @@ import { Campanha, CampanhaPublicaResponse, Promocao, OfertaRelampago, TemaCampa
 import { 
   Trophy, Flame, Sparkles, ShieldCheck, Ticket, Users,
   ChevronDown, ChevronUp, Plus, Minus, Gift, Info,
-  Smartphone, Share2, Instagram, AlertTriangle, Copy, CheckCircle2,
+  Smartphone, Share2, Instagram, AlertTriangle, AlertCircle, Copy, CheckCircle2,
   User, CreditCard, QrCode, FileText, Lock, Shield, X
 } from 'lucide-react';
 import { UpsellModal } from './UpsellModal';
@@ -226,7 +226,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
   };
 
   // Carregar dados da campanha
-  const carregarCampanha = async () => {
+  const carregarCampanha = async (silencioso = false) => {
     if (modoPreview && previewCampanha) {
       let realEst = {
         totalCotas: previewCampanha.totalCotas || 10000,
@@ -280,17 +280,18 @@ export const CampanhaPublicaView: React.FC<Props> = ({
           return prev;
         });
       }
-      setCarregando(false);
+      if (!silencioso) setCarregando(false);
       return;
     }
 
     if (!codigo) return;
 
     try {
-      setCarregando(true);
+      if (!silencioso) setCarregando(true);
       const res = await fetch(`/api/campanhas/${codigo}`);
       if (!res.ok) {
-        throw new Error('Campanha não encontrada.');
+        if (!silencioso) throw new Error('Campanha não encontrada.');
+        return;
       }
       const json: CampanhaPublicaResponse = await res.json();
       setData(json);
@@ -322,9 +323,9 @@ export const CampanhaPublicaView: React.FC<Props> = ({
         });
       }
     } catch (err: any) {
-      setErro(err.message || 'Erro ao carregar sorteio.');
+      if (!silencioso) setErro(err.message || 'Erro ao carregar sorteio.');
     } finally {
-      setCarregando(false);
+      if (!silencioso) setCarregando(false);
     }
   };
 
@@ -499,26 +500,33 @@ export const CampanhaPublicaView: React.FC<Props> = ({
 
   // Cálculo de valor com suporte a pacotes e desconto progressivo
   const calcularValorTotal = (qtd: number): number => {
+    const unitario = Number(campanha.valorCota) || 0;
+    const valorBase = Number((qtd * unitario).toFixed(2));
     if (campanha.promocoes && campanha.promocoes.length > 0) {
       const promo = campanha.promocoes.find(p => Number(p.quantidade) === qtd);
-      if (promo) return toReais(toCents(promo.valor));
-    }
-    const valorBaseCents = qtd * toCents(campanha.valorCota);
-    if (campanha.descontoPorValorTotal && campanha.descontoPorValorTotal.length > 0) {
-      const regrasOrdenadas = [...campanha.descontoPorValorTotal].sort(
-        (a, b) => toCents(b.aPartirDeValor) - toCents(a.aPartirDeValor)
-      );
-      const regraValida = regrasOrdenadas.find(r => valorBaseCents >= toCents(r.aPartirDeValor));
-      if (regraValida && toCents(regraValida.valorCotaComDesconto) > 0) {
-        return toReais(qtd * toCents(regraValida.valorCotaComDesconto));
+      if (promo && Number(promo.valor) > 0) {
+        const pVal = Number(promo.valor);
+        // Garante que o pacote promocional nunca custe mais que a compra avulsa
+        if (pVal <= valorBase) {
+          return pVal;
+        }
       }
     }
-    return toReais(valorBaseCents);
+    if (campanha.descontoPorValorTotal && campanha.descontoPorValorTotal.length > 0) {
+      const regrasOrdenadas = [...campanha.descontoPorValorTotal].sort(
+        (a, b) => Number(b.aPartirDeValor) - Number(a.aPartirDeValor)
+      );
+      const regraValida = regrasOrdenadas.find(r => valorBase >= Number(r.aPartirDeValor));
+      if (regraValida && Number(regraValida.valorCotaComDesconto) > 0) {
+        return Number((qtd * Number(regraValida.valorCotaComDesconto)).toFixed(2));
+      }
+    }
+    return valorBase;
   };
 
   const valorSemCupom = calcularValorTotal(quantidade);
   const valorTotalAtual = cupomAplicado
-    ? toReais(Math.round(toCents(valorSemCupom) * (1 - cupomAplicado.descontoPct / 100)))
+    ? Number((valorSemCupom * (1 - cupomAplicado.descontoPct / 100)).toFixed(2))
     : valorSemCupom;
 
   // Botão Comprar / Iniciar Checkout
@@ -715,7 +723,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
           numeros: pedidoJson.numeros || [],
           compradorNome: nome.trim()
         });
-        carregarCampanha();
+        carregarCampanha(true);
         return;
       }
 
@@ -787,7 +795,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
           compradorNome: nome.trim()
         });
 
-        carregarCampanha();
+        carregarCampanha(true);
         return;
       }
 
@@ -909,17 +917,9 @@ export const CampanhaPublicaView: React.FC<Props> = ({
     return (
       <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
         <div className="flex items-center justify-between">
-          <div>
-            <span
-              className="text-[11px] font-bold uppercase tracking-wider block"
-              style={{ color: 'var(--brand)' }}
-            >
-              Passo 1
-            </span>
-            <h2 className="text-base font-black text-white">
-              Escolha a quantidade de cotas
-            </h2>
-          </div>
+          <h2 className="text-base font-black text-white">
+            Escolha a quantidade de cotas
+          </h2>
           <div className="text-right">
             <span className="text-[11px] text-slate-400 block">{campanha.modalidade === 'gratis' ? 'Inscrição' : 'Por apenas'}</span>
             <span className="text-sm font-extrabold" style={{ color: 'var(--brand)' }}>
@@ -952,91 +952,135 @@ export const CampanhaPublicaView: React.FC<Props> = ({
           </div>
         ) : (
           <>
-            {/* Botões Rápidos de Pacotes / Promoções */}
-        {campanha.promocoes && campanha.promocoes.length > 0 && (
-          <div className="grid grid-cols-3 gap-2">
-            {campanha.promocoes.map((promo: Promocao, idx: number) => {
-              const selecionado = quantidade === promo.quantidade;
+            {/* Botões de Pacotes de Cotas */}
+            {(() => {
+              const unitPrice = Number(campanha.valorCota) || 0.01;
+              const listaBotoes = (campanha.promocoes && campanha.promocoes.length > 0)
+                ? campanha.promocoes.map(p => {
+                    const q = Number(p.quantidade) || 1;
+                    const regularTotal = Number((q * unitPrice).toFixed(2));
+                    const promoVal = Number(p.valor);
+                    const valorFinal = (promoVal > 0 && promoVal <= regularTotal) ? promoVal : regularTotal;
+                    return {
+                      quantidade: q,
+                      valor: valorFinal,
+                      destaque: !!p.destaque
+                    };
+                  })
+                : [
+                    { quantidade: 10, valor: Number((10 * unitPrice).toFixed(2)), destaque: false },
+                    { quantidade: 25, valor: Number((25 * unitPrice).toFixed(2)), destaque: false },
+                    { quantidade: 50, valor: Number((50 * unitPrice).toFixed(2)), destaque: true },
+                    { quantidade: 100, valor: Number((100 * unitPrice).toFixed(2)), destaque: false },
+                    { quantidade: 250, valor: Number((250 * unitPrice).toFixed(2)), destaque: false },
+                    { quantidade: 500, valor: Number((500 * unitPrice).toFixed(2)), destaque: false }
+                  ];
+
               return (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => setQuantidade(promo.quantidade)}
-                  className={`relative pt-3 pb-2 px-3 rounded-xl border text-center transition flex flex-col items-center gap-1 ${
-                    selecionado
-                      ? 'border-[var(--brand)] text-white shadow-md'
-                      : 'bg-slate-800/60 border-slate-700/80 text-slate-200 hover:bg-slate-800'
-                  }`}
-                  style={selecionado ? {
-                    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                    borderColor: 'var(--brand)'
-                  } : undefined}
-                >
-                  <span className="block text-sm font-black text-white">
-                    +{promo.quantidade}
-                  </span>
-                  <span
-                    className="block text-xs font-extrabold"
-                    style={{ color: 'var(--brand)' }}
-                  >
-                    {formatarMoeda(promo.valor)}
-                  </span>
-                  {promo.destaque && (
-                    <span className="mt-1 px-1.5 py-0.5 bg-amber-500 text-slate-950 font-black text-[8px] uppercase tracking-wider rounded-md shadow w-full text-center">
-                      + Popular
-                    </span>
-                  )}
-                </button>
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                  {listaBotoes.map((item, idx: number) => {
+                    return (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => {
+                          setQuantidade(prev => {
+                            const max = campanha.maxPorCompra || 500000;
+                            const min = campanha.minPorCompra || 1;
+                            const atual = Number(prev) || 0;
+                            const novaQtd = atual + item.quantidade;
+                            return Math.min(max, Math.max(min, novaQtd));
+                          });
+                        }}
+                        className={`relative py-3 px-2 rounded-xl border text-center transition flex flex-col items-center justify-center gap-0.5 group active:scale-95 ${
+                          item.destaque
+                            ? 'bg-emerald-500/10 border-emerald-500/40 hover:bg-emerald-500/20 shadow-sm'
+                            : 'bg-slate-800/60 border-slate-700/80 hover:bg-slate-800 hover:border-slate-600'
+                        }`}
+                      >
+                        {item.destaque && (
+                          <span className="absolute -top-2 left-1/2 -translate-x-1/2 px-1.5 py-0.5 bg-amber-500 text-slate-950 font-black text-[8px] uppercase tracking-wider rounded shadow whitespace-nowrap">
+                            Mais Popular
+                          </span>
+                        )}
+                        <span className="block text-sm font-black text-white group-hover:text-emerald-400 transition-colors">
+                          +{item.quantidade}
+                        </span>
+                        <span
+                          className="block text-[11px] font-extrabold"
+                          style={{ color: 'var(--brand)' }}
+                        >
+                          {formatarMoeda(item.valor)}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               );
-            })}
-          </div>
-        )}
+            })()}
 
-        {/* Seletor Manual / Digitação Direta (- / +) */}
-        <div className="flex items-center justify-between p-3 bg-slate-950 border border-slate-800 rounded-xl gap-3">
-          <button
-            type="button"
-            onClick={() => setQuantidade(q => Math.max(campanha.minPorCompra || 1, q - 1))}
-            className="w-10 h-10 rounded-lg bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center font-bold transition active:scale-95 shrink-0"
-            aria-label="Diminuir cotas"
-          >
-            <Minus className="w-4 h-4" />
-          </button>
+            {/* Seletor Manual (+1 / -1 e Input Direto) */}
+            <div className="p-3 bg-slate-950/80 border border-slate-800 rounded-xl">
+              <div className="flex items-center justify-between gap-2">
+                {/* Botão Decrementar -1 */}
+                <button
+                  type="button"
+                  onClick={() => setQuantidade(q => Math.max(campanha.minPorCompra || 1, (Number(q) || 1) - 1))}
+                  className="w-11 h-11 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-white flex items-center justify-center font-black transition shrink-0 border border-slate-700/60 shadow-sm"
+                  aria-label="Diminuir 1 cota"
+                  title="Diminuir 1 cota"
+                >
+                  <Minus className="w-4 h-4" />
+                </button>
 
-          <div className="flex-1 text-center space-y-1">
-            <div className="flex items-center justify-center gap-1.5">
-              <input
-                type="number"
-                min={campanha.minPorCompra || 1}
-                max={campanha.maxPorCompra || 500000}
-                value={quantidade}
-                onChange={e => {
-                  const v = Number(e.target.value);
-                  setQuantidade(isNaN(v) || v < 1 ? 1 : v);
-                }}
-                className="w-20 bg-slate-900 border border-slate-700 rounded-lg py-1 px-2 text-center text-lg font-black text-white focus:border-[var(--brand)] focus:outline-none font-mono"
-              />
-              <span className="text-sm font-bold text-slate-200">cotas</span>
+                {/* Input Central com Digitação e Edição Livre */}
+                <div className="flex-1 flex items-center justify-center gap-2">
+                  <input
+                    type="number"
+                    min={campanha.minPorCompra || 1}
+                    max={campanha.maxPorCompra || 500000}
+                    value={quantidade === 0 ? '' : quantidade}
+                    onChange={e => {
+                      const valStr = e.target.value;
+                      if (valStr === '') {
+                        setQuantidade(0);
+                        return;
+                      }
+                      const val = parseInt(valStr, 10);
+                      if (!isNaN(val)) {
+                        const max = campanha.maxPorCompra || 500000;
+                        if (val > max) {
+                          setQuantidade(max);
+                        } else {
+                          setQuantidade(val);
+                        }
+                      }
+                    }}
+                    onBlur={() => {
+                      const min = campanha.minPorCompra || 1;
+                      if (!quantidade || quantidade < min) {
+                        setQuantidade(min);
+                      }
+                    }}
+                    className="w-28 bg-slate-900 border border-slate-700 rounded-xl py-1.5 px-2 text-center text-xl font-black text-white focus:border-[var(--brand)] focus:outline-none font-mono shadow-inner"
+                  />
+                  <span className="text-sm font-bold text-slate-300">cotas</span>
+                </div>
+
+                {/* Botão Incrementar +1 */}
+                <button
+                  type="button"
+                  onClick={() => setQuantidade(q => Math.min(campanha.maxPorCompra || 500000, (Number(q) || 0) + 1))}
+                  style={{ backgroundColor: 'var(--btn)', color: 'var(--btn-txt)' }}
+                  className="w-11 h-11 rounded-xl flex items-center justify-center font-black transition active:scale-95 shrink-0 hover:opacity-90 shadow-sm"
+                  aria-label="Aumentar 1 cota"
+                  title="Aumentar 1 cota"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              </div>
             </div>
-            <span
-              className="text-xs font-extrabold block"
-              style={{ color: 'var(--brand)' }}
-            >
-              Total: {formatarMoeda(valorTotalAtual)}
-            </span>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setQuantidade(q => Math.min(campanha.maxPorCompra || 500000, q + 1))}
-            style={{ backgroundColor: 'var(--btn)', color: 'var(--btn-txt)' }}
-            className="w-10 h-10 rounded-lg flex items-center justify-center font-bold transition active:scale-95 shrink-0 hover:opacity-90 shadow-sm"
-            aria-label="Aumentar cotas"
-          >
-            <Plus className="w-4 h-4" />
-          </button>
-        </div>
-        </>
+          </>
         )}
       </div>
     );
@@ -2156,6 +2200,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
           compradorNome={pixModalData.compradorNome || nome}
           compradorWhatsapp={pixModalData.compradorWhatsapp || whatsapp.replace(/\D/g, '')}
           tituloCampanha={campanha.titulo}
+          confirmacaoConfig={campanha?.checkout?.confirmacao}
           onSuccess={() => {
             const pixelId = campanha?.metaPixelId || data?.marca?.metaPixelId;
             if (pixelId && campanha && pixModalData) {
@@ -2165,20 +2210,20 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                 numItems: pixModalData.quantidade
               }, pixModalData.pedidoId);
             }
-            carregarCampanha();
+            carregarCampanha(true);
           }}
           onClose={() => {
             setPixModalData(null);
-            carregarCampanha();
+            carregarCampanha(true);
           }}
           onVerMeusNumeros={() => {
             setPixModalData(null);
             setMeusNumerosAberto(true);
-            carregarCampanha();
+            carregarCampanha(true);
           }}
           onGerarNovoPix={() => {
             setPixModalData(null);
-            carregarCampanha();
+            carregarCampanha(true);
             setTimeout(() => {
               const el = document.getElementById('btn-confirmar-gerar-pix') || document.getElementById('input-nome-comprador');
               if (el) el.scrollIntoView({ behavior: 'smooth' });
@@ -2201,16 +2246,16 @@ export const CampanhaPublicaView: React.FC<Props> = ({
           compradorWhatsapp={boletoModalData.compradorWhatsapp}
           tituloCampanha={campanha.titulo}
           onSuccess={() => {
-            carregarCampanha();
+            carregarCampanha(true);
           }}
           onClose={() => {
             setBoletoModalData(null);
-            carregarCampanha();
+            carregarCampanha(true);
           }}
           onVerMeusNumeros={() => {
             setBoletoModalData(null);
             setMeusNumerosAberto(true);
-            carregarCampanha();
+            carregarCampanha(true);
           }}
         />
       )}
@@ -2225,14 +2270,15 @@ export const CampanhaPublicaView: React.FC<Props> = ({
           cartaoInfo={cartaoSuccessModalData.cartaoInfo}
           compradorNome={cartaoSuccessModalData.compradorNome}
           tituloCampanha={campanha.titulo}
+          confirmacaoConfig={campanha?.checkout?.confirmacao}
           onClose={() => {
             setCartaoSuccessModalData(null);
-            carregarCampanha();
+            carregarCampanha(true);
           }}
           onVerMeusNumeros={() => {
             setCartaoSuccessModalData(null);
             setMeusNumerosAberto(true);
-            carregarCampanha();
+            carregarCampanha(true);
           }}
         />
       )}

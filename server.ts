@@ -178,10 +178,21 @@ async function firebaseAuthMiddleware(req: Request, res: Response, next: NextFun
  */
 export function formatarCampanhaParaEnvio(c: any): any {
   if (!c) return c;
+  const valorCotaCents = Number(c.valorCota) || 0;
   return {
     ...c,
     valorCota: toReais(c.valorCota),
-    promocoes: c.promocoes?.map((p: any) => ({ ...p, valor: toReais(p.valor) })),
+    promocoes: c.promocoes?.map((p: any) => {
+      const pQtd = Number(p.quantidade) || 0;
+      const regularCents = pQtd * valorCotaCents;
+      const promoCents = Number(p.valor) || regularCents;
+      // Garante que o valor do pacote promocional nunca seja maior que a compra regular
+      const finalCents = (promoCents > 0 && promoCents <= regularCents) ? promoCents : regularCents;
+      return {
+        ...p,
+        valor: toReais(finalCents)
+      };
+    }),
     ofertasRelampago: c.ofertasRelampago?.map((o: any) => ({ ...o, preco: toReais(o.preco) })),
     descontoPorValorTotal: c.descontoPorValorTotal?.map((d: any) => ({
       aPartirDeValor: toReais(d.aPartirDeValor),
@@ -318,8 +329,10 @@ app.post('/api/pedidos', async (req, res) => {
     // Verificar se se encaixa em alguma promoção de pacote
     if (campanha.promocoes && campanha.promocoes.length > 0) {
       const promoExata = campanha.promocoes.find(p => Number(p.quantidade) === totalQtd);
-      if (promoExata) {
-        valorTotalCents = promoExata.valor;
+      if (promoExata && Number(promoExata.valor) > 0) {
+        if (Number(promoExata.valor) <= valorTotalCents) {
+          valorTotalCents = Number(promoExata.valor);
+        }
       }
     }
 
@@ -2258,8 +2271,10 @@ async function startServer() {
   setInterval(async () => {
     try {
       const res = await db.limparReservasExpiradas();
-      if (res && (res.cotasLiberadas > 0 || res.pedidosExpirados > 0)) {
-        console.log(`[EXPIRAÇÃO AUTOMÁTICA] Limpeza executada: ${res.pedidosExpirados} pedidos expirados, ${res.cotasLiberadas} cotas liberadas.`);
+      const cotas = typeof res === 'object' && res !== null ? res.cotasLiberadas : 0;
+      const pedidos = typeof res === 'object' && res !== null ? res.pedidosExpirados : (typeof res === 'number' ? res : 0);
+      if (cotas > 0 || pedidos > 0) {
+        console.log(`[EXPIRAÇÃO AUTOMÁTICA] Limpeza executada: ${pedidos} pedidos expirados, ${cotas} cotas liberadas.`);
       }
     } catch (e) {
       // silencioso

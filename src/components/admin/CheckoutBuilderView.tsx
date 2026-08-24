@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { CheckoutConfig, CheckoutSalvo, DEFAULT_CHECKOUT_CONFIG } from '../../types';
+import { CheckoutConfig, CheckoutSalvo, DEFAULT_CHECKOUT_CONFIG, ConfirmacaoCompraConfig } from '../../types';
 import {
   CreditCard, QrCode, FileText, ShieldCheck, CheckCircle2,
   Trash2, Edit3, Plus, Save, RefreshCw, Smartphone,
   Monitor, AlertTriangle, Clock, Zap, MessageSquare,
-  Palette, Type, X
+  Palette, Type, X, PartyPopper, Users, Sparkles, Copy,
+  Share2, Ticket, MessageCircle, ExternalLink, HelpCircle
 } from 'lucide-react';
 
 interface Props {
@@ -22,6 +23,7 @@ interface CheckoutConfigExtended extends CheckoutConfig {
   temporizadorMinutos?: number;
   mensagemEscassez?: string;
   selosExtras?: string[];
+  confirmacao?: ConfirmacaoCompraConfig;
 }
 
 const SELOS_DISPONIVEIS = [
@@ -55,6 +57,21 @@ const defaultExtended: CheckoutConfigExtended = {
   temporizadorMinutos: 10,
   mensagemEscassez: '',
   selosExtras: ['ssl', 'aprovacao'],
+  confirmacao: {
+    titulo: 'Pagamento Confirmado! 🎉',
+    subtitulo: 'Seus números já estão salvos e vinculados ao seu WhatsApp!',
+    mensagemAgradecimento: 'Obrigado por participar! Boa sorte no sorteio.',
+    bannerSucessoUrl: '',
+    exibirConfetes: true,
+    exibirNumeros: true,
+    exibirBotaoCopiar: true,
+    exibirBotaoWhatsapp: true,
+    exibirBotaoMeusNumeros: true,
+    botaoGrupoVipAtivo: false,
+    botaoGrupoVipTexto: 'Entrar no Grupo VIP do WhatsApp',
+    botaoGrupoVipLink: '',
+    instrucoesPosCompra: 'Acompanhe as atualizações e a data do sorteio em nosso grupo oficial.'
+  }
 };
 
 export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
@@ -67,6 +84,7 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
   const [nomeCheckout, setNomeCheckout] = useState('Novo Checkout');
   const [checkoutConfig, setCheckoutConfig] = useState<CheckoutConfigExtended>(defaultExtended);
   const [previewTab, setPreviewTab] = useState<'pix' | 'cartao' | 'boleto'>('pix');
+  const [previewScreen, setPreviewScreen] = useState<'checkout' | 'sucesso'>('checkout');
   const [previewDevice, setPreviewDevice] = useState<'mobile' | 'desktop'>('mobile');
 
   useEffect(() => { carregarCheckouts(); }, []);
@@ -107,7 +125,14 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
   const handleEditar = (item: CheckoutSalvo) => {
     setEditandoId(item.id);
     setNomeCheckout(item.nome);
-    setCheckoutConfig({ ...defaultExtended, ...item.checkout } as CheckoutConfigExtended);
+    setCheckoutConfig({
+      ...defaultExtended,
+      ...item.checkout,
+      confirmacao: {
+        ...defaultExtended.confirmacao,
+        ...(item.checkout as any)?.confirmacao
+      }
+    } as CheckoutConfigExtended);
     setFormAberto(true); setFeedbackMsg(null);
     setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
   };
@@ -130,6 +155,9 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
     setCheckoutConfig(prev => ({ ...prev, metodos: { ...prev.metodos, ...patch } }));
   const updMsgs = (patch: Partial<NonNullable<CheckoutConfig['mensagens']>>) =>
     setCheckoutConfig(prev => ({ ...prev, mensagens: { ...prev.mensagens, ...patch } }));
+  const updConfirmacao = (patch: Partial<ConfirmacaoCompraConfig>) =>
+    setCheckoutConfig(prev => ({ ...prev, confirmacao: { ...prev.confirmacao, ...patch } }));
+  
   const toggleSelo = (id: string) => {
     const atual = checkoutConfig.selosExtras || [];
     upd({ selosExtras: atual.includes(id) ? atual.filter(s => s !== id) : [...atual, id] });
@@ -137,6 +165,7 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
 
   const primary = checkoutConfig.corPrimaria || '#10b981';
   const bgColor = checkoutConfig.corFundo || '#020617';
+  const conf = checkoutConfig.confirmacao || defaultExtended.confirmacao!;
 
   return (
     <div className="space-y-6 pb-12 animate-in fade-in-50">
@@ -145,9 +174,9 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
         <div>
           <div className="flex items-center gap-2">
             <CreditCard className="w-5 h-5 text-indigo-400" />
-            <h1 className="text-xl font-black text-white">Central de Checkouts</h1>
+            <h1 className="text-xl font-black text-white">Central de Checkouts & Pós-Venda</h1>
           </div>
-          <p className="text-xs text-slate-400 mt-0.5">Crie experiências de pagamento personalizadas para cada campanha.</p>
+          <p className="text-xs text-slate-400 mt-0.5">Crie experiências de pagamento e telas de compra concluída personalizadas para cada campanha.</p>
         </div>
         {!formAberto && (
           <button onClick={handleNovo} className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black rounded-xl flex items-center gap-2 transition shadow-lg shadow-indigo-600/20 active:scale-95">
@@ -178,7 +207,7 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
             </div>
             <div>
               <h3 className="text-sm font-black text-white">Nenhum checkout criado ainda</h3>
-              <p className="text-xs text-slate-400 mt-1">Crie seu primeiro modelo de checkout personalizado.</p>
+              <p className="text-xs text-slate-400 mt-1">Crie seu primeiro modelo de checkout personalizado com tela de confirmação.</p>
             </div>
             <button onClick={handleNovo} className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black rounded-xl inline-flex items-center gap-2 transition">
               <Plus className="w-4 h-4" /> Criar Primeiro Checkout
@@ -205,6 +234,7 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
                     {cfg.metodos?.pix !== false && <span className="px-2 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-bold rounded-lg flex items-center gap-1"><QrCode className="w-3 h-3" /> Pix</span>}
                     {cfg.metodos?.cartao && <span className="px-2 py-1 bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] font-bold rounded-lg flex items-center gap-1"><CreditCard className="w-3 h-3" /> Cartão {cfg.parcelasMax}x</span>}
                     {cfg.metodos?.boleto && <span className="px-2 py-1 bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] font-bold rounded-lg flex items-center gap-1"><FileText className="w-3 h-3" /> Boleto</span>}
+                    {cfg.confirmacao?.botaoGrupoVipAtivo && <span className="px-2 py-1 bg-teal-500/10 border border-teal-500/20 text-teal-400 text-[10px] font-bold rounded-lg flex items-center gap-1"><Users className="w-3 h-3" /> Grupo VIP</span>}
                   </div>
                   {selosBadges.length > 0 && (
                     <div className="flex flex-wrap gap-1">
@@ -244,14 +274,14 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
               </div>
               <div>
                 <label className="text-xs font-bold text-slate-300 block mb-1.5">Nome do Modelo *</label>
-                <input type="text" value={nomeCheckout} onChange={e => setNomeCheckout(e.target.value)} placeholder="Ex: Checkout VIP Cartão 12x" className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none" />
+                <input type="text" value={nomeCheckout} onChange={e => setNomeCheckout(e.target.value)} placeholder="Ex: Checkout Alta Conversão VIP" className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none" />
               </div>
             </div>
 
             {/* 1. Visual */}
             <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4">
               <h2 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
-                <Palette className="w-4 h-4 text-pink-400" /> 1. Identidade Visual
+                <Palette className="w-4 h-4 text-pink-400" /> 1. Identidade Visual do Checkout
               </h2>
               <div className="grid grid-cols-2 gap-4">
                 {[
@@ -276,7 +306,7 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
                 </select>
               </div>
               <div>
-                <label className="text-xs font-bold text-slate-300 block mb-1.5">Banner de Topo (URL — opcional)</label>
+                <label className="text-xs font-bold text-slate-300 block mb-1.5">Banner de Topo no Checkout (URL — opcional)</label>
                 <input type="url" value={checkoutConfig.bannerUrl || ''} onChange={e => upd({ bannerUrl: e.target.value })} placeholder="https://..." className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none" />
               </div>
             </div>
@@ -322,7 +352,7 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
             {/* 3. Textos */}
             <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4">
               <h2 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
-                <MessageSquare className="w-4 h-4 text-purple-400" /> 3. Textos & Mensagens
+                <MessageSquare className="w-4 h-4 text-purple-400" /> 3. Textos & Gatilhos Mentais
               </h2>
               <div>
                 <label className="text-[11px] font-bold text-slate-400 block mb-1">Texto do Botão Principal</label>
@@ -341,11 +371,7 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
                 <input type="text" value={checkoutConfig.mensagens?.pix || ''} onChange={e => updMsgs({ pix: e.target.value })} placeholder="Escaneie o QR Code ou copie o código." className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none" />
               </div>
               <div>
-                <label className="text-[11px] font-bold text-slate-400 block mb-1">Mensagem de Sucesso</label>
-                <input type="text" value={checkoutConfig.mensagens?.sucesso || ''} onChange={e => updMsgs({ sucesso: e.target.value })} placeholder="🎉 Pagamento confirmado! Seus números foram gerados." className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none" />
-              </div>
-              <div>
-                <label className="text-[11px] font-bold text-slate-400 block mb-1">Texto de Rodapé</label>
+                <label className="text-[11px] font-bold text-slate-400 block mb-1">Texto de Rodapé do Checkout</label>
                 <textarea value={checkoutConfig.textoRodape || ''} onChange={e => upd({ textoRodape: e.target.value })} rows={2} placeholder="Pagamento seguro com criptografia..." className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white focus:border-indigo-500 focus:outline-none resize-none" />
               </div>
             </div>
@@ -404,6 +430,186 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
               )}
             </div>
 
+            {/* 6. NOVA SEÇÃO: Tela de Confirmação de Compra (Sucesso & Pós-Venda) */}
+            <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
+                  <PartyPopper className="w-4 h-4 text-emerald-400" /> 6. Tela de Compra Concluída (Pós-Pagamento)
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setPreviewScreen('sucesso')}
+                  className="text-[11px] font-bold text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-1 rounded-lg transition"
+                >
+                  Visualizar no Preview →
+                </button>
+              </div>
+              <p className="text-xs text-slate-400">
+                Personalize os textos, botões e ações exibidos imediatamente após o pagamento ser confirmado pelo comprador.
+              </p>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-400 block mb-1">Título da Tela de Sucesso</label>
+                <input
+                  type="text"
+                  value={conf.titulo || ''}
+                  onChange={e => updConfirmacao({ titulo: e.target.value })}
+                  placeholder="Pagamento Confirmado! 🎉"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-400 block mb-1">Subtítulo / Mensagem Explicativa</label>
+                <input
+                  type="text"
+                  value={conf.subtitulo || ''}
+                  onChange={e => updConfirmacao({ subtitulo: e.target.value })}
+                  placeholder="Seus números da sorte já foram vinculados ao seu WhatsApp!"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-400 block mb-1">Mensagem de Agradecimento (Destaque)</label>
+                <input
+                  type="text"
+                  value={conf.mensagemAgradecimento || ''}
+                  onChange={e => updConfirmacao({ mensagemAgradecimento: e.target.value })}
+                  placeholder="Obrigado por apoiar nosso projeto! Boa sorte!"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-400 block mb-1">Banner Comemorativo da Confirmação (URL opcional)</label>
+                <input
+                  type="url"
+                  value={conf.bannerSucessoUrl || ''}
+                  onChange={e => updConfirmacao({ bannerSucessoUrl: e.target.value })}
+                  placeholder="https://..."
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+
+              {/* Toggles da Tela de Sucesso */}
+              <div className="space-y-2 pt-1">
+                <label className="flex items-center justify-between p-2.5 bg-slate-950/60 border border-slate-800 rounded-xl cursor-pointer">
+                  <span className="text-xs text-slate-300 font-bold flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-yellow-400" /> Disparar Animação de Confetes
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={conf.exibirConfetes !== false}
+                    onChange={e => updConfirmacao({ exibirConfetes: e.target.checked })}
+                    className="w-4 h-4 accent-emerald-500"
+                  />
+                </label>
+
+                <label className="flex items-center justify-between p-2.5 bg-slate-950/60 border border-slate-800 rounded-xl cursor-pointer">
+                  <span className="text-xs text-slate-300 font-bold flex items-center gap-1.5">
+                    <Ticket className="w-3.5 h-3.5 text-emerald-400" /> Exibir Lista de Números da Sorte
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={conf.exibirNumeros !== false}
+                    onChange={e => updConfirmacao({ exibirNumeros: e.target.checked })}
+                    className="w-4 h-4 accent-emerald-500"
+                  />
+                </label>
+
+                <label className="flex items-center justify-between p-2.5 bg-slate-950/60 border border-slate-800 rounded-xl cursor-pointer">
+                  <span className="text-xs text-slate-300 font-bold flex items-center gap-1.5">
+                    <Copy className="w-3.5 h-3.5 text-blue-400" /> Exibir Botão "Copiar Números"
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={conf.exibirBotaoCopiar !== false}
+                    onChange={e => updConfirmacao({ exibirBotaoCopiar: e.target.checked })}
+                    className="w-4 h-4 accent-emerald-500"
+                  />
+                </label>
+
+                <label className="flex items-center justify-between p-2.5 bg-slate-950/60 border border-slate-800 rounded-xl cursor-pointer">
+                  <span className="text-xs text-slate-300 font-bold flex items-center gap-1.5">
+                    <MessageCircle className="w-3.5 h-3.5 text-teal-400" /> Exibir Botão "Salvar / Compartilhar no WhatsApp"
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={conf.exibirBotaoWhatsapp !== false}
+                    onChange={e => updConfirmacao({ exibirBotaoWhatsapp: e.target.checked })}
+                    className="w-4 h-4 accent-emerald-500"
+                  />
+                </label>
+
+                <label className="flex items-center justify-between p-2.5 bg-slate-950/60 border border-slate-800 rounded-xl cursor-pointer">
+                  <span className="text-xs text-slate-300 font-bold flex items-center gap-1.5">
+                    <Ticket className="w-3.5 h-3.5 text-indigo-400" /> Exibir Botão "Acessar Área Meus Números"
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={conf.exibirBotaoMeusNumeros !== false}
+                    onChange={e => updConfirmacao({ exibirBotaoMeusNumeros: e.target.checked })}
+                    className="w-4 h-4 accent-emerald-500"
+                  />
+                </label>
+              </div>
+
+              {/* Botão de Grupo VIP / Canal */}
+              <div className="p-3.5 bg-slate-950/80 border border-teal-900/40 rounded-xl space-y-3">
+                <label className="flex items-center justify-between cursor-pointer">
+                  <div>
+                    <p className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <Users className="w-4 h-4 text-teal-400" /> Botão para Grupo VIP / Canal do WhatsApp
+                    </p>
+                    <p className="text-[11px] text-slate-400">Leva o cliente ao seu grupo oficial logo após o pagamento</p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={!!conf.botaoGrupoVipAtivo}
+                    onChange={e => updConfirmacao({ botaoGrupoVipAtivo: e.target.checked })}
+                    className="w-4 h-4 accent-teal-500"
+                  />
+                </label>
+
+                {conf.botaoGrupoVipAtivo && (
+                  <div className="space-y-2 pt-1 border-t border-slate-800">
+                    <div>
+                      <label className="text-[11px] text-slate-400 block mb-1">Texto do Botão do Grupo</label>
+                      <input
+                        type="text"
+                        value={conf.botaoGrupoVipTexto || ''}
+                        onChange={e => updConfirmacao({ botaoGrupoVipTexto: e.target.value })}
+                        placeholder="Entrar no Grupo VIP do WhatsApp"
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-slate-400 block mb-1">Link do Grupo / Canal (URL)</label>
+                      <input
+                        type="url"
+                        value={conf.botaoGrupoVipLink || ''}
+                        onChange={e => updConfirmacao({ botaoGrupoVipLink: e.target.value })}
+                        placeholder="https://chat.whatsapp.com/..."
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-400 block mb-1">Instruções Extras Pós-Compra (Notas / Regras)</label>
+                <textarea
+                  value={conf.instrucoesPosCompra || ''}
+                  onChange={e => updConfirmacao({ instrucoesPosCompra: e.target.value })}
+                  rows={2}
+                  placeholder="Ex: O sorteio será transmitido ao vivo em nosso Instagram às 20h..."
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white focus:border-emerald-500 focus:outline-none resize-none"
+                />
+              </div>
+            </div>
+
             {/* Salvar */}
             <div className="flex items-center gap-3">
               <button onClick={handleSalvar} disabled={salvando} className="flex-1 py-3.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-black rounded-xl flex items-center justify-center gap-2 transition shadow-lg disabled:opacity-60 active:scale-[0.98]">
@@ -419,62 +625,172 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
           {/* Preview */}
           <div className="xl:col-span-5 space-y-4">
             <div className="sticky top-6 space-y-4">
-              <div className="flex items-center justify-between bg-slate-900 border border-slate-800 p-3 rounded-2xl">
-                <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl">
-                  {(['mobile', 'desktop'] as const).map(d => (
-                    <button key={d} onClick={() => setPreviewDevice(d)} className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition ${previewDevice === d ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-300'}`}>
-                      {d === 'mobile' ? <Smartphone className="w-3.5 h-3.5" /> : <Monitor className="w-3.5 h-3.5" />}
-                      {d === 'mobile' ? 'Mobile' : 'Desktop'}
-                    </button>
-                  ))}
+              <div className="flex flex-col gap-2 bg-slate-900 border border-slate-800 p-3 rounded-2xl">
+                {/* Switcher entre Checkout e Tela de Sucesso */}
+                <div className="grid grid-cols-2 gap-1.5 bg-slate-950 p-1 rounded-xl">
+                  <button
+                    onClick={() => setPreviewScreen('checkout')}
+                    className={`py-1.5 px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${previewScreen === 'checkout' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
+                  >
+                    <CreditCard className="w-3.5 h-3.5" /> Checkout
+                  </button>
+                  <button
+                    onClick={() => setPreviewScreen('sucesso')}
+                    className={`py-1.5 px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${previewScreen === 'sucesso' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
+                  >
+                    <PartyPopper className="w-3.5 h-3.5" /> 🎉 Compra Concluída
+                  </button>
                 </div>
-                <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl">
-                  {checkoutConfig.metodos.pix !== false && <button onClick={() => setPreviewTab('pix')} className={`px-2 py-1 rounded-lg text-[10px] font-bold transition ${previewTab === 'pix' ? 'bg-emerald-600 text-white' : 'text-slate-500'}`}>Pix</button>}
-                  {checkoutConfig.metodos.cartao && <button onClick={() => setPreviewTab('cartao')} className={`px-2 py-1 rounded-lg text-[10px] font-bold transition ${previewTab === 'cartao' ? 'bg-blue-600 text-white' : 'text-slate-500'}`}>Cartão</button>}
-                  {checkoutConfig.metodos.boleto && <button onClick={() => setPreviewTab('boleto')} className={`px-2 py-1 rounded-lg text-[10px] font-bold transition ${previewTab === 'boleto' ? 'bg-amber-600 text-white' : 'text-slate-500'}`}>Boleto</button>}
+
+                <div className="flex items-center justify-between pt-1">
+                  <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl">
+                    {(['mobile', 'desktop'] as const).map(d => (
+                      <button key={d} onClick={() => setPreviewDevice(d)} className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition ${previewDevice === d ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-300'}`}>
+                        {d === 'mobile' ? <Smartphone className="w-3.5 h-3.5" /> : <Monitor className="w-3.5 h-3.5" />}
+                        {d === 'mobile' ? 'Mobile' : 'Desktop'}
+                      </button>
+                    ))}
+                  </div>
+
+                  {previewScreen === 'checkout' && (
+                    <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl">
+                      {checkoutConfig.metodos.pix !== false && <button onClick={() => setPreviewTab('pix')} className={`px-2 py-1 rounded-lg text-[10px] font-bold transition ${previewTab === 'pix' ? 'bg-emerald-600 text-white' : 'text-slate-500'}`}>Pix</button>}
+                      {checkoutConfig.metodos.cartao && <button onClick={() => setPreviewTab('cartao')} className={`px-2 py-1 rounded-lg text-[10px] font-bold transition ${previewTab === 'cartao' ? 'bg-blue-600 text-white' : 'text-slate-500'}`}>Cartão</button>}
+                      {checkoutConfig.metodos.boleto && <button onClick={() => setPreviewTab('boleto')} className={`px-2 py-1 rounded-lg text-[10px] font-bold transition ${previewTab === 'boleto' ? 'bg-amber-600 text-white' : 'text-slate-500'}`}>Boleto</button>}
+                    </div>
+                  )}
                 </div>
               </div>
 
-              <div className={`${previewDevice === 'mobile' ? 'max-w-[360px] mx-auto' : 'w-full'} rounded-2xl border border-slate-700 overflow-hidden shadow-2xl`} style={{ fontFamily: checkoutConfig.fonteFamilia || 'Inter', backgroundColor: bgColor }}>
-                <div className="px-4 py-3 flex items-center justify-between border-b" style={{ borderColor: `${primary}30` }}>
-                  <h3 className="text-sm font-black text-white">Finalizar Compra</h3>
-                  <div className="w-7 h-7 bg-slate-800 rounded-full flex items-center justify-center text-slate-400 text-xs">✕</div>
-                </div>
-                <div className="p-4 space-y-3 max-h-[520px] overflow-y-auto">
-                  {checkoutConfig.bannerUrl && <img src={checkoutConfig.bannerUrl} alt="banner" className="w-full h-20 object-cover rounded-xl" onError={e => (e.currentTarget.style.display = 'none')} />}
-                  {checkoutConfig.mensagens?.urgencia && (
-                    <div className="p-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 animate-pulse" style={{ backgroundColor: `${primary}15`, border: `1px solid ${primary}40`, color: primary }}>
-                      <Zap className="w-3.5 h-3.5 shrink-0" />{checkoutConfig.mensagens.urgencia}
+              {/* Card de Preview */}
+              <div className={`${previewDevice === 'mobile' ? 'max-w-[360px] mx-auto' : 'w-full'} rounded-2xl border border-slate-700 overflow-hidden shadow-2xl transition-all`} style={{ fontFamily: checkoutConfig.fonteFamilia || 'Inter', backgroundColor: bgColor }}>
+                
+                {previewScreen === 'checkout' ? (
+                  /* Preview do Formulário de Checkout */
+                  <>
+                    <div className="px-4 py-3 flex items-center justify-between border-b" style={{ borderColor: `${primary}30` }}>
+                      <h3 className="text-sm font-black text-white">Finalizar Compra</h3>
+                      <div className="w-7 h-7 bg-slate-800 rounded-full flex items-center justify-center text-slate-400 text-xs">✕</div>
                     </div>
-                  )}
-                  {checkoutConfig.temporizadorAtivo && (
-                    <div className="p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-center justify-between">
-                      <span className="text-[11px] text-amber-300 font-bold">⏱️ Reserva expira em</span>
-                      <span className="text-sm font-black text-amber-400 font-mono">{String(checkoutConfig.temporizadorMinutos || 10).padStart(2,'0')}:00</span>
+                    <div className="p-4 space-y-3 max-h-[520px] overflow-y-auto">
+                      {checkoutConfig.bannerUrl && <img src={checkoutConfig.bannerUrl} alt="banner" className="w-full h-20 object-cover rounded-xl" onError={e => (e.currentTarget.style.display = 'none')} />}
+                      {checkoutConfig.mensagens?.urgencia && (
+                        <div className="p-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 animate-pulse" style={{ backgroundColor: `${primary}15`, border: `1px solid ${primary}40`, color: primary }}>
+                          <Zap className="w-3.5 h-3.5 shrink-0" />{checkoutConfig.mensagens.urgencia}
+                        </div>
+                      )}
+                      {checkoutConfig.temporizadorAtivo && (
+                        <div className="p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-center justify-between">
+                          <span className="text-[11px] text-amber-300 font-bold">⏱️ Reserva expira em</span>
+                          <span className="text-sm font-black text-amber-400 font-mono">{String(checkoutConfig.temporizadorMinutos || 10).padStart(2,'0')}:00</span>
+                        </div>
+                      )}
+                      {checkoutConfig.mensagemEscassez && (
+                        <div className="p-2 bg-red-500/10 border border-red-500/20 rounded-xl text-[11px] font-bold text-red-400 text-center">{checkoutConfig.mensagemEscassez}</div>
+                      )}
+                      <div className="space-y-2">
+                        {['Nome completo', 'WhatsApp', 'Data de Nascimento'].map(f => (
+                          <div key={f} className="h-9 bg-slate-900/80 border border-slate-700/50 rounded-xl px-3 flex items-center text-xs text-slate-500">{f}</div>
+                        ))}
+                      </div>
+                      <button className="w-full py-3.5 rounded-xl text-sm font-black text-slate-950 shadow-lg transition" style={{ backgroundColor: primary, boxShadow: `0 8px 20px ${primary}40` }}>
+                        {checkoutConfig.textoBotao || 'Garantir Minha Cota Agora'} →
+                      </button>
+                      {checkoutConfig.selosSeguranca && (checkoutConfig.selosExtras || []).length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 justify-center pt-1">
+                          {SELOS_DISPONIVEIS.filter(s => (checkoutConfig.selosExtras || []).includes(s.id)).map(s => (
+                            <span key={s.id} className="text-[9px] text-slate-500 flex items-center gap-1 bg-slate-900/60 border border-slate-800 px-2 py-1 rounded-lg">{s.icon} {s.label}</span>
+                          ))}
+                        </div>
+                      )}
+                      {checkoutConfig.textoRodape && <p className="text-[10px] text-slate-600 text-center leading-snug">🔒 {checkoutConfig.textoRodape}</p>}
                     </div>
-                  )}
-                  {checkoutConfig.mensagemEscassez && (
-                    <div className="p-2 bg-red-500/10 border border-red-500/20 rounded-xl text-[11px] font-bold text-red-400 text-center">{checkoutConfig.mensagemEscassez}</div>
-                  )}
-                  <div className="space-y-2">
-                    {['Nome completo', 'WhatsApp', 'E-mail'].map(f => (
-                      <div key={f} className="h-9 bg-slate-900/80 border border-slate-700/50 rounded-xl px-3 flex items-center text-xs text-slate-500">{f}</div>
-                    ))}
-                  </div>
-                  <button className="w-full py-3.5 rounded-xl text-sm font-black text-slate-950 shadow-lg" style={{ backgroundColor: primary, boxShadow: `0 8px 20px ${primary}40` }}>
-                    {checkoutConfig.textoBotao || 'Garantir Minha Cota Agora'} →
-                  </button>
-                  {checkoutConfig.selosSeguranca && (checkoutConfig.selosExtras || []).length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 justify-center pt-1">
-                      {SELOS_DISPONIVEIS.filter(s => (checkoutConfig.selosExtras || []).includes(s.id)).map(s => (
-                        <span key={s.id} className="text-[9px] text-slate-500 flex items-center gap-1 bg-slate-900/60 border border-slate-800 px-2 py-1 rounded-lg">{s.icon} {s.label}</span>
-                      ))}
+                  </>
+                ) : (
+                  /* Preview da Tela de Compra Concluída (Sucesso) */
+                  <>
+                    <div className="px-4 py-3 flex items-center justify-between border-b border-emerald-500/30">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                        <h3 className="text-xs font-black text-emerald-400 uppercase tracking-wider">Pós-Pagamento Confirmado</h3>
+                      </div>
+                      <div className="w-7 h-7 bg-slate-800 rounded-full flex items-center justify-center text-slate-400 text-xs">✕</div>
                     </div>
-                  )}
-                  {checkoutConfig.textoRodape && <p className="text-[10px] text-slate-600 text-center leading-snug">🔒 {checkoutConfig.textoRodape}</p>}
-                </div>
+                    <div className="p-4 space-y-3 max-h-[520px] overflow-y-auto text-center">
+                      {conf.bannerSucessoUrl && (
+                        <img src={conf.bannerSucessoUrl} alt="Sucesso" className="w-full h-24 object-cover rounded-xl border border-emerald-500/30 mb-2" onError={e => (e.currentTarget.style.display = 'none')} />
+                      )}
+
+                      <div className="w-14 h-14 bg-emerald-500/20 border-2 border-emerald-500 rounded-full flex items-center justify-center mx-auto text-emerald-400 shadow-lg shadow-emerald-500/20">
+                        <CheckCircle2 className="w-8 h-8" />
+                      </div>
+
+                      <div>
+                        <h3 className="text-lg font-black text-white">{conf.titulo || 'Pagamento Confirmado! 🎉'}</h3>
+                        <p className="text-xs text-slate-300 mt-1">{conf.subtitulo || 'Seus números já estão salvos e vinculados ao seu WhatsApp!'}</p>
+                      </div>
+
+                      {conf.mensagemAgradecimento && (
+                        <p className="text-[11px] text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 p-2 rounded-xl">
+                          {conf.mensagemAgradecimento}
+                        </p>
+                      )}
+
+                      {conf.exibirNumeros !== false && (
+                        <div className="bg-slate-950 border border-emerald-500/30 rounded-xl p-3 text-left">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-[11px] font-bold text-emerald-400 flex items-center gap-1">
+                              <Ticket className="w-3 h-3" /> Bilhetes da Sorte (3):
+                            </span>
+                            {conf.exibirBotaoCopiar !== false && (
+                              <span className="text-[10px] font-bold text-slate-300 bg-slate-800 px-2 py-0.5 rounded flex items-center gap-1">
+                                <Copy className="w-2.5 h-2.5" /> Copiar
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {['04812', '09234', '15890'].map(n => (
+                              <span key={n} className="px-2 py-0.5 bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-mono font-bold text-[11px] rounded">
+                                {n}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {conf.instrucoesPosCompra && (
+                        <div className="p-2.5 bg-slate-950/90 border border-slate-800 rounded-xl text-left text-[11px] text-slate-300">
+                          <span className="text-[10px] font-bold text-amber-400 block mb-0.5">ℹ️ Informações:</span>
+                          {conf.instrucoesPosCompra}
+                        </div>
+                      )}
+
+                      <div className="space-y-2 pt-1">
+                        {conf.botaoGrupoVipAtivo && conf.botaoGrupoVipLink && (
+                          <div className="w-full py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-black rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-md">
+                            <Users className="w-3.5 h-3.5" />
+                            <span>{conf.botaoGrupoVipTexto || 'Entrar no Grupo VIP do WhatsApp'}</span>
+                            <ExternalLink className="w-3 h-3 opacity-80" />
+                          </div>
+                        )}
+
+                        {conf.exibirBotaoWhatsapp !== false && (
+                          <div className="w-full py-2 bg-emerald-600/20 text-emerald-300 border border-emerald-500/40 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5">
+                            <MessageCircle className="w-3.5 h-3.5" /> Salvar / Compartilhar no WhatsApp
+                          </div>
+                        )}
+
+                        {conf.exibirBotaoMeusNumeros !== false && (
+                          <div className="w-full py-3 bg-emerald-500 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-md">
+                            <Ticket className="w-3.5 h-3.5" /> Acessar Área "Meus Números"
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
-              <p className="text-center text-[10px] text-slate-600">Preview ao vivo — edite os campos acima para ver as mudanças</p>
+              <p className="text-center text-[10px] text-slate-500">Preview dinâmico — alterne entre as abas acima para testar o visual</p>
             </div>
           </div>
         </div>

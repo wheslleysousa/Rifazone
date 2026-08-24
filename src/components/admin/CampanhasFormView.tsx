@@ -317,7 +317,7 @@ export const CampanhasFormView: React.FC<Props> = ({
   };
 
   const handleGerarPromocoesSugeridas = () => {
-    const val = Number(form.valorCota) || 0.50;
+    const val = Number(form.valorCota) || 0.01;
     const pacotes: Promocao[] = [
       { quantidade: 10, valor: Number((10 * val * 0.95).toFixed(2)), destaque: false },
       { quantidade: 25, valor: Number((25 * val * 0.90).toFixed(2)), destaque: true },
@@ -738,9 +738,28 @@ export const CampanhasFormView: React.FC<Props> = ({
                         type="number"
                         step="any"
                         min="0.0001"
-                        placeholder="0.50"
+                        placeholder="0.01"
                         value={form.valorCota !== undefined && form.valorCota !== null ? form.valorCota : ''}
-                        onChange={e => setForm(prev => ({ ...prev, valorCota: e.target.value === '' ? undefined : Number(e.target.value) }))}
+                        onChange={e => {
+                          const novoValor = e.target.value === '' ? undefined : Number(e.target.value);
+                          setForm(prev => {
+                            const unitPrice = novoValor || 0;
+                            const promocoesAtualizadas = prev.promocoes?.map(p => {
+                              const q = Number(p.quantidade) || 0;
+                              const regular = Number((q * unitPrice).toFixed(2));
+                              const pVal = Number(p.valor) || 0;
+                              return {
+                                ...p,
+                                valor: (unitPrice > 0 && pVal > regular) ? regular : p.valor
+                              };
+                            });
+                            return {
+                              ...prev,
+                              valorCota: novoValor,
+                              promocoes: promocoesAtualizadas
+                            };
+                          });
+                        }}
                         className="w-full bg-slate-950/50 border border-slate-700/50 rounded-xl pl-10 pr-4 py-3.5 text-sm font-mono text-emerald-400 font-black focus:border-emerald-500 focus:bg-slate-900/80 transition-colors focus:outline-none shadow-inner"
                         required
                       />

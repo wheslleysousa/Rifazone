@@ -1,7 +1,8 @@
 import React, { useEffect } from 'react';
-import { CheckCircle2, Ticket, Sparkles, CreditCard, ArrowRight } from 'lucide-react';
+import { CheckCircle2, Ticket, Sparkles, CreditCard, ArrowRight, Users, ExternalLink } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { formatarMoeda } from '../lib/money';
+import { ConfirmacaoCompraConfig } from '../types';
 
 interface Props {
   pedidoId: string;
@@ -16,6 +17,7 @@ interface Props {
   };
   compradorNome?: string;
   tituloCampanha?: string;
+  confirmacaoConfig?: ConfirmacaoCompraConfig;
   onClose: () => void;
   onVerMeusNumeros?: () => void;
 }
@@ -28,10 +30,12 @@ export const CartaoSuccessModal: React.FC<Props> = ({
   cartaoInfo,
   compradorNome,
   tituloCampanha,
+  confirmacaoConfig,
   onClose,
   onVerMeusNumeros
 }) => {
   useEffect(() => {
+    if (confirmacaoConfig?.exibirConfetes === false) return;
     try {
       confetti({
         particleCount: 90,
@@ -44,7 +48,7 @@ export const CartaoSuccessModal: React.FC<Props> = ({
         try { confetti.reset(); } catch (e) {}
       }, 2500);
     } catch (e) {}
-  }, []);
+  }, [confirmacaoConfig?.exibirConfetes]);
 
   return (
     <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
@@ -60,6 +64,15 @@ export const CartaoSuccessModal: React.FC<Props> = ({
 
         {/* Header de Sucesso */}
         <div className="text-center space-y-2 pt-2">
+          {confirmacaoConfig?.bannerSucessoUrl && (
+            <img
+              src={confirmacaoConfig.bannerSucessoUrl}
+              alt="Sucesso"
+              className="w-full h-24 object-cover rounded-xl border border-emerald-500/30 mb-2 shadow-md"
+              onError={e => (e.currentTarget.style.display = 'none')}
+            />
+          )}
+
           <div className="w-16 h-16 bg-emerald-500/20 border-2 border-emerald-500 text-emerald-400 rounded-full flex items-center justify-center mx-auto shadow-lg shadow-emerald-500/20 animate-bounce">
             <CheckCircle2 className="w-10 h-10" />
           </div>
@@ -70,11 +83,16 @@ export const CartaoSuccessModal: React.FC<Props> = ({
           </div>
 
           <h3 className="text-xl font-black text-white">
-            {tituloCampanha || 'Parabéns, Você está Participando!'}
+            {confirmacaoConfig?.titulo || tituloCampanha || 'Parabéns, Você está Participando!'}
           </h3>
           <p className="text-xs text-slate-300">
-            {compradorNome ? `${compradorNome}, seus` : 'Seus'} números foram gerados e já estão concorrendo.
+            {confirmacaoConfig?.subtitulo || (compradorNome ? `${compradorNome}, seus números foram gerados e já estão concorrendo.` : 'Seus números foram gerados e já estão concorrendo.')}
           </p>
+          {confirmacaoConfig?.mensagemAgradecimento && (
+            <p className="text-xs text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 p-2 rounded-xl">
+              {confirmacaoConfig.mensagemAgradecimento}
+            </p>
+          )}
         </div>
 
         {/* Detalhes da Compra */}
@@ -107,12 +125,12 @@ export const CartaoSuccessModal: React.FC<Props> = ({
         </div>
 
         {/* Lista de Números Gerados */}
-        {numeros && numeros.length > 0 && (
+        {confirmacaoConfig?.exibirNumeros !== false && numeros && numeros.length > 0 && (
           <div className="bg-slate-950 border border-emerald-500/30 rounded-2xl p-4 space-y-2">
             <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider block text-center">
               Seus Bilhetes da Sorte ({numeros.length})
             </span>
-            <div className="flex flex-wrap gap-1.5 justify-center max-h-48 overflow-y-auto p-1 custom-scrollbar">
+            <div className="flex flex-wrap gap-1.5 justify-center max-h-44 overflow-y-auto p-1 custom-scrollbar">
               {numeros.map(num => (
                 <span
                   key={num}
@@ -125,9 +143,31 @@ export const CartaoSuccessModal: React.FC<Props> = ({
           </div>
         )}
 
+        {/* Instruções pós-compra personalizadas */}
+        {confirmacaoConfig?.instrucoesPosCompra && (
+          <div className="p-3 bg-slate-950/90 border border-slate-800 rounded-xl text-left text-xs text-slate-300">
+            <span className="text-[11px] font-bold text-amber-400 block mb-0.5">ℹ️ Informações Importantes:</span>
+            {confirmacaoConfig.instrucoesPosCompra}
+          </div>
+        )}
+
         {/* Botões de Ação */}
-        <div className="space-y-2 pt-2">
-          {onVerMeusNumeros && (
+        <div className="space-y-2 pt-1">
+          {/* Botão Grupo VIP */}
+          {confirmacaoConfig?.botaoGrupoVipAtivo && confirmacaoConfig?.botaoGrupoVipLink && (
+            <a
+              href={confirmacaoConfig.botaoGrupoVipLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-md"
+            >
+              <Users className="w-4 h-4" />
+              <span>{confirmacaoConfig.botaoGrupoVipTexto || 'Entrar no Grupo VIP do WhatsApp'}</span>
+              <ExternalLink className="w-3.5 h-3.5 opacity-80" />
+            </a>
+          )}
+
+          {confirmacaoConfig?.exibirBotaoMeusNumeros !== false && onVerMeusNumeros && (
             <button
               type="button"
               onClick={() => {

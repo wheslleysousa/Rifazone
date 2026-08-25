@@ -167,7 +167,15 @@ export class FileStorage implements Storage {
     filaList.forEach(m => this.fila.set(m.id, m));
 
     const transacoesList = loadJson<TransacaoCarteira[]>(TRANSACOES_CARTEIRA_FILE, []);
-    transacoesList.forEach(t => this.transacoesCarteira.set(t.id, t));
+    transacoesList.forEach(t => {
+      const pedId = t.pedidoId || t.referenciaId;
+      const ped = pedId ? this.pedidos.get(pedId) : null;
+      const isSimulated = (ped && ped.mpPaymentId && (ped.mpPaymentId.startsWith('simulado_') || ped.mpPaymentId.startsWith('mock_'))) ||
+                          (pedId && (pedId.startsWith('simulado_') || pedId.startsWith('mock_')));
+      if (!isSimulated) {
+        this.transacoesCarteira.set(t.id, t);
+      }
+    });
 
     const saquesList = loadJson<SolicitacaoSaque[]>(SAQUES_FILE, []);
     saquesList.forEach(s => this.saques.set(s.id, s));
@@ -766,8 +774,19 @@ export class FileStorage implements Storage {
   }
 
   // CARTEIRA DO SISTEMA & SAQUES
+  private ehTransacaoSimulada(t: TransacaoCarteira): boolean {
+    const pedId = t.pedidoId || t.referenciaId;
+    if (!pedId) return false;
+    if (pedId.startsWith('simulado_') || pedId.startsWith('mock_')) return true;
+    const ped = this.pedidos.get(pedId);
+    if (ped && ped.mpPaymentId && (ped.mpPaymentId.startsWith('simulado_') || ped.mpPaymentId.startsWith('mock_'))) {
+      return true;
+    }
+    return false;
+  }
+
   public async getCarteiraSaldo(ownerId: string): Promise<CarteiraSaldo> {
-    const transacoes = Array.from(this.transacoesCarteira.values()).filter(t => t.ownerId === ownerId);
+    const transacoes = Array.from(this.transacoesCarteira.values()).filter(t => t.ownerId === ownerId && !this.ehTransacaoSimulada(t));
     const saques = Array.from(this.saques.values()).filter(s => s.ownerId === ownerId);
 
     let totalArrecadado = 0;
@@ -817,10 +836,13 @@ export class FileStorage implements Storage {
       tipo: 'venda',
       valorBruto,
       taxa,
+      taxaPercentual: taxaPct,
+      taxaValor: taxa,
       valorLiquido,
       status: 'concluida',
       descricao: descricao || `Venda Pedido #${pedidoId}`,
       referenciaId: pedidoId,
+      pedidoId,
       criadoEm: new Date().toISOString()
     };
 
@@ -871,7 +893,7 @@ export class FileStorage implements Storage {
 
   public async listarTransacoesCarteira(ownerId: string): Promise<TransacaoCarteira[]> {
     return Array.from(this.transacoesCarteira.values())
-      .filter(t => t.ownerId === ownerId)
+      .filter(t => t.ownerId === ownerId && !this.ehTransacaoSimulada(t))
       .sort((a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime());
   }
 

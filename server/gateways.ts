@@ -802,3 +802,144 @@ export async function testEfipayConnection(config?: ConfigOrganizador | null): P
     };
   }
 }
+
+/**
+ * Consulta o Saldo Real da Conta Bancária Efí Pay diretamente via API
+ */
+export async function consultarSaldoEfipay(config?: ConfigOrganizador | null): Promise<{
+  success: boolean;
+  saldoReal?: number;
+  detalhes?: string;
+}> {
+  const creds = resolveEfipayCredentials(config);
+  if (!creds || !creds.clientId || !creds.clientSecret) {
+    return { success: false, detalhes: 'Credenciais Efí Pay não configuradas.' };
+  }
+
+  const token = await getEfipayAccessToken(creds);
+  if (!token) {
+    return { success: false, detalhes: 'Não foi possível obter token OAuth da Efí Pay.' };
+  }
+
+  const isProd = creds.ambiente !== 'homologacao';
+  const baseUrls = isProd
+    ? ['https://pix.api.efipay.com.br', 'https://api-pix.gerencianet.com.br']
+    : ['https://pix-h.api.efipay.com.br', 'https://api-pix-h.gerencianet.com.br'];
+
+  for (const baseUrl of baseUrls) {
+    const endpoints = [`${baseUrl}/v2/gn/saldo`, `${baseUrl}/v2/saldo`, `${baseUrl}/v2/gn/saldo/`];
+    for (const url of endpoints) {
+      try {
+        const res = await efipayFetch({
+          method: 'GET',
+          url,
+          headers: { 'Authorization': `Bearer ${token}` },
+          certificadoBase64: creds.certificadoBase64
+        });
+
+        if (res.data && (res.data.saldo !== undefined || res.data.saldoDisponivel !== undefined)) {
+          const rawSaldo = res.data.saldo !== undefined ? res.data.saldo : res.data.saldoDisponivel;
+          const saldoNum = Number(rawSaldo);
+          if (!isNaN(saldoNum)) {
+            return {
+              success: true,
+              saldoReal: saldoNum,
+              detalhes: 'Saldo obtido diretamente da API Efí Pay.'
+            };
+          }
+        }
+      } catch (err: any) {
+        console.warn(`[Efí Pay Saldo] Erro na URL ${url}:`, err?.message || err);
+      }
+    }
+  }
+
+  return { success: false, detalhes: 'Endpoint de saldo não respondeu.' };
+}
+
+/**
+ * Envia um Pix diretamente para a chave do destinatário via API da Efí Pay
+ */
+export async function enviarPixEfipay(params: {
+  valor: number;
+  chavePixDestino: string;
+  descricao?: string;
+  idEnvio?: string;
+  config?: ConfigOrganizador | null;
+}): Promise<{
+  success: boolean;
+  e2eId?: string;
+  detalhes?: string;
+}> {
+  const creds = resolveEfipayCredentials(params.config);
+  if (!creds || !creds.clientId || !creds.clientSecret) {
+    return { success: false, detalhes: 'Credenciais Efí Pay não configuradas.' };
+  }
+
+  const token = await getEfipayAccessToken(creds);
+  if (!token) {
+    return { success: false, detalhes: 'Não foi possível obter autenticação com a Efí Pay para envio de Pix.' };
+  }
+
+  const isProd = creds.ambiente !== 'homologacao';
+  const baseUrls = isProd
+    ? ['https://pix.api.efipay.com.br', 'https://api-pix.gerencianet.com.br']
+    : ['https://pix-h.api.efipay.com.br', 'https://api-pix-h.gerencianet.com.br'];
+
+  let idEnvioClean = (params.idEnvio || `envio${Date.now()}`).replace(/[^a-zA-Z0-9]/g, '');
+  if (idEnvioClean.length < 26) {
+    idEnvioClean = idEnvioClean.padEnd(26, '0');
+  } else if (idEnvioClean.length > 35) {
+    idEnvioClean = idEnvioClean.slice(0, 35);
+  }
+
+  const chaveOrigem = creds.chavePix || process.env.EFI_CHAVE_PIX || '';
+
+  const bodyEnvio: any = {
+    valor: params.valor.toFixed(2),
+    pagador: {
+      chave: chaveOrigem
+    },
+    favorecido: {
+      chave: params.chavePixDestino.trim()
+    }
+  };
+
+  if (params.descricao) {
+    bodyEnvio.descricao = params.descricao.slice(0, 140);
+  }
+
+  for (const baseUrl of baseUrls) {
+    const url = `${baseUrl}/v2/gn/pix/${idEnvioClean}`;
+    try {
+      const res = await efipayFetch({
+        method: 'PUT',
+        url,
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: bodyEnvio,
+        certificadoBase64: creds.certificadoBase64
+      });
+
+      const data = res.data;
+      if (res.status === 200 || res.status === 201 || (data && (data.e2eId || data.idEnvio || data.status === 'EM_PROCESSAMENTO' || data.status === 'REALIZADO'))) {
+        return {
+          success: true,
+          e2eId: data?.e2eId || data?.idEnvio || idEnvioClean,
+          detalhes: 'Pix enviado com sucesso via Efí Pay!'
+        };
+      } else {
+        const errDetail = formatErrorDetail(data);
+        console.warn(`[Efí Envio Pix] Falha no envio (${res.status}):`, errDetail);
+        return {
+          success: false,
+          detalhes: typeof errDetail === 'object' ? JSON.stringify(errDetail) : String(errDetail)
+        };
+      }
+    } catch (err: any) {
+      console.error(`[Efí Envio Pix] Exceção ao enviar Pix via ${baseUrl}:`, err);
+    }
+  }
+
+  return { success: false, detalhes: 'Não foi possível realizar o envio do Pix pela Efí Pay.' };
+}
+

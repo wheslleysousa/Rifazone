@@ -4,7 +4,7 @@ import {
   ArrowLeft, ArrowUpRight, Settings, User, Edit3, Lock, AlertTriangle, Zap,
   Bell, FileText, Filter, MessageSquare, TrendingUp, CheckCircle2,
   XCircle, Search, MoreVertical, Copy, ChevronRight, CheckCheck,
-  Calendar, Phone, Mail, Award, DollarSign, ExternalLink, Trash2
+  Calendar, Phone, Mail, Award, DollarSign, ExternalLink, Trash2, Calculator, History
 } from 'lucide-react';
 
 interface CarteiraAdminViewProps {
@@ -556,46 +556,85 @@ export const CarteiraAdminView: React.FC<CarteiraAdminViewProps> = ({ authFetch 
           {/* ===================================================================== */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             
-            {/* CARD A: FATURAMENTO TOTAL DO APP (GMV) */}
-            <div className="p-5 bg-slate-950 border border-slate-800/90 rounded-3xl space-y-3 shadow-xl relative overflow-hidden group hover:border-slate-700 transition">
+            {/* CARD 1: SALDO REAL NA CONTA (EFÍ PAY) */}
+            <div className="p-5 bg-gradient-to-br from-slate-900 via-slate-950 to-slate-950 border border-sky-500/30 rounded-3xl space-y-3 shadow-xl relative overflow-hidden group hover:border-sky-500/50 transition">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Faturamento Total do App</span>
-                <div className="w-8 h-8 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center border border-blue-500/30">
-                  <TrendingUp className="w-4 h-4" />
+                <span className="text-[11px] font-bold text-sky-400 uppercase tracking-wider flex items-center gap-1">
+                  <Wallet className="w-3.5 h-3.5" />
+                  Saldo Real no Banco (Efí)
+                </span>
+                <div className="w-8 h-8 rounded-xl bg-sky-500/20 text-sky-400 flex items-center justify-center border border-sky-500/30">
+                  <DollarSign className="w-4 h-4" />
                 </div>
               </div>
               <div>
-                <div className="text-2xl font-black text-white font-mono tracking-tight">
-                  R$ {Number(metricasFinanceiras?.faturamentoTotalGeral || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                <div className="text-2xl font-black text-sky-400 font-mono tracking-tight">
+                  R$ {Number(metricasFinanceiras?.saldoRealBanco !== null && metricasFinanceiras?.saldoRealBanco !== undefined ? metricasFinanceiras.saldoRealBanco : (metricasFinanceiras?.saldoTotalNaEfi || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
-                <div className="text-[11px] text-slate-400 mt-1 flex items-center gap-1.5">
-                  <span className="text-blue-400 font-bold">{metricasFinanceiras?.totalPedidosPagos || 0}</span> pedidos pagos no total
+                <div className="text-[11px] mt-1 flex items-center gap-1 font-medium">
+                  {metricasFinanceiras?.saldoRealBanco !== null && metricasFinanceiras?.saldoRealBanco !== undefined ? (
+                    <span className="text-emerald-400 flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                      Lido em tempo real da API Efí Pay
+                    </span>
+                  ) : (
+                    <span className="text-slate-400">
+                      Saldo disponível calculado na conta Efí Pay
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
 
-            {/* CARD B: LUCRO LÍQUIDO REAL DO ADMIN */}
-            <div className="p-5 bg-gradient-to-br from-emerald-950/40 via-slate-950 to-slate-950 border border-emerald-500/30 rounded-3xl space-y-3 shadow-xl relative overflow-hidden group hover:border-emerald-500/50 transition">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1">
-                  <DollarSign className="w-3.5 h-3.5" />
-                  Seu Lucro Líquido Real
-                </span>
-                <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
-                  <Award className="w-4 h-4" />
-                </div>
-              </div>
+            {/* CARD 2: LUCRO DISPONÍVEL PARA SAQUE DO ADMIN */}
+            <div className="p-5 bg-gradient-to-br from-emerald-950/60 via-slate-950 to-slate-950 border border-emerald-500/40 rounded-3xl space-y-3 shadow-xl relative overflow-hidden group hover:border-emerald-500/70 transition flex flex-col justify-between">
               <div>
-                <div className="text-2xl font-black text-emerald-400 font-mono tracking-tight">
-                  R$ {Number(metricasFinanceiras?.lucroLiquidoTotal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1">
+                    <Award className="w-3.5 h-3.5" />
+                    Seu Lucro para Saque
+                  </span>
+                  <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
+                    <TrendingUp className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="text-2xl font-black text-emerald-400 font-mono tracking-tight mt-2">
+                  R$ {Number(metricasFinanceiras?.lucroDisponivelParaRetirada || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
                 <div className="text-[11px] text-slate-400 mt-1">
-                  Taxas retidas <strong className="text-slate-300">(-) 1,19% Efí</strong>
+                  Taxas (vendas + saques) <strong className="text-slate-300">(-) 1,19% Efí</strong>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setModalRetiradaLucroOpen(true)}
+                className="w-full mt-2 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-emerald-500/20 transition flex items-center justify-center gap-1.5"
+              >
+                <ArrowUpRight className="w-4 h-4" />
+                Sacar Lucro via Pix
+              </button>
+            </div>
+
+            {/* CARD 3: SALDO EM CUSTÓDIA DOS ORGANIZADORES */}
+            <div className="p-5 bg-slate-950 border border-slate-800/90 rounded-3xl space-y-3 shadow-xl relative overflow-hidden group hover:border-slate-700 transition">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Custódia dos Usuários</span>
+                <div className="w-8 h-8 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center border border-purple-500/30">
+                  <Users className="w-4 h-4" />
+                </div>
+              </div>
+              <div>
+                <div className="text-2xl font-black text-purple-300 font-mono tracking-tight">
+                  R$ {Number(metricasFinanceiras?.saldoCustodiaOrganizadores || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
+                <div className="text-[11px] text-slate-400 mt-1">
+                  Saldo disponível dos organizadores
                 </div>
               </div>
             </div>
 
-            {/* CARD C: TOTAL SACADO PELOS ORGANIZADORES */}
+            {/* CARD 4: TOTAL SACADO PELOS ORGANIZADORES */}
             <div className="p-5 bg-slate-950 border border-slate-800/90 rounded-3xl space-y-3 shadow-xl relative overflow-hidden group hover:border-slate-700 transition">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Sacado por Usuários</span>
@@ -608,38 +647,67 @@ export const CarteiraAdminView: React.FC<CarteiraAdminViewProps> = ({ authFetch 
                   R$ {Number(metricasFinanceiras?.totalSacadoOrganizadores || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
                 <div className="text-[11px] text-slate-400 mt-1">
-                  Saldo em custódia: <strong className="text-slate-300 font-mono">R$ {Number(metricasFinanceiras?.saldoCustodiaOrganizadores || 0).toFixed(2)}</strong>
+                  Volume total transferido aos organizadores
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* PAINEL DE CONCILIAÇÃO FINANCEIRA EM TEMPO REAL */}
+          <div className="p-6 bg-slate-950 border border-slate-800 rounded-3xl space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center border border-purple-500/30">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-white">Divisão de Valores em Tempo Real (Real vs. Custódia)</h3>
+                  <p className="text-[11px] text-slate-400">Detalhamento de quanto do saldo total pertence aos organizadores e quanto pertence ao administrador</p>
                 </div>
               </div>
             </div>
 
-            {/* CARD D: LUCRO DISPONÍVEL PARA RETIRADA DO ADMIN */}
-            <div className="p-5 bg-slate-950 border border-slate-800/90 rounded-3xl space-y-3 shadow-xl relative overflow-hidden group hover:border-slate-700 transition flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Lucro Disponível</span>
-                  <div className="w-8 h-8 rounded-xl bg-sky-500/20 text-sky-400 flex items-center justify-center border border-sky-500/30">
-                    <Wallet className="w-4 h-4" />
-                  </div>
-                </div>
-                <div className="text-2xl font-black text-sky-400 font-mono tracking-tight mt-3">
-                  R$ {Number(metricasFinanceiras?.lucroDisponivelParaRetirada || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </div>
-                <div className="text-[11px] text-slate-400 mt-1">
-                  Já retirado: <strong className="text-slate-300 font-mono">R$ {Number(metricasFinanceiras?.totalLucroRetiradoAdmin || 0).toFixed(2)}</strong>
-                </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
+              <div className="p-4 bg-slate-900/90 rounded-2xl border border-slate-800">
+                <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">1. Saldo Real na Efí (Banco)</span>
+                <span className="text-xl font-black text-sky-400 font-mono block mt-1">
+                  R$ {Number(metricasFinanceiras?.saldoRealBanco !== null && metricasFinanceiras?.saldoRealBanco !== undefined ? metricasFinanceiras.saldoRealBanco : (metricasFinanceiras?.saldoTotalNaEfi || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+                <span className="text-[10px] text-slate-500 mt-1 block">
+                  {metricasFinanceiras?.saldoRealBanco !== null && metricasFinanceiras?.saldoRealBanco !== undefined ? "✓ Consultado em tempo real da API" : "⚠ Calculado de forma aproximada"}
+                </span>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setModalRetiradaLucroOpen(true)}
-                className="w-full mt-2 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 font-bold text-[11px] rounded-xl transition flex items-center justify-center gap-1.5"
-              >
-                <Check className="w-3.5 h-3.5" />
-                Registrar Retirada de Lucro
-              </button>
+              <div className="p-4 bg-slate-900/90 rounded-2xl border border-slate-800">
+                <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">2. Custódia (Dos Usuários)</span>
+                <span className="text-xl font-black text-purple-400 font-mono block mt-1">
+                  R$ {Number(metricasFinanceiras?.saldoCustodiaOrganizadores || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+                <span className="text-[10px] text-slate-500 mt-1 block">
+                  Total pertencente aos organizadores cadastrados
+                </span>
+              </div>
+
+              <div className="p-4 bg-gradient-to-br from-emerald-950/40 to-slate-900 rounded-2xl border border-emerald-500/20">
+                <span className="text-[10px] font-bold text-emerald-400 block uppercase tracking-wider">3. Saldo Líquido do Admin (Seu Lucro)</span>
+                <span className="text-xl font-black text-emerald-400 font-mono block mt-1">
+                  R$ {Number((metricasFinanceiras?.saldoRealBanco !== null && metricasFinanceiras?.saldoRealBanco !== undefined ? metricasFinanceiras.saldoRealBanco : (metricasFinanceiras?.saldoTotalNaEfi || 0)) - (metricasFinanceiras?.saldoCustodiaOrganizadores || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+                <span className="text-[10px] text-emerald-500/80 mt-1 block">
+                  Seu lucro real livre disponível para saque
+                </span>
+              </div>
             </div>
 
+            {/* AVISO DE CONEXÃO EFÍ */}
+            {(metricasFinanceiras?.saldoRealBanco === null || metricasFinanceiras?.saldoRealBanco === undefined) && (
+              <div className="p-3.5 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-[11px] text-amber-300 flex items-start gap-2.5">
+                <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400 mt-0.5" />
+                <div>
+                  <strong>Não foi possível obter o saldo real via API Efí Pay.</strong> Por favor, verifique se o seu certificado mTLS `.pem` e as credenciais Client ID / Client Secret de Produção estão configurados corretamente e ativos nas configurações da carteira.
+                </div>
+              </div>
+            )}
           </div>
 
           {/* GRID DE CARDS PRINCIPAIS */}
@@ -1406,6 +1474,7 @@ export const CarteiraAdminView: React.FC<CarteiraAdminViewProps> = ({ authFetch 
                         <th className="p-3.5">Cadastro</th>
                         <th className="p-3.5">ID Usuário</th>
                         <th className="p-3.5 text-right">Faturamento</th>
+                        <th className="p-3.5 text-right">Saldo Disp.</th>
                         <th className="p-3.5 text-center">Campanhas</th>
                         <th className="p-3.5 text-center">Status Carteira</th>
                         <th className="p-3.5 text-center">Taxa Venda</th>
@@ -1418,7 +1487,7 @@ export const CarteiraAdminView: React.FC<CarteiraAdminViewProps> = ({ authFetch 
                     <tbody className="divide-y divide-slate-800/60 font-sans">
                       {carregandoUsuarios ? (
                         <tr>
-                          <td colSpan={13} className="p-12 text-center text-slate-400 text-xs">
+                          <td colSpan={14} className="p-12 text-center text-slate-400 text-xs">
                             <div className="flex items-center justify-center gap-2">
                               <RefreshCw className="w-4 h-4 animate-spin text-sky-400" />
                               Carregando dados dos usuários...
@@ -1427,7 +1496,7 @@ export const CarteiraAdminView: React.FC<CarteiraAdminViewProps> = ({ authFetch 
                         </tr>
                       ) : usuariosFiltrados.length === 0 ? (
                         <tr>
-                          <td colSpan={13} className="p-12 text-center text-slate-500 text-xs">
+                          <td colSpan={14} className="p-12 text-center text-slate-500 text-xs">
                             Nenhum usuário encontrado com os filtros atuais.
                           </td>
                         </tr>
@@ -1499,6 +1568,11 @@ export const CarteiraAdminView: React.FC<CarteiraAdminViewProps> = ({ authFetch 
                               {/* 8. Faturamento */}
                               <td className="p-3.5 text-right font-mono font-bold text-emerald-400 whitespace-nowrap">
                                 R$ {(u.faturamentoTotal || 0).toFixed(2)}
+                              </td>
+
+                              {/* Saldo Disponível */}
+                              <td className="p-3.5 text-right font-mono font-bold text-purple-400 whitespace-nowrap">
+                                R$ {(u.saldoDisponivel || 0).toFixed(2)}
                               </td>
 
                               {/* 9. Campanhas */}

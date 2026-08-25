@@ -53,7 +53,9 @@ export const CarteiraView: React.FC<CarteiraViewProps> = ({ authFetch }) => {
   const [saqueErro, setSaqueErro] = useState('');
   const [filtroTipo, setFiltroTipo] = useState<'todos' | 'venda' | 'saque'>('todos');
 
-  const taxaSaqueImediato = 4.50;
+  const taxaSaqueImediato = carteiraConfig?.taxaSaqueImediato !== undefined 
+    ? Number(carteiraConfig.taxaSaqueImediato) 
+    : 4.50;
 
   const carregarDados = async () => {
     setCarregando(true);
@@ -416,12 +418,12 @@ export const CarteiraView: React.FC<CarteiraViewProps> = ({ authFetch }) => {
                     <span className="font-black text-white text-xs">
                       R$ {(s?.valorSolicitado ?? 0).toFixed(2).replace('.', ',')}
                     </span>
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
-                      s.status === 'pago' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
-                      s.status === 'rejeitado' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' :
-                      'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                      s.status === 'pago' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm' :
+                      s.status === 'rejeitado' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40' :
+                      'bg-amber-500/20 text-amber-300 border border-amber-500/40'
                     }`}>
-                      {s.status === 'pago' ? 'PAGO' : s.status === 'rejeitado' ? 'REJEITADO' : 'EM PROCESSAMENTO'}
+                      {s.status === 'pago' ? 'Saque Concluído' : s.status === 'rejeitado' ? 'Não Concluído (Saldo Disponível)' : 'Solicitação de Saque'}
                     </span>
                   </div>
 
@@ -440,6 +442,11 @@ export const CarteiraView: React.FC<CarteiraViewProps> = ({ authFetch }) => {
                       <span className="text-slate-500">Destino:</span>
                       <span className="text-slate-300 truncate">{s.chavePix}</span>
                     </div>
+                    {s.observacao && (
+                      <div className="text-[10px] text-amber-300 bg-amber-500/10 p-1.5 rounded-lg border border-amber-500/20 mt-1 font-sans">
+                        ℹ️ {s.observacao}
+                      </div>
+                    )}
                     <div className="flex justify-between text-[10px] text-slate-500 pt-1 border-t border-slate-800/60 mt-1">
                       <span>{s.modalidade === 'imediato' ? 'Imediato (Pix)' : 'Programado (D+1)'}</span>
                       <span>{new Date(s.criadoEm).toLocaleDateString('pt-BR')}</span>
@@ -519,8 +526,15 @@ export const CarteiraView: React.FC<CarteiraViewProps> = ({ authFetch }) => {
                       <td className="p-3 text-slate-300 font-bold">
                         R$ {(t?.valorBruto ?? 0).toFixed(2).replace('.', ',')}
                       </td>
-                      <td className="p-3 text-amber-400">
-                        {(t?.taxaPercentual ?? 0) > 0 ? `${t.taxaPercentual}% (R$ ${(t?.taxaValor ?? 0).toFixed(2).replace('.', ',')})` : '0%'}
+                      <td className="p-3 text-amber-400 font-medium">
+                        {(() => {
+                          const val = t?.taxaValor ?? t?.taxa ?? 0;
+                          const pct = t?.taxaPercentual ?? (t?.valorBruto > 0 && val > 0 ? Number(((val / t.valorBruto) * 100).toFixed(1)) : 0);
+                          if (pct > 0 || val > 0) {
+                            return `${pct > 0 ? `${pct}%` : ''} ${val > 0 ? `(R$ ${val.toFixed(2).replace('.', ',')})` : ''}`.trim();
+                          }
+                          return '0%';
+                        })()}
                       </td>
                       <td className={`p-3 font-black ${t.tipo === 'venda' ? 'text-emerald-400' : 'text-purple-400'}`}>
                         {t.tipo === 'venda' ? '+' : '-'} R$ {(t?.valorLiquido ?? 0).toFixed(2).replace('.', ',')}
@@ -596,8 +610,8 @@ export const CarteiraView: React.FC<CarteiraViewProps> = ({ authFetch }) => {
                   <input
                     type="number"
                     step="0.01"
-                    min="1"
-                    max={saldo.saldoDisponivel}
+                    min="0.01"
+                    max={saldo.saldoDisponivel > 0 ? saldo.saldoDisponivel : 0.01}
                     required
                     value={valorSaque}
                     onChange={e => setValorSaque(e.target.value)}
@@ -627,7 +641,9 @@ export const CarteiraView: React.FC<CarteiraViewProps> = ({ authFetch }) => {
                         <Send className="w-3.5 h-3.5 text-emerald-400" />
                         Imediato (Pix)
                       </span>
-                      <span className="text-[10px] font-bold text-amber-400">R$ 4,50</span>
+                      <span className="text-[10px] font-bold text-amber-400">
+                        {taxaSaqueImediato > 0 ? `R$ ${taxaSaqueImediato.toFixed(2).replace('.', ',')}` : 'GRÁTIS'}
+                      </span>
                     </div>
                     <span className="text-[10px] text-slate-400">Cai em até 15 minutos</span>
                   </button>

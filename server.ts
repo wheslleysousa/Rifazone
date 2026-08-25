@@ -41,7 +41,7 @@ import {
 } from './server/meta-service.js';
 import { toCents, toReais } from './server/money-utils.js';
 import { EmailNotificador } from './server/notifications.js';
-import { gerarPixMultiGateway, consultarPagamentoAsaas, consultarPagamentoEfipay, testEfipayConnection, resolveEfipayCredentials } from './server/gateways.js';
+import { gerarPixMultiGateway, consultarPagamentoAsaas, consultarPagamentoEfipay, testEfipayConnection, resolveEfipayCredentials, consultarSaldoEfipay, enviarPixEfipay } from './server/gateways.js';
 import { Campanha, TEMA_PADRAO, DEFAULT_CHECKOUT_CONFIG } from './src/types.js';
 
 // Sanitiza e normaliza campos de Campanha de forma única para criação e edição (evita divergências)
@@ -798,8 +798,14 @@ async function processarConfirmacaoPedido(pedidoId: string, paymentId?: string, 
         const adminConfig = await db.getConfig('wheslleyaviz@gmail.com');
         
         // Se o organizador utiliza a Carteira do Sistema, credita o valor líquido com desconto automático da taxa percentual
+        // Apenas credita em vendas reais (não simuladas)
+        const isSimulado = String(paymentId).startsWith('simulado_') || 
+                           String(paymentId).startsWith('mock_') || 
+                           String(pedidoAtualizado.mpPaymentId || '').startsWith('simulado_') ||
+                           String(pedidoAtualizado.mpPaymentId || '').startsWith('mock_');
+
         const metodoAtivo = ownerConfig?.metodoAtivo || (ownerConfig?.mpAccessToken ? 'mercadopago' : 'carteira');
-        if (metodoAtivo === 'carteira' || ownerConfig?.carteiraConfig?.ativo) {
+        if (!isSimulado && (metodoAtivo === 'carteira' || ownerConfig?.carteiraConfig?.ativo)) {
           let taxaPct = 5.0;
 
           if (adminConfig?.carteiraConfig?.taxasPersonalizadas) {
@@ -1218,12 +1224,30 @@ app.get('/api/admin/carteira/metricas-financeiras', firebaseAuthMiddleware, asyn
     // 2. Transações da Carteira & Taxas de Venda Retidas
     let totalTaxasVendasRetidas = 0;
     let saldoCustodiaOrganizadores = 0;
+    const saldosPorUsuario: Array<{
+      ownerId: string;
+      email?: string;
+      nome?: string;
+      saldoDisponivel: number;
+      totalArrecadado: number;
+      totalSacado: number;
+    }> = [];
 
     for (const t of todasConfigs) {
       try {
         const saldoOrg = await db.getCarteiraSaldo(t.ownerId);
         saldoCustodiaOrganizadores += saldoOrg.saldoDisponivel || 0;
         totalTaxasVendasRetidas += saldoOrg.totalTaxas || 0;
+
+        const configAny = (t.config || {}) as any;
+        saldosPorUsuario.push({
+          ownerId: t.ownerId,
+          email: configAny.contatoEmail || configAny.carteiraConfig?.email || t.ownerId,
+          nome: configAny.nomeRifa || configAny.contatoNome || configAny.carteiraConfig?.nome || t.ownerId,
+          saldoDisponivel: Number((saldoOrg.saldoDisponivel || 0).toFixed(2)),
+          totalArrecadado: Number((saldoOrg.totalArrecadado || 0).toFixed(2)),
+          totalSacado: Number((saldoOrg.totalSacado || 0).toFixed(2))
+        });
       } catch (e) {
         // ignora falha individual
       }
@@ -1276,6 +1300,23 @@ app.get('/api/admin/carteira/metricas-financeiras', firebaseAuthMiddleware, asyn
       Number((lucroLiquidoTotal - totalLucroRetiradoAdmin).toFixed(2))
     );
 
+    // 6b. Saldo Total Bruto na Conta Efí Pay (Total faturado via Efí - custo Efí 1.19% - total sacado por usuários - total retirado pelo admin)
+    const saldoTotalNaEfi = Math.max(
+      0,
+      Number((faturamentoCarteira - custoEfiPixEntrada - totalSacadoOrganizadores - totalLucroRetiradoAdmin).toFixed(2))
+    );
+
+    // 6c. Consulta Saldo Real diretamente na API da Efí Pay (se credenciais estiverem ativas)
+    let saldoRealBanco: number | null = null;
+    try {
+      const resSaldo = await consultarSaldoEfipay(adminConfig as any);
+      if (resSaldo.success && resSaldo.saldoReal !== undefined) {
+        saldoRealBanco = resSaldo.saldoReal;
+      }
+    } catch (e) {
+      console.warn('[Métricas Financeiras] Não foi possível consultar saldo da API Efí:', e);
+    }
+
     // 7. Detecção do Ambiente e Credenciais Efí Pay
     const creds = resolveEfipayCredentials(adminConfig as any);
     const rawEnvAmbiente = (process.env.EFI_AMBIENTE || process.env.EFIPAY_AMBIENTE || '').toLowerCase().trim();
@@ -1296,6 +1337,7 @@ app.get('/api/admin/carteira/metricas-financeiras', firebaseAuthMiddleware, asyn
       faturamentoTotalGeral: Number(faturamentoTotalGeral.toFixed(2)),
       totalPedidosPagos,
       faturamentoCarteira: Number(faturamentoCarteira.toFixed(2)),
+      saldoRealBanco,
       
       // Detalhamento de Vendas e Taxas
       totalTaxasVendasRetidas: Number(totalTaxasVendasRetidas.toFixed(2)),
@@ -1315,7 +1357,9 @@ app.get('/api/admin/carteira/metricas-financeiras', firebaseAuthMiddleware, asyn
       lucroLiquidoTotal,
       totalLucroRetiradoAdmin,
       lucroDisponivelParaRetirada,
+      saldoTotalNaEfi,
       retiradasLucroAdmin,
+      saldosPorUsuario,
 
       // Configuração Efí Pay
       efipayStatus,
@@ -1343,7 +1387,7 @@ app.post('/api/admin/carteira/registrar-retirada-lucro', firebaseAuthMiddleware,
     return res.status(403).json({ error: 'Apenas o Super Admin pode registrar retiradas de lucro.' });
   }
 
-  const { valor, descricao } = req.body || {};
+  const { valor, descricao, chavePix } = req.body || {};
   const numValor = Number(valor);
   if (!numValor || numValor <= 0) {
     return res.status(400).json({ error: 'Informe um valor de retirada válido maior que zero.' });
@@ -1354,12 +1398,16 @@ app.post('/api/admin/carteira/registrar-retirada-lucro', firebaseAuthMiddleware,
     const carteiraConfig = adminConfig.carteiraConfig || {};
     const retiradasAtuais: Array<any> = (carteiraConfig as any).retiradasLucroAdmin || [];
 
+    const chavePixUsada = chavePix 
+      ? String(chavePix).trim() 
+      : (carteiraConfig.chavePixRecebimento || carteiraConfig.chavePix || carteiraConfig.adminPixMaster?.chave || '');
+
     const novaRetirada = {
       id: `retirada-lucro-${Date.now()}`,
       valor: Number(numValor.toFixed(2)),
       data: new Date().toISOString(),
       descricao: descricao ? String(descricao).trim() : 'Transferência de Lucro para Conta Pessoal',
-      chavePix: carteiraConfig.adminPixMaster?.chave || ''
+      chavePix: chavePixUsada
     };
 
     const novaConfig = {
@@ -1400,9 +1448,11 @@ app.get(['/api/admin/configuracoes/todas', '/api/admin/usuarios/carteira'], fire
 
       // Get wallet balance / transactions for this ownerId
       let faturamentoTotal = 0;
+      let saldoDisponivel = 0;
       try {
         const saldo = await db.getCarteiraSaldo(t.ownerId);
         faturamentoTotal = saldo.totalArrecadado || 0;
+        saldoDisponivel = saldo.saldoDisponivel || 0;
       } catch (err) {
         // fallback if method fails
       }
@@ -1423,6 +1473,7 @@ app.get(['/api/admin/configuracoes/todas', '/api/admin/usuarios/carteira'], fire
         carteiraConfig: t.config.carteiraConfig || {},
         qtdCampanhas,
         faturamentoTotal,
+        saldoDisponivel,
         customTax: customTax || null
       });
     }
@@ -2084,11 +2135,15 @@ app.get('/api/admin/carteira/transacoes', firebaseAuthMiddleware, async (req, re
   }
 });
 
-// GET /api/admin/carteira/saques -> Histórico de solicitações de saque
+// GET /api/admin/carteira/saques -> Histórico de solicitações de saque (Admin vê todos, Usuário vê os seus)
 app.get('/api/admin/carteira/saques', firebaseAuthMiddleware, async (req, res) => {
   try {
     const userId = (req as any).userId;
-    const saques = await db.listarSolicitacoesSaque(userId);
+    const userEmail = ((req as any).userEmail || '').toLowerCase();
+    const isSuperAdmin = userEmail === 'wheslleyaviz@gmail.com';
+    
+    // Super Admin vê todos os saques; Usuário comum vê apenas os seus
+    const saques = await db.listarSolicitacoesSaque(isSuperAdmin ? undefined : userId);
     return res.json(saques);
   } catch (err: any) {
     console.error('Erro ao listar solicitações de saque:', err);
@@ -2150,10 +2205,145 @@ app.post('/api/admin/carteira/solicitar-saque', firebaseAuthMiddleware, async (r
       bancoInfo: bancoInfo || undefined
     });
 
-    return res.status(201).json({ success: true, saque });
+    // Tenta enviar o Pix automaticamente se houver chave Pix e credenciais Efí Pay ativas
+    if (chavePix && chavePix.trim()) {
+      try {
+        const envResult = await enviarPixEfipay({
+          valor: valorLiquido,
+          chavePixDestino: chavePix.trim(),
+          descricao: `Saque RifaZone ${saque.id}`,
+          idEnvio: saque.id,
+          config: adminConfig
+        });
+
+        if (envResult.success) {
+          const saqueAtualizado = await db.atualizarStatusSaque(
+            saque.id,
+            'pago',
+            envResult.e2eId,
+            'Transferência Pix realizada com SUCESSO via API Efí Pay.'
+          );
+          return res.status(201).json({
+            success: true,
+            saque: saqueAtualizado || saque,
+            status: 'pago',
+            mensagem: 'Saque concluído! O Pix foi enviado com sucesso para sua chave.'
+          });
+        } else {
+          console.warn(`[Envio Automático Pix] Não foi possível enviar imediatamente: ${envResult.detalhes}`);
+          // Rejeita o saque imediatamente e reembolsa o saldo
+          await db.atualizarStatusSaque(
+            saque.id,
+            'rejeitado',
+            undefined,
+            `Falha no envio automático do Pix: ${envResult.detalhes}`
+          );
+          return res.status(400).json({ error: `Falha na transferência automática via Pix: ${envResult.detalhes}. Seu saldo continua integralmente disponível.` });
+        }
+      } catch (pixErr: any) {
+        console.error('[Envio Automático Pix] Exceção:', pixErr?.message || pixErr);
+        // Rejeita o saque imediatamente e reembolsa o saldo
+        await db.atualizarStatusSaque(
+          saque.id,
+          'rejeitado',
+          undefined,
+          `Exceção no envio automático do Pix: ${pixErr?.message || pixErr}`
+        );
+        return res.status(400).json({ error: `Erro na transferência automática via Pix: ${pixErr?.message || pixErr}. Seu saldo continua integralmente disponível.` });
+      }
+    } else {
+      // Sem chave Pix válida, rejeita o saque imediatamente
+      await db.atualizarStatusSaque(
+        saque.id,
+        'rejeitado',
+        undefined,
+        'Nenhuma chave Pix fornecida para a transferência automática.'
+      );
+      return res.status(400).json({ error: 'Nenhuma chave Pix fornecida para a transferência automática. Cadastre sua chave Pix na aba de Configurações.' });
+    }
   } catch (err: any) {
     console.error('Erro ao solicitar saque:', err);
     return res.status(400).json({ error: err.message || 'Erro ao processar solicitação de saque.' });
+  }
+});
+
+// POST /api/admin/carteira/saques/:id/aprovar -> Aprova solicitação de saque e envia Pix via Efí Pay
+app.post('/api/admin/carteira/saques/:id/aprovar', firebaseAuthMiddleware, async (req, res) => {
+  try {
+    const userEmail = ((req as any).userEmail || '').toLowerCase();
+    if (userEmail !== 'wheslleyaviz@gmail.com') {
+      return res.status(403).json({ error: 'Apenas o Super Admin pode aprovar saques.' });
+    }
+
+    const { id } = req.params;
+    const { codigoAutenticacao, enviarPixViaEfi } = req.body;
+
+    const saques = await db.listarSolicitacoesSaque();
+    const saque = saques.find(s => s.id === id);
+    if (!saque) {
+      return res.status(404).json({ error: 'Solicitação de saque não encontrada.' });
+    }
+
+    const adminConfig = await db.getConfig('wheslleyaviz@gmail.com');
+
+    let e2eId = codigoAutenticacao || `AUTH-${Date.now()}`;
+    let obs = 'Saque APROVADO pelo Super Admin.';
+
+    if (enviarPixViaEfi && saque.chavePix) {
+      const envResult = await enviarPixEfipay({
+        valor: saque.valorLiquido,
+        chavePixDestino: saque.chavePix.trim(),
+        descricao: `Saque Aprovado ${saque.id}`,
+        idEnvio: `aprov-${saque.id}`,
+        config: adminConfig
+      });
+
+      if (!envResult.success) {
+        return res.status(400).json({
+          error: `Falha ao enviar Pix pela Efí Pay: ${envResult.detalhes || 'Verifique o saldo ou credenciais'}`
+        });
+      }
+
+      e2eId = envResult.e2eId || e2eId;
+      obs = 'Saque APROVADO e Pix enviado via Efí Pay!';
+    }
+
+    const saqueAtualizado = await db.atualizarStatusSaque(id, 'pago', e2eId, obs);
+    return res.json({ success: true, saque: saqueAtualizado });
+  } catch (err: any) {
+    console.error('Erro ao aprovar saque:', err);
+    return res.status(500).json({ error: err.message || 'Erro ao aprovar saque.' });
+  }
+});
+
+// POST /api/admin/carteira/saques/:id/rejeitar -> Rejeita saque e devolve o valor ao saldo do cliente
+app.post('/api/admin/carteira/saques/:id/rejeitar', firebaseAuthMiddleware, async (req, res) => {
+  try {
+    const userEmail = ((req as any).userEmail || '').toLowerCase();
+    if (userEmail !== 'wheslleyaviz@gmail.com') {
+      return res.status(403).json({ error: 'Apenas o Super Admin pode rejeitar saques.' });
+    }
+
+    const { id } = req.params;
+    const { motivo } = req.body;
+
+    const saques = await db.listarSolicitacoesSaque();
+    const saque = saques.find(s => s.id === id);
+    if (!saque) {
+      return res.status(404).json({ error: 'Solicitação de saque não encontrada.' });
+    }
+
+    const obs = motivo ? `Saque REJEITADO: ${motivo}` : 'Saque REJEITADO. O valor continua integralmente disponível em sua conta.';
+
+    const saqueAtualizado = await db.atualizarStatusSaque(id, 'rejeitado', undefined, obs);
+    return res.json({
+      success: true,
+      saque: saqueAtualizado,
+      mensagem: 'Saque rejeitado e valor estornado de volta ao saldo disponível do usuário.'
+    });
+  } catch (err: any) {
+    console.error('Erro ao rejeitar saque:', err);
+    return res.status(500).json({ error: err.message || 'Erro ao rejeitar saque.' });
   }
 });
 

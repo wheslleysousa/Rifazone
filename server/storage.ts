@@ -474,7 +474,7 @@ export class FileStorage implements Storage {
     if (!pedido) return { success: false, cotasPremiadasEncontradas: [] };
 
     if (pedido.status === 'pago') {
-      return { success: true, cotasPremiadasEncontradas: [] }; // Idempotente
+      return { success: true, cotasPremiadasEncontradas: [], jaProcessado: true }; // Idempotente
     }
 
     pedido.status = 'pago';
@@ -786,8 +786,19 @@ export class FileStorage implements Storage {
   }
 
   public async getCarteiraSaldo(ownerId: string): Promise<CarteiraSaldo> {
-    const transacoes = Array.from(this.transacoesCarteira.values()).filter(t => t.ownerId === ownerId && !this.ehTransacaoSimulada(t));
+    const todasTransacoes = Array.from(this.transacoesCarteira.values()).filter(t => t.ownerId === ownerId && !this.ehTransacaoSimulada(t));
     const saques = Array.from(this.saques.values()).filter(s => s.ownerId === ownerId);
+
+    // Deduplica transações de venda com mesma referência (pedidoId) retroativamente em tempo real
+    const seen = new Set<string>();
+    const transacoes: TransacaoCarteira[] = [];
+    for (const t of todasTransacoes) {
+      if (t.tipo === 'venda' && t.referenciaId) {
+        if (seen.has(t.referenciaId)) continue;
+        seen.add(t.referenciaId);
+      }
+      transacoes.push(t);
+    }
 
     let totalArrecadado = 0;
     let totalTaxas = 0;
@@ -828,7 +839,7 @@ export class FileStorage implements Storage {
   public async creditarVendaCarteira(ownerId: string, valorBruto: number, taxaPct: number, pedidoId: string, descricao: string): Promise<TransacaoCarteira> {
     const taxa = Number(((valorBruto * (taxaPct || 0)) / 100).toFixed(2));
     const valorLiquido = Number((valorBruto - taxa).toFixed(2));
-    const id = `tx-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`;
+    const id = `tx-venda-${pedidoId}`;
 
     const transacao: TransacaoCarteira = {
       id,
@@ -892,9 +903,20 @@ export class FileStorage implements Storage {
   }
 
   public async listarTransacoesCarteira(ownerId: string): Promise<TransacaoCarteira[]> {
-    return Array.from(this.transacoesCarteira.values())
-      .filter(t => t.ownerId === ownerId && !this.ehTransacaoSimulada(t))
-      .sort((a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime());
+    const lista = Array.from(this.transacoesCarteira.values())
+      .filter(t => t.ownerId === ownerId && !this.ehTransacaoSimulada(t));
+      
+    // Deduplica transações de venda com mesma referência (pedidoId)
+    const seen = new Set<string>();
+    const deduplicado: TransacaoCarteira[] = [];
+    for (const t of lista) {
+      if (t.tipo === 'venda' && t.referenciaId) {
+        if (seen.has(t.referenciaId)) continue;
+        seen.add(t.referenciaId);
+      }
+      deduplicado.push(t);
+    }
+    return deduplicado.sort((a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime());
   }
 
   public async listarSolicitacoesSaque(ownerId?: string): Promise<SolicitacaoSaque[]> {

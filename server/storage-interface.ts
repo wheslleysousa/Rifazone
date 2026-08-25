@@ -128,6 +128,7 @@ export interface MeusNumerosResult {
 export interface ConfirmarPedidoResult {
   success: boolean;
   cotasPremiadasEncontradas: CotaPremiada[];
+  jaProcessado?: boolean;
 }
 
 export interface SorteioResult {

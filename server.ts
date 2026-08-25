@@ -760,6 +760,10 @@ app.post('/api/pedidos/:id/pagar-cartao', async (req, res) => {
 // Processa confirmação de pedido e dispara evento de Purchase no Meta Conversions API (Server-Side CAPI)
 async function processarConfirmacaoPedido(pedidoId: string, paymentId?: string, req?: Request) {
   const confirmacao = await db.confirmarPedido(pedidoId, paymentId);
+  if (confirmacao.jaProcessado) {
+    console.log(`[Confirmar Pedido] Pedido ${pedidoId} já estava pago. Evitando duplicidade de processamento.`);
+    return confirmacao;
+  }
   try {
     const pedidoAtualizado = await db.getPedido(pedidoId);
     if (pedidoAtualizado) {

@@ -321,7 +321,7 @@ export class FirestoreStorage implements Storage {
     });
 
     if (!resultado.pedido) return { success: false, cotasPremiadasEncontradas: [] };
-    if (resultado.jaProcessado) return { success: true, cotasPremiadasEncontradas: [] };
+    if (resultado.jaProcessado) return { success: true, cotasPremiadasEncontradas: [], jaProcessado: true };
 
     const pedido = resultado.pedido;
 
@@ -634,8 +634,19 @@ export class FirestoreStorage implements Storage {
     const txSnap = await this.transacoesCol().where('ownerId', '==', ownerId).get();
     const saqueSnap = await this.saquesCol().where('ownerId', '==', ownerId).get();
 
-    const transacoes = txSnap.docs.map(d => d.data() as TransacaoCarteira);
+    const todasTransacoes = txSnap.docs.map(d => d.data() as TransacaoCarteira);
     const saques = saqueSnap.docs.map(d => d.data() as SolicitacaoSaque);
+
+    // Deduplica transações de venda com mesma referência (pedidoId) retroativamente em tempo real
+    const seen = new Set<string>();
+    const transacoes: TransacaoCarteira[] = [];
+    for (const t of todasTransacoes) {
+      if (t.tipo === 'venda' && t.referenciaId) {
+        if (seen.has(t.referenciaId)) continue;
+        seen.add(t.referenciaId);
+      }
+      transacoes.push(t);
+    }
 
     let totalArrecadado = 0;
     let totalTaxas = 0;
@@ -676,7 +687,7 @@ export class FirestoreStorage implements Storage {
   public async creditarVendaCarteira(ownerId: string, valorBruto: number, taxaPct: number, pedidoId: string, descricao: string): Promise<TransacaoCarteira> {
     const taxa = Number(((valorBruto * (taxaPct || 0)) / 100).toFixed(2));
     const valorLiquido = Number((valorBruto - taxa).toFixed(2));
-    const id = `tx-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`;
+    const id = `tx-venda-${pedidoId}`;
 
     const transacao: TransacaoCarteira = {
       id,
@@ -738,7 +749,18 @@ export class FirestoreStorage implements Storage {
   public async listarTransacoesCarteira(ownerId: string): Promise<TransacaoCarteira[]> {
     const snap = await this.transacoesCol().where('ownerId', '==', ownerId).get();
     const lista = snap.docs.map(d => d.data() as TransacaoCarteira);
-    return lista.sort((a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime());
+    
+    // Deduplica transações de venda com mesma referência (pedidoId)
+    const seen = new Set<string>();
+    const deduplicado: TransacaoCarteira[] = [];
+    for (const t of lista) {
+      if (t.tipo === 'venda' && t.referenciaId) {
+        if (seen.has(t.referenciaId)) continue;
+        seen.add(t.referenciaId);
+      }
+      deduplicado.push(t);
+    }
+    return deduplicado.sort((a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime());
   }
 
   public async listarSolicitacoesSaque(ownerId?: string): Promise<SolicitacaoSaque[]> {

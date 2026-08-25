@@ -586,140 +586,152 @@ export const CarteiraAdminView: React.FC<CarteiraAdminViewProps> = ({ authFetch 
           {/* SEÇÃO 1: PAINEL FINANCEIRO GLOBAL DO SUPER ADMIN (5 HERO CARDS)       */}
           {/* ===================================================================== */}
           
-          {metricasFinanceiras?.saldoRealBanco === null || metricasFinanceiras?.saldoRealBanco === undefined ? (
-            /* APENAS O ERRO QUANDO NÃO É POSSÍVEL OBTER O SALDO 100% REAL */
-            <div className="p-5 bg-rose-500/10 border border-rose-500/20 rounded-3xl text-xs text-rose-300 flex items-start gap-3.5 shadow-2xl">
-              <AlertTriangle className="w-6 h-6 shrink-0 text-rose-400 mt-0.5" />
-              <div>
-                <strong className="block text-white text-sm mb-1 font-sans">Não foi possível obter o saldo real via API Efí Pay</strong>
-                <p className="leading-relaxed text-slate-300 font-sans">
-                  Por favor, verifique se o seu certificado mTLS `.pem` e as credenciais Client ID / Client Secret de Produção estão configurados corretamente e ativos nas configurações da carteira.
-                </p>
-                <p className="mt-2 text-[10px] text-slate-400 italic font-mono uppercase tracking-wider">
-                  ⚠️ Nenhum valor estimado ou aproximado será exibido para garantir total integridade e segurança dos dados. Valores só são apresentados se forem 100% reais consultados do banco.
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 animate-in fade-in">
-              
-              {/* CARD 1: SALDO TOTAL (REAL NA CONTA EFÍ PAY) */}
-              <div className="p-5 bg-gradient-to-br from-slate-900 via-slate-950 to-slate-950 border border-sky-500/30 rounded-3xl space-y-3 shadow-xl relative overflow-hidden group hover:border-sky-500/50 transition">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-sky-400 uppercase tracking-wider flex items-center gap-1">
-                    <Wallet className="w-3.5 h-3.5" />
-                    Saldo Total
-                  </span>
-                  <div className="w-8 h-8 rounded-xl bg-sky-500/20 text-sky-400 flex items-center justify-center border border-sky-500/30">
-                    <DollarSign className="w-4 h-4" />
-                  </div>
-                </div>
-                <div>
-                  <div className="text-2xl font-black text-sky-400 font-mono tracking-tight">
-                    R$ {Number(metricasFinanceiras.saldoRealBanco).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </div>
-                  <div className="text-[10px] mt-1.5 flex items-center gap-1 text-emerald-400 font-bold">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                    100% Real via API Efí
-                  </div>
-                </div>
-              </div>
+          {/* ===================================================================== */}
+          {/* SEÇÃO 1: PAINEL FINANCEIRO GLOBAL DO SUPER ADMIN (5 HERO CARDS)       */}
+          {/* ===================================================================== */}
+          
+          {(() => {
+            const safeMetricas = metricasFinanceiras || {
+              saldoRealBanco: null,
+              saldoCustodiaOrganizadores: 0,
+              lucroDisponivelParaRetirada: 0,
+              totalSacadoOrganizadores: 0,
+              totalLucroRetiradoAdmin: 0,
+              saldoTotalNaEfi: 0
+            };
+            const isRealBanco = safeMetricas.saldoRealBanco !== null && safeMetricas.saldoRealBanco !== undefined;
+            const valorExibido = isRealBanco ? safeMetricas.saldoRealBanco : (safeMetricas.saldoTotalNaEfi || 0);
 
-              {/* CARD 2: SALDO DOS USUÁRIOS (CUSTÓDIA) */}
-              <div className="p-5 bg-slate-950 border border-slate-800/90 rounded-3xl space-y-3 shadow-xl relative overflow-hidden group hover:border-slate-700 transition">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-                    <Users className="w-3.5 h-3.5 text-purple-400" />
-                    Saldo dos Usuários
-                  </span>
-                  <div className="w-8 h-8 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center border border-purple-500/30">
-                    <Users className="w-4 h-4" />
-                  </div>
-                </div>
-                <div>
-                  <div className="text-2xl font-black text-purple-300 font-mono tracking-tight">
-                    R$ {Number(metricasFinanceiras.saldoCustodiaOrganizadores).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </div>
-                  <div className="text-[10px] text-slate-400 mt-1.5">
-                    Soma em custódia dos usuários
-                  </div>
-                </div>
-              </div>
-
-              {/* CARD 3: SALDO DISPONÍVEL PARA SAQUE (LUCRO DO ADMIN SUBTRAINDO TAXAS) */}
-              <div className="p-5 bg-gradient-to-br from-emerald-950/60 via-slate-950 to-slate-950 border border-emerald-500/40 rounded-3xl space-y-3 shadow-xl relative overflow-hidden group hover:border-emerald-500/70 transition flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1">
-                      <Award className="w-3.5 h-3.5" />
-                      Saldo p/ Saque (Seu Lucro)
-                    </span>
-                    <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
-                      <TrendingUp className="w-4 h-4" />
+            return (
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 animate-in fade-in">
+                  
+                  {/* CARD 1: SALDO TOTAL */}
+                  <div className="p-5 bg-gradient-to-br from-slate-900 via-slate-950 to-slate-950 border border-sky-500/30 rounded-3xl space-y-3 shadow-xl relative overflow-hidden group hover:border-sky-500/50 transition">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-sky-400 uppercase tracking-wider flex items-center gap-1">
+                        <Wallet className="w-3.5 h-3.5" />
+                        Saldo Total
+                      </span>
+                      <div className="w-8 h-8 rounded-xl bg-sky-500/20 text-sky-400 flex items-center justify-center border border-sky-500/30">
+                        <DollarSign className="w-4 h-4" />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-black text-sky-400 font-mono tracking-tight">
+                        R$ {Number(valorExibido).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                      <div className="text-[10px] mt-1.5 flex items-center gap-1 text-slate-400 font-bold">
+                        <span className={`w-1.5 h-1.5 rounded-full ${isRealBanco ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400 animate-pulse'}`}></span>
+                        {isRealBanco ? '100% Real via API Efí' : 'Não foi possível obter as informações'}
+                      </div>
                     </div>
                   </div>
-                  <div className="text-2xl font-black text-emerald-400 font-mono tracking-tight mt-1.5">
-                    R$ {Number(metricasFinanceiras.lucroDisponivelParaRetirada).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+
+                  {/* CARD 2: SALDO DOS USUÁRIOS (CUSTÓDIA) */}
+                  <div className="p-5 bg-slate-950 border border-slate-800/90 rounded-3xl space-y-3 shadow-xl relative overflow-hidden group hover:border-slate-700 transition">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                        <Users className="w-3.5 h-3.5 text-purple-400" />
+                        Saldo dos Usuários
+                      </span>
+                      <div className="w-8 h-8 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center border border-purple-500/30">
+                        <Users className="w-4 h-4" />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-black text-purple-300 font-mono tracking-tight">
+                        R$ {Number(safeMetricas.saldoCustodiaOrganizadores).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                      <div className="text-[10px] text-slate-400 mt-1.5">
+                        Soma em custódia dos usuários
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-[10px] text-slate-400 mt-1">
-                    Seu lucro real líquido retido
+
+                  {/* CARD 3: SALDO DISPONÍVEL PARA SAQUE (LUCRO DO ADMIN SUBTRAINDO TAXAS) */}
+                  <div className="p-5 bg-gradient-to-br from-emerald-950/60 via-slate-950 to-slate-950 border border-emerald-500/40 rounded-3xl space-y-3 shadow-xl relative overflow-hidden group hover:border-emerald-500/70 transition flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1">
+                          <Award className="w-3.5 h-3.5" />
+                          Saldo p/ Saque (Seu Lucro)
+                        </span>
+                        <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
+                          <TrendingUp className="w-4 h-4" />
+                        </div>
+                      </div>
+                      <div className="text-2xl font-black text-emerald-400 font-mono tracking-tight mt-1.5">
+                        R$ {Number(safeMetricas.lucroDisponivelParaRetirada).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                      <div className="text-[10px] text-slate-400 mt-1">
+                        Seu lucro real líquido retido
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setModalRetiradaLucroOpen(true)}
+                      className="w-full mt-2 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-emerald-500/20 transition flex items-center justify-center gap-1.5"
+                    >
+                      <ArrowUpRight className="w-4 h-4" />
+                      Sacar Lucro via Pix
+                    </button>
                   </div>
+
+                  {/* CARD 4: TOTAL SACADO POR USUÁRIOS */}
+                  <div className="p-5 bg-slate-950 border border-slate-800/90 rounded-3xl space-y-3 shadow-xl relative overflow-hidden group hover:border-slate-700 transition">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                        <ArrowDownLeft className="w-3.5 h-3.5 text-amber-400" />
+                        Sacado por Usuários
+                      </span>
+                      <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30">
+                        <ArrowUpRight className="w-4 h-4" />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-black text-amber-400 font-mono tracking-tight">
+                        R$ {Number(safeMetricas.totalSacadoOrganizadores).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                      <div className="text-[10px] text-slate-400 mt-1.5">
+                        Total sacado pelos usuários
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* CARD 5: TOTAL SACADO GERAL (USUÁRIOS + ADMIN RETIRADAS) */}
+                  <div className="p-5 bg-slate-950 border border-slate-800/90 rounded-3xl space-y-3 shadow-xl relative overflow-hidden group hover:border-slate-700 transition">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-purple-400" />
+                        Total Sacado
+                      </span>
+                      <div className="w-8 h-8 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center border border-purple-500/30">
+                        <CheckCircle2 className="w-4 h-4" />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-black text-purple-300 font-mono tracking-tight">
+                        R$ {Number((safeMetricas.totalSacadoOrganizadores || 0) + (safeMetricas.totalLucroRetiradoAdmin || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                      <div className="text-[10px] text-slate-400 mt-1.5">
+                        Total de saques (Usuários + Seu)
+                      </div>
+                    </div>
+                  </div>
+
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setModalRetiradaLucroOpen(true)}
-                  className="w-full mt-2 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-emerald-500/20 transition flex items-center justify-center gap-1.5"
-                >
-                  <ArrowUpRight className="w-4 h-4" />
-                  Sacar Lucro via Pix
-                </button>
+                {!isRealBanco && (
+                  <div className="p-3.5 bg-slate-900/40 border border-slate-800/80 rounded-2xl text-[11px] text-slate-400 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0 animate-pulse"></span>
+                    <span>Não foi possível obter as informações em tempo real da Efí Pay. Exibindo dados consolidados locais.</span>
+                  </div>
+                )}
               </div>
-
-              {/* CARD 4: TOTAL SACADO POR USUÁRIOS */}
-              <div className="p-5 bg-slate-950 border border-slate-800/90 rounded-3xl space-y-3 shadow-xl relative overflow-hidden group hover:border-slate-700 transition">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-                    <ArrowDownLeft className="w-3.5 h-3.5 text-amber-400" />
-                    Sacado por Usuários
-                  </span>
-                  <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30">
-                    <ArrowUpRight className="w-4 h-4" />
-                  </div>
-                </div>
-                <div>
-                  <div className="text-2xl font-black text-amber-400 font-mono tracking-tight">
-                    R$ {Number(metricasFinanceiras.totalSacadoOrganizadores).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </div>
-                  <div className="text-[10px] text-slate-400 mt-1.5">
-                    Total sacado pelos usuários
-                  </div>
-                </div>
-              </div>
-
-              {/* CARD 5: TOTAL SACADO GERAL (USUÁRIOS + ADMIN RETIRADAS) */}
-              <div className="p-5 bg-slate-950 border border-slate-800/90 rounded-3xl space-y-3 shadow-xl relative overflow-hidden group hover:border-slate-700 transition">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-purple-400" />
-                    Total Sacado
-                  </span>
-                  <div className="w-8 h-8 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center border border-purple-500/30">
-                    <CheckCircle2 className="w-4 h-4" />
-                  </div>
-                </div>
-                <div>
-                  <div className="text-2xl font-black text-purple-300 font-mono tracking-tight">
-                    R$ {Number((metricasFinanceiras.totalSacadoOrganizadores || 0) + (metricasFinanceiras.totalLucroRetiradoAdmin || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </div>
-                  <div className="text-[10px] text-slate-400 mt-1.5">
-                    Total de saques (Usuários + Seu)
-                  </div>
-                </div>
-              </div>
-
-            </div>
-          )}
+            );
+          })()}
 
           {/* GRID DE CARDS PRINCIPAIS */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -911,262 +923,131 @@ export const CarteiraAdminView: React.FC<CarteiraAdminViewProps> = ({ authFetch 
             </div>
           </div>
 
-          {/* GRID DE CARDS SECUNDÁRIOS: CHAVE PIX DO ADMIN & AMBIENTE EFÍ PAY */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
-            {/* CARD 3: CHAVE PIX MASTER DO ADMINISTRADOR (RECEBIMENTO DE LUCROS/TAXAS) */}
-            <div className="p-6 bg-slate-950 border border-slate-800 rounded-3xl space-y-5 shadow-2xl flex flex-col justify-between">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
-                      <DollarSign className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-black text-white">Chave Pix Master (Suas Taxas)</h3>
-                      <p className="text-xs text-slate-400">Conta de destino do seu lucro sobre vendas e saques</p>
-                    </div>
+          {/* SEÇÃO 2: CHAVE PIX MASTER DO ADMINISTRADOR (RECEBIMENTO DE LUCROS/TAXAS) */}
+          <div className="p-6 bg-slate-950 border border-slate-800 rounded-3xl space-y-5 shadow-2xl flex flex-col justify-between">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
+                    <DollarSign className="w-5 h-5" />
                   </div>
-
-                  {!modoEdicaoPixAdmin ? (
-                    <button
-                      type="button"
-                      onClick={() => setModoEdicaoPixAdmin(true)}
-                      className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-emerald-400 border border-emerald-500/30 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
-                    >
-                      <Edit3 className="w-3.5 h-3.5" />
-                      Editar Chave
-                    </button>
-                  ) : (
-                    <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 animate-pulse">
-                      Editando
-                    </span>
-                  )}
+                  <div>
+                    <h3 className="text-lg font-black text-white">Chave Pix Master (Suas Taxas)</h3>
+                    <p className="text-xs text-slate-400">Conta de destino do seu lucro sobre vendas e saques</p>
+                  </div>
                 </div>
 
-                <div className="space-y-3 pt-1">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-bold text-slate-400 block uppercase tracking-wider">Tipo</label>
-                      <select
-                        disabled={!modoEdicaoPixAdmin}
-                        value={tipoChavePixAdmin}
-                        onChange={e => setTipoChavePixAdmin(e.target.value as any)}
-                        className={`w-full border rounded-2xl px-3 py-2 text-xs font-bold focus:outline-none transition ${
-                          modoEdicaoPixAdmin
-                            ? 'bg-slate-900 border-emerald-500 text-white'
-                            : 'bg-slate-900/50 border-slate-800 text-slate-300 cursor-not-allowed'
-                        }`}
-                      >
-                        <option value="cpf">CPF</option>
-                        <option value="cnpj">CNPJ</option>
-                        <option value="email">E-mail</option>
-                        <option value="telefone">Telefone</option>
-                        <option value="aleatoria">Aleatória</option>
-                      </select>
-                    </div>
+                {!modoEdicaoPixAdmin ? (
+                  <button
+                    type="button"
+                    onClick={() => setModoEdicaoPixAdmin(true)}
+                    className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-emerald-400 border border-emerald-500/30 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                    Editar Chave
+                  </button>
+                ) : (
+                  <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 animate-pulse">
+                    Editando
+                  </span>
+                )}
+              </div>
 
-                    <div className="sm:col-span-2 space-y-1">
-                      <label className="text-[11px] font-bold text-slate-400 block uppercase tracking-wider">Chave Pix</label>
-                      <input
-                        type="text"
-                        disabled={!modoEdicaoPixAdmin}
-                        placeholder="Ex: 000.000.000-00 ou seu@email.com"
-                        value={chavePixAdmin}
-                        onChange={e => setChavePixAdmin(e.target.value)}
-                        className={`w-full border rounded-2xl px-3.5 py-2 text-xs font-mono font-bold focus:outline-none transition ${
-                          modoEdicaoPixAdmin
-                            ? 'bg-slate-900 border-emerald-500 text-white focus:border-emerald-400'
-                            : 'bg-slate-900/50 border-slate-800 text-emerald-400 cursor-not-allowed'
-                        }`}
-                      />
-                    </div>
+              <div className="space-y-3 pt-1">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-slate-400 block uppercase tracking-wider">Tipo</label>
+                    <select
+                      disabled={!modoEdicaoPixAdmin}
+                      value={tipoChavePixAdmin}
+                      onChange={e => setTipoChavePixAdmin(e.target.value as any)}
+                      className={`w-full border rounded-2xl px-3 py-2 text-xs font-bold focus:outline-none transition ${
+                        modoEdicaoPixAdmin
+                          ? 'bg-slate-900 border-emerald-500 text-white'
+                          : 'bg-slate-900/50 border-slate-800 text-slate-300 cursor-not-allowed'
+                      }`}
+                    >
+                      <option value="cpf">CPF</option>
+                      <option value="cnpj">CNPJ</option>
+                      <option value="email">E-mail</option>
+                      <option value="telefone">Telefone</option>
+                      <option value="aleatoria">Aleatória</option>
+                    </select>
                   </div>
 
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-slate-400 block uppercase tracking-wider">Titular / Banco (Opcional)</label>
+                  <div className="sm:col-span-2 space-y-1">
+                    <label className="text-[11px] font-bold text-slate-400 block uppercase tracking-wider">Chave Pix</label>
                     <input
                       type="text"
                       disabled={!modoEdicaoPixAdmin}
-                      placeholder="Ex: Wheslley Aviz - Banco Inter / Nubank"
-                      value={titularPixAdmin}
-                      onChange={e => setTitularPixAdmin(e.target.value)}
-                      className={`w-full border rounded-2xl px-3.5 py-2 text-xs font-bold focus:outline-none transition ${
+                      placeholder="Ex: 000.000.000-00 ou seu@email.com"
+                      value={chavePixAdmin}
+                      onChange={e => setChavePixAdmin(e.target.value)}
+                      className={`w-full border rounded-2xl px-3.5 py-2 text-xs font-mono font-bold focus:outline-none transition ${
                         modoEdicaoPixAdmin
                           ? 'bg-slate-900 border-emerald-500 text-white focus:border-emerald-400'
-                          : 'bg-slate-900/50 border-slate-800 text-slate-300 cursor-not-allowed'
+                          : 'bg-slate-900/50 border-slate-800 text-emerald-400 cursor-not-allowed'
                       }`}
                     />
                   </div>
                 </div>
 
-                <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl text-xs text-emerald-300 space-y-1">
-                  <div className="font-bold flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                    Como funciona o fluxo de recebimento:
-                  </div>
-                  <p className="text-[11px] text-slate-300 leading-relaxed">
-                    1. <strong>Pagamento:</strong> O comprador paga o Pix ➔ 100% entra na sua conta Efí Pay central.
-                    <br />
-                    2. <strong>Cálculo:</strong> O sistema desconta a taxa de porcentagem (ex: {globalTaxaVenda}%) como seu lucro.
-                    <br />
-                    3. <strong>Saque:</strong> Ao sacar, o organizador paga a taxa (ex: R$ {Number(globalTaxaSaque).toFixed(2)}) e você recebe a transferência líquida das taxas para a sua chave Pix cadastrada acima.
-                  </p>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-400 block uppercase tracking-wider">Titular / Banco (Opcional)</label>
+                  <input
+                    type="text"
+                    disabled={!modoEdicaoPixAdmin}
+                    placeholder="Ex: Wheslley Aviz - Banco Inter / Nubank"
+                    value={titularPixAdmin}
+                    onChange={e => setTitularPixAdmin(e.target.value)}
+                    className={`w-full border rounded-2xl px-3.5 py-2 text-xs font-bold focus:outline-none transition ${
+                      modoEdicaoPixAdmin
+                        ? 'bg-slate-900 border-emerald-500 text-white focus:border-emerald-400'
+                        : 'bg-slate-900/50 border-slate-800 text-slate-300 cursor-not-allowed'
+                    }`}
+                  />
                 </div>
               </div>
 
-              {modoEdicaoPixAdmin && (
-                <div className="flex items-center gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      carregarDados();
-                      setModoEdicaoPixAdmin(false);
-                    }}
-                    className="flex-1 py-3 bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-bold rounded-2xl border border-slate-800 transition"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="button"
-                    disabled={salvandoPixAdmin}
-                    onClick={handleSalvarPixAdmin}
-                    className="flex-1 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-2xl shadow-lg shadow-emerald-500/20 transition flex items-center justify-center gap-1.5"
-                  >
-                    {salvandoPixAdmin ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                    Salvar Chave Pix
-                  </button>
+              <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl text-xs text-emerald-300 space-y-1">
+                <div className="font-bold flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  Como funciona o fluxo de recebimento:
                 </div>
-              )}
-            </div>
-
-            {/* CARD 4: STATUS DO GATEWAY EFÍ PAY (100% VARIÁVEIS DE AMBIENTE) */}
-            <div className="p-6 bg-slate-950 border border-slate-800 rounded-3xl space-y-5 shadow-2xl flex flex-col justify-between">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30">
-                      <Zap className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-black text-white">Gateway Efí Pay</h3>
-                      <p className="text-xs text-slate-400">Credenciais protegidas nas variáveis de ambiente</p>
-                    </div>
-                  </div>
-
-                  <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase border ${
-                    ambienteEfipay === 'producao'
-                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                      : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                  }`}>
-                    {ambienteEfipay === 'producao' ? '🟢 PRODUÇÃO' : '🟡 HOMOLOGAÇÃO'}
-                  </span>
-                </div>
-
-                {/* STATUS DE SEGURANÇA E AMBIENTE */}
-                <div className="p-4 bg-slate-900/90 rounded-2xl border border-slate-800 space-y-2.5">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-400">Ambiente Detectado:</span>
-                    <span className="font-bold text-white uppercase font-mono">
-                      {ambienteEfipay === 'producao' ? 'Produção (Dinheiro Real)' : 'Homologação (Sandbox)'}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-400">Origem das Chaves:</span>
-                    <span className="font-bold text-emerald-400 flex items-center gap-1 text-[11px]">
-                      <Lock className="w-3 h-3" />
-                      Variáveis de Ambiente (process.env)
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-400">Certificado mTLS (.p12 / Base64):</span>
-                    <span className={`font-bold flex items-center gap-1 text-[11px] ${efipayInfo?.hasCertificado ? 'text-emerald-400' : 'text-amber-400'}`}>
-                      {efipayInfo?.hasCertificado ? <Check className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
-                      {efipayInfo?.hasCertificado ? 'Carregado com Sucesso' : 'Variável EFI_CERTIFICADO_BASE64'}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-400">Taxa Oficial Efí Pix:</span>
-                    <span className="font-mono font-bold text-amber-400">1,19% no recebimento / R$ 0,00 no saque</span>
-                  </div>
-                </div>
-
-                <div className="p-3 bg-slate-900/60 border border-slate-800 rounded-2xl text-[11px] text-slate-300 leading-relaxed">
-                  🛡️ <strong>Segurança Máxima:</strong> Conforme solicitado, as credenciais da Efí Pay não ficam expostas no app nem no banco de dados. O sistema identifica o ambiente automaticamente através das variáveis <code>EFI_CLIENT_ID</code>, <code>EFI_CLIENT_SECRET</code>, <code>EFI_CERTIFICADO_BASE64</code> e <code>EFI_AMBIENTE</code>.
-                </div>
-              </div>
-
-              {/* BOTÃO ÚNICO DE TESTE EFÍ PAY */}
-              <div className="pt-2 space-y-2">
-                <button
-                  type="button"
-                  disabled={testandoConexao}
-                  onClick={handleTestarConexao}
-                  className="w-full py-3 bg-slate-900 hover:bg-slate-800 border border-slate-700 hover:border-amber-500/50 text-slate-200 text-xs font-bold rounded-2xl transition flex items-center justify-center gap-2 shadow"
-                >
-                  {testandoConexao ? <RefreshCw className="w-4 h-4 animate-spin text-amber-400" /> : <Zap className="w-4 h-4 text-amber-400" />}
-                  Testar Comunicação com a Efí Pay ({ambienteEfipay.toUpperCase()})
-                </button>
-
-                <button
-                  type="button"
-                  disabled={registrandoWebhook}
-                  onClick={handleRegistrarWebhook}
-                  className="w-full py-3 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white text-xs font-bold rounded-2xl transition flex items-center justify-center gap-2 shadow"
-                >
-                  {registrandoWebhook ? <RefreshCw className="w-4 h-4 animate-spin text-white" /> : <CheckCircle2 className="w-4 h-4 text-white" />}
-                  Ativar Chave Pix p/ Saques Automáticos (Registrar Webhook)
-                </button>
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  1. <strong>Pagamento:</strong> O comprador paga o Pix ➔ 100% entra na sua conta Efí Pay central.
+                  <br />
+                  2. <strong>Cálculo:</strong> O sistema desconta a taxa de porcentagem (ex: {globalTaxaVenda}%) como seu lucro.
+                  <br />
+                  3. <strong>Saque:</strong> Ao sacar, o organizador paga a taxa (ex: R$ {Number(globalTaxaSaque).toFixed(2)}) e você recebe a transferência líquida das taxas para a sua chave Pix cadastrada acima.
+                </p>
               </div>
             </div>
 
+            {modoEdicaoPixAdmin && (
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    carregarDados();
+                    setModoEdicaoPixAdmin(false);
+                  }}
+                  className="flex-1 py-3 bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-bold rounded-2xl border border-slate-800 transition"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={salvandoPixAdmin}
+                  onClick={handleSalvarPixAdmin}
+                  className="flex-1 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-2xl shadow-lg shadow-emerald-500/20 transition flex items-center justify-center gap-1.5"
+                >
+                  {salvandoPixAdmin ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                  Salvar Chave Pix
+                </button>
+              </div>
+            )}
           </div>
-
-          {/* CARD DE RESULTADO DO TESTE EFÍ PAY SE HOUVER */}
-          {resultadoTeste && (
-            <div className={`p-5 rounded-3xl border text-xs space-y-2.5 shadow-xl ${
-              resultadoTeste.success 
-                ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-200' 
-                : 'bg-rose-950/40 border-rose-500/40 text-rose-200'
-            }`}>
-              <div className="flex items-center justify-between">
-                <span className="font-bold flex items-center gap-1.5 text-sm">
-                  {resultadoTeste.success ? <Check className="w-4 h-4 text-emerald-400" /> : <X className="w-4 h-4 text-rose-400" />}
-                  {resultadoTeste.success ? 'Conexão Efí Pay Validada com Sucesso!' : 'Falha na Conexão com Efí Pay'}
-                </span>
-                {resultadoTeste.ambiente && (
-                  <span className="px-2.5 py-1 bg-slate-900 rounded-lg text-[10px] font-mono text-slate-300 border border-slate-800">
-                    Ambiente: {resultadoTeste.ambiente.toUpperCase()}
-                  </span>
-                )}
-              </div>
-              <div className="p-3.5 bg-slate-950/90 rounded-2xl font-mono text-[11px] overflow-x-auto whitespace-pre-wrap border border-slate-800">
-                {resultadoTeste.details || JSON.stringify(resultadoTeste, null, 2)}
-              </div>
-            </div>
-          )}
-
-          {/* CARD DE RESULTADO DO WEBHOOK EFÍ PAY SE HOUVER */}
-          {resultadoWebhook && (
-            <div className={`p-5 rounded-3xl border text-xs space-y-2.5 shadow-xl ${
-              resultadoWebhook.success 
-                ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-200' 
-                : 'bg-rose-950/40 border-rose-500/40 text-rose-200'
-            }`}>
-              <div className="flex items-center justify-between">
-                <span className="font-bold flex items-center gap-1.5 text-sm">
-                  {resultadoWebhook.success ? <Check className="w-4 h-4 text-emerald-400" /> : <X className="w-4 h-4 text-rose-400" />}
-                  {resultadoWebhook.success ? 'Webhook Pix Cadastrado com Sucesso!' : 'Falha ao Cadastrar Webhook Pix'}
-                </span>
-              </div>
-              <div className="p-3.5 bg-slate-950/90 rounded-2xl font-mono text-[11px] overflow-x-auto whitespace-pre-wrap border border-slate-800">
-                {resultadoWebhook.detalhes}
-              </div>
-            </div>
-          )}
 
         </div>
       )}

@@ -497,12 +497,13 @@ export const MetodosPagamentoView: React.FC<MetodosPagamentoViewProps> = ({
                 </h4>
                 <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">{g.desc}</p>
 
-                {isCarteira && carteiraStatus === 'aprovado' && carteiraChavePix && (
-                  <div className="mt-3 p-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-[11px] text-emerald-300 flex items-center gap-1.5 font-mono">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                    <span className="truncate">Pix de Saque: {carteiraChavePix}</span>
-                  </div>
-                )}
+                     {/* Ocultado para manter apenas o botão conforme solicitação */}
+                     {/* isCarteira && carteiraStatus === 'aprovado' && carteiraChavePix && (
+                       <div className="mt-3 p-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-[11px] text-emerald-300 flex items-center gap-1.5 font-mono">
+                         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                         <span className="truncate">Pix de Saque: {carteiraChavePix}</span>
+                       </div>
+                     ) */}
 
                 {isCarteira && carteiraStatus === 'pendente' && (
                   <div className="mt-3 p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-[11px] text-amber-300 flex items-center gap-2">
@@ -541,35 +542,23 @@ export const MetodosPagamentoView: React.FC<MetodosPagamentoViewProps> = ({
                       >
                         Fazer Nova Solicitação
                       </button>
-                    ) : (
-                      <>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setModalGateway('carteira');
-                          }}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/20 rounded-xl font-bold transition"
-                        >
-                          <Settings className="w-3.5 h-3.5" />
-                          Meu Cadastro / Dados
-                        </button>
-
-                        {onAbrirCarteira && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onAbrirCarteira();
-                            }}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black rounded-xl shadow-md transition"
-                          >
-                            <span>Minha Carteira</span>
-                            <ArrowRight className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </>
-                    )}
+                     ) : (
+                       <>
+                         {onAbrirCarteira && (
+                           <button
+                             type="button"
+                             onClick={(e) => {
+                               e.stopPropagation();
+                               onAbrirCarteira();
+                             }}
+                             className="w-full py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black rounded-xl shadow-md transition text-center flex items-center justify-center gap-2"
+                           >
+                             <span>Minha Carteira</span>
+                             <ArrowRight className="w-3.5 h-3.5" />
+                           </button>
+                         )}
+                       </>
+                     )}
                   </>
                 ) : (
                   <>

@@ -393,6 +393,55 @@ export const CarteiraView: React.FC<CarteiraViewProps> = ({ authFetch }) => {
         </div>
       </div>
 
+      {/* MEUS DADOS DE CADASTRO */}
+      {carteiraConfig && (
+        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
+          <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+            <User className="w-5 h-5 text-emerald-400" />
+            <div>
+              <h3 className="text-sm font-black text-white">Dados Cadastrados do Titular</h3>
+              <p className="text-[11px] text-slate-400">Suas informações de recebimento e identificação na carteira</p>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
+            <div className="p-3.5 bg-slate-950 border border-slate-800/60 rounded-2xl space-y-1">
+              <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Nome do Titular</span>
+              <p className="text-white font-black text-xs">{carteiraConfig.nome || '-'}</p>
+            </div>
+            
+            <div className="p-3.5 bg-slate-950 border border-slate-800/60 rounded-2xl space-y-1">
+              <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Documento (CPF/CNPJ)</span>
+              <p className="text-white font-black text-xs font-mono">{carteiraConfig.documento || '-'}</p>
+            </div>
+
+            <div className="p-3.5 bg-slate-950 border border-slate-800/60 rounded-2xl space-y-1">
+              <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">E-mail Cadastrado</span>
+              <p className="text-white font-black text-xs">{carteiraConfig.email || '-'}</p>
+            </div>
+
+            <div className="p-3.5 bg-slate-950 border border-slate-800/60 rounded-2xl space-y-1">
+              <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Celular / WhatsApp</span>
+              <p className="text-white font-black text-xs font-mono">{carteiraConfig.telefone || '-'}</p>
+            </div>
+
+            <div className="p-3.5 bg-slate-950 border border-slate-800/60 rounded-2xl space-y-1">
+              <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Chave Pix de Recebimento</span>
+              <p className="text-emerald-400 font-black text-xs font-mono">{carteiraConfig.chavePix || '-'} ({String(carteiraConfig.tipoChavePix || '').toUpperCase()})</p>
+            </div>
+
+            <div className="p-3.5 bg-slate-950 border border-slate-800/60 rounded-2xl space-y-1">
+              <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Data de Nascimento</span>
+              <p className="text-white font-black text-xs font-mono">
+                {carteiraConfig.dataNascimento 
+                  ? new Date(carteiraConfig.dataNascimento + 'T12:00:00').toLocaleDateString('pt-BR') 
+                  : '-'}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* HISTÓRICO DE SAQUES E EXTRATO */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         

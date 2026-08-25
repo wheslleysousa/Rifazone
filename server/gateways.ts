@@ -897,9 +897,6 @@ export async function enviarPixEfipay(params: {
 
   const bodyEnvio: any = {
     valor: params.valor.toFixed(2),
-    pagador: {
-      chave: chaveOrigem
-    },
     favorecido: {
       chave: params.chavePixDestino.trim()
     }

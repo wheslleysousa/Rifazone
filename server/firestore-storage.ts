@@ -414,6 +414,14 @@ export class FirestoreStorage implements Storage {
     return config;
   }
 
+  public async deleteConfig(ownerId: string): Promise<boolean> {
+    const docRef = this.configsCol().doc(ownerId);
+    const doc = await docRef.get();
+    if (!doc.exists) return false;
+    await docRef.delete();
+    return true;
+  }
+
   public async getMpTokenPorCampanha(campanhaId: string): Promise<string | null> {
     const campanha = await this.getCampanhaById(campanhaId);
     if (!campanha || !campanha.ownerId) return null;

@@ -546,7 +546,7 @@ export class FileStorage implements Storage {
 
   // --- Configurações de pagamento por organizador ---
   public async getTodasConfiguracoes(): Promise<{ ownerId: string; config: ConfigOrganizador }[]> {
-    return Object.entries((this as any).data.configs).map(([ownerId, config]) => ({ ownerId, config: config as any }));
+    return Array.from(this.configs.entries()).map(([ownerId, config]) => ({ ownerId, config }));
   }
 
   public async getConfig(ownerId: string): Promise<ConfigOrganizador | null> {
@@ -558,6 +558,14 @@ export class FileStorage implements Storage {
     this.configs.set(ownerId, config);
     this.saveConfigs();
     return config;
+  }
+
+  public async deleteConfig(ownerId: string): Promise<boolean> {
+    const result = this.configs.delete(ownerId);
+    if (result) {
+      this.saveConfigs();
+    }
+    return result;
   }
 
   // Retorna o Access Token do Mercado Pago do organizador dono da campanha (descriptografado).

@@ -3,7 +3,7 @@ import {
   CreditCard, Wallet, Zap, ShieldCheck, CheckCircle2, 
   AlertCircle, ExternalLink, Copy, RefreshCw, Key, 
   Building2, Globe, Sparkles, Coins, Lock, HelpCircle, Layers, X,
-  Settings, Check, User, Mail, FileText, ArrowRight, Trash2
+  Settings, Check, User, Mail, FileText, ArrowRight, Trash2, Edit3
 } from 'lucide-react';
 import { ConfigOrganizador, MetodoPagamentoAtivo } from '../../types';
 
@@ -49,6 +49,8 @@ export const MetodosPagamentoView: React.FC<MetodosPagamentoViewProps> = ({
   const [carteiraChavePix, setCarteiraChavePix] = useState('');
   const [carteiraTelefone, setCarteiraTelefone] = useState('');
   const [carteiraStatus, setCarteiraStatus] = useState<"pendente" | "aprovado" | "rejeitado" | "">('');
+  const [carteiraRejeitadoEm, setCarteiraRejeitadoEm] = useState<number | null>(null);
+  const [editandoCarteira, setEditandoCarteira] = useState(false);
 
   // Taxas Personalizadas por Usuário (Super Admin)
   const [taxasPersonalizadasMap, setTaxasPersonalizadasMap] = useState<Record<string, { taxaVendaPct?: number; taxaSaqueImediato?: number; observacao?: string; atualizadoEm?: string }>>({});
@@ -117,6 +119,7 @@ export const MetodosPagamentoView: React.FC<MetodosPagamentoViewProps> = ({
           setCarteiraChavePix(data.carteiraConfig.chavePix || '');
           setCarteiraTelefone(data.carteiraConfig.telefone || '');
           setCarteiraStatus(data.carteiraConfig.status || '');
+          setCarteiraRejeitadoEm(data.carteiraConfig.rejeitadoEm || null);
           if (data.carteiraConfig.taxasPersonalizadas) {
             setTaxasPersonalizadasMap(data.carteiraConfig.taxasPersonalizadas);
           }
@@ -209,12 +212,13 @@ export const MetodosPagamentoView: React.FC<MetodosPagamentoViewProps> = ({
     carregarConfiguracoes();
   }, []);
 
-  const handleSalvar = async (metodoParaAtivar?: MetodoPagamentoAtivo, fecharModal: boolean = false) => {
+  const handleSalvar = async (metodoParaAtivar?: MetodoPagamentoAtivo, fecharModal: boolean = false, statusCarteiraOverride?: string) => {
     setSalvando(true);
     setMsgSucesso('');
     setMsgErro('');
 
     const targetMetodo = metodoParaAtivar || metodoAtivo;
+    const finalStatus = statusCarteiraOverride || carteiraStatus || "pendente";
 
     try {
       const payload: any = {
@@ -230,7 +234,7 @@ export const MetodosPagamentoView: React.FC<MetodosPagamentoViewProps> = ({
           tipoChavePix: carteiraTipoPix,
           chavePix: carteiraChavePix.trim(),
           telefone: carteiraTelefone.trim(),
-          status: carteiraStatus || "pendente"
+          status: finalStatus
         },
         mpAccessToken: mpAccessToken.trim(),
         mpPublicKey: mpPublicKey.trim(),
@@ -312,7 +316,6 @@ export const MetodosPagamentoView: React.FC<MetodosPagamentoViewProps> = ({
       desc: 'Taxa Pix: ~0.99% (instantâneo) a 1.99% (liberação em 14 dias). Saques gratuitos para conta Mercado Pago.', 
       icon: <Zap className="w-5 h-5 text-blue-400" /> 
     },
-    ...(isAdminUser ? [{ id: 'efipay', nome: 'Efí Pay (Própria)', tag: 'API Direta (Admin)', desc: 'Taxas diretas da sua conta PJ Efí conforme tabela oficial de API Pix.', icon: <ShieldCheck className="w-5 h-5 text-orange-400" /> }] : []),
     { 
       id: 'pushinpay', 
       nome: 'PushinPay', 
@@ -707,17 +710,26 @@ export const MetodosPagamentoView: React.FC<MetodosPagamentoViewProps> = ({
                   
                   {/* CADASTRO DE CONTA NA CARTEIRA */}
                   <div className="mt-4">
-                    {carteiraStatus === 'aprovado' ? (
+                    {carteiraStatus === 'aprovado' && !editandoCarteira ? (
                       <div className="p-4 bg-emerald-950/40 border border-emerald-500/40 rounded-2xl space-y-4">
                         <div className="flex items-center justify-between">
                           <h5 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
                             <CheckCircle2 className="w-4 h-4 text-emerald-400"/> Conta Aprovada
                           </h5>
+                          <button
+                            type="button"
+                            onClick={() => setEditandoCarteira(true)}
+                            className="text-xs text-emerald-400 hover:underline font-bold"
+                          >
+                            Editar Dados
+                          </button>
                         </div>
                         <div className="bg-slate-900/80 p-3.5 rounded-xl border border-slate-800 text-xs space-y-2">
-                          <div className="flex justify-between"><span className="text-slate-400">Titular:</span> <span className="text-white font-bold">{carteiraNome}</span></div>
-                          <div className="flex justify-between"><span className="text-slate-400">CPF/CNPJ:</span> <span className="text-white font-bold">{carteiraDocumento}</span></div>
-                          <div className="flex justify-between"><span className="text-slate-400">Chave Pix:</span> <span className="text-emerald-400 font-bold">{carteiraChavePix}</span></div>
+                          <div className="flex justify-between"><span className="text-slate-400">Titular:</span> <span className="text-white font-bold">{carteiraNome || '-'}</span></div>
+                          <div className="flex justify-between"><span className="text-slate-400">E-mail:</span> <span className="text-white font-bold">{carteiraEmail || '-'}</span></div>
+                          <div className="flex justify-between"><span className="text-slate-400">CPF/CNPJ:</span> <span className="text-white font-bold">{carteiraDocumento || '-'}</span></div>
+                          <div className="flex justify-between"><span className="text-slate-400">Telefone:</span> <span className="text-white font-bold">{carteiraTelefone || '-'}</span></div>
+                          <div className="flex justify-between"><span className="text-slate-400">Chave Pix:</span> <span className="text-emerald-400 font-bold">{carteiraChavePix || '-'} ({carteiraTipoPix.toUpperCase()})</span></div>
                         </div>
                         <div className="flex justify-end gap-2">
                           <button
@@ -732,29 +744,55 @@ export const MetodosPagamentoView: React.FC<MetodosPagamentoViewProps> = ({
                           </button>
                         </div>
                       </div>
-                    ) : carteiraStatus === 'pendente' ? (
-                      <div className="p-6 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-center space-y-3">
-                        <RefreshCw className="w-10 h-10 text-amber-400 mx-auto animate-spin" />
-                        <div>
-                          <h4 className="text-sm font-black text-amber-300">Aguardando Confirmação</h4>
-                          <p className="text-xs text-slate-300 mt-2 leading-relaxed">
-                            Sua solicitação de uso da carteira foi enviada com sucesso. <br />
-                            <strong>Aguardando confirmação, esse processo pode levar até 24 horas.</strong>
-                          </p>
+                    ) : carteiraStatus === 'pendente' && !editandoCarteira ? (
+                      <div className="p-5 bg-amber-500/10 border border-amber-500/30 rounded-2xl space-y-4">
+                        <div className="flex items-start gap-3">
+                          <RefreshCw className="w-8 h-8 text-amber-400 shrink-0 mt-0.5 animate-spin" />
+                          <div className="flex-1">
+                            <h4 className="text-sm font-black text-amber-300">Aguardando Autorização no Painel do Administrador</h4>
+                            <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+                              Sua solicitação para uso da carteira do sistema foi enviada. Para liberar os recebimentos, vá até a aba <strong>Administração da Carteira</strong> no painel admin e aprove esta solicitação.
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                    ) : carteiraStatus === 'rejeitado' ? (
-                      <div className="p-6 bg-rose-500/10 border border-rose-500/30 rounded-2xl text-center space-y-3">
-                        <X className="w-10 h-10 text-rose-400 mx-auto" />
-                        <div>
-                          <h4 className="text-sm font-black text-rose-300">Solicitação Rejeitada</h4>
-                          <p className="text-xs text-slate-300 mt-1">Infelizmente sua solicitação não foi aprovada pelo administrador.</p>
+
+                        {/* Dados cadastrados */}
+                        <div className="bg-slate-900/90 p-3.5 rounded-xl border border-slate-800 text-xs space-y-1.5">
+                          <div className="flex justify-between"><span className="text-slate-400">Titular:</span> <span className="text-white font-bold">{carteiraNome || '-'}</span></div>
+                          <div className="flex justify-between"><span className="text-slate-400">E-mail:</span> <span className="text-white font-bold">{carteiraEmail || '-'}</span></div>
+                          <div className="flex justify-between"><span className="text-slate-400">CPF/CNPJ:</span> <span className="text-white font-bold">{carteiraDocumento || '-'}</span></div>
+                          <div className="flex justify-between"><span className="text-slate-400">Celular:</span> <span className="text-white font-bold">{carteiraTelefone || '-'}</span></div>
+                          <div className="flex justify-between"><span className="text-slate-400">Chave Pix:</span> <span className="text-amber-400 font-mono font-bold">{carteiraChavePix || '-'} ({carteiraTipoPix.toUpperCase()})</span></div>
                         </div>
-                        <button onClick={() => setCarteiraStatus('')} className="px-4 py-2 mt-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold">Fazer Nova Solicitação</button>
+
+                        <div className="flex justify-end gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => setEditandoCarteira(true)}
+                            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+                          >
+                            <Edit3 className="w-3.5 h-3.5 text-amber-400" />
+                            Editar Dados da Solicitação
+                          </button>
+                        </div>
                       </div>
                     ) : (
                       <div className="p-4 bg-slate-950/50 border border-slate-800 rounded-2xl space-y-4">
-                        <h5 className="text-sm font-black text-white">Solicitar Acesso à Carteira do Sistema</h5>
+                        <div className="flex items-center justify-between">
+                          <h5 className="text-sm font-black text-white">
+                            {carteiraStatus === 'pendente' || carteiraStatus === 'aprovado' ? 'Editar Informações da Carteira' : 'Solicitar Acesso à Carteira do Sistema'}
+                          </h5>
+                          {editandoCarteira && (
+                            <button
+                              type="button"
+                              onClick={() => setEditandoCarteira(false)}
+                              className="text-xs text-slate-400 hover:text-white"
+                            >
+                              Cancelar Edição
+                            </button>
+                          )}
+                        </div>
+
                         <div className="space-y-3">
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div className="space-y-1">
@@ -835,18 +873,54 @@ export const MetodosPagamentoView: React.FC<MetodosPagamentoViewProps> = ({
                             </div>
                           </div>
 
-                          <button
-                            type="button"
-                            disabled={salvando || !carteiraChavePix || !carteiraNome || !carteiraDocumento || !carteiraEmail || !carteiraTelefone}
-                            onClick={async () => {
-                              setCarteiraStatus('pendente');
-                              await handleSalvar('carteira', true);
-                            }}
-                            className="w-full py-3.5 mt-2 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 text-xs font-black rounded-xl shadow-lg shadow-emerald-500/20 transition flex items-center justify-center gap-2"
-                          >
-                            {salvando ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                            Fazer Solicitação
-                          </button>
+                          {/* ALERTA DE COOLDOWN DE 7 DIAS EM CASO DE REJEIÇÃO */}
+                          {(() => {
+                            const SETE_DIAS_MS = 7 * 24 * 60 * 60 * 1000;
+                            const tempoDecorridoRejeicao = carteiraRejeitadoEm ? Date.now() - carteiraRejeitadoEm : SETE_DIAS_MS;
+                            const tempoRestanteRejeicaoMs = SETE_DIAS_MS - tempoDecorridoRejeicao;
+                            const emCooldown7Dias = carteiraStatus === 'rejeitado' && tempoRestanteRejeicaoMs > 0;
+                            const diasRestantes = Math.max(0, Math.floor(tempoRestanteRejeicaoMs / (24 * 60 * 60 * 1000)));
+                            const horasRestantes = Math.max(0, Math.floor((tempoRestanteRejeicaoMs % (24 * 60 * 60 * 1000)) / (3600 * 1000)));
+
+                            return (
+                              <>
+                                {emCooldown7Dias && (
+                                  <div className="p-4 bg-rose-500/10 border border-rose-500/30 rounded-2xl space-y-2 text-xs">
+                                    <div className="flex items-center gap-2 font-black text-rose-400 text-sm">
+                                      <AlertCircle className="w-5 h-5 shrink-0" />
+                                      Solicitação Recusada (Prazo de 7 Dias Ativo)
+                                    </div>
+                                    <p className="text-slate-300 leading-relaxed">
+                                      Sua solicitação de acesso foi recusada pelo administrador. Por regra do sistema, é necessário aguardar o prazo de 7 dias para realizar um novo pedido.
+                                    </p>
+                                    <div className="p-2.5 bg-slate-950 rounded-xl border border-rose-500/20 font-mono font-bold text-rose-400 text-center">
+                                      Tempo restante para liberação de novo pedido: {diasRestantes} dia(s) e {horasRestantes} hora(s)
+                                    </div>
+                                  </div>
+                                )}
+
+                                <button
+                                  type="button"
+                                  disabled={salvando || emCooldown7Dias || !carteiraChavePix || !carteiraNome || !carteiraDocumento || !carteiraEmail || !carteiraTelefone}
+                                  onClick={async () => {
+                                    let novoStatus = carteiraStatus;
+                                    if (!carteiraStatus || carteiraStatus === 'rejeitado') {
+                                      novoStatus = 'pendente';
+                                      setCarteiraStatus('pendente');
+                                    }
+                                    await handleSalvar('carteira', false, novoStatus);
+                                    setEditandoCarteira(false);
+                                  }}
+                                  className="w-full py-3.5 mt-2 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 text-xs font-black rounded-xl shadow-lg shadow-emerald-500/20 transition flex items-center justify-center gap-2"
+                                >
+                                  {salvando ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                                  {emCooldown7Dias
+                                    ? `Aguarde ${diasRestantes}d ${horasRestantes}h para enviar`
+                                    : (carteiraStatus === 'pendente' || carteiraStatus === 'aprovado' ? 'Salvar e Atualizar Dados' : 'Enviar Solicitação de Carteira')}
+                                </button>
+                              </>
+                            );
+                          })()}
                         </div>
                       </div>
                     )}

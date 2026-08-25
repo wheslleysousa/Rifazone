@@ -394,6 +394,8 @@ export interface ConfigOrganizador {
     taxaVendaPct?: number; // ex: 5.0 para 5.0%
     taxaSaqueImediato?: number; // ex: 4.50
     chavePixRecebimento?: string;
+    tipoChavePixRecebimento?: string;
+    nomeTitularRecebimento?: string;
     isencaoTaxaPublicacao?: boolean;
     nome?: string;
     dataNascimento?: string;

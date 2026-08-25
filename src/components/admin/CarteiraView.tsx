@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { 
   Wallet, ArrowUpRight, ArrowDownLeft, Clock, CheckCircle2, 
   AlertCircle, DollarSign, ShieldCheck, RefreshCw, Send, 
-  Calendar, Building2, User, HelpCircle, ChevronRight, Download
+  Calendar, Building2, User, HelpCircle, ChevronRight, Download,
+  TrendingUp, MessageSquare, AlertTriangle, X
 } from 'lucide-react';
 import { CarteiraSaldo, SolicitacaoSaque, TransacaoCarteira } from '../../types';
 
@@ -23,6 +24,16 @@ export const CarteiraView: React.FC<CarteiraViewProps> = ({ authFetch }) => {
   const [saques, setSaques] = useState<SolicitacaoSaque[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [modalSaqueAberto, setModalSaqueAberto] = useState(false);
+
+  // Redução de taxas
+  const [carteiraConfig, setCarteiraConfig] = useState<any>(null);
+  const [modalReducaoAberto, setModalReducaoAberto] = useState(false);
+  const [taxaVendaDesejada, setTaxaVendaDesejada] = useState('3.0');
+  const [taxaSaqueDesejada, setTaxaSaqueDesejada] = useState('0.00');
+  const [mensagemReducao, setMensagemReducao] = useState('');
+  const [enviandoReducao, setEnviandoReducao] = useState(false);
+  const [reducaoMsg, setReducaoMsg] = useState('');
+  const [reducaoErro, setReducaoErro] = useState('');
 
   // Formulário de Saque
   const [valorSaque, setValorSaque] = useState('');
@@ -81,10 +92,13 @@ export const CarteiraView: React.FC<CarteiraViewProps> = ({ authFetch }) => {
       }
       if (resConfig && resConfig.ok) {
         const dataConfig = await resConfig.json();
-        if (dataConfig?.carteiraConfig?.chavePix) {
-          setChavePix(dataConfig.carteiraConfig.chavePix);
-          if (dataConfig.carteiraConfig.tipoChavePix) {
-            setTipoChavePix(dataConfig.carteiraConfig.tipoChavePix);
+        if (dataConfig?.carteiraConfig) {
+          setCarteiraConfig(dataConfig.carteiraConfig);
+          if (dataConfig.carteiraConfig.chavePix) {
+            setChavePix(dataConfig.carteiraConfig.chavePix);
+            if (dataConfig.carteiraConfig.tipoChavePix) {
+              setTipoChavePix(dataConfig.carteiraConfig.tipoChavePix);
+            }
           }
         }
       }
@@ -92,6 +106,36 @@ export const CarteiraView: React.FC<CarteiraViewProps> = ({ authFetch }) => {
       console.error('Erro ao carregar dados da carteira:', err);
     } finally {
       setCarregando(false);
+    }
+  };
+
+  const handleSolicitarReducao = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setReducaoErro('');
+    setReducaoMsg('');
+
+    setEnviandoReducao(true);
+    try {
+      const res = await authFetch('/api/carteira/solicitar-reducao-taxa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          taxaVendaDesejada: parseFloat(taxaVendaDesejada) || 0,
+          taxaSaqueDesejada: parseFloat(taxaSaqueDesejada) || 0,
+          mensagem: mensagemReducao.trim()
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setReducaoMsg('Solicitação enviada com sucesso! O administrador analisará suas vendas e responderá em breve.');
+        await carregarDados();
+      } else {
+        setReducaoErro(data.error || 'Erro ao enviar solicitação.');
+      }
+    } catch (err: any) {
+      setReducaoErro('Erro de conexão ao enviar solicitação.');
+    } finally {
+      setEnviandoReducao(false);
     }
   };
 
@@ -197,7 +241,20 @@ export const CarteiraView: React.FC<CarteiraViewProps> = ({ authFetch }) => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setReducaoMsg('');
+              setReducaoErro('');
+              setModalReducaoAberto(true);
+            }}
+            className="px-3 py-2.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-bold rounded-xl flex items-center gap-1.5 transition"
+          >
+            <TrendingUp className="w-4 h-4 text-amber-400" />
+            Solicitar Redução de Taxas
+          </button>
+
           <button
             onClick={carregarDados}
             disabled={carregando}
@@ -735,6 +792,143 @@ export const CarteiraView: React.FC<CarteiraViewProps> = ({ authFetch }) => {
                     <>
                       <CheckCircle2 className="w-4 h-4" />
                       Confirmar Saque
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE SOLICITAÇÃO DE REDUÇÃO DE TAXA */}
+      {modalReducaoAberto && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-6 space-y-5 shadow-2xl relative">
+            <button
+              onClick={() => setModalReducaoAberto(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white p-1"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-amber-500/20 border border-amber-500/30 rounded-xl text-amber-400 shrink-0">
+                <TrendingUp className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-white">Solicitar Redução de Taxas da Carteira</h3>
+                <p className="text-xs text-slate-400">Negocie taxas diferenciadas diretamente com o administrador do sistema</p>
+              </div>
+            </div>
+
+            {carteiraConfig?.solicitacaoReducaoTaxa && (
+              <div className={`p-3.5 rounded-xl border text-xs space-y-1 ${
+                carteiraConfig.solicitacaoReducaoTaxa.status === 'aprovado'
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                  : carteiraConfig.solicitacaoReducaoTaxa.status === 'rejeitado'
+                  ? 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+                  : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+              }`}>
+                <span className="font-bold uppercase tracking-wider block text-[10px]">
+                  Status do Último Pedido: {carteiraConfig.solicitacaoReducaoTaxa.status}
+                </span>
+                <p>
+                  {carteiraConfig.solicitacaoReducaoTaxa.status === 'aprovado'
+                    ? 'Sua solicitação anterior foi APROVADA! Suas taxas exclusivas já estão ativas no sistema.'
+                    : carteiraConfig.solicitacaoReducaoTaxa.status === 'rejeitado'
+                    ? 'Sua solicitação anterior de redução foi recusada. Você pode enviar uma nova proposta abaixo.'
+                    : 'Você já possui um pedido de redução em análise pelo administrador.'}
+                </p>
+              </div>
+            )}
+
+            {reducaoMsg && (
+              <div className="p-3 bg-emerald-500/20 border border-emerald-500/50 rounded-xl text-emerald-300 text-xs flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                {reducaoMsg}
+              </div>
+            )}
+
+            {reducaoErro && (
+              <div className="p-3 bg-rose-500/20 border border-rose-500/50 rounded-xl text-rose-300 text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                {reducaoErro}
+              </div>
+            )}
+
+            <form onSubmit={handleSolicitarReducao} className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-300 block">Taxa Venda Desejada (%)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="100"
+                    required
+                    value={taxaVendaDesejada}
+                    onChange={e => setTaxaVendaDesejada(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:border-amber-500 focus:outline-none"
+                  />
+                  <span className="text-[10px] text-slate-500 block">Atual: ~5.0%</span>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-300 block">Tarifa Saque Desejada (R$)</label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="0"
+                    required
+                    value={taxaSaqueDesejada}
+                    onChange={e => setTaxaSaqueDesejada(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:border-amber-500 focus:outline-none"
+                  />
+                  <span className="text-[10px] text-slate-500 block">Atual: ~R$ 4,50</span>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-300 block">Mensagem / Justificativa</label>
+                <textarea
+                  rows={3}
+                  value={mensagemReducao}
+                  onChange={e => setMensagemReducao(e.target.value)}
+                  placeholder="Conte um pouco sobre suas campanhas, projeção de vendas mensais ou motivo da solicitação..."
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-white focus:border-amber-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-xs space-y-1 text-slate-400 font-mono">
+                <div className="flex justify-between">
+                  <span>Seu Faturamento Atual:</span>
+                  <span className="text-emerald-400 font-bold">R$ {saldo.totalVendido.toFixed(2)}</span>
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setModalReducaoAberto(false)}
+                  className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl transition"
+                >
+                  Fechar
+                </button>
+                <button
+                  type="submit"
+                  disabled={enviandoReducao}
+                  className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-amber-500/20 transition flex items-center justify-center gap-2"
+                >
+                  {enviandoReducao ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      Enviando...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4" />
+                      Enviar Solicitação
                     </>
                   )}
                 </button>

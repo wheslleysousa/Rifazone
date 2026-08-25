@@ -249,51 +249,103 @@ export interface EfipayCredentials {
 }
 
 export function resolveEfipayCredentials(config?: ConfigOrganizador | null): EfipayCredentials | null {
-  const ambiente = config?.efipayConfig?.ambiente || (process.env.EFI_AMBIENTE as any) || 'producao';
+  // 1. Tenta identificar o ambiente ('producao' ou 'homologacao') prioritariamente pelas variáveis de ambiente
+  // Por solicitação expressa, o sistema opera em modo de produção por padrão
+  const rawEnvAmbiente = (process.env.EFI_AMBIENTE || process.env.EFIPAY_AMBIENTE || process.env.EFI_ENV || 'producao').toLowerCase().trim();
+  const dbAmbiente = config?.efipayConfig?.ambiente;
+  
+  // Só opera em homologação se for explicitamente definido como tal
+  const isHomologacao = rawEnvAmbiente === 'homologacao' 
+    || rawEnvAmbiente === 'sandbox'
+    || (dbAmbiente === 'homologacao' && !process.env.EFI_AMBIENTE && !process.env.EFIPAY_AMBIENTE);
+
+  const ambiente: 'producao' | 'homologacao' = isHomologacao ? 'homologacao' : 'producao';
+
+  // Buscar todas as variações possíveis do certificado nas variáveis de ambiente
+  const envCert = (
+    process.env.EFI_CERTIFICADO_BASE64
+    || process.env.EFIPAY_CERTIFICADO_BASE64
+    || process.env.EFI_CERT_BASE64
+    || process.env.EFIPAY_CERT_BASE64
+    || process.env.EFI_CERTIFICADO
+    || process.env.EFIPAY_CERTIFICADO
+    || process.env.EFI_CERT
+    || process.env.EFIPAY_CERT
+    || process.env.EFI_CERTIFICADO_BASE64_HOMOLOGACAO
+    || process.env.EFI_CERT_HOMOLOGACAO
+    || ''
+  ).trim();
+
+  // Buscar variações da Chave Pix nas variáveis de ambiente
+  const envChavePix = (
+    process.env.EFI_CHAVE_PIX
+    || process.env.EFIPAY_CHAVE_PIX
+    || process.env.EFIPAY_PIX_KEY
+    || process.env.EFI_PIX_KEY
+    || process.env.EFI_CHAVE_PIX_HOMOLOGACAO
+    || ''
+  ).trim();
 
   if (ambiente === 'homologacao') {
-    // 1. Tenta Homologação no DB do organizador/plataforma
-    if (config?.efipayConfig?.clientIdHomologacao && config?.efipayConfig?.clientSecretHomologacao) {
+    // 1.1 Tenta Homologação nas Variáveis de Ambiente (Render / AI Studio)
+    const envClientIdHomol = process.env.EFI_CLIENT_ID_HOMOLOGACAO || process.env.EFIPAY_CLIENT_ID_HOMOLOGACAO || process.env.EFI_CLIENT_ID || process.env.EFIPAY_CLIENT_ID;
+    const envClientSecretHomol = process.env.EFI_CLIENT_SECRET_HOMOLOGACAO || process.env.EFIPAY_CLIENT_SECRET_HOMOLOGACAO || process.env.EFI_CLIENT_SECRET || process.env.EFIPAY_CLIENT_SECRET;
+    if (envClientIdHomol && envClientSecretHomol) {
       return {
-        clientId: config.efipayConfig.clientIdHomologacao,
-        clientSecret: decryptToken(config.efipayConfig.clientSecretHomologacao) || config.efipayConfig.clientSecretHomologacao,
-        chavePix: config.efipayConfig.chavePixHomologacao || config.efipayConfig.chavePix || '',
+        clientId: envClientIdHomol.trim(),
+        clientSecret: envClientSecretHomol.trim(),
+        chavePix: (process.env.EFI_CHAVE_PIX_HOMOLOGACAO || envChavePix || config?.efipayConfig?.chavePix || '').trim(),
         ambiente: 'homologacao',
-        certificadoBase64: config.efipayConfig.certificadoBase64 || process.env.EFI_CERTIFICADO_BASE64 || ''
+        certificadoBase64: (envCert || config?.efipayConfig?.certificadoBase64 || '').trim()
       };
     }
-    // 2. Tenta Homologação nas Variáveis de Ambiente (Render)
-    if (process.env.EFI_CLIENT_ID_HOMOLOGACAO && process.env.EFI_CLIENT_SECRET_HOMOLOGACAO) {
+
+    // 1.2 Tenta Homologação no DB (fallback)
+    if (config?.efipayConfig?.clientIdHomologacao && config?.efipayConfig?.clientSecretHomologacao) {
       return {
-        clientId: process.env.EFI_CLIENT_ID_HOMOLOGACAO,
-        clientSecret: process.env.EFI_CLIENT_SECRET_HOMOLOGACAO,
-        chavePix: process.env.EFI_CHAVE_PIX_HOMOLOGACAO || process.env.EFI_CHAVE_PIX || '',
+        clientId: config.efipayConfig.clientIdHomologacao.trim(),
+        clientSecret: (decryptToken(config.efipayConfig.clientSecretHomologacao) || config.efipayConfig.clientSecretHomologacao).trim(),
+        chavePix: (config.efipayConfig.chavePixHomologacao || config.efipayConfig.chavePix || envChavePix || '').trim(),
         ambiente: 'homologacao',
-        certificadoBase64: process.env.EFI_CERTIFICADO_BASE64 || config?.efipayConfig?.certificadoBase64 || ''
+        certificadoBase64: (config.efipayConfig.certificadoBase64 || envCert).trim()
       };
     }
   }
 
-  // Produção (ou fallback de ambiente)
-  // 3. DB
-  if (config?.efipayConfig?.clientId && config?.efipayConfig?.clientSecret) {
+  // 2. Produção (Prioridade máxima para variáveis de ambiente)
+  const envClientId = (
+    process.env.EFI_CLIENT_ID 
+    || process.env.EFIPAY_CLIENT_ID 
+    || process.env.EFI_CLIENT_ID_PRODUCAO
+    || process.env.EFIPAY_CLIENT_ID_PRODUCAO
+    || process.env.EFI_CLIENT_ID_HOMOLOGACAO
+  );
+  const envClientSecret = (
+    process.env.EFI_CLIENT_SECRET 
+    || process.env.EFIPAY_CLIENT_SECRET 
+    || process.env.EFI_CLIENT_SECRET_PRODUCAO
+    || process.env.EFIPAY_CLIENT_SECRET_PRODUCAO
+    || process.env.EFI_CLIENT_SECRET_HOMOLOGACAO
+  );
+
+  if (envClientId && envClientSecret) {
     return {
-      clientId: config.efipayConfig.clientId,
-      clientSecret: decryptToken(config.efipayConfig.clientSecret) || config.efipayConfig.clientSecret,
-      chavePix: config.efipayConfig.chavePix || '',
+      clientId: envClientId.trim(),
+      clientSecret: envClientSecret.trim(),
+      chavePix: (envChavePix || config?.efipayConfig?.chavePix || '').trim(),
       ambiente: ambiente,
-      certificadoBase64: config.efipayConfig.certificadoBase64 || process.env.EFI_CERTIFICADO_BASE64 || ''
+      certificadoBase64: (envCert || config?.efipayConfig?.certificadoBase64 || '').trim()
     };
   }
 
-  // 4. Variáveis de Ambiente (Render)
-  if (process.env.EFI_CLIENT_ID && process.env.EFI_CLIENT_SECRET) {
+  // 2.1 DB (Fallback caso não esteja nas envs)
+  if (config?.efipayConfig?.clientId && config?.efipayConfig?.clientSecret) {
     return {
-      clientId: process.env.EFI_CLIENT_ID,
-      clientSecret: process.env.EFI_CLIENT_SECRET,
-      chavePix: process.env.EFI_CHAVE_PIX || '',
+      clientId: config.efipayConfig.clientId.trim(),
+      clientSecret: (decryptToken(config.efipayConfig.clientSecret) || config.efipayConfig.clientSecret).trim(),
+      chavePix: (config.efipayConfig.chavePix || envChavePix || '').trim(),
       ambiente: ambiente,
-      certificadoBase64: process.env.EFI_CERTIFICADO_BASE64 || config?.efipayConfig?.certificadoBase64 || ''
+      certificadoBase64: (config.efipayConfig.certificadoBase64 || envCert).trim()
     };
   }
 
@@ -301,13 +353,26 @@ export function resolveEfipayCredentials(config?: ConfigOrganizador | null): Efi
 }
 
 function createEfipayHttpsAgent(certificadoBase64?: string): https.Agent {
-  if (!certificadoBase64) {
+  if (!certificadoBase64 || !certificadoBase64.trim()) {
+    console.warn('[Efí Pay mTLS] Nenhum certificado informado. Criando agente HTTPS sem certificado.');
     return new https.Agent({ rejectUnauthorized: false });
   }
 
   try {
-    const rawCert = certificadoBase64.replace(/^data:.*?;base64,/, '').trim();
-    const certBuffer = Buffer.from(rawCert, 'base64');
+    const rawContent = certificadoBase64.trim();
+
+    // Se a string já é um certificado PEM direto em texto plano (não base64)
+    if (rawContent.includes('-----BEGIN CERTIFICATE-----') || rawContent.includes('-----BEGIN PRIVATE KEY-----') || rawContent.includes('-----BEGIN RSA PRIVATE KEY-----')) {
+      return new https.Agent({
+        cert: rawContent,
+        key: rawContent,
+        rejectUnauthorized: false
+      });
+    }
+
+    // Se é base64, decodifica a string
+    const cleanBase64 = rawContent.replace(/^data:.*?;base64,/, '').replace(/\s+/g, '');
+    const certBuffer = Buffer.from(cleanBase64, 'base64');
     const certAscii = certBuffer.toString('ascii');
 
     if (certAscii.includes('-----BEGIN CERTIFICATE-----') || certAscii.includes('-----BEGIN PRIVATE KEY-----') || certAscii.includes('-----BEGIN RSA PRIVATE KEY-----')) {
@@ -317,14 +382,15 @@ function createEfipayHttpsAgent(certificadoBase64?: string): https.Agent {
         rejectUnauthorized: false
       });
     } else {
+      // Suporta formato PKCS#12 (.p12 / .pfx)
       return new https.Agent({
         pfx: certBuffer,
         passphrase: '',
         rejectUnauthorized: false
       });
     }
-  } catch (err) {
-    console.error('[Efí Pay mTLS] Erro ao carregar certificado:', err);
+  } catch (err: any) {
+    console.error('[Efí Pay mTLS] Erro ao instanciar certificado de segurança:', err?.message || err);
     return new https.Agent({ rejectUnauthorized: false });
   }
 }
@@ -622,4 +688,117 @@ export async function consultarPagamentoAsaas(paymentId: string, config?: Config
   }
 
   return false;
+}
+
+export async function testEfipayConnection(config?: ConfigOrganizador | null): Promise<{
+  success: boolean;
+  source: 'env' | 'database' | 'none';
+  ambiente: 'producao' | 'homologacao';
+  hasClientId: boolean;
+  hasClientSecret: boolean;
+  hasCertificado: boolean;
+  hasChavePix: boolean;
+  details: string;
+  statusCode?: number;
+}> {
+  const creds = resolveEfipayCredentials(config);
+
+  if (!creds || !creds.clientId || !creds.clientSecret) {
+    return {
+      success: false,
+      source: 'none',
+      ambiente: creds?.ambiente || 'producao',
+      hasClientId: !!creds?.clientId,
+      hasClientSecret: !!creds?.clientSecret,
+      hasCertificado: !!creds?.certificadoBase64,
+      hasChavePix: !!creds?.chavePix,
+      details: 'Nenhuma credencial (Client ID / Client Secret) foi encontrada nem no banco de dados nem nas Variáveis de Ambiente (process.env).'
+    };
+  }
+
+  const isFromEnv = !!(process.env.EFI_CLIENT_ID || process.env.EFI_CLIENT_ID_HOMOLOGACAO);
+
+  try {
+    const isProd = creds.ambiente !== 'homologacao';
+    const baseUrls = isProd
+      ? ['https://pix.api.efipay.com.br', 'https://api-pix.gerencianet.com.br']
+      : ['https://pix-h.api.efipay.com.br', 'https://api-pix-h.gerencianet.com.br'];
+
+    const authHeader = Buffer.from(`${creds.clientId}:${creds.clientSecret}`).toString('base64');
+
+    if (!creds.certificadoBase64) {
+      return {
+        success: false,
+        source: isFromEnv ? 'env' : 'database',
+        ambiente: creds.ambiente || 'producao',
+        hasClientId: true,
+        hasClientSecret: true,
+        hasCertificado: false,
+        hasChavePix: !!creds.chavePix,
+        details: 'Client ID e Client Secret encontrados, porém NENHUM CERTIFICADO mTLS (EFI_CERTIFICADO_BASE64) foi configurado nas envs. A Efí Pay exige certificado mTLS para chamadas Pix.'
+      };
+    }
+
+    for (const baseUrl of baseUrls) {
+      const endpoints = [`${baseUrl}/oauth/token`, `${baseUrl}/v2/oauth/token`];
+      for (const tokenUrl of endpoints) {
+        const res = await efipayFetch({
+          method: 'POST',
+          url: tokenUrl,
+          headers: { 'Authorization': `Basic ${authHeader}` },
+          body: { grant_type: 'client_credentials' },
+          certificadoBase64: creds.certificadoBase64
+        });
+
+        if (res.data && res.data.access_token) {
+          return {
+            success: true,
+            source: isFromEnv ? 'env' : 'database',
+            ambiente: creds.ambiente || 'producao',
+            hasClientId: true,
+            hasClientSecret: true,
+            hasCertificado: true,
+            hasChavePix: !!creds.chavePix,
+            statusCode: res.status,
+            details: `Conexão efetuada com SUCESSO! Token OAuth obtido da API Efí Pay (${creds.ambiente.toUpperCase()}) na URL (${tokenUrl}).`
+          };
+        } else if (tokenUrl === endpoints[endpoints.length - 1]) {
+          const errorMsg = formatErrorDetail(res.data);
+          return {
+            success: false,
+            source: isFromEnv ? 'env' : 'database',
+            ambiente: creds.ambiente || 'producao',
+            hasClientId: true,
+            hasClientSecret: true,
+            hasCertificado: true,
+            hasChavePix: !!creds.chavePix,
+            statusCode: res.status,
+            details: `Falha na requisição OAuth Efí Pay (Status ${res.status}): ${typeof errorMsg === 'object' ? JSON.stringify(errorMsg) : errorMsg}`
+          };
+        }
+      }
+    }
+
+    return {
+      success: false,
+      source: isFromEnv ? 'env' : 'database',
+      ambiente: creds.ambiente || 'producao',
+      hasClientId: true,
+      hasClientSecret: true,
+      hasCertificado: true,
+      hasChavePix: !!creds.chavePix,
+      details: 'Não foi possível conectar com as URLs da Efí Pay.'
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      source: isFromEnv ? 'env' : 'database',
+      ambiente: creds.ambiente || 'producao',
+      hasClientId: true,
+      hasClientSecret: true,
+      hasCertificado: !!creds.certificadoBase64,
+      hasChavePix: !!creds.chavePix,
+      details: `Erro ao conectar com a Efí Pay: ${err.message || err}`
+    };
+  }
 }

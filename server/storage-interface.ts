@@ -169,6 +169,7 @@ export interface Storage {
   getConfig(ownerId: string): Promise<ConfigOrganizador | null>;
   getTodasConfiguracoes(): Promise<{ ownerId: string; config: ConfigOrganizador }[]>;
   saveConfig(ownerId: string, dados: DadosConfig): Promise<ConfigOrganizador>;
+  deleteConfig(ownerId: string): Promise<boolean>;
   getMpTokenPorCampanha(campanhaId: string): Promise<string | null>;
 
   // Manutenção / apuração

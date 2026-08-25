@@ -41,7 +41,7 @@ import {
 } from './server/meta-service.js';
 import { toCents, toReais } from './server/money-utils.js';
 import { EmailNotificador } from './server/notifications.js';
-import { gerarPixMultiGateway, consultarPagamentoAsaas, consultarPagamentoEfipay } from './server/gateways.js';
+import { gerarPixMultiGateway, consultarPagamentoAsaas, consultarPagamentoEfipay, testEfipayConnection, resolveEfipayCredentials } from './server/gateways.js';
 import { Campanha, TEMA_PADRAO, DEFAULT_CHECKOUT_CONFIG } from './src/types.js';
 
 // Sanitiza e normaliza campos de Campanha de forma única para criação e edição (evita divergências)
@@ -1160,27 +1160,225 @@ app.get('/api/admin/me', firebaseAuthMiddleware, (req, res) => {
   });
 });
 
-// GET /api/admin/configuracoes -> Configurações do organizador (segredos mascarados)
-app.post('/api/admin/configuracoes/status-carteira', firebaseAuthMiddleware, async (req, res) => {
-  const userEmail = (req as any).userEmail || '';
-  if (userEmail.toLowerCase() !== 'wheslleyaviz@gmail.com') return res.status(403).json({ error: 'Acesso negado' });
-  const { userId, status } = req.body;
-  const config = await db.getConfig(userId);
-  if (config) {
-    const dados = {
-      carteiraConfig: {
-        ...config.carteiraConfig,
-        status
-      }
-    };
-    await db.saveConfig(userId, dados);
-    res.json({ success: true });
-  } else {
-    res.status(404).json({ error: 'Usuário não encontrado' });
+// GET /api/admin/efipay/test & POST /api/admin/carteira/testar-conexao -> Teste de conexão e credenciais Efí Pay
+app.all(['/api/admin/efipay/test', '/api/admin/carteira/testar-conexao'], firebaseAuthMiddleware, async (req, res) => {
+  try {
+    const userId = (req as any).userId;
+    const config = await db.getConfig(userId);
+    const resultado = await testEfipayConnection(config);
+    return res.json(resultado);
+  } catch (err: any) {
+    return res.status(500).json({ success: false, details: err.message || 'Erro interno ao testar Efí Pay.' });
   }
 });
 
-app.get('/api/admin/configuracoes/todas', firebaseAuthMiddleware, async (req, res) => {
+// GET /api/admin/carteira/metricas-financeiras -> Painel Financeiro Global do Super Admin (Faturamento, Lucro Líquido Real, Custos Efí Pay e Saques)
+app.get('/api/admin/carteira/metricas-financeiras', firebaseAuthMiddleware, async (req, res) => {
+  const userEmail = (req as any).userEmail || '';
+  if (userEmail.toLowerCase() !== 'wheslleyaviz@gmail.com') {
+    return res.status(403).json({ error: 'Apenas o Super Admin pode visualizar as métricas financeiras globais da plataforma.' });
+  }
+
+  try {
+    const adminConfig = (await db.getConfig('wheslleyaviz@gmail.com')) || {};
+    const todasConfigs = await db.getTodasConfiguracoes();
+    const todosPedidos = await db.getTodosPedidos();
+    const todosSaques = await db.listarSolicitacoesSaque();
+
+    // 1. Total Faturado Geral no App (Todos os pedidos pagos)
+    let faturamentoTotalGeral = 0;
+    let totalPedidosPagos = 0;
+    let faturamentoCarteira = 0;
+
+    for (const p of todosPedidos) {
+      if (p.status === 'pago') {
+        const valorReais = Number(((p.valorTotal || 0) / 100).toFixed(2));
+        faturamentoTotalGeral += valorReais;
+        totalPedidosPagos++;
+
+        // Verifica se o pedido foi pago pela Carteira do Sistema / Efí Pay Central
+        if (p.mpPaymentId?.startsWith('efi_') || p.mpPaymentId?.startsWith('carteira_')) {
+          faturamentoCarteira += valorReais;
+        } else {
+          // Se o organizador usa a carteira do sistema por padrão
+          const configOrg = todasConfigs.find(c => c.ownerId === (p as any).ownerId)?.config;
+          const metodoAtivo = (configOrg as any)?.metodoAtivo || 'carteira';
+          if (metodoAtivo === 'carteira' || metodoAtivo === 'efipay') {
+            faturamentoCarteira += valorReais;
+          }
+        }
+      }
+    }
+
+    // Se faturamentoCarteira for 0 mas houver faturamentoTotalGeral, considera o total faturado
+    if (faturamentoCarteira === 0 && faturamentoTotalGeral > 0) {
+      faturamentoCarteira = faturamentoTotalGeral;
+    }
+
+    // 2. Transações da Carteira & Taxas de Venda Retidas
+    let totalTaxasVendasRetidas = 0;
+    let saldoCustodiaOrganizadores = 0;
+
+    for (const t of todasConfigs) {
+      try {
+        const saldoOrg = await db.getCarteiraSaldo(t.ownerId);
+        saldoCustodiaOrganizadores += saldoOrg.saldoDisponivel || 0;
+        totalTaxasVendasRetidas += saldoOrg.totalTaxas || 0;
+      } catch (e) {
+        // ignora falha individual
+      }
+    }
+
+    // Fallback de taxa de venda estimada se as transações diretas forem inferiores
+    const taxaGlobalPadrao = Number((adminConfig as any)?.carteiraConfig?.taxaVendaPct ?? 5.0);
+    if (totalTaxasVendasRetidas === 0 && faturamentoCarteira > 0) {
+      totalTaxasVendasRetidas = Number(((faturamentoCarteira * taxaGlobalPadrao) / 100).toFixed(2));
+    }
+
+    // 3. Custos Oficiais Efí Pay (Entrada 1,19% no Pix)
+    const taxaEfiPixPct = 1.19; // Taxa padrão oficial da Efí Pay para recebimento Pix
+    const custoEfiPixEntrada = Number(((faturamentoCarteira * taxaEfiPixPct) / 100).toFixed(2));
+
+    // Lucro Líquido sobre Vendas = Taxas Retidas do Organizador - Custo que a Efí desconta do Admin
+    const lucroLiquidoVendas = Math.max(0, Number((totalTaxasVendasRetidas - custoEfiPixEntrada).toFixed(2)));
+
+    // 4. Saques de Organizadores & Taxas de Saque Retidas
+    let totalSacadoOrganizadores = 0;
+    let totalSaquesPendentes = 0;
+    let totalTaxasSaquesRetidas = 0;
+
+    for (const s of todosSaques) {
+      if (s.status === 'pago' || s.status === 'aprovado') {
+        totalSacadoOrganizadores += Number(s.valorSolicitado || 0);
+        totalTaxasSaquesRetidas += Number(s.taxaSaque || 0);
+      } else if (s.status === 'pendente') {
+        totalSaquesPendentes += Number(s.valorSolicitado || 0);
+      }
+    }
+
+    // Custo Efí Pay para Envio Pix (Transferência/Saque) -> R$ 0,00 Grátis na Efí
+    const custoEfiPixSaque = 0.00;
+    const lucroLiquidoSaques = Math.max(0, Number((totalTaxasSaquesRetidas - custoEfiPixSaque).toFixed(2)));
+
+    // 5. Lucro Líquido Total do Admin (Vendas + Saques)
+    const lucroLiquidoTotal = Number((lucroLiquidoVendas + lucroLiquidoSaques).toFixed(2));
+
+    // 6. Histórico de Retiradas de Lucro pelo Admin
+    const retiradasLucroAdmin: Array<{ id: string; valor: number; data: string; descricao?: string; chavePix?: string }> = 
+      ((adminConfig as any)?.carteiraConfig as any)?.retiradasLucroAdmin || [];
+
+    const totalLucroRetiradoAdmin = Number(
+      retiradasLucroAdmin.reduce((acc, r) => acc + (Number(r.valor) || 0), 0).toFixed(2)
+    );
+
+    const lucroDisponivelParaRetirada = Math.max(
+      0,
+      Number((lucroLiquidoTotal - totalLucroRetiradoAdmin).toFixed(2))
+    );
+
+    // 7. Detecção do Ambiente e Credenciais Efí Pay
+    const creds = resolveEfipayCredentials(adminConfig as any);
+    const rawEnvAmbiente = (process.env.EFI_AMBIENTE || process.env.EFIPAY_AMBIENTE || '').toLowerCase().trim();
+    const ambienteDetectado: 'producao' | 'homologacao' = (rawEnvAmbiente === 'homologacao' || rawEnvAmbiente === 'sandbox') ? 'homologacao' : 'producao';
+
+    const efipayStatus = {
+      ambiente: creds?.ambiente || ambienteDetectado,
+      hasClientId: !!creds?.clientId,
+      hasClientSecret: !!creds?.clientSecret,
+      hasCertificado: !!creds?.certificadoBase64,
+      hasChavePix: !!creds?.chavePix,
+      chavePix: creds?.chavePix || '',
+      origem: !!(process.env.EFI_CLIENT_ID || process.env.EFI_CLIENT_ID_HOMOLOGACAO) ? 'variaveis_ambiente' : 'database'
+    };
+
+    return res.json({
+      // Resumo Financeiro Geral
+      faturamentoTotalGeral: Number(faturamentoTotalGeral.toFixed(2)),
+      totalPedidosPagos,
+      faturamentoCarteira: Number(faturamentoCarteira.toFixed(2)),
+      
+      // Detalhamento de Vendas e Taxas
+      totalTaxasVendasRetidas: Number(totalTaxasVendasRetidas.toFixed(2)),
+      taxaEfiPixPct,
+      custoEfiPixEntrada: Number(custoEfiPixEntrada.toFixed(2)),
+      lucroLiquidoVendas: Number(lucroLiquidoVendas.toFixed(2)),
+
+      // Detalhamento de Saques
+      totalSacadoOrganizadores: Number(totalSacadoOrganizadores.toFixed(2)),
+      totalSaquesPendentes: Number(totalSaquesPendentes.toFixed(2)),
+      saldoCustodiaOrganizadores: Number(saldoCustodiaOrganizadores.toFixed(2)),
+      totalTaxasSaquesRetidas: Number(totalTaxasSaquesRetidas.toFixed(2)),
+      custoEfiPixSaque,
+      lucroLiquidoSaques: Number(lucroLiquidoSaques.toFixed(2)),
+
+      // Lucro Líquido Real & Retiradas do Admin
+      lucroLiquidoTotal,
+      totalLucroRetiradoAdmin,
+      lucroDisponivelParaRetirada,
+      retiradasLucroAdmin,
+
+      // Configuração Efí Pay
+      efipayStatus,
+
+      // Tabela Oficial de Referência de Taxas Efí Pay
+      tabelaTaxasEfi: {
+        pixRecebimento: '1,19% (mínimo R$ 0,19 e máximo R$ 9,90)',
+        pixEnvioSaque: 'R$ 0,00 (Gratuito)',
+        cartaoCredito: '3,99% a 4,99% + tarifa por transação',
+        boleto: 'R$ 3,45 por boleto pago',
+        aberturaConta: 'R$ 0,00 (Gratuito)',
+        mensalidade: 'R$ 0,00 (Sem mensalidade)'
+      }
+    });
+  } catch (err: any) {
+    console.error('[Admin] Erro ao calcular métricas financeiras:', err);
+    return res.status(500).json({ error: 'Erro ao calcular métricas financeiras globais.' });
+  }
+});
+
+// POST /api/admin/carteira/registrar-retirada-lucro -> Super Admin registra uma retirada de lucro para sua conta/chave Pix
+app.post('/api/admin/carteira/registrar-retirada-lucro', firebaseAuthMiddleware, async (req, res) => {
+  const userEmail = (req as any).userEmail || '';
+  if (userEmail.toLowerCase() !== 'wheslleyaviz@gmail.com') {
+    return res.status(403).json({ error: 'Apenas o Super Admin pode registrar retiradas de lucro.' });
+  }
+
+  const { valor, descricao } = req.body || {};
+  const numValor = Number(valor);
+  if (!numValor || numValor <= 0) {
+    return res.status(400).json({ error: 'Informe um valor de retirada válido maior que zero.' });
+  }
+
+  try {
+    const adminConfig = ((await db.getConfig('wheslleyaviz@gmail.com')) as any) || {};
+    const carteiraConfig = adminConfig.carteiraConfig || {};
+    const retiradasAtuais: Array<any> = (carteiraConfig as any).retiradasLucroAdmin || [];
+
+    const novaRetirada = {
+      id: `retirada-lucro-${Date.now()}`,
+      valor: Number(numValor.toFixed(2)),
+      data: new Date().toISOString(),
+      descricao: descricao ? String(descricao).trim() : 'Transferência de Lucro para Conta Pessoal',
+      chavePix: carteiraConfig.adminPixMaster?.chave || ''
+    };
+
+    const novaConfig = {
+      ...adminConfig,
+      carteiraConfig: {
+        ...carteiraConfig,
+        retiradasLucroAdmin: [novaRetirada, ...retiradasAtuais]
+      }
+    };
+
+    await db.saveConfig('wheslleyaviz@gmail.com', novaConfig);
+    return res.json({ success: true, retirada: novaRetirada });
+  } catch (err: any) {
+    console.error('[Admin] Erro ao registrar retirada de lucro:', err);
+    return res.status(500).json({ error: 'Erro ao registrar retirada de lucro.' });
+  }
+});
+
+app.get(['/api/admin/configuracoes/todas', '/api/admin/usuarios/carteira'], firebaseAuthMiddleware, async (req, res) => {
   const userEmail = (req as any).userEmail || '';
   if (userEmail.toLowerCase() !== 'wheslleyaviz@gmail.com') return res.status(403).json({ error: 'Acesso negado' });
   const todas = await db.getTodasConfiguracoes();
@@ -1195,6 +1393,10 @@ app.get('/api/admin/configuracoes/todas', firebaseAuthMiddleware, async (req, re
       // Get campaigns for this ownerId
       const campanhas = await db.getCampanhas(t.ownerId);
       const qtdCampanhas = campanhas.length;
+
+      // Data de cadastro estimada pela primeira campanha ou atualizacao
+      const primeiraCampanha = campanhas.length > 0 ? campanhas[campanhas.length - 1] : null;
+      const dataCadastro = (t.config as any)?.criadoEm || primeiraCampanha?.criadaEm || (t.config as any)?.atualizadoEm || new Date().toISOString();
 
       // Get wallet balance / transactions for this ownerId
       let faturamentoTotal = 0;
@@ -1211,6 +1413,13 @@ app.get('/api/admin/configuracoes/todas', firebaseAuthMiddleware, async (req, re
 
       usuarios.push({
         ownerId: t.ownerId,
+        nome: t.config?.carteiraConfig?.nome || (t.config as any)?.marca?.nome || t.ownerId.split('@')[0],
+        email: t.config?.carteiraConfig?.email || (t.ownerId.includes('@') ? t.ownerId : ''),
+        documento: t.config?.carteiraConfig?.documento || '',
+        telefone: t.config?.carteiraConfig?.telefone || '',
+        dataNascimento: t.config?.carteiraConfig?.dataNascimento || '',
+        idade: (t.config?.carteiraConfig as any)?.idade || null,
+        criadoEm: dataCadastro,
         carteiraConfig: t.config.carteiraConfig || {},
         qtdCampanhas,
         faturamentoTotal,
@@ -1228,32 +1437,45 @@ app.get('/api/admin/configuracoes', firebaseAuthMiddleware, async (req, res) => 
   const isAdmin = userEmail.toLowerCase() === 'wheslleyaviz@gmail.com';
 
   const config = await db.getConfig(userId);
-  const adminConfig = isAdmin ? config : await db.getConfig('wheslleyaviz@gmail.com');
+  let adminConfig = await db.getConfig('wheslleyaviz@gmail.com');
+  if (!adminConfig && isAdmin) {
+    adminConfig = config;
+  } else if (!adminConfig && config) {
+    adminConfig = config;
+  }
 
   const baseUrl = (process.env.BASE_URL || process.env.APP_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
   const redirectUri = `${baseUrl}/api/auth/mercadopago/callback`;
 
-  // Calcula taxas de venda e saque aplicáveis ao perfil deste organizador
-  let taxaVendaAplicada = 5.0;
-  let taxaSaqueAplicada = 4.50;
+  // Taxas Globais padrão (definidas pelo Super Admin)
+  const globalTaxaVenda = Number(adminConfig?.carteiraConfig?.taxaVendaPct ?? config?.carteiraConfig?.taxaVendaPct ?? 8.0);
+  const globalTaxaSaque = Number(adminConfig?.carteiraConfig?.taxaSaqueImediato ?? config?.carteiraConfig?.taxaSaqueImediato ?? 5.00);
 
-  if (adminConfig?.carteiraConfig?.taxasPersonalizadas) {
+  let taxaVendaAplicada = globalTaxaVenda;
+  let taxaSaqueAplicada = globalTaxaSaque;
+
+  if (isAdmin) {
+    // Para o Super Admin no painel, as taxas principais são as taxas globais master do sistema
+    taxaVendaAplicada = globalTaxaVenda;
+    taxaSaqueAplicada = globalTaxaSaque;
+  } else {
+    // Para um organizador comum, verifica primeiramente se ele possui taxa personalizada no mapa do admin
     const ownerKey = userId.toLowerCase();
     const ownerEmailKey = userEmail.toLowerCase();
-    const custom = adminConfig.carteiraConfig.taxasPersonalizadas[ownerKey] 
-                || adminConfig.carteiraConfig.taxasPersonalizadas[ownerEmailKey];
+    const custom = adminConfig?.carteiraConfig?.taxasPersonalizadas?.[ownerKey] 
+                || adminConfig?.carteiraConfig?.taxasPersonalizadas?.[ownerEmailKey];
+
     if (custom) {
       if (custom.taxaVendaPct !== undefined) taxaVendaAplicada = Number(custom.taxaVendaPct);
       if (custom.taxaSaqueImediato !== undefined) taxaSaqueAplicada = Number(custom.taxaSaqueImediato);
-    } else if (config?.carteiraConfig?.taxaVendaPct !== undefined) {
-      taxaVendaAplicada = Number(config.carteiraConfig.taxaVendaPct);
-    } else if (adminConfig?.carteiraConfig?.taxaVendaPct !== undefined) {
-      taxaVendaAplicada = Number(adminConfig.carteiraConfig.taxaVendaPct);
+    } else {
+      if (config?.carteiraConfig?.taxaVendaPct !== undefined) {
+        taxaVendaAplicada = Number(config.carteiraConfig.taxaVendaPct);
+      }
+      if (config?.carteiraConfig?.taxaSaqueImediato !== undefined) {
+        taxaSaqueAplicada = Number(config.carteiraConfig.taxaSaqueImediato);
+      }
     }
-  } else if (config?.carteiraConfig?.taxaVendaPct !== undefined) {
-    taxaVendaAplicada = Number(config.carteiraConfig.taxaVendaPct);
-  } else if (adminConfig?.carteiraConfig?.taxaVendaPct !== undefined) {
-    taxaVendaAplicada = Number(adminConfig.carteiraConfig.taxaVendaPct);
   }
 
   const painelConfig = configParaPainel(config);
@@ -1261,7 +1483,12 @@ app.get('/api/admin/configuracoes', firebaseAuthMiddleware, async (req, res) => 
   return res.json({
     ...painelConfig,
     carteiraConfig: {
-      ...painelConfig.carteiraConfig,
+      ...(config?.carteiraConfig || {}),
+      ...(adminConfig?.carteiraConfig ? {
+        chavePixRecebimento: adminConfig.carteiraConfig.chavePixRecebimento || config?.carteiraConfig?.chavePixRecebimento || '',
+        tipoChavePixRecebimento: adminConfig.carteiraConfig.tipoChavePixRecebimento || config?.carteiraConfig?.tipoChavePixRecebimento || 'cpf',
+        nomeTitularRecebimento: adminConfig.carteiraConfig.nomeTitularRecebimento || config?.carteiraConfig?.nomeTitularRecebimento || ''
+      } : {}),
       taxaVendaPct: taxaVendaAplicada,
       taxaSaqueImediato: taxaSaqueAplicada,
       taxasPersonalizadas: isAdmin ? adminConfig?.carteiraConfig?.taxasPersonalizadas || {} : undefined
@@ -1312,6 +1539,242 @@ app.post('/api/admin/usuarios/taxa', firebaseAuthMiddleware, async (req, res) =>
   });
 
   return res.json({ success: true, taxasPersonalizadas: currentMap });
+});
+
+// POST /api/admin/usuarios/excluir -> Super Admin exclui ou remove usuário da carteira do sistema
+app.post('/api/admin/usuarios/excluir', firebaseAuthMiddleware, async (req, res) => {
+  const userEmail = (req as any).userEmail || '';
+  if (userEmail.toLowerCase() !== 'wheslleyaviz@gmail.com') {
+    return res.status(403).json({ error: 'Apenas o Super Admin (wheslleyaviz@gmail.com) pode excluir usuários.' });
+  }
+
+  const { userId, email, desvincularApenas } = req.body;
+  if (!userId) {
+    return res.status(400).json({ error: 'ID do usuário não fornecido.' });
+  }
+
+  try {
+    const adminId = (req as any).userId;
+    const adminConfig = await db.getConfig(adminId);
+    const currentMap = { ...(adminConfig?.carteiraConfig?.taxasPersonalizadas || {}) };
+
+    // 1. Remove quaisquer taxas personalizadas cadastradas para este usuário
+    const uKey = String(userId).trim().toLowerCase();
+    const eKey = email ? String(email).trim().toLowerCase() : '';
+    delete currentMap[uKey];
+    if (eKey) delete currentMap[eKey];
+
+    await db.saveConfig(adminId, {
+      carteiraConfig: {
+        ...adminConfig?.carteiraConfig,
+        taxasPersonalizadas: currentMap
+      }
+    });
+
+    // 2. Se for desvincular apenas ou exclusão completa
+    if (desvincularApenas) {
+      const targetConfig: any = (await db.getConfig(userId)) || {};
+      const carteiraConfigAtual = targetConfig.carteiraConfig || {};
+      await db.saveConfig(userId, {
+        ...targetConfig,
+        carteiraConfig: {
+          ...carteiraConfigAtual,
+          ativo: false,
+          status: 'inativo',
+          chavePix: '',
+          documento: ''
+        }
+      });
+    } else {
+      // Exclusão completa das configurações do usuário
+      await db.deleteConfig(userId);
+    }
+
+    console.log(`[Admin] Usuário ${userId} (${email || 'sem email'}) foi excluído/desvinculado com sucesso.`);
+    return res.json({ success: true, message: 'Usuário excluído da carteira do sistema com sucesso.' });
+  } catch (err: any) {
+    console.error('[Admin] Erro ao excluir usuário:', err);
+    return res.status(500).json({ error: err.message || 'Erro ao excluir usuário.' });
+  }
+});
+
+// POST /api/admin/configuracoes/status-carteira -> Super Admin altera o status da carteira de um usuário (aprovado / rejeitado)
+app.post('/api/admin/configuracoes/status-carteira', firebaseAuthMiddleware, async (req, res) => {
+  const userEmail = (req as any).userEmail || '';
+  if (userEmail.toLowerCase() !== 'wheslleyaviz@gmail.com') {
+    return res.status(403).json({ error: 'Apenas o Super Admin (wheslleyaviz@gmail.com) pode alterar o status da carteira.' });
+  }
+
+  const { userId, status } = req.body;
+  if (!userId || !['aprovado', 'rejeitado', 'pendente'].includes(status)) {
+    return res.status(400).json({ error: 'Informe um userId e status válido (aprovado, rejeitado, pendente).' });
+  }
+
+  try {
+    const targetConfig: any = (await db.getConfig(userId)) || {};
+    const carteiraConfigAtual = targetConfig.carteiraConfig || {};
+
+    const novaConfig = {
+      ...targetConfig,
+      carteiraConfig: {
+        ...carteiraConfigAtual,
+        status,
+        rejeitadoEm: status === 'rejeitado' ? Date.now() : (status === 'aprovado' ? null : carteiraConfigAtual.rejeitadoEm)
+      }
+    };
+
+    await db.saveConfig(userId, novaConfig);
+    return res.json({ success: true, userId, status });
+  } catch (err: any) {
+    console.error('[Status Carteira] Erro ao atualizar status:', err);
+    return res.status(500).json({ error: 'Erro ao atualizar status da carteira do usuário.' });
+  }
+});
+
+// POST /api/carteira/solicitar-reducao-taxa -> Usuário solicita redução de taxas da sua carteira
+app.post('/api/carteira/solicitar-reducao-taxa', firebaseAuthMiddleware, async (req, res) => {
+  const userId = (req as any).userId;
+  const userEmail = (req as any).userEmail || '';
+
+  const { taxaVendaDesejada, taxaSaqueDesejada, mensagem } = req.body || {};
+
+  if (taxaVendaDesejada === undefined || taxaSaqueDesejada === undefined) {
+    return res.status(400).json({ error: 'Informe as taxas desejadas.' });
+  }
+
+  try {
+    const currentConfig: any = (await db.getConfig(userId)) || {};
+    const carteiraConfigAtual = currentConfig.carteiraConfig || {};
+
+    let faturamentoTotal = 0;
+    try {
+      const saldo = await db.getCarteiraSaldo(userId);
+      faturamentoTotal = saldo.totalArrecadado || 0;
+    } catch (e) {}
+
+    const campanhas = await db.getCampanhas(userId);
+
+    const solicitacaoReducaoTaxa = {
+      enviadoEm: new Date().toISOString(),
+      taxaVendaDesejada: Number(taxaVendaDesejada) || 0,
+      taxaSaqueDesejada: Number(taxaSaqueDesejada) || 0,
+      mensagem: mensagem ? String(mensagem).trim() : '',
+      faturamentoNoMomento: faturamentoTotal,
+      qtdCampanhasNoMomento: campanhas.length,
+      status: 'pendente'
+    };
+
+    const novaConfig = {
+      ...currentConfig,
+      carteiraConfig: {
+        ...carteiraConfigAtual,
+        solicitacaoReducaoTaxa
+      }
+    };
+
+    await db.saveConfig(userId, novaConfig);
+    return res.json({ success: true, solicitacaoReducaoTaxa });
+  } catch (err: any) {
+    console.error('[Redução de Taxa] Erro ao enviar solicitação:', err);
+    return res.status(500).json({ error: 'Erro ao enviar solicitação de redução de taxa.' });
+  }
+});
+
+// POST /api/admin/configuracoes/status-reducao-taxa -> Super Admin aceita ou rejeita a solicitação de redução de taxas de um usuário
+app.post('/api/admin/configuracoes/status-reducao-taxa', firebaseAuthMiddleware, async (req, res) => {
+  const adminEmail = (req as any).userEmail || '';
+  if (adminEmail.toLowerCase() !== 'wheslleyaviz@gmail.com') {
+    return res.status(403).json({ error: 'Apenas o Super Admin (wheslleyaviz@gmail.com) pode responder solicitações de redução de taxa.' });
+  }
+
+  const { userId, status, taxaVendaAprovada, taxaSaqueAprovada } = req.body || {};
+  if (!userId || !['aprovado', 'rejeitado'].includes(status)) {
+    return res.status(400).json({ error: 'Informe userId e status válido (aprovado ou rejeitado).' });
+  }
+
+  try {
+    const targetConfig: any = (await db.getConfig(userId)) || {};
+    const carteiraConfigAtual = targetConfig.carteiraConfig || {};
+    const solAtual = carteiraConfigAtual.solicitacaoReducaoTaxa || {};
+
+    const novaSolicitacao = {
+      ...solAtual,
+      status,
+      respondidoEm: new Date().toISOString()
+    };
+
+    const novaConfigTarget = {
+      ...targetConfig,
+      carteiraConfig: {
+        ...carteiraConfigAtual,
+        solicitacaoReducaoTaxa: novaSolicitacao
+      }
+    };
+    await db.saveConfig(userId, novaConfigTarget);
+
+    // Se aprovado, cadastra automaticamente a taxa personalizada para o usuário no painel do Super Admin
+    if (status === 'aprovado') {
+      const adminId = (req as any).userId;
+      const adminConfig: any = (await db.getConfig(adminId)) || {};
+      const currentMap = { ...(adminConfig?.carteiraConfig?.taxasPersonalizadas || {}) };
+
+      const vPct = taxaVendaAprovada !== undefined ? Number(taxaVendaAprovada) : Number(solAtual.taxaVendaDesejada || 3.0);
+      const sImediato = taxaSaqueAprovada !== undefined ? Number(taxaSaqueAprovada) : Number(solAtual.taxaSaqueDesejada || 0);
+
+      const ownerKey = userId.toLowerCase();
+      const emailKey = (carteiraConfigAtual.email || '').toLowerCase();
+
+      currentMap[ownerKey] = {
+        taxaVendaPct: vPct,
+        taxaSaqueImediato: sImediato,
+        observacao: `Solicitação aprovada em ${new Date().toLocaleDateString('pt-BR')}`,
+        atualizadoEm: new Date().toISOString()
+      };
+      if (emailKey) {
+        currentMap[emailKey] = currentMap[ownerKey];
+      }
+
+      await db.saveConfig(adminId, {
+        carteiraConfig: {
+          ...adminConfig?.carteiraConfig,
+          taxasPersonalizadas: currentMap
+        }
+      });
+    }
+
+    return res.json({ success: true, userId, status });
+  } catch (err: any) {
+    console.error('[Status Redução Taxa] Erro:', err);
+    return res.status(500).json({ error: 'Erro ao atualizar solicitação de redução de taxa.' });
+  }
+});
+
+// POST /api/admin/configuracoes/gerais -> Super Admin salva as taxas globais padrão do sistema
+app.post('/api/admin/configuracoes/gerais', firebaseAuthMiddleware, async (req, res) => {
+  const userEmail = (req as any).userEmail || '';
+  if (userEmail.toLowerCase() !== 'wheslleyaviz@gmail.com') {
+    return res.status(403).json({ error: 'Apenas o Super Admin (wheslleyaviz@gmail.com) pode alterar as taxas globais do sistema.' });
+  }
+
+  try {
+    const userId = (req as any).userId;
+    const { carteiraConfig } = req.body || {};
+    const currentConfig: any = (await db.getConfig(userId)) || {};
+
+    const novaConfig = {
+      ...currentConfig,
+      carteiraConfig: {
+        ...(currentConfig.carteiraConfig || {}),
+        ...carteiraConfig
+      }
+    };
+
+    await db.saveConfig(userId, novaConfig);
+    return res.json({ success: true });
+  } catch (err: any) {
+    console.error('Erro ao salvar taxas globais:', err);
+    return res.status(500).json({ error: 'Erro ao salvar taxas globais do sistema.' });
+  }
 });
 
 // GET /api/auth/mercadopago/url -> Gera o link oficial para conexão OAuth do Mercado Pago
@@ -1557,7 +2020,11 @@ app.put('/api/admin/configuracoes', firebaseAuthMiddleware, async (req, res) => 
       });
     }
 
-    const config = await db.saveConfig((req as any).userId, {
+    const userId = (req as any).userId;
+    const userEmail = (req as any).userEmail || '';
+    const isAdmin = userEmail.toLowerCase() === 'wheslleyaviz@gmail.com';
+
+    const configDados: any = {
       metodoAtivo: b.metodoAtivo !== undefined ? b.metodoAtivo : undefined,
       mpAccessToken: b.mpAccessToken !== undefined ? String(b.mpAccessToken || '') : undefined,
       mpPublicKey: b.mpPublicKey !== undefined ? String(b.mpPublicKey || '') : undefined,
@@ -1578,7 +2045,13 @@ app.put('/api/admin/configuracoes', firebaseAuthMiddleware, async (req, res) => 
       notificameToken: b.notificameToken !== undefined ? String(b.notificameToken || '') : undefined,
       marca: b.marca !== undefined ? b.marca : undefined,
       redes: b.redes !== undefined ? b.redes : undefined
-    });
+    };
+
+    const config = await db.saveConfig(userId, configDados);
+
+    if (isAdmin && userId.toLowerCase() !== 'wheslleyaviz@gmail.com') {
+      await db.saveConfig('wheslleyaviz@gmail.com', configDados);
+    }
 
     return res.json({ success: true, ...configParaPainel(config) });
   } catch (err: any) {

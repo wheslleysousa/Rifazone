@@ -41,7 +41,7 @@ import {
 } from './server/meta-service.js';
 import { toCents, toReais } from './server/money-utils.js';
 import { EmailNotificador } from './server/notifications.js';
-import { gerarPixMultiGateway, consultarPagamentoAsaas, consultarPagamentoEfipay, testEfipayConnection, resolveEfipayCredentials, consultarSaldoEfipay, enviarPixEfipay } from './server/gateways.js';
+import { gerarPixMultiGateway, consultarPagamentoAsaas, consultarPagamentoEfipay, testEfipayConnection, resolveEfipayCredentials, consultarSaldoEfipay, enviarPixEfipay, registrarWebhookEfipay } from './server/gateways.js';
 import { Campanha, TEMA_PADRAO, DEFAULT_CHECKOUT_CONFIG } from './src/types.js';
 
 // Sanitiza e normaliza campos de Campanha de forma única para criação e edição (evita divergências)
@@ -1175,6 +1175,37 @@ app.all(['/api/admin/efipay/test', '/api/admin/carteira/testar-conexao'], fireba
     return res.json(resultado);
   } catch (err: any) {
     return res.status(500).json({ success: false, details: err.message || 'Erro interno ao testar Efí Pay.' });
+  }
+});
+
+// POST /api/admin/efipay/register-webhook -> Registra o webhook Pix para saques automáticos
+app.post('/api/admin/efipay/register-webhook', firebaseAuthMiddleware, async (req, res) => {
+  try {
+    const userId = (req as any).userId;
+    const config = await db.getConfig(userId);
+    const efiCreds = resolveEfipayCredentials(config);
+
+    if (!efiCreds || !efiCreds.chavePix) {
+      return res.status(400).json({ success: false, detalhes: 'Chave Pix de origem não configurada nas configurações da Efí Pay.' });
+    }
+
+    // Identifica a URL base do site
+    const host = `${req.protocol}://${req.get('host')}`;
+    const baseUrl = (process.env.BASE_URL || process.env.APP_URL || host || 'https://rifazone.onrender.com').replace(/\/$/, '');
+    const webhookUrl = `${baseUrl}/api/webhooks/efipay`;
+
+    console.log(`[Admin Efí Webhook] Solicitando registro para a chave ${efiCreds.chavePix} com a URL: ${webhookUrl}`);
+
+    const resultado = await registrarWebhookEfipay({
+      chavePix: efiCreds.chavePix,
+      webhookUrl,
+      config
+    });
+
+    return res.json(resultado);
+  } catch (err: any) {
+    console.error('Erro ao registrar webhook Efí Pay:', err);
+    return res.status(500).json({ success: false, detalhes: err.message || 'Erro interno ao registrar webhook Efí Pay.' });
   }
 });
 

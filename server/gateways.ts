@@ -939,3 +939,70 @@ export async function enviarPixEfipay(params: {
   return { success: false, detalhes: 'Não foi possível realizar o envio do Pix pela Efí Pay.' };
 }
 
+/**
+ * Registra o webhook para uma chave Pix específica na Efí Pay
+ */
+export async function registrarWebhookEfipay(params: {
+  chavePix: string;
+  webhookUrl: string;
+  config?: ConfigOrganizador | null;
+}): Promise<{
+  success: boolean;
+  detalhes: string;
+}> {
+  const creds = resolveEfipayCredentials(params.config);
+  if (!creds || !creds.clientId || !creds.clientSecret) {
+    return { success: false, detalhes: 'Credenciais Efí Pay não configuradas.' };
+  }
+
+  const token = await getEfipayAccessToken(creds);
+  if (!token) {
+    return { success: false, detalhes: 'Não foi possível obter token OAuth da Efí Pay.' };
+  }
+
+  const isProd = creds.ambiente !== 'homologacao';
+  const baseUrls = isProd
+    ? ['https://pix.api.efipay.com.br', 'https://api-pix.gerencianet.com.br']
+    : ['https://pix-h.api.efipay.com.br', 'https://api-pix-h.gerencianet.com.br'];
+
+  const chaveClean = params.chavePix.trim();
+  const webhookUrlClean = params.webhookUrl.trim();
+
+  for (const baseUrl of baseUrls) {
+    const url = `${baseUrl}/v2/webhook/${chaveClean}`;
+    try {
+      console.log(`[Efí Webhook] Tentando registrar webhook para ${chaveClean} em ${url}`);
+      const res = await efipayFetch({
+        method: 'PUT',
+        url,
+        headers: { 
+          'Authorization': `Bearer ${token}`
+        },
+        body: {
+          webhookUrl: webhookUrlClean
+        },
+        certificadoBase64: creds.certificadoBase64
+      });
+
+      if (res.status === 200 || res.status === 201 || (res.data && res.data.webhookUrl)) {
+        return {
+          success: true,
+          detalhes: `Webhook registrado com sucesso para a chave ${chaveClean} na Efí Pay!`
+        };
+      } else {
+        const errDetail = formatErrorDetail(res.data);
+        console.warn(`[Efí Webhook] Falha ao registrar webhook (${res.status}):`, errDetail);
+        return {
+          success: false,
+          detalhes: typeof errDetail === 'object' ? JSON.stringify(errDetail) : String(errDetail)
+        };
+      }
+    } catch (err: any) {
+      console.error(`[Efí Webhook] Exceção ao registrar webhook via ${baseUrl}:`, err);
+    }
+  }
+
+  return { success: false, detalhes: 'Não foi possível registrar o webhook na Efí Pay.' };
+}
+
+

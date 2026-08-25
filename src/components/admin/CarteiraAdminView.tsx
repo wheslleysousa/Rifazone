@@ -72,6 +72,10 @@ export const CarteiraAdminView: React.FC<CarteiraAdminViewProps> = ({ authFetch 
   const [testandoConexao, setTestandoConexao] = useState(false);
   const [resultadoTeste, setResultadoTeste] = useState<any>(null);
   const [copiadoTeste, setCopiadoTeste] = useState(false);
+  
+  // Registro de Webhook Efí Pay para saques
+  const [registrandoWebhook, setRegistrandoWebhook] = useState(false);
+  const [resultadoWebhook, setResultadoWebhook] = useState<{ success: boolean; detalhes: string } | null>(null);
 
   // Notificador temporário
   const mostrarFeedback = (tipo: 'sucesso' | 'erro', texto: string) => {
@@ -450,6 +454,33 @@ export const CarteiraAdminView: React.FC<CarteiraAdminViewProps> = ({ authFetch 
       });
     } finally {
       setTestandoConexao(false);
+    }
+  };
+
+  // Registrar Webhook Efí Pay para Saques Automáticos (Evitar erro conta_chave_sem_webhook)
+  const handleRegistrarWebhook = async () => {
+    setRegistrandoWebhook(true);
+    setResultadoWebhook(null);
+    try {
+      const res = await authFetch('/api/admin/efipay/register-webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await res.json();
+      setResultadoWebhook(data);
+      if (data.success) {
+        mostrarFeedback('sucesso', 'Webhook cadastrado com sucesso na Efí Pay! Saques automáticos via Pix liberados.');
+      } else {
+        mostrarFeedback('erro', data.detalhes || 'Falha ao registrar webhook.');
+      }
+    } catch (err: any) {
+      setResultadoWebhook({
+        success: false,
+        detalhes: err.message || 'Falha ao conectar com o servidor.'
+      });
+      mostrarFeedback('erro', err.message || 'Falha ao conectar com o servidor.');
+    } finally {
+      setRegistrandoWebhook(false);
     }
   };
 
@@ -1069,7 +1100,7 @@ export const CarteiraAdminView: React.FC<CarteiraAdminViewProps> = ({ authFetch 
               </div>
 
               {/* BOTÃO ÚNICO DE TESTE EFÍ PAY */}
-              <div className="pt-2">
+              <div className="pt-2 space-y-2">
                 <button
                   type="button"
                   disabled={testandoConexao}
@@ -1078,6 +1109,16 @@ export const CarteiraAdminView: React.FC<CarteiraAdminViewProps> = ({ authFetch 
                 >
                   {testandoConexao ? <RefreshCw className="w-4 h-4 animate-spin text-amber-400" /> : <Zap className="w-4 h-4 text-amber-400" />}
                   Testar Comunicação com a Efí Pay ({ambienteEfipay.toUpperCase()})
+                </button>
+
+                <button
+                  type="button"
+                  disabled={registrandoWebhook}
+                  onClick={handleRegistrarWebhook}
+                  className="w-full py-3 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white text-xs font-bold rounded-2xl transition flex items-center justify-center gap-2 shadow"
+                >
+                  {registrandoWebhook ? <RefreshCw className="w-4 h-4 animate-spin text-white" /> : <CheckCircle2 className="w-4 h-4 text-white" />}
+                  Ativar Chave Pix p/ Saques Automáticos (Registrar Webhook)
                 </button>
               </div>
             </div>
@@ -1104,6 +1145,25 @@ export const CarteiraAdminView: React.FC<CarteiraAdminViewProps> = ({ authFetch 
               </div>
               <div className="p-3.5 bg-slate-950/90 rounded-2xl font-mono text-[11px] overflow-x-auto whitespace-pre-wrap border border-slate-800">
                 {resultadoTeste.details || JSON.stringify(resultadoTeste, null, 2)}
+              </div>
+            </div>
+          )}
+
+          {/* CARD DE RESULTADO DO WEBHOOK EFÍ PAY SE HOUVER */}
+          {resultadoWebhook && (
+            <div className={`p-5 rounded-3xl border text-xs space-y-2.5 shadow-xl ${
+              resultadoWebhook.success 
+                ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-200' 
+                : 'bg-rose-950/40 border-rose-500/40 text-rose-200'
+            }`}>
+              <div className="flex items-center justify-between">
+                <span className="font-bold flex items-center gap-1.5 text-sm">
+                  {resultadoWebhook.success ? <Check className="w-4 h-4 text-emerald-400" /> : <X className="w-4 h-4 text-rose-400" />}
+                  {resultadoWebhook.success ? 'Webhook Pix Cadastrado com Sucesso!' : 'Falha ao Cadastrar Webhook Pix'}
+                </span>
+              </div>
+              <div className="p-3.5 bg-slate-950/90 rounded-2xl font-mono text-[11px] overflow-x-auto whitespace-pre-wrap border border-slate-800">
+                {resultadoWebhook.detalhes}
               </div>
             </div>
           )}

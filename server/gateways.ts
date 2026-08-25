@@ -976,7 +976,8 @@ export async function registrarWebhookEfipay(params: {
         method: 'PUT',
         url,
         headers: { 
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'x-skip-mtls-checking': 'true'
         },
         body: {
           webhookUrl: webhookUrlClean

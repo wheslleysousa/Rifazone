@@ -897,14 +897,13 @@ export async function enviarPixEfipay(params: {
 
   const bodyEnvio: any = {
     valor: params.valor.toFixed(2),
+    pagador: {
+      chave: chaveOrigem.trim()
+    },
     favorecido: {
       chave: params.chavePixDestino.trim()
     }
   };
-
-  if (params.descricao) {
-    bodyEnvio.descricao = params.descricao.slice(0, 140);
-  }
 
   for (const baseUrl of baseUrls) {
     const url = `${baseUrl}/v2/gn/pix/${idEnvioClean}`;

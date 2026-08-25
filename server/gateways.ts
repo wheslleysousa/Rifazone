@@ -249,18 +249,8 @@ export interface EfipayCredentials {
 }
 
 export function resolveEfipayCredentials(config?: ConfigOrganizador | null): EfipayCredentials | null {
-  // 1. Tenta identificar o ambiente ('producao' ou 'homologacao') prioritariamente pelas variáveis de ambiente
-  // Por solicitação expressa, o sistema opera em modo de produção por padrão
-  const rawEnvAmbiente = (process.env.EFI_AMBIENTE || process.env.EFIPAY_AMBIENTE || process.env.EFI_ENV || 'producao').toLowerCase().trim();
-  const dbAmbiente = config?.efipayConfig?.ambiente;
+  const dbAmbiente = config?.efipayConfig?.ambiente || 'producao';
   
-  // Só opera em homologação se for explicitamente definido como tal
-  const isHomologacao = rawEnvAmbiente === 'homologacao' 
-    || rawEnvAmbiente === 'sandbox'
-    || (dbAmbiente === 'homologacao' && !process.env.EFI_AMBIENTE && !process.env.EFIPAY_AMBIENTE);
-
-  const ambiente: 'producao' | 'homologacao' = isHomologacao ? 'homologacao' : 'producao';
-
   // Buscar todas as variações possíveis do certificado nas variáveis de ambiente
   const envCert = (
     process.env.EFI_CERTIFICADO_BASE64
@@ -286,22 +276,51 @@ export function resolveEfipayCredentials(config?: ConfigOrganizador | null): Efi
     || ''
   ).trim();
 
+  // 1. PRIORIDADE MÁXIMA: Variáveis de Ambiente (Render, AI Studio, etc)
+  const rawEnvAmbiente = (process.env.EFI_AMBIENTE || process.env.EFIPAY_AMBIENTE || process.env.EFI_ENV || 'producao').toLowerCase().trim();
+  const isHomologacao = rawEnvAmbiente === 'homologacao' || rawEnvAmbiente === 'sandbox';
+  const ambiente: 'producao' | 'homologacao' = isHomologacao ? 'homologacao' : 'producao';
+
   if (ambiente === 'homologacao') {
-    // 1.1 Tenta Homologação nas Variáveis de Ambiente (Render / AI Studio)
     const envClientIdHomol = process.env.EFI_CLIENT_ID_HOMOLOGACAO || process.env.EFIPAY_CLIENT_ID_HOMOLOGACAO || process.env.EFI_CLIENT_ID || process.env.EFIPAY_CLIENT_ID;
     const envClientSecretHomol = process.env.EFI_CLIENT_SECRET_HOMOLOGACAO || process.env.EFIPAY_CLIENT_SECRET_HOMOLOGACAO || process.env.EFI_CLIENT_SECRET || process.env.EFIPAY_CLIENT_SECRET;
     if (envClientIdHomol && envClientSecretHomol) {
       return {
         clientId: envClientIdHomol.trim(),
         clientSecret: envClientSecretHomol.trim(),
-        chavePix: (process.env.EFI_CHAVE_PIX_HOMOLOGACAO || envChavePix || config?.efipayConfig?.chavePix || '').trim(),
+        chavePix: (process.env.EFI_CHAVE_PIX_HOMOLOGACAO || envChavePix || '').trim(),
         ambiente: 'homologacao',
-        certificadoBase64: (envCert || config?.efipayConfig?.certificadoBase64 || '').trim()
+        certificadoBase64: envCert
       };
     }
+  } else {
+    // Ambiente: Produção
+    const envClientId = (
+      process.env.EFI_CLIENT_ID_PRODUCAO
+      || process.env.EFIPAY_CLIENT_ID_PRODUCAO
+      || process.env.EFI_CLIENT_ID 
+      || process.env.EFIPAY_CLIENT_ID
+    );
+    const envClientSecret = (
+      process.env.EFI_CLIENT_SECRET_PRODUCAO
+      || process.env.EFIPAY_CLIENT_SECRET_PRODUCAO
+      || process.env.EFI_CLIENT_SECRET 
+      || process.env.EFIPAY_CLIENT_SECRET
+    );
+    if (envClientId && envClientSecret) {
+      return {
+        clientId: envClientId.trim(),
+        clientSecret: envClientSecret.trim(),
+        chavePix: envChavePix,
+        ambiente: 'producao',
+        certificadoBase64: envCert
+      };
+    }
+  }
 
-    // 1.2 Tenta Homologação no DB (fallback)
-    if (config?.efipayConfig?.clientIdHomologacao && config?.efipayConfig?.clientSecretHomologacao) {
+  // 2. Fallback: Banco de Dados (Painel Admin)
+  if (config?.efipayConfig) {
+    if (dbAmbiente === 'homologacao' && config.efipayConfig.clientIdHomologacao && config.efipayConfig.clientSecretHomologacao) {
       return {
         clientId: config.efipayConfig.clientIdHomologacao.trim(),
         clientSecret: (decryptToken(config.efipayConfig.clientSecretHomologacao) || config.efipayConfig.clientSecretHomologacao).trim(),
@@ -309,44 +328,15 @@ export function resolveEfipayCredentials(config?: ConfigOrganizador | null): Efi
         ambiente: 'homologacao',
         certificadoBase64: (config.efipayConfig.certificadoBase64 || envCert).trim()
       };
+    } else if (dbAmbiente === 'producao' && config.efipayConfig.clientId && config.efipayConfig.clientSecret) {
+      return {
+        clientId: config.efipayConfig.clientId.trim(),
+        clientSecret: (decryptToken(config.efipayConfig.clientSecret) || config.efipayConfig.clientSecret).trim(),
+        chavePix: (config.efipayConfig.chavePix || envChavePix || '').trim(),
+        ambiente: 'producao',
+        certificadoBase64: (config.efipayConfig.certificadoBase64 || envCert).trim()
+      };
     }
-  }
-
-  // 2. Produção (Prioridade máxima para variáveis de ambiente)
-  const envClientId = (
-    process.env.EFI_CLIENT_ID 
-    || process.env.EFIPAY_CLIENT_ID 
-    || process.env.EFI_CLIENT_ID_PRODUCAO
-    || process.env.EFIPAY_CLIENT_ID_PRODUCAO
-    || process.env.EFI_CLIENT_ID_HOMOLOGACAO
-  );
-  const envClientSecret = (
-    process.env.EFI_CLIENT_SECRET 
-    || process.env.EFIPAY_CLIENT_SECRET 
-    || process.env.EFI_CLIENT_SECRET_PRODUCAO
-    || process.env.EFIPAY_CLIENT_SECRET_PRODUCAO
-    || process.env.EFI_CLIENT_SECRET_HOMOLOGACAO
-  );
-
-  if (envClientId && envClientSecret) {
-    return {
-      clientId: envClientId.trim(),
-      clientSecret: envClientSecret.trim(),
-      chavePix: (envChavePix || config?.efipayConfig?.chavePix || '').trim(),
-      ambiente: ambiente,
-      certificadoBase64: (envCert || config?.efipayConfig?.certificadoBase64 || '').trim()
-    };
-  }
-
-  // 2.1 DB (Fallback caso não esteja nas envs)
-  if (config?.efipayConfig?.clientId && config?.efipayConfig?.clientSecret) {
-    return {
-      clientId: config.efipayConfig.clientId.trim(),
-      clientSecret: (decryptToken(config.efipayConfig.clientSecret) || config.efipayConfig.clientSecret).trim(),
-      chavePix: (config.efipayConfig.chavePix || envChavePix || '').trim(),
-      ambiente: ambiente,
-      certificadoBase64: (config.efipayConfig.certificadoBase64 || envCert).trim()
-    };
   }
 
   return null;

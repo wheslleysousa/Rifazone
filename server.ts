@@ -2252,11 +2252,13 @@ app.post('/api/admin/carteira/solicitar-saque', firebaseAuthMiddleware, async (r
         });
 
         if (envResult.success) {
+          const obsMsg = 'Transferência Pix realizada com SUCESSO via API Efí Pay.';
+
           const saqueAtualizado = await db.atualizarStatusSaque(
             saque.id,
             'pago',
             envResult.e2eId,
-            'Transferência Pix realizada com SUCESSO via API Efí Pay.'
+            obsMsg
           );
           return res.status(201).json({
             success: true,
@@ -2334,8 +2336,11 @@ app.post('/api/admin/carteira/saques/:id/aprovar', firebaseAuthMiddleware, async
       });
 
       if (!envResult.success) {
+        const errorMsg = `Falha ao enviar Pix pela Efí Pay: ${envResult.detalhes || 'Verifique o saldo ou credenciais'}`;
+        // Rejeita o saque e devolve o saldo automaticamente para o usuário
+        await db.atualizarStatusSaque(id, 'rejeitado', undefined, errorMsg);
         return res.status(400).json({
-          error: `Falha ao enviar Pix pela Efí Pay: ${envResult.detalhes || 'Verifique o saldo ou credenciais'}`
+          error: `${errorMsg}. O saque foi estornado e o saldo devolvido ao usuário.`
         });
       }
 

@@ -917,7 +917,11 @@ export async function enviarPixEfipay(params: {
       });
 
       const data = res.data;
-      if (res.status === 200 || res.status === 201 || (data && (data.e2eId || data.idEnvio || data.status === 'EM_PROCESSAMENTO' || data.status === 'REALIZADO'))) {
+      const isStatusOk = res.status === 200 || res.status === 201;
+      const hasErrorPayload = !!(data && (data.error || data.erro || data.codigo || data.mensagem || data.nome));
+      const isTransferSuccess = !!(data && (data.status === 'EM_PROCESSAMENTO' || data.status === 'REALIZADO' || data.e2eId));
+
+      if (isStatusOk && !hasErrorPayload && isTransferSuccess) {
         return {
           success: true,
           e2eId: data?.e2eId || data?.idEnvio || idEnvioClean,

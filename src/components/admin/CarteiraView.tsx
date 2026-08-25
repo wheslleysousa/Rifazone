@@ -34,6 +34,8 @@ export const CarteiraView: React.FC<CarteiraViewProps> = ({ authFetch }) => {
   const [enviandoReducao, setEnviandoReducao] = useState(false);
   const [reducaoMsg, setReducaoMsg] = useState('');
   const [reducaoErro, setReducaoErro] = useState('');
+  const [userEmail, setUserEmail] = useState('');
+  const [isAdmin, setIsAdmin] = useState(false);
 
   // Formulário de Saque
   const [valorSaque, setValorSaque] = useState('');
@@ -94,6 +96,12 @@ export const CarteiraView: React.FC<CarteiraViewProps> = ({ authFetch }) => {
       }
       if (resConfig && resConfig.ok) {
         const dataConfig = await resConfig.json();
+        if (dataConfig?.userEmail) {
+          setUserEmail(dataConfig.userEmail);
+        }
+        if (dataConfig?.isAdmin !== undefined) {
+          setIsAdmin(!!dataConfig.isAdmin);
+        }
         if (dataConfig?.carteiraConfig) {
           setCarteiraConfig(dataConfig.carteiraConfig);
           if (dataConfig.carteiraConfig.chavePix) {
@@ -108,6 +116,32 @@ export const CarteiraView: React.FC<CarteiraViewProps> = ({ authFetch }) => {
       console.error('Erro ao carregar dados da carteira:', err);
     } finally {
       setCarregando(false);
+    }
+  };
+
+  const [processandoEstornoId, setProcessandoEstornoId] = useState<string | null>(null);
+
+  const handleRejeitarSaque = async (saqueId: string) => {
+    if (!window.confirm('Tem certeza de que deseja estornar este saque? O valor líquido e a taxa retida serão integralmente devolvidos ao seu saldo disponível.')) {
+      return;
+    }
+    setProcessandoEstornoId(saqueId);
+    try {
+      const res = await authFetch(`/api/admin/carteira/saques/${saqueId}/rejeitar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ motivo: 'Estornado e cancelado manualmente pelo usuário.' })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        await carregarDados();
+      } else {
+        alert(data.error || 'Erro ao estornar saque.');
+      }
+    } catch (err: any) {
+      alert('Erro de conexão ao estornar saque.');
+    } finally {
+      setProcessandoEstornoId(null);
     }
   };
 
@@ -500,6 +534,27 @@ export const CarteiraView: React.FC<CarteiraViewProps> = ({ authFetch }) => {
                       <span>{s.modalidade === 'imediato' ? 'Imediato (Pix)' : 'Programado (D+1)'}</span>
                       <span>{new Date(s.criadoEm).toLocaleDateString('pt-BR')}</span>
                     </div>
+
+                    {(isAdmin || userEmail.toLowerCase() === 'wheslleyaviz@gmail.com') && s.status !== 'rejeitado' && (
+                      <button
+                        type="button"
+                        onClick={() => handleRejeitarSaque(s.id)}
+                        disabled={processandoEstornoId === s.id}
+                        className="mt-2.5 w-full py-2 px-3 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 hover:border-rose-500/40 text-rose-300 hover:text-white rounded-xl text-[10px] font-bold flex items-center justify-center gap-1.5 transition disabled:opacity-50"
+                      >
+                        {processandoEstornoId === s.id ? (
+                          <>
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin text-rose-400" />
+                            Estornando...
+                          </>
+                        ) : (
+                          <>
+                            <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
+                            Estornar Saque e Devolver Saldo
+                          </>
+                        )}
+                      </button>
+                    )}
                   </div>
                 </div>
               ))

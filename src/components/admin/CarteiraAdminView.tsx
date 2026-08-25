@@ -623,7 +623,7 @@ export const CarteiraAdminView: React.FC<CarteiraAdminViewProps> = ({ authFetch 
                       </div>
                       <div className="text-[10px] mt-1.5 flex items-center gap-1 text-slate-400 font-bold">
                         <span className={`w-1.5 h-1.5 rounded-full ${isRealBanco ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400 animate-pulse'}`}></span>
-                        {isRealBanco ? '100% Real via API Efí' : 'Não foi possível obter as informações'}
+                        {isRealBanco ? '100% Real via API Efí' : 'Informações desatualizadas'}
                       </div>
                     </div>
                   </div>
@@ -726,7 +726,7 @@ export const CarteiraAdminView: React.FC<CarteiraAdminViewProps> = ({ authFetch 
                 {!isRealBanco && (
                   <div className="p-3.5 bg-slate-900/40 border border-slate-800/80 rounded-2xl text-[11px] text-slate-400 flex items-center gap-2">
                     <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0 animate-pulse"></span>
-                    <span>Não foi possível obter as informações em tempo real da Efí Pay. Exibindo dados consolidados locais.</span>
+                    <span>Informações desatualizadas</span>
                   </div>
                 )}
               </div>

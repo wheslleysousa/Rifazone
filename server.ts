@@ -2302,12 +2302,15 @@ export async function verificarEEstornarSaquesPendentes(limiteMinutos: number = 
           e2eId: e2eIdConfirmado
         });
         console.log(`✅ [Auto-Verificação Saques] Saque #${saque.id} confirmado como PAGO pela API Bancária Efí Pay.`);
-      } else if (pixEmProcessamento) {
-        // Ainda está sendo processado pelo banco, não estorna nem conclui!
-        console.log(`⏳ [Auto-Verificação Saques] Saque #${saque.id} continua em PROCESSAMENTO no banco. Mantendo estado.`);
       } else {
-        // NÃO foi concluído e NÃO está em processamento (ou deu erro/falha explícita no banco) -> Estorna e devolve o dinheiro
-        const motivoEstorno = `Estorno Automático (${minutosDecorridos} minutos): A transferência não foi liquidada pela instituição financeira. Detalhes: ${detalhesStatus || 'Sem resposta do banco'}. O valor de R$ ${Number(saque.valorSolicitado).toFixed(2)} foi integralmente devolvido ao seu saldo disponível.`;
+        // Se após 10 minutos o Pix NÃO está como realizado (seja EM_PROCESSAMENTO, NAO_REALIZADO, falha ou erro) -> Cancela e devolve o saldo!
+        let motivoEstorno = '';
+        if (pixEmProcessamento) {
+          motivoEstorno = `Estorno Automático (${minutosDecorridos} minutos): A transferência Pix continua em processamento na instituição financeira após o prazo limite de 10 minutos e foi cancelada por segurança. O valor de R$ ${Number(saque.valorSolicitado).toFixed(2)} foi estornado para o seu saldo disponível.`;
+        } else {
+          motivoEstorno = `Estorno Automático (${minutosDecorridos} minutos): A transferência Pix não pôde ser confirmada ou foi rejeitada pela instituição financeira. Detalhes: ${detalhesStatus || 'Prazo limite esgotado (10 minutos)'}. O valor de R$ ${Number(saque.valorSolicitado).toFixed(2)} foi estornado para o seu saldo disponível.`;
+        }
+
         await db.atualizarStatusSaque(saque.id, 'rejeitado', undefined, motivoEstorno);
         await db.getCarteiraSaldo(saque.ownerId, true).catch(() => {});
         estornados.push({

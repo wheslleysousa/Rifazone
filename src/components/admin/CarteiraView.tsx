@@ -481,17 +481,40 @@ export const CarteiraView: React.FC<CarteiraViewProps> = ({ authFetch, carteiraC
                       <td className="p-3 font-sans">
                         <div className="flex items-center gap-3">
                           <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
-                            t.tipo === 'venda' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-purple-500/10 text-purple-400'
+                            t.tipo === 'venda' ? 'bg-emerald-500/10 text-emerald-400' : 
+                            t.status === 'cancelada' ? 'bg-slate-800 text-slate-500' :
+                            t.status === 'concluida' ? 'bg-purple-500/10 text-purple-400' :
+                            'bg-amber-500/10 text-amber-400'
                           }`}>
                             {t.tipo === 'venda' ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownLeft className="w-4 h-4" />}
                           </div>
                           <div>
-                            <p className="font-bold text-white text-xs">{t.tipo === 'venda' ? 'Venda de Cota' : 'Saque Solicitado'}</p>
+                            <div className="flex items-center gap-2">
+                              <p className={`font-bold text-xs ${t.status === 'cancelada' ? 'text-slate-500 line-through' : 'text-white'}`}>
+                                {t.tipo === 'venda' ? 'Venda de Cota' : 
+                                 t.status === 'concluida' ? 'Saque Concluído' :
+                                 t.status === 'cancelada' ? 'Saque Estornado / Cancelado' : 
+                                 'Saque em Processamento'}
+                              </p>
+                              <span className={`text-[9px] px-1.5 py-0.5 rounded-md font-bold shrink-0 ${
+                                t.status === 'concluida' ? 'bg-emerald-500/20 text-emerald-400' :
+                                t.status === 'cancelada' ? 'bg-slate-800 text-slate-400' :
+                                'bg-amber-500/20 text-amber-400'
+                              }`}>
+                                {t.status === 'concluida' ? 'Concluída' :
+                                 t.status === 'cancelada' ? 'Estornada' :
+                                 'Processando'}
+                              </span>
+                            </div>
                             <p className="text-[10px] text-slate-500">{t.descricao}</p>
                           </div>
                         </div>
                       </td>
-                      <td className={`p-3 font-black text-sm ${t.tipo === 'venda' ? 'text-emerald-400' : 'text-purple-400'}`}>
+                      <td className={`p-3 font-black text-sm ${
+                        t.tipo === 'venda' ? 'text-emerald-400' : 
+                        t.status === 'cancelada' ? 'text-slate-500 line-through' :
+                        'text-purple-400'
+                      }`}>
                         {t.tipo === 'venda' ? '+' : '-'} R$ {Number(t.tipo === 'venda' ? (t?.valorLiquido ?? t?.valorBruto ?? 0) : (t?.valorSolicitado ?? t?.valorLiquido ?? 0)).toFixed(2).replace('.', ',')}
                       </td>
                       <td className="p-3 text-slate-400 text-[11px] font-sans">

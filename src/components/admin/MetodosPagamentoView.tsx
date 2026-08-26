@@ -486,15 +486,15 @@ export const MetodosPagamentoView: React.FC<MetodosPagamentoViewProps> = ({
                     {g.icon}
                   </div>
                   <span className={`text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider ${
-                    isCarteira && !carteiraStatus
-                      ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30'
-                      : isAtivo 
-                        ? 'bg-emerald-500 text-slate-950 shadow-sm shadow-emerald-500/30' 
+                    isAtivo 
+                      ? 'bg-emerald-500 text-slate-950 shadow-sm shadow-emerald-500/30' 
+                      : isCarteira && carteiraStatus === 'pendente'
+                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                         : connected
                           ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
                           : 'bg-slate-800 text-slate-400 border border-slate-700'
                   }`}>
-                    {isCarteira && !carteiraStatus ? 'PENDENTE' : isAtivo ? 'ATIVO' : connected ? 'CONECTADO' : 'INATIVO'}
+                    {isAtivo ? 'ATIVO' : isCarteira && carteiraStatus === 'pendente' ? 'PENDENTE' : connected ? 'CONECTADO' : 'INATIVO'}
                   </span>
                 </div>
 
@@ -522,18 +522,7 @@ export const MetodosPagamentoView: React.FC<MetodosPagamentoViewProps> = ({
               <div className="mt-5 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs">
                 {isCarteira ? (
                   <>
-                    {!carteiraStatus ? (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setModalGateway('carteira');
-                        }}
-                        className="w-full py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black rounded-xl text-center transition shadow-md"
-                      >
-                        Fazer Solicitação
-                      </button>
-                    ) : carteiraStatus === 'pendente' ? (
+                    {carteiraStatus === 'pendente' ? (
                       <span className="w-full text-center text-xs font-bold text-amber-400 py-1">
                         Aguardando Aprovação (Até 24h)
                       </span>
@@ -548,23 +537,21 @@ export const MetodosPagamentoView: React.FC<MetodosPagamentoViewProps> = ({
                       >
                         Fazer Nova Solicitação
                       </button>
-                     ) : (
-                       <>
-                         {onAbrirCarteira && (
-                           <button
-                             type="button"
-                             onClick={(e) => {
-                               e.stopPropagation();
-                               onAbrirCarteira();
-                             }}
-                             className="w-full py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black rounded-xl shadow-md transition text-center flex items-center justify-center gap-2"
-                           >
-                             <span>Minha Carteira</span>
-                             <ArrowRight className="w-3.5 h-3.5" />
-                           </button>
-                         )}
-                       </>
-                     )}
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (onAbrirCarteira) onAbrirCarteira();
+                          else setModalGateway('carteira');
+                        }}
+                        className="w-full py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black rounded-xl shadow-md transition text-center flex items-center justify-center gap-2"
+                      >
+                        <Wallet className="w-4 h-4" />
+                        <span>Minha Carteira</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </>
                 ) : (
                   <>

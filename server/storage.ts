@@ -855,10 +855,55 @@ export class FileStorage implements Storage {
     );
     const todosPedidosDoUsuario = arraysOfPedidos.flat();
 
+    // Busca transações para cruzar e excluir as canceladas ou de teste/homologação
+    const todasTx = Array.from(this.transacoesCarteira.values()).filter(t => t.ownerId === ownerId);
+    const txCanceladasIds = new Set<string>();
+
+    for (const t of todasTx) {
+      if (t.tipo === 'venda') {
+        const descLower = String(t.descricao || '').toLowerCase();
+        if (
+          t.status === 'cancelada' ||
+          descLower.includes('cancelada') ||
+          descLower.includes('cancelado') ||
+          descLower.includes('homologacao') ||
+          descLower.includes('homologação') ||
+          descLower.includes('teste') ||
+          descLower.includes('test') ||
+          descLower.includes('simulado')
+        ) {
+          if (t.referenciaId) txCanceladasIds.add(String(t.referenciaId));
+          const matchId = t.id.replace('tx-venda-', '');
+          txCanceladasIds.add(matchId);
+        }
+      }
+    }
+
     const pedidosPagosDoUsuario = todosPedidosDoUsuario.filter(p => {
       const statusPed = (p as any).status || '';
       if (statusPed !== 'pago' && statusPed !== 'aprovado') return false;
-      return isPedidoProcessedByCarteira(p);
+      
+      // Filtro principal de gateway
+      if (!isPedidoProcessedByCarteira(p)) return false;
+
+      // Exclui se houver uma transação correspondente que foi cancelada ou marcada como homologação/teste
+      if (txCanceladasIds.has(String(p.id))) return false;
+
+      // Filtro extra redundante de termos de teste/homologação no pedido
+      const compNome = String((p as any).comprador?.nome || '').toLowerCase();
+      const compEmail = String((p as any).comprador?.email || '').toLowerCase();
+      const notes = String((p as any).observacoes || (p as any).notas || '').toLowerCase();
+      
+      if (
+        compNome.includes('teste') || compNome.includes('test') || compNome.includes('homologacao') || compNome.includes('homologação') || compNome.includes('simulado') ||
+        compEmail.includes('teste') || compEmail.includes('test') || compEmail.includes('homologacao') || compEmail.includes('homologação') ||
+        notes.includes('cancelada') || notes.includes('cancelado') || notes.includes('teste') || notes.includes('test') || notes.includes('homologacao') || notes.includes('homologação') ||
+        p.id.toLowerCase().includes('teste') || p.id.toLowerCase().includes('test')
+      ) {
+        return false;
+      }
+
+      return true;
     });
 
     let totalArrecadado = 0;

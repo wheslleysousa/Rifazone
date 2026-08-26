@@ -1251,6 +1251,38 @@ app.get('/api/admin/carteira/metricas-financeiras', firebaseAuthMiddleware, asyn
     const todosPedidos = await db.getTodosPedidos();
     const todosSaques = await db.listarSolicitacoesSaque();
 
+    // Busca todas as transações de todos os organizadores para criar a lista global de cancelamentos
+    const todasTx: any[] = [];
+    for (const config of todasConfigs) {
+      try {
+        const txs = await db.listarTransacoesCarteira(config.ownerId);
+        todasTx.push(...txs);
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    const txCanceladasIds = new Set<string>();
+    for (const t of todasTx) {
+      if (t.tipo === 'venda') {
+        const descLower = String(t.descricao || '').toLowerCase();
+        if (
+          t.status === 'cancelada' ||
+          descLower.includes('cancelada') ||
+          descLower.includes('cancelado') ||
+          descLower.includes('homologacao') ||
+          descLower.includes('homologação') ||
+          descLower.includes('teste') ||
+          descLower.includes('test') ||
+          descLower.includes('simulado')
+        ) {
+          if (t.referenciaId) txCanceladasIds.add(String(t.referenciaId));
+          const matchId = t.id.replace('tx-venda-', '');
+          txCanceladasIds.add(matchId);
+        }
+      }
+    }
+
     // 1. Total Faturado Geral no App (Todos os pedidos pagos)
     let faturamentoTotalGeral = 0;
     let totalPedidosPagos = 0;
@@ -1258,13 +1290,37 @@ app.get('/api/admin/carteira/metricas-financeiras', firebaseAuthMiddleware, asyn
 
     for (const p of todosPedidos) {
       if (p.status === 'pago') {
-        const valorReais = Number(((p.valorTotal || 0) / 100).toFixed(2));
-        faturamentoTotalGeral += valorReais;
-        totalPedidosPagos++;
+        const valorReais = extrairValorReaisPedido(p);
+        
+        // Aplica o filtro de teste/homologação/cancelamento ao faturamento do admin
+        const paymentId = String(p.mpPaymentId || (p as any).paymentId || (p as any).mp_payment_id || (p as any).mpPaymentId || '').toLowerCase();
+        const compNome = String((p as any).comprador?.nome || '').toLowerCase();
+        const compEmail = String((p as any).comprador?.email || '').toLowerCase();
+        const notes = String((p as any).observacoes || (p as any).notas || '').toLowerCase();
 
-        // Verifica se o pedido foi pago pela Carteira do Sistema / Efí Pay Central
-        if (isPedidoProcessedByCarteira(p)) {
-          faturamentoCarteira += valorReais;
+        const ehTesteOuCancelado = 
+          txCanceladasIds.has(String(p.id)) ||
+          paymentId.startsWith('simulado_') || 
+          paymentId.startsWith('mock_') || 
+          paymentId.startsWith('teste_') ||
+          paymentId.includes('teste') ||
+          paymentId.includes('test') ||
+          paymentId.includes('simulado') ||
+          paymentId.includes('homologacao') ||
+          paymentId.includes('homologação') ||
+          compNome.includes('teste') || compNome.includes('test') || compNome.includes('homologacao') || compNome.includes('homologação') || compNome.includes('simulado') ||
+          compEmail.includes('teste') || compEmail.includes('test') || compEmail.includes('homologacao') || compEmail.includes('homologação') ||
+          notes.includes('cancelada') || notes.includes('cancelado') || notes.includes('teste') || notes.includes('test') || notes.includes('homologacao') || notes.includes('homologação') ||
+          p.id.toLowerCase().includes('teste') || p.id.toLowerCase().includes('test');
+
+        if (!ehTesteOuCancelado) {
+          faturamentoTotalGeral += valorReais;
+          totalPedidosPagos++;
+
+          // Verifica se o pedido foi pago pela Carteira do Sistema / Efí Pay Central
+          if (isPedidoProcessedByCarteira(p)) {
+            faturamentoCarteira += valorReais;
+          }
         }
       }
     }
@@ -1355,10 +1411,10 @@ app.get('/api/admin/carteira/metricas-financeiras', firebaseAuthMiddleware, asyn
       Math.max(0, Number((lucroLiquidoTotal - totalLucroRetiradoAdmin).toFixed(2)))
     );
 
-    // 6b. Saldo Total Bruto na Conta Efí Pay (Total faturado via Efí - custo Efí 1.19% - total sacado por usuários - total retirado pelo admin)
+    // 6b. Saldo Total Bruto na Conta Efí Pay (Garante consistência perfeita: Custódia dos Usuários + Lucro Líquido não sacado)
     const saldoTotalNaEfi = Math.max(
       0,
-      Number((faturamentoCarteira - custoEfiPixEntrada - totalSacadoOrganizadores - totalLucroRetiradoAdmin).toFixed(2))
+      Number((saldoCustodiaOrganizadores + lucroDisponivelParaRetirada).toFixed(2))
     );
 
     // 6c. Consulta Saldo Real diretamente na API da Efí Pay (se credenciais estiverem ativas)

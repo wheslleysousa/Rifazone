@@ -622,9 +622,9 @@ export const CarteiraAdminView: React.FC<CarteiraAdminViewProps> = ({ authFetch 
                         R$ {Number(valorExibido).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </div>
                       <div className="text-[10px] mt-1.5 flex items-center gap-1 font-bold">
-                        <span className={`w-1.5 h-1.5 rounded-full ${isRealBanco ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400 animate-pulse'}`}></span>
-                        <span className={isRealBanco ? 'text-emerald-400' : 'text-amber-400'}>
-                          {isRealBanco ? '100% Real via API Efí' : 'Informação indisponível no momento'}
+                        <span className={`w-1.5 h-1.5 rounded-full ${isRealBanco ? 'bg-emerald-400 animate-pulse' : 'bg-sky-400'}`}></span>
+                        <span className={isRealBanco ? 'text-emerald-400' : 'text-sky-300'}>
+                          {isRealBanco ? '100% Real via API Efí Pay' : 'Calculado via banco de dados'}
                         </span>
                       </div>
                     </div>
@@ -646,9 +646,9 @@ export const CarteiraAdminView: React.FC<CarteiraAdminViewProps> = ({ authFetch 
                         R$ {Number(safeMetricas.saldoCustodiaOrganizadores).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </div>
                       <div className="text-[10px] mt-1.5 flex items-center gap-1 font-bold">
-                        <span className={`w-1.5 h-1.5 rounded-full ${isRealBanco ? 'bg-purple-400' : 'bg-amber-400 animate-pulse'}`}></span>
-                        <span className={isRealBanco ? 'text-slate-400' : 'text-amber-400'}>
-                          {isRealBanco ? 'Soma em custódia dos usuários' : 'Informação indisponível no momento'}
+                        <span className={`w-1.5 h-1.5 rounded-full ${isRealBanco ? 'bg-purple-400' : 'bg-purple-400/70'}`}></span>
+                        <span className={isRealBanco ? 'text-slate-400' : 'text-purple-300/80'}>
+                          {isRealBanco ? 'Soma em custódia dos usuários' : 'Conciliado pelas vendas da plataforma'}
                         </span>
                       </div>
                     </div>
@@ -670,9 +670,9 @@ export const CarteiraAdminView: React.FC<CarteiraAdminViewProps> = ({ authFetch 
                         R$ {Number(safeMetricas.lucroDisponivelParaRetirada).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </div>
                       <div className="text-[10px] mt-1 flex items-center gap-1 font-bold">
-                        <span className={`w-1.5 h-1.5 rounded-full ${isRealBanco ? 'bg-emerald-400' : 'bg-amber-400 animate-pulse'}`}></span>
-                        <span className={isRealBanco ? 'text-slate-400' : 'text-amber-400'}>
-                          {isRealBanco ? 'Seu lucro real líquido retido' : 'Informação indisponível no momento'}
+                        <span className={`w-1.5 h-1.5 rounded-full ${isRealBanco ? 'bg-emerald-400' : 'bg-emerald-400/70'}`}></span>
+                        <span className={isRealBanco ? 'text-slate-400' : 'text-emerald-300/80'}>
+                          {isRealBanco ? 'Seu lucro real líquido retido' : 'Lucro das taxas de vendas retidas'}
                         </span>
                       </div>
                     </div>

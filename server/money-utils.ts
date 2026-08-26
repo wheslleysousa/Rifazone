@@ -64,9 +64,30 @@ export function isPedidoProcessedByCarteira(pedido: any): boolean {
   if (!pedido) return false;
   const d = pedido.dados || pedido || {};
   
-  // 0. Exclui pagamentos simulados/mock de testes
+  // 0. Exclui pagamentos simulados/mock de testes ou homologações
   const paymentId = String(d.mpPaymentId || d.paymentId || (pedido as any).mp_payment_id || (pedido as any).mpPaymentId || '').toLowerCase();
-  if (paymentId.startsWith('simulado_') || paymentId.startsWith('mock_') || paymentId.startsWith('teste_')) {
+  if (
+    paymentId.startsWith('simulado_') || 
+    paymentId.startsWith('mock_') || 
+    paymentId.startsWith('teste_') ||
+    paymentId.includes('teste') ||
+    paymentId.includes('test') ||
+    paymentId.includes('simulado') ||
+    paymentId.includes('homologacao') ||
+    paymentId.includes('homologação')
+  ) {
+    return false;
+  }
+
+  const compNome = String((pedido as any).comprador?.nome || d.comprador?.nome || '').toLowerCase();
+  const compEmail = String((pedido as any).comprador?.email || d.comprador?.email || '').toLowerCase();
+  const observacoes = String((pedido as any).observacoes || (pedido as any).notas || d.observacoes || d.notas || '').toLowerCase();
+
+  if (
+    compNome.includes('teste') || compNome.includes('test') || compNome.includes('simulado') || compNome.includes('homologacao') || compNome.includes('homologação') ||
+    compEmail.includes('teste') || compEmail.includes('test') || compEmail.includes('simulado') || compEmail.includes('homologacao') || compEmail.includes('homologação') ||
+    observacoes.includes('cancelada') || observacoes.includes('cancelado') || observacoes.includes('teste') || observacoes.includes('test') || observacoes.includes('homologacao') || observacoes.includes('homologação')
+  ) {
     return false;
   }
   

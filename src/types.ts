@@ -45,24 +45,70 @@ export interface TemaCampanha {
     destaque: string;
     fundo: string;
     texto: string;
+    titulos: string;
+    descricoes: string;
     botao: string;
     textoBotao: string;
+    cardFundo: string;
+    cardBorda: string;
+    faviconFundo: string;
+    iconeCor: string;
   };
   botao: {
-    formato: 'reto' | 'arredondado' | 'pill';
-    tamanho: 'sm' | 'md' | 'lg';
-    sombra: boolean;
-    cta: string;
+    formato: 'reto' | 'arredondado' | 'pill' | 'super' | 'cortado' | 'inclinado' | 'square' | 'rounded' | 'pilled' | 'round';
+    tamanhoAltura: number; // slider px (ex: 12 a 24)
+    tamanhoTexto: number; // slider px (ex: 12 a 20)
+    estilo: 'solido' | 'gradiente' | 'vidro' | 'transparente' | '3d' | 'neon' | 'outline' | 'soft';
+    estiloPacotes?: 'solido' | 'gradiente' | 'vidro' | 'transparente' | '3d' | 'neon' | 'outline' | 'soft';
+    estiloCotas?: 'solido' | 'gradiente' | 'vidro' | 'transparente' | '3d' | 'neon' | 'outline' | 'soft';
+    sombraAltura?: number; // 3D shadow height (ex: 4px)
+    sombraLargura?: number; // 3D shadow width / offset (ex: 4px)
+    corSombra?: string; // 3D shadow color
+    textoCompra: string;
   };
   tipografia: {
-    fonte: 'sans' | 'serif' | 'display';
-    tamanhoTitulo: 'sm' | 'md' | 'lg';
+    fonteTitulo: string; // ex: 'Inter', 'Poppins', etc.
+    fonteTexto: string;  // ex: 'Inter', 'Roboto', etc.
+    tamanhoTitulo: number; // slider px
+    tamanhoTexto: number;  // slider px
   };
+  fundoMidia?: {
+    tipo: 'cor' | 'imagem' | 'video';
+    url?: string;
+  };
+  organizadorCabecalho?: {
+    logoTamanho: number; // ex: 32 a 64
+    logoAlinhamento: 'esquerda' | 'centro' | 'direita';
+  };
+  ganhadorCelebracaoEstilo?: 'confetes' | 'estrela' | 'fogo' | 'coracao' | 'moeda' | 'trofeu' | 'diamante' | 'raio' | 'coroa' | 'foguete';
   layout: {
-    ordem: string[]; // ex: ['banner', 'cotas', 'premios', 'premiadas', 'ranking', 'regulamento']
-    visivel: Record<string, boolean>; // ex: { ranking:true, barraProgresso:true, contador:true, provaSocial:false }
+    ordem: string[]; // ex: ['banner', 'barraProgresso', 'cotas', 'premios', 'premiadas', 'ranking', 'regulamento', 'ganhadores']
+    visivel: Record<string, boolean>;
   };
 }
+
+export const GOOGLE_FONTS_LIST = [
+  'Inter',
+  'Poppins',
+  'Montserrat',
+  'Roboto',
+  'Open Sans',
+  'Lato',
+  'Oswald',
+  'Playfair Display',
+  'Raleway',
+  'Ubuntu',
+  'Nunito',
+  'Plus Jakarta Sans',
+  'Outfit',
+  'Syne',
+  'Space Grotesk',
+  'DM Sans',
+  'Merriweather',
+  'Cinzel',
+  'Lexend',
+  'Sora'
+];
 
 export interface EstiloSalvo {
   id: string;
@@ -86,29 +132,53 @@ export const TEMA_PADRAO: TemaCampanha = {
     destaque: '#059669',
     fundo: '#0f172a',
     texto: '#f8fafc',
+    titulos: '#ffffff',
+    descricoes: '#94a3b8',
     botao: '#10b981',
-    textoBotao: '#022c22'
+    textoBotao: '#022c22',
+    cardFundo: '#1e293b',
+    cardBorda: '#334155',
+    faviconFundo: '#334155',
+    iconeCor: '#10b981'
   },
   botao: {
     formato: 'arredondado',
-    tamanho: 'md',
-    sombra: true,
-    cta: 'Participar do Sorteio'
+    tamanhoAltura: 16,
+    tamanhoTexto: 15,
+    estilo: 'solido',
+    estiloPacotes: 'solido',
+    estiloCotas: 'solido',
+    sombraAltura: 4,
+    sombraLargura: 4,
+    corSombra: '#047857',
+    textoCompra: 'GARANTIR MEUS NÚMEROS'
   },
   tipografia: {
-    fonte: 'sans',
-    tamanhoTitulo: 'md'
+    fonteTitulo: 'Inter',
+    fonteTexto: 'Inter',
+    tamanhoTitulo: 24,
+    tamanhoTexto: 16
   },
+  fundoMidia: {
+    tipo: 'cor',
+    url: ''
+  },
+  organizadorCabecalho: {
+    logoTamanho: 40,
+    logoAlinhamento: 'centro'
+  },
+  ganhadorCelebracaoEstilo: 'confetes',
   layout: {
-    ordem: ['banner', 'cotas', 'premios', 'premiadas', 'ranking', 'regulamento'],
+    ordem: ['banner', 'barraProgresso', 'cotas', 'premios', 'premiadas', 'ranking', 'regulamento', 'ganhadores'],
     visivel: {
       banner: true,
+      barraProgresso: true,
       cotas: true,
       premios: true,
       premiadas: true,
       ranking: true,
       regulamento: true,
-      barraProgresso: true,
+      ganhadores: true,
       contador: true,
       provaSocial: true,
       organizador: true
@@ -304,6 +374,7 @@ export interface Campanha {
   exibirQtdCotas?: boolean;
   exibirCompradores?: boolean;
   exibirSelo?: boolean;
+  exibirSeloOficial?: boolean;
   exibirPremios?: boolean;
   exibirCotasPremiadas?: boolean;
   tempoAnimacaoSorteioSegundos?: number;

@@ -2542,70 +2542,13 @@ app.post('/api/admin/carteira/solicitar-saque', firebaseAuthMiddleware, async (r
       bancoInfo: bancoInfo || undefined
     });
 
-    // Tenta enviar o Pix automaticamente se houver chave Pix e credenciais Efí Pay ativas
-    if (chavePix && chavePix.trim()) {
-      try {
-        const envResult = await enviarPixEfipay({
-          valor: valorLiquido,
-          chavePixDestino: chavePix.trim(),
-          descricao: `Saque RifaZone ${saque.id}`,
-          idEnvio: saque.id,
-          config: adminConfig
-        });
-
-        if (envResult.success) {
-          const isRealizado = envResult.statusPix === 'REALIZADO';
-          const statusDestino = isRealizado ? 'pago' : 'aprovado';
-          const obsMsg = isRealizado
-            ? 'Transferência Pix realizada e CONFIRMADA com sucesso pela API Efí Pay.'
-            : 'Transferência Pix enviada para processamento na Efí Pay. Aguardando liquidação final.';
-
-          const saqueAtualizado = await db.atualizarStatusSaque(
-            saque.id,
-            statusDestino,
-            envResult.e2eId,
-            obsMsg
-          );
-          return res.status(201).json({
-            success: true,
-            saque: saqueAtualizado || saque,
-            status: statusDestino,
-            mensagem: isRealizado
-              ? 'Saque concluído! O Pix foi enviado com sucesso para sua chave.'
-              : 'Saque enviado para processamento no banco! Seu Pix será creditado assim que a transferência for liquidada.'
-          });
-        } else {
-          console.warn(`[Envio Automático Pix] Não foi possível enviar imediatamente: ${envResult.detalhes}`);
-          // Rejeita o saque imediatamente e reembolsa o saldo
-          await db.atualizarStatusSaque(
-            saque.id,
-            'rejeitado',
-            undefined,
-            `Falha no envio automático do Pix: ${envResult.detalhes}`
-          );
-          return res.status(400).json({ error: `Falha na transferência automática via Pix: ${envResult.detalhes}. Seu saldo continua integralmente disponível.` });
-        }
-      } catch (pixErr: any) {
-        console.error('[Envio Automático Pix] Exceção:', pixErr?.message || pixErr);
-        // Rejeita o saque imediatamente e reembolsa o saldo
-        await db.atualizarStatusSaque(
-          saque.id,
-          'rejeitado',
-          undefined,
-          `Exceção no envio automático do Pix: ${pixErr?.message || pixErr}`
-        );
-        return res.status(400).json({ error: `Erro na transferência automática via Pix: ${pixErr?.message || pixErr}. Seu saldo continua integralmente disponível.` });
-      }
-    } else {
-      // Sem chave Pix válida, rejeita o saque imediatamente
-      await db.atualizarStatusSaque(
-        saque.id,
-        'rejeitado',
-        undefined,
-        'Nenhuma chave Pix fornecida para a transferência automática.'
-      );
-      return res.status(400).json({ error: 'Nenhuma chave Pix fornecida para a transferência automática. Cadastre sua chave Pix na aba de Configurações.' });
-    }
+    // Registro efetuado com sucesso! Agora a solicitação fica PENDENTE para aprovação manual do administrador.
+    return res.status(201).json({
+      success: true,
+      saque,
+      status: 'pendente',
+      mensagem: `Solicitação de saque de R$ ${valor.toFixed(2).replace('.', ',')} enviada com sucesso! Aguarde a aprovação manual do administrador.`
+    });
   } catch (err: any) {
     console.error('Erro ao solicitar saque:', err);
     return res.status(400).json({ error: err.message || 'Erro ao processar solicitação de saque.' });

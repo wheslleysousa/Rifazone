@@ -228,17 +228,17 @@ export const CampanhaPublicaView: React.FC<Props> = ({
   // Carregar dados da campanha
   const carregarCampanha = async (silencioso = false) => {
     if (modoPreview && previewCampanha) {
-      let realEst = {
+      let realEst = data?.estatisticas || {
         totalCotas: previewCampanha.totalCotas || 10000,
         vendidas: 0,
         reservadas: 0,
         disponiveis: previewCampanha.totalCotas || 10000,
         percentualVendido: 0
       };
-      let realRank: RankingItem[] = [];
+      let realRank: RankingItem[] = data?.ranking || [];
 
-      // Se a campanha já tem um código e não é um mock, tenta buscar as estatísticas reais
-      if (previewCampanha.codigo && !previewCampanha.codigo.startsWith('sorteio-preview')) {
+      // Se a campanha já tem um código e não é um mock, E as estatísticas reais ainda não foram carregadas, busca do servidor
+      if (!data?.estatisticas && previewCampanha.codigo && !previewCampanha.codigo.startsWith('sorteio-preview')) {
         try {
           const res = await fetch(`/api/campanhas/${previewCampanha.codigo}`);
           if (res.ok) {
@@ -329,11 +329,9 @@ export const CampanhaPublicaView: React.FC<Props> = ({
     }
   };
 
-  const strPreviewCampanha = previewCampanha ? JSON.stringify(previewCampanha) : '';
-
   useEffect(() => {
     carregarCampanha();
-  }, [codigo, modoPreview, strPreviewCampanha]);
+  }, [codigo, modoPreview]);
 
   // Efeito do Contador Regressivo (Início e Término)
   useEffect(() => {
@@ -425,7 +423,11 @@ export const CampanhaPublicaView: React.FC<Props> = ({
     );
   }
 
-  if (erro || !data) {
+  const ranking = data?.ranking || [];
+  const marca = data?.marca;
+  const campanha = (modoPreview && previewCampanha ? previewCampanha : data?.campanha) as Campanha;
+
+  if ((erro || !data) && !modoPreview) {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-white p-6 text-center">
         <div className="w-16 h-16 bg-red-500/10 border border-red-500/30 rounded-2xl flex items-center justify-center text-red-400 mb-4">
@@ -445,7 +447,15 @@ export const CampanhaPublicaView: React.FC<Props> = ({
     );
   }
 
-  const { campanha, estatisticas, ranking, marca } = data;
+  if (!campanha) return null;
+
+  const estatisticas = data?.estatisticas || {
+    totalCotas: campanha.totalCotas || 0,
+    vendidas: 0,
+    reservadas: 0,
+    disponiveis: campanha.totalCotas || 0,
+    percentualVendido: 0
+  };
 
   // Resolução do tema ativo com fallbacks seguros para o TEMA_PADRAO (aceita previewTema se fornecido)
   const temaAtivo = previewTema || campanha.tema;
@@ -473,22 +483,81 @@ export const CampanhaPublicaView: React.FC<Props> = ({
     '--btn-txt': tema.cores.textoBotao,
   } as React.CSSProperties;
 
+  // Carregamento dinâmico de fontes do Google Fonts para títulos e textos
+  useEffect(() => {
+    const fontTitle = tema.tipografia.fonteTitulo || 'Inter';
+    const fontText = tema.tipografia.fonteTexto || 'Inter';
+    const fontId = 'google-fonts-dynamic-loader';
+    let link = document.getElementById(fontId) as HTMLLinkElement;
+    if (!link) {
+      link = document.createElement('link');
+      link.id = fontId;
+      link.rel = 'stylesheet';
+      document.head.appendChild(link);
+    }
+    const fontsToLoad = Array.from(new Set([fontTitle, fontText]));
+    const families = fontsToLoad.map(f => `family=${f.replace(/\s+/g, '+')}:wght@400;500;600;700;800;900`).join('&');
+    link.href = `https://fonts.googleapis.com/css2?${families}&display=swap`;
+  }, [tema.tipografia.fonteTitulo, tema.tipografia.fonteTexto]);
+
   // Helpers de classes de estilo baseadas no tema
   const getBtnRoundingClass = (formato?: string) => {
-    if (formato === 'reto') return 'rounded-none';
-    if (formato === 'pill') return 'rounded-full';
+    if (formato === 'square' || formato === 'reto') return 'rounded-none';
+    if (formato === 'rounded') return 'rounded-xl';
+    if (formato === 'pilled' || formato === 'pill') return 'rounded-full px-6';
+    if (formato === 'round') return 'rounded-full';
+    if (formato === 'super') return 'rounded-3xl';
+    if (formato === 'cortado') return 'rounded-md clip-chamfer';
+    if (formato === 'inclinado') return 'rounded-lg skew-x-[-3deg]';
     return 'rounded-xl';
   };
 
-  const getBtnSizeClass = (tamanho?: string) => {
-    if (tamanho === 'sm') return 'py-2.5 px-4 text-xs';
-    if (tamanho === 'lg') return 'py-4 px-6 text-base';
+  const getBtnStyleObjectAndClass = (estiloBotao?: string) => {
+    const b = tema.botao;
+    const est = estiloBotao || b.estilo || 'solido';
+    let className = 'bg-[var(--btn)] text-[var(--btn-txt)] shadow-lg hover:opacity-95';
+    let style: React.CSSProperties = {
+      fontSize: `${b.tamanhoTexto || 15}px`,
+      fontFamily: tema.tipografia.fonteTexto || 'Inter',
+    };
+
+    if (est === 'vidro' || est === 'glass') {
+      className = 'bg-white/15 backdrop-blur-md border border-white/30 text-white shadow-xl hover:bg-white/25';
+    } else if (est === 'transparente' || est === 'transparent') {
+      className = 'bg-transparent border-2 border-[var(--btn)] text-[var(--btn)] hover:bg-[var(--btn)] hover:text-[var(--btn-txt)] shadow-md';
+    } else if (est === '3d') {
+      const sombraH = b.sombraAltura ?? 4;
+      const sombraW = b.sombraLargura ?? 4;
+      const sombraC = b.corSombra || 'rgba(0,0,0,0.4)';
+      className = 'bg-[var(--btn)] text-[var(--btn-txt)] font-black active:translate-y-1 transition-transform';
+      style = {
+        ...style,
+        boxShadow: `${sombraW}px ${sombraH}px 0px 0px ${sombraC}`,
+      };
+    } else if (est === 'gradiente') {
+      className = 'text-white shadow-lg';
+      style = {
+        ...style,
+        background: 'linear-gradient(135deg, var(--brand), var(--brand-2))',
+      };
+    } else if (est === 'neon') {
+      className = 'bg-[var(--btn)] text-[var(--btn-txt)] shadow-[0_0_20px_rgba(16,185,129,0.6)]';
+    } else if (est === 'outline') {
+      className = 'bg-transparent border border-[var(--btn)] text-[var(--btn)] hover:bg-[var(--btn)] hover:text-[var(--btn-txt)]';
+    }
+
+    return { className, style };
+  };
+
+  const getBtnSizeClass = (tamanho?: string | number) => {
+    if (tamanho === 'sm' || (typeof tamanho === 'number' && tamanho < 14)) return 'py-2.5 px-4 text-xs';
+    if (tamanho === 'lg' || (typeof tamanho === 'number' && tamanho > 18)) return 'py-4 px-6 text-base';
     return 'py-3 px-5 text-sm';
   };
 
-  const getTitleSizeClass = (tamanho?: string) => {
-    if (tamanho === 'sm') return 'text-lg sm:text-xl';
-    if (tamanho === 'lg') return 'text-2xl sm:text-3xl';
+  const getTitleSizeClass = (tamanho?: string | number) => {
+    if (tamanho === 'sm' || (typeof tamanho === 'number' && tamanho < 20)) return 'text-lg sm:text-xl';
+    if (tamanho === 'lg' || (typeof tamanho === 'number' && tamanho > 28)) return 'text-2xl sm:text-3xl';
     return 'text-xl sm:text-2xl';
   };
 
@@ -862,13 +931,15 @@ export const CampanhaPublicaView: React.FC<Props> = ({
         )}
 
         <div className="p-4 bg-gradient-to-t from-slate-950 via-slate-900 to-transparent">
-          <div
-            className="flex items-center gap-2 text-xs font-semibold mb-1"
-            style={{ color: 'var(--brand)' }}
-          >
-            <ShieldCheck className="w-4 h-4" />
-            <span>Sorteio oficial: {campanha.localSorteio}</span>
-          </div>
+          {campanha.exibirSeloOficial !== false && (
+            <div
+              className="flex items-center gap-2 text-xs font-semibold mb-1"
+              style={{ color: 'var(--brand)' }}
+            >
+              <ShieldCheck className="w-4 h-4" />
+              <span>Sorteio oficial: {campanha.localSorteio}</span>
+            </div>
+          )}
           <h1 className={`font-black text-white leading-tight ${getTitleSizeClass(tema.tipografia.tamanhoTitulo)}`}>
             {campanha.titulo}
           </h1>
@@ -1314,7 +1385,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
   return (
     <div
       style={rootCssVariables}
-      className={`min-h-screen bg-[var(--bg,#020617)] text-[var(--texto,#f8fafc)] selection:bg-[var(--brand,#10b981)] selection:text-slate-950 ${getFontFamilyClass(tema.tipografia.fonte)}`}
+      className={`min-h-screen bg-[var(--bg,#020617)] text-[var(--texto,#f8fafc)] selection:bg-[var(--brand,#10b981)] selection:text-slate-950 ${getFontFamilyClass(tema.tipografia.fonteTitulo)}`}
     >
       {/* Top Navbar com Menu Lateral */}
       <header className="sticky top-0 z-40 bg-slate-950/95 backdrop-blur-md border-b border-slate-800">
@@ -1342,11 +1413,10 @@ export const CampanhaPublicaView: React.FC<Props> = ({
             )}
             <div>
               <span className="font-extrabold text-white text-sm tracking-tight block truncate max-w-[160px] sm:max-w-[200px]">
-                {campanha.titulo}
+                {campanha.organizadorNome || 'Organizador Oficial'}
               </span>
-              <span className="text-[10px] text-slate-400 font-medium block flex items-center gap-1 group-hover:text-emerald-400 transition-colors">
-                <span>{campanha.organizadorNome || 'Organizador Oficial'}</span>
-                <span className="text-[9px] bg-slate-800 text-slate-300 px-1.5 py-0.2 rounded-full border border-slate-700">Ver todas</span>
+              <span className="text-[10px] text-slate-400 font-medium block flex items-center gap-1 group-hover:text-emerald-400 transition-colors mt-0.5">
+                <span className="text-[9px] bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded-full border border-slate-700">Campanhas Ativas</span>
               </span>
             </div>
           </button>
@@ -1681,9 +1751,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                     color: 'var(--btn-txt)',
                   }
             }
-            className={`flex-1 font-black flex items-center justify-center gap-2 transition active:scale-[0.98] ${getBtnRoundingClass(tema.botao.formato)} ${getBtnSizeClass(tema.botao.tamanho)} ${
-              tema.botao.sombra ? 'shadow-lg' : ''
-            } ${
+            className={`flex-1 font-black flex items-center justify-center gap-2 transition active:scale-[0.98] ${getBtnRoundingClass(tema.botao.formato)} ${getBtnSizeClass(tema.botao.tamanhoAltura)} shadow-lg ${
               campanha.status === 'pausada' || campanha.status === 'inativa' || campanha.status === 'rascunho'
                 ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40 cursor-not-allowed shadow-none'
                 : tempoRestante?.status === 'aguardando_inicio'
@@ -1704,7 +1772,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
               ? 'AGUARDANDO INÍCIO DAS VENDAS'
               : tempoRestante?.status === 'encerrada'
               ? 'VENDAS ENCERRADAS'
-              : (tema.botao.cta || 'PARTICIPAR DO SORTEIO').toUpperCase()}
+              : (tema.botao.textoCompra || 'PARTICIPAR DO SORTEIO').toUpperCase()}
           </button>
         </div>
       </footer>

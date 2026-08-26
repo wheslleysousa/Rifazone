@@ -4,7 +4,8 @@ import {
   Youtube, FileText, CheckCircle2, AlertCircle, ArrowLeft,
   LayoutGrid, HelpCircle, Flame, Lock, Eye, Star, Info, Rocket,
   Upload, Camera, Link as LinkIcon, RefreshCw, ChevronRight, ChevronLeft,
-  DollarSign, Clock, MapPin, Tag, Check, Sparkle, GripVertical, Palette, Loader2, CreditCard, ShieldCheck
+  DollarSign, Clock, MapPin, Tag, Check, Sparkle, GripVertical, Palette, Loader2, CreditCard, ShieldCheck,
+  Instagram, MessageSquare, Music
 } from 'lucide-react';
 import { Campanha, Premio, CotaPremiada, Promocao, OfertaRelampago, TEMA_PADRAO, CheckoutSalvo } from '../../types';
 import { uploadImageToStorage, compressAndReadImage } from '../../lib/image-upload';
@@ -49,6 +50,9 @@ export const CampanhasFormView: React.FC<Props> = ({
   const [dragActiveCarrossel, setDragActiveCarrossel] = useState(false);
   const [modoUrlBanner, setModoUrlBanner] = useState(false);
   const [mostrarModalCotas, setMostrarModalCotas] = useState(false);
+  const [mostrarSeletorCotas, setMostrarSeletorCotas] = useState(false);
+  const [modoPersonalizadoCotas, setModoPersonalizadoCotas] = useState(false);
+  const [descontoAtivo, setDescontoAtivo] = useState(!!(form.descontoPorValorTotal && form.descontoPorValorTotal.length > 0));
   const [draggedPromoIdx, setDraggedPromoIdx] = useState<number | null>(null);
   const [visualizacaoMobile, setVisualizacaoMobile] = useState<'controles' | 'preview'>('controles');
   const [checkoutsSalvos, setCheckoutsSalvos] = useState<CheckoutSalvo[]>([]);
@@ -308,12 +312,15 @@ export const CampanhasFormView: React.FC<Props> = ({
   };
 
   const handleRemovePromo = (idx: number) => {
+    if (!window.confirm("Deseja realmente remover este pacote promocional?")) return;
     const promos = (form.promocoes || []).filter((_, i) => i !== idx);
     setForm(prev => ({ ...prev, promocoes: promos }));
   };
 
   const handleLimparTodasPromocoes = () => {
-    setForm(prev => ({ ...prev, promocoes: [] }));
+    if (!window.confirm("Deseja realmente apagar todos os pacotes promocionais?")) return;
+    const promos = [];
+    setForm(prev => ({ ...prev, promocoes: promos }));
   };
 
   const handleGerarPromocoesSugeridas = () => {
@@ -590,69 +597,38 @@ export const CampanhasFormView: React.FC<Props> = ({
 
             <hr className="border-slate-800/60" />
 
-            {/* MODALIDADE DA CAMPANHA: RIFA PAGA VS SORTEIO GRATUITO */}
-            <div className="space-y-4">
+            {/* MODALIDADE DA CAMPANHA: RIFA PAGA VS SORTEIO */}
+            <div className="space-y-3">
               <label className="text-xs font-black text-slate-200 uppercase tracking-wider block">
-                Modalidade de Participação *
+                Tipo *
               </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 <button
                   type="button"
                   onClick={() => setForm(prev => ({ ...prev, modalidade: 'paga', valorCota: prev.valorCota === 0 ? undefined : prev.valorCota }))}
-                  className={`p-4 rounded-2xl border text-left transition-all duration-300 relative flex items-start gap-4 ${
+                  className={`p-3.5 rounded-xl border text-center font-bold text-sm transition-all duration-200 flex items-center justify-center gap-2 ${
                     (form.modalidade || 'paga') === 'paga'
-                      ? 'bg-emerald-500/10 border-emerald-500/50 text-white shadow-xl shadow-emerald-500/5'
+                      ? 'bg-emerald-500/10 border-emerald-500/50 text-white shadow-lg'
                       : 'bg-slate-800/30 border-slate-700/50 text-slate-400 hover:bg-slate-800/60 hover:border-slate-600'
                   }`}
                 >
-                  <div className={`p-2.5 rounded-xl shrink-0 ${ (form.modalidade || 'paga') === 'paga' ? 'bg-emerald-500 shadow-md shadow-emerald-500/20 text-slate-950' : 'bg-slate-900 border border-slate-700 text-slate-500' }`}>
-                    <DollarSign className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <div className="font-extrabold text-sm text-white flex items-center gap-2 mb-1">
-                      <span>Rifa Paga (Tradicional)</span>
-                      {(form.modalidade || 'paga') === 'paga' && <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
-                    </div>
-                    <p className="text-xs text-slate-400 leading-relaxed">
-                      Venda cotas por valor estipulado (ex: R$ 0,50) via Pix.
-                    </p>
-                  </div>
+                  <span>Rifa paga</span>
+                  {(form.modalidade || 'paga') === 'paga' && <Check className="w-4 h-4 text-emerald-400" />}
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setForm(prev => ({ ...prev, modalidade: 'gratis', valorCota: 0, minPorCompra: 1, maxPorCompra: 1, exigirCpf: true, exigirEmail: true }))}
-                  className={`p-4 rounded-2xl border text-left transition-all duration-300 relative flex items-start gap-4 ${
+                  className={`p-3.5 rounded-xl border text-center font-bold text-sm transition-all duration-200 flex items-center justify-center gap-2 ${
                     form.modalidade === 'gratis'
-                      ? 'bg-purple-500/10 border-purple-500/50 text-white shadow-xl shadow-purple-500/5'
+                      ? 'bg-purple-500/10 border-purple-500/50 text-white shadow-lg'
                       : 'bg-slate-800/30 border-slate-700/50 text-slate-400 hover:bg-slate-800/60 hover:border-slate-600'
                   }`}
                 >
-                  <div className={`p-2.5 rounded-xl shrink-0 ${ form.modalidade === 'gratis' ? 'bg-purple-500 shadow-md shadow-purple-500/20 text-white' : 'bg-slate-900 border border-slate-700 text-slate-500' }`}>
-                    <Gift className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <div className="font-extrabold text-sm text-white flex items-center gap-2 mb-1">
-                      <span>Sorteio Gratuito (0 Reais)</span>
-                      {form.modalidade === 'gratis' && <CheckCircle2 className="w-4 h-4 text-purple-400" />}
-                    </div>
-                    <p className="text-xs text-slate-400 leading-relaxed">
-                      1 cota grátis por CPF/Pessoa. Excelente para captar leads.
-                    </p>
-                  </div>
+                  <span>Sorteio</span>
+                  {form.modalidade === 'gratis' && <Check className="w-4 h-4 text-purple-400" />}
                 </button>
               </div>
-
-              {form.modalidade === 'gratis' && (
-                <div className="p-4 bg-purple-900/20 border border-purple-500/20 rounded-2xl text-xs text-purple-300 flex items-start gap-3">
-                  <div className="p-1.5 bg-purple-500/20 rounded-lg shrink-0">
-                    <Gift className="w-4 h-4 text-purple-400" />
-                  </div>
-                  <span className="leading-relaxed">
-                    <strong className="text-purple-200">Modo Sorteio Gratuito Ativado:</strong> O valor da cota é automaticamente fixado em R$ 0,00. A validação por CPF é ativada para garantir apenas 1 cota única por participante.
-                  </span>
-                </div>
-              )}
             </div>
 
             <hr className="border-slate-800/60" />
@@ -674,15 +650,15 @@ export const CampanhasFormView: React.FC<Props> = ({
                     onChange={e => setForm(prev => ({ ...prev, modelo: e.target.value as any }))}
                     className="w-full bg-slate-950/50 border border-slate-700/50 rounded-xl px-4 py-3.5 text-sm text-white focus:border-emerald-500 focus:bg-slate-900/80 font-medium transition-colors focus:outline-none shadow-inner"
                   >
-                    <option value="aleatorio">🎲 Aleatório (Automático pelo sistema)</option>
-                    <option value="manual">🔢 Manual (Cliente escolhe os números)</option>
+                    <option value="aleatorio">Aleatório</option>
+                    <option value="manual">Manual</option>
                   </select>
                 </div>
 
-                <div>
+                <div className="md:col-span-2">
                   <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                     <label className="text-xs font-bold text-slate-300 uppercase tracking-wider">
-                      Total de Cotas (Sorteio) *
+                      Total de cotas
                     </label>
                     {form.totalCotas && form.totalCotas > 0 && (
                       <span className="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full">
@@ -698,25 +674,68 @@ export const CampanhasFormView: React.FC<Props> = ({
                     )}
                   </div>
 
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="number"
-                      min="1"
-                      max="10000000"
-                      placeholder="Ex: 10000"
-                      value={form.totalCotas !== undefined && form.totalCotas !== null ? form.totalCotas : ''}
-                      onChange={e => setForm(prev => ({ ...prev, totalCotas: e.target.value === '' ? undefined : Number(e.target.value) }))}
-                      className="flex-1 bg-slate-950/50 border border-slate-700/50 rounded-xl px-4 py-3.5 text-sm font-mono font-bold text-white focus:border-emerald-500 focus:bg-slate-900/80 transition-colors focus:outline-none shadow-inner"
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setMostrarModalCotas(true)}
-                      className="px-4 py-3.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:border-emerald-500/60 rounded-xl text-xs font-bold transition-colors shrink-0 flex items-center gap-2 shadow-sm"
-                    >
-                      <Zap className="w-4 h-4 text-amber-400" />
-                      <span className="hidden sm:inline">Selecionar</span>
-                    </button>
+                  <div className="space-y-3">
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setMostrarSeletorCotas(!mostrarSeletorCotas)}
+                        className="flex-1 px-4 py-3.5 bg-slate-950/60 border border-slate-700/50 hover:border-emerald-500/50 rounded-xl text-sm font-bold text-white flex items-center justify-between transition-all shadow-inner"
+                      >
+                        <span className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+                          {form.totalCotas ? `${form.totalCotas.toLocaleString('pt-BR')} Cotas Selecionadas` : 'Selecionar Total de Cotas'}
+                        </span>
+                        <span className="text-xs text-slate-400">{mostrarSeletorCotas ? '▲ Ocultar' : '▼ Selecionar'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setModoPersonalizadoCotas(!modoPersonalizadoCotas)}
+                        className="px-5 py-3.5 bg-slate-800/60 hover:bg-slate-700/60 border border-slate-700/50 text-emerald-400 font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition-all shadow-sm active:scale-95"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>{modoPersonalizadoCotas ? 'Ocultar Personalizado' : 'Digitar Personalizado'}</span>
+                      </button>
+                    </div>
+
+                    {mostrarSeletorCotas && (
+                      <div className="p-4 bg-slate-950/80 border border-slate-700/60 rounded-2xl space-y-3 animate-in fade-in">
+                        <p className="text-xs text-slate-400 font-medium">Selecione uma quantidade padrão:</p>
+                        <div className="flex flex-wrap gap-2">
+                          {[100, 200, 300, 500, 1000, 2500, 5000, 10000, 50000, 100000, 500000, 1000000, 10000000].map((val) => (
+                            <button
+                              key={val}
+                              type="button"
+                              onClick={() => {
+                                setForm(prev => ({ ...prev, totalCotas: val }));
+                                setMostrarSeletorCotas(false);
+                              }}
+                              className={`px-3 py-2 rounded-xl border text-xs font-bold transition-all duration-150 ${
+                                form.totalCotas === val
+                                  ? 'bg-emerald-500/20 border-emerald-500 text-white shadow-md'
+                                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-300'
+                              }`}
+                            >
+                              {val.toLocaleString('pt-BR')}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {modoPersonalizadoCotas && (
+                      <div className="relative animate-in fade-in pt-1">
+                        <input
+                          type="number"
+                          min="1"
+                          max="10000000"
+                          placeholder="Digite o número exato de cotas desejado..."
+                          value={form.totalCotas !== undefined && form.totalCotas !== null ? form.totalCotas : ''}
+                          onChange={e => setForm(prev => ({ ...prev, totalCotas: e.target.value === '' ? undefined : Number(e.target.value) }))}
+                          className="w-full bg-slate-950/50 border border-emerald-500/50 rounded-xl px-4 py-3.5 text-sm font-mono font-bold text-white focus:border-emerald-500 focus:bg-slate-900/80 transition-colors focus:outline-none shadow-inner"
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -769,7 +788,7 @@ export const CampanhasFormView: React.FC<Props> = ({
 
                 <div>
                   <label className="text-xs font-bold text-slate-300 block mb-2 uppercase tracking-wider">
-                    Tempo de Reserva (Min)
+                    Duração (Min)
                   </label>
                   <div className="relative">
                     <input
@@ -854,10 +873,10 @@ export const CampanhasFormView: React.FC<Props> = ({
                     onChange={e => setForm(prev => ({ ...prev, localSorteio: e.target.value }))}
                     className="w-full bg-slate-950/50 border border-slate-700/50 rounded-xl px-4 py-3.5 text-sm text-white focus:border-emerald-500 focus:bg-slate-900/80 font-medium transition-colors focus:outline-none shadow-inner"
                   >
-                    <option value="Loteria Federal">🏛️ Loteria Federal</option>
-                    <option value="Deu no Poste">🎲 Deu no Poste</option>
-                    <option value="Sorteio ao Vivo Instagram">📱 Sorteio ao Vivo Instagram</option>
-                    <option value="Sorteador Eletrônico">💻 Sorteador Eletrônico Oficial</option>
+                    <option value="Loteria Federal">Loteria Federal</option>
+                    <option value="Deu no Poste">Deu no Poste</option>
+                    <option value="Sorteio ao Vivo Instagram">Sorteio ao Vivo Instagram</option>
+                    <option value="Sorteador Eletrônico">Sorteador Eletrônico Oficial</option>
                   </select>
                 </div>
               </div>
@@ -949,7 +968,7 @@ export const CampanhasFormView: React.FC<Props> = ({
                 <div>
                   <h4 className="text-sm font-black text-emerald-400 flex items-center gap-2 uppercase tracking-wider">
                     <Clock className="w-4 h-4" />
-                    Agendamento & Contador Regressivo
+                    Relógio
                   </h4>
                   <p className="text-xs text-slate-400 mt-1">
                     Ative caso deseje definir uma data de início e término com contador em tempo real.
@@ -1093,7 +1112,7 @@ export const CampanhasFormView: React.FC<Props> = ({
                           ) : (
                             <Upload className="w-4 h-4 text-emerald-400" />
                           )}
-                          <span>Upload</span>
+                          <span>{form.organizadorFoto ? 'Trocar Imagem' : 'upload image'}</span>
                         </button>
 
                         <button
@@ -1107,19 +1126,14 @@ export const CampanhasFormView: React.FC<Props> = ({
                         </button>
                       </div>
                     </div>
-
-                    <input
-                      type="url"
-                      placeholder="Ou cole o Link (URL) aqui..."
-                      value={form.organizadorFoto || ''}
-                      onChange={e => setForm(prev => ({ ...prev, organizadorFoto: e.target.value }))}
-                      className="w-full bg-slate-950/50 border border-slate-700/50 rounded-xl px-4 py-2 text-xs text-white focus:border-emerald-500 focus:bg-slate-900/80 transition-colors focus:outline-none shadow-inner"
-                    />
                   </div>
                 </div>
 
                 <div className="md:col-span-1 lg:col-span-1">
-                  <label className="text-xs font-bold text-slate-300 block mb-2 uppercase tracking-wider">
+                  <label className="text-xs font-bold text-slate-300 mb-2 uppercase tracking-wider flex items-center gap-2">
+                    <span className="w-5 h-5 rounded bg-emerald-500 flex items-center justify-center text-slate-950">
+                      <MessageSquare className="w-3.5 h-3.5" />
+                    </span>
                     Suporte WhatsApp
                   </label>
                   <input
@@ -1132,7 +1146,10 @@ export const CampanhasFormView: React.FC<Props> = ({
                 </div>
 
                 <div className="md:col-span-1 lg:col-span-1">
-                  <label className="text-xs font-bold text-slate-300 block mb-2 uppercase tracking-wider">
+                  <label className="text-xs font-bold text-slate-300 mb-2 uppercase tracking-wider flex items-center gap-2">
+                    <span className="w-5 h-5 rounded bg-gradient-to-tr from-yellow-500 via-pink-500 to-purple-600 flex items-center justify-center text-white">
+                      <Instagram className="w-3.5 h-3.5" />
+                    </span>
                     Instagram (@)
                   </label>
                   <input
@@ -1140,12 +1157,15 @@ export const CampanhasFormView: React.FC<Props> = ({
                     placeholder="@usuario"
                     value={form.organizadorInstagram || ''}
                     onChange={e => setForm(prev => ({ ...prev, organizadorInstagram: e.target.value }))}
-                    className="w-full bg-slate-950/50 border border-slate-700/50 rounded-xl px-4 py-3.5 text-sm text-white focus:border-emerald-500 focus:bg-slate-900/80 transition-colors focus:outline-none shadow-inner"
+                    className="w-full bg-slate-950/50 border border-slate-700/50 rounded-xl px-4 py-3.5 text-sm text-white focus:border-pink-500 focus:bg-slate-900/80 transition-colors focus:outline-none shadow-inner"
                   />
                 </div>
                 
                 <div className="md:col-span-1 lg:col-span-1">
-                  <label className="text-xs font-bold text-slate-300 block mb-2 uppercase tracking-wider">
+                  <label className="text-xs font-bold text-slate-300 mb-2 uppercase tracking-wider flex items-center gap-2">
+                    <span className="w-5 h-5 rounded bg-slate-100 flex items-center justify-center text-slate-950">
+                      <Music className="w-3.5 h-3.5" />
+                    </span>
                     TikTok (@)
                   </label>
                   <input
@@ -1153,7 +1173,7 @@ export const CampanhasFormView: React.FC<Props> = ({
                     placeholder="@usuario"
                     value={form.organizadorTiktok || ''}
                     onChange={e => setForm(prev => ({ ...prev, organizadorTiktok: e.target.value }))}
-                    className="w-full bg-slate-950/50 border border-slate-700/50 rounded-xl px-4 py-3.5 text-sm text-white focus:border-emerald-500 focus:bg-slate-900/80 transition-colors focus:outline-none shadow-inner"
+                    className="w-full bg-slate-950/50 border border-slate-700/50 rounded-xl px-4 py-3.5 text-sm text-white focus:border-slate-300 focus:bg-slate-900/80 transition-colors focus:outline-none shadow-inner"
                   />
                 </div>
               </div>
@@ -1196,119 +1216,91 @@ export const CampanhasFormView: React.FC<Props> = ({
                     Esta é a imagem principal que aparecerá no topo e no link do WhatsApp.
                   </p>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={() => setModoUrlBanner(!modoUrlBanner)}
-                  className="px-4 py-2 bg-slate-800/50 hover:bg-slate-700/50 text-emerald-400 border border-slate-700/50 font-bold rounded-xl text-xs flex items-center gap-2 transition-all self-start sm:self-auto shadow-sm"
-                >
-                  <LinkIcon className="w-4 h-4" />
-                  {modoUrlBanner ? 'Usar Upload' : 'Inserir URL'}
-                </button>
               </div>
 
-              {modoUrlBanner ? (
-                <div className="space-y-4 pt-2">
-                  <div className="relative">
-                    <input
-                      type="url"
-                      placeholder="https://exemplo.com/sua-foto.jpg"
-                      value={form.bannerUrl || ''}
-                      onChange={e => setForm(prev => ({ ...prev, bannerUrl: e.target.value }))}
-                      className="w-full bg-slate-950/50 border border-slate-700/50 rounded-xl px-4 py-3.5 text-sm text-white focus:border-emerald-500 focus:bg-slate-900/80 transition-colors focus:outline-none shadow-inner"
-                    />
+              {/* UPLOAD DROPZONE DIRETO DO CELULAR */}
+              <div
+                onDragEnter={handleDragBanner}
+                onDragOver={handleDragBanner}
+                onDragLeave={handleDragBanner}
+                onDrop={handleDropBanner}
+                className={`mt-4 p-8 border-2 border-dashed rounded-2xl text-center transition-all duration-300 flex flex-col items-center justify-center relative overflow-hidden shadow-inner ${
+                  dragActiveBanner
+                    ? 'border-emerald-500 bg-emerald-500/10'
+                    : form.bannerUrl
+                    ? 'border-slate-700/50 bg-slate-950/50'
+                    : 'border-slate-700 hover:border-emerald-500/50 bg-slate-950/40'
+                }`}
+              >
+                {carregandoBanner ? (
+                  <div className="py-10 flex flex-col items-center gap-3">
+                    <RefreshCw className="w-8 h-8 text-emerald-400 animate-spin" />
+                    <span className="text-sm text-slate-300 font-bold">Otimizando imagem...</span>
                   </div>
-                  {form.bannerUrl && (
-                    <div className="relative w-full max-w-md aspect-video rounded-xl overflow-hidden border border-slate-700/50 bg-slate-950/50 shadow-lg">
-                      <img src={form.bannerUrl} alt="Preview Banner" className="w-full h-full object-cover" />
-                    </div>
-                  )}
-                </div>
-              ) : (
-                /* UPLOAD DROPZONE DIRETO DO CELULAR */
-                <div
-                  onDragEnter={handleDragBanner}
-                  onDragOver={handleDragBanner}
-                  onDragLeave={handleDragBanner}
-                  onDrop={handleDropBanner}
-                  className={`mt-4 p-8 border-2 border-dashed rounded-2xl text-center transition-all duration-300 flex flex-col items-center justify-center relative overflow-hidden shadow-inner ${
-                    dragActiveBanner
-                      ? 'border-emerald-500 bg-emerald-500/10'
-                      : form.bannerUrl
-                      ? 'border-slate-700/50 bg-slate-950/50'
-                      : 'border-slate-700 hover:border-emerald-500/50 bg-slate-950/40'
-                  }`}
-                >
-                  {carregandoBanner ? (
-                    <div className="py-10 flex flex-col items-center gap-3">
-                      <RefreshCw className="w-8 h-8 text-emerald-400 animate-spin" />
-                      <span className="text-sm text-slate-300 font-bold">Otimizando imagem...</span>
-                    </div>
-                  ) : form.bannerUrl ? (
-                    <div className="w-full max-w-md space-y-4">
-                      <div className="relative aspect-video rounded-xl overflow-hidden border border-slate-700/50 bg-slate-950 shadow-lg group">
-                        <img src={form.bannerUrl} alt="Banner da Campanha" className="w-full h-full object-cover" />
-                        <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-3">
-                          <button
-                            type="button"
-                            onClick={() => bannerFileInputRef.current?.click()}
-                            className="px-4 py-2 bg-emerald-500 text-slate-950 font-bold rounded-xl text-sm shadow-lg hover:scale-105 transition-transform"
-                          >
-                            Trocar
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setForm(prev => ({ ...prev, bannerUrl: '' }))}
-                            className="px-4 py-2 bg-red-500/90 text-white font-bold rounded-xl text-sm shadow-lg hover:scale-105 transition-transform"
-                          >
-                            Remover
-                          </button>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-center gap-2">
-                        <span className="text-xs text-emerald-400 font-bold flex items-center gap-1.5 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20">
-                          <CheckCircle2 className="w-4 h-4" />
-                          Banner enviado com sucesso!
-                        </span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="py-6 space-y-4">
-                      <div className="w-16 h-16 mx-auto rounded-2xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20 shadow-sm">
-                        <Upload className="w-8 h-8" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold text-white mb-1">
-                          Arraste sua imagem ou clique para selecionar
-                        </p>
-                        <p className="text-xs text-slate-400">
-                          Formatos aceitos: JPG, PNG, WEBP ou HEIC (Celular)
-                        </p>
-                      </div>
-
-                      <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
-                        <button
-                          type="button"
-                          onClick={() => bannerCameraInputRef.current?.click()}
-                          className="w-full sm:w-auto px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-sm flex items-center justify-center gap-2 shadow-md shadow-emerald-500/20 transition-all active:scale-95"
-                        >
-                          <Camera className="w-4 h-4" />
-                          <span>Tirar Foto</span>
-                        </button>
-
+                ) : form.bannerUrl ? (
+                  <div className="w-full max-w-md space-y-4">
+                    <div className="relative aspect-video rounded-xl overflow-hidden border border-slate-700/50 bg-slate-950 shadow-lg group">
+                      <img src={form.bannerUrl} alt="Banner da Campanha" className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-3">
                         <button
                           type="button"
                           onClick={() => bannerFileInputRef.current?.click()}
-                          className="w-full sm:w-auto px-5 py-2.5 bg-slate-800/80 hover:bg-slate-700 text-slate-200 border border-slate-700/50 font-bold rounded-xl text-sm flex items-center justify-center gap-2 transition-all active:scale-95 shadow-sm"
+                          className="px-4 py-2 bg-emerald-500 text-slate-950 font-bold rounded-xl text-sm shadow-lg hover:scale-105 transition-transform"
                         >
-                          <ImageIcon className="w-4 h-4 text-emerald-400" />
-                          <span>Galeria</span>
+                          Trocar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setForm(prev => ({ ...prev, bannerUrl: '' }))}
+                          className="px-4 py-2 bg-red-500/90 text-white font-bold rounded-xl text-sm shadow-lg hover:scale-105 transition-transform"
+                        >
+                          Remover
                         </button>
                       </div>
                     </div>
-                  )}
-                </div>
-              )}
+                    <div className="flex items-center justify-center gap-2">
+                      <span className="text-xs text-emerald-400 font-bold flex items-center gap-1.5 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20">
+                        <CheckCircle2 className="w-4 h-4" />
+                        Banner enviado com sucesso!
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="py-6 space-y-4">
+                    <div className="w-16 h-16 mx-auto rounded-2xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20 shadow-sm">
+                      <Upload className="w-8 h-8" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-white mb-1">
+                        Arraste sua imagem ou clique para selecionar
+                      </p>
+                      <p className="text-xs text-slate-400">
+                        Formatos aceitos: JPG, PNG, WEBP ou HEIC (Celular)
+                      </p>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => bannerCameraInputRef.current?.click()}
+                        className="w-full sm:w-auto px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-sm flex items-center justify-center gap-2 shadow-md shadow-emerald-500/20 transition-all active:scale-95"
+                      >
+                        <Camera className="w-4 h-4" />
+                        <span>Tirar Foto</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => bannerFileInputRef.current?.click()}
+                        className="w-full sm:w-auto px-5 py-2.5 bg-slate-800/80 hover:bg-slate-700 text-slate-200 border border-slate-700/50 font-bold rounded-xl text-sm flex items-center justify-center gap-2 transition-all active:scale-95 shadow-sm"
+                      >
+                        <ImageIcon className="w-4 h-4 text-emerald-400" />
+                        <span>Galeria</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             <hr className="border-slate-800/60" />
@@ -1332,7 +1324,7 @@ export const CampanhasFormView: React.FC<Props> = ({
                   className="px-4 py-2 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-sm transition-all active:scale-95"
                 >
                   <Plus className="w-4 h-4" />
-                  <span>Adicionar Fotos</span>
+                  <span>Adicionar mais imagens</span>
                 </button>
               </div>
 
@@ -1352,33 +1344,18 @@ export const CampanhasFormView: React.FC<Props> = ({
                     <span className="text-sm text-slate-300 font-bold">Processando imagens...</span>
                   </div>
                 ) : (
-                  <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-                    <div className="text-left hidden md:block">
-                      <p className="text-sm font-bold text-slate-200">
-                        Adicionar mais fotos
-                      </p>
-                      <p className="text-xs text-slate-400 mt-0.5">
-                        Arraste ou cole a URL
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-2 w-full md:w-auto">
-                      <input
-                        type="url"
-                        placeholder="Cole o Link (URL) da imagem..."
-                        value={novaFotoUrl}
-                        onChange={e => setNovaFotoUrl(e.target.value)}
-                        className="flex-1 bg-slate-900/80 border border-slate-700/50 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors shadow-inner"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleAdicionarFotoUrl}
-                        className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-indigo-300 font-bold rounded-xl text-xs border border-slate-700/50 shrink-0 transition-colors"
-                      >
-                        + URL
-                      </button>
-                    </div>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => carrosselFileInputRef.current?.click()}
+                    className="w-full flex flex-col items-center justify-center py-2"
+                  >
+                    <p className="text-sm font-bold text-slate-200">
+                      Arraste mais fotos ou clique para selecionar
+                    </p>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Você pode selecionar múltiplos arquivos de uma vez
+                    </p>
+                  </button>
                 )}
               </div>
 
@@ -1547,10 +1524,10 @@ export const CampanhasFormView: React.FC<Props> = ({
                 <div>
                   <h3 className="text-sm font-black text-white flex items-center gap-2 uppercase tracking-wider">
                     <Gift className="w-4 h-4 text-emerald-400" />
-                    Cotas Premiadas (Ganha na Hora)
+                    Cotas Premiadas
                   </h3>
                   <p className="text-xs text-slate-400 mt-1">
-                    Se o comprador tirar o número premiado, ganha o valor instantaneamente!
+                    Defina cotas premiadas que concedem prêmios ao comprador ao adquiri-las.
                   </p>
                 </div>
 
@@ -1567,14 +1544,6 @@ export const CampanhasFormView: React.FC<Props> = ({
                   )}
                   <button
                     type="button"
-                    onClick={() => handleGerarCotasPremiadasAleatorias(5)}
-                    className="px-4 py-2 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 font-bold rounded-xl text-xs flex items-center gap-2 border border-purple-500/30 transition-all shadow-sm active:scale-95"
-                  >
-                    <Sparkles className="w-4 h-4" />
-                    Gerar 5 Aleatórias
-                  </button>
-                  <button
-                    type="button"
                     onClick={handleAddCotaPremiada}
                     className="px-4 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 font-bold rounded-xl text-xs flex items-center gap-2 border border-emerald-500/30 transition-all shadow-sm active:scale-95"
                   >
@@ -1587,14 +1556,7 @@ export const CampanhasFormView: React.FC<Props> = ({
               <div className="space-y-3">
                 {(form.cotasPremiadas || []).length === 0 ? (
                   <div className="p-8 bg-slate-950/40 border border-dashed border-slate-700/50 rounded-2xl text-center">
-                    <p className="text-sm text-slate-400 mb-2">Nenhuma cota premiada cadastrada no momento.</p>
-                    <button
-                      type="button"
-                      onClick={() => handleGerarCotasPremiadasAleatorias(5)}
-                      className="text-sm text-emerald-400 font-bold hover:text-emerald-300 transition-colors"
-                    >
-                      + Clique aqui para gerar 5 números premiados automaticamente
-                    </button>
+                    <p className="text-sm text-slate-400">Nenhuma cota premiada cadastrada no momento.</p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -1690,7 +1652,7 @@ export const CampanhasFormView: React.FC<Props> = ({
                   </p>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2">
+                 <div className="flex flex-wrap items-center gap-2">
                   {(form.promocoes || []).length > 0 && (
                     <button
                       type="button"
@@ -1701,14 +1663,6 @@ export const CampanhasFormView: React.FC<Props> = ({
                       Apagar Pacotes
                     </button>
                   )}
-                  <button
-                    type="button"
-                    onClick={handleGerarPromocoesSugeridas}
-                    className="px-4 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 font-bold rounded-xl text-xs flex items-center gap-2 border border-emerald-500/30 transition-all shadow-sm active:scale-95"
-                  >
-                    <Zap className="w-4 h-4 text-amber-400" />
-                    Gerar Inteligentes
-                  </button>
                   <button
                     type="button"
                     onClick={handleAddPromo}
@@ -1723,14 +1677,7 @@ export const CampanhasFormView: React.FC<Props> = ({
               <div className="space-y-3 pt-2">
                 {(form.promocoes || []).length === 0 ? (
                   <div className="p-8 bg-slate-950/40 border border-dashed border-slate-700/50 rounded-2xl text-center">
-                    <p className="text-sm text-slate-400 mb-2">Nenhum pacote promocional cadastrado.</p>
-                    <button
-                      type="button"
-                      onClick={handleGerarPromocoesSugeridas}
-                      className="text-sm text-emerald-400 font-bold hover:text-emerald-300 transition-colors"
-                    >
-                      + Gerar pacotes inteligentes automaticamente com desconto progressivo
-                    </button>
+                    <p className="text-sm text-slate-400">Nenhum pacote promocional cadastrado.</p>
                   </div>
                 ) : (
                   (form.promocoes || []).map((promo, idx) => (
@@ -1825,13 +1772,13 @@ export const CampanhasFormView: React.FC<Props> = ({
 
             <hr className="border-slate-800/60" />
 
-            {/* SEÇÃO: DESCONTO PROGRESSIVO POR VALOR TOTAL DE COMPRA */}
+            {/* SEÇÃO: ATIVAR REGRA DE DESCONTO */}
             <div className="space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-slate-950/40 border border-slate-800 rounded-2xl">
                 <div>
                   <h4 className="text-sm font-black text-white flex items-center gap-2 uppercase tracking-wider">
                     <DollarSign className="w-4 h-4 text-emerald-400" />
-                    Desconto Progressivo por Valor Total
+                    Ativar regra de desconto por valor
                   </h4>
                   <p className="text-xs text-slate-400 mt-1">
                     Exemplo: "A partir de R$ 30,00 de compra, cada cota sai por R$ 0,80".
@@ -1841,71 +1788,97 @@ export const CampanhasFormView: React.FC<Props> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    const regras = form.descontoPorValorTotal || [];
-                    setForm(prev => ({
-                      ...prev,
-                      descontoPorValorTotal: [
-                        ...regras,
-                        { aPartirDeValor: 0, valorCotaComDesconto: 0.00 }
-                      ]
-                    }));
+                    const novoEstado = !descontoAtivo;
+                    setDescontoAtivo(novoEstado);
+                    if (!novoEstado) {
+                      setForm(prev => ({ ...prev, descontoPorValorTotal: [] }));
+                    }
                   }}
-                  className="px-4 py-2 bg-slate-800/50 hover:bg-slate-700/50 text-emerald-400 border border-slate-700/50 font-bold rounded-xl text-xs flex items-center gap-2 transition-all shadow-sm active:scale-95 self-start sm:self-auto"
+                  className={`relative inline-flex h-7 w-14 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    descontoAtivo ? 'bg-emerald-500' : 'bg-slate-800'
+                  }`}
                 >
-                  <Plus className="w-4 h-4" />
-                  Adicionar Regra
+                  <span
+                    className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                      descontoAtivo ? 'translate-x-7' : 'translate-x-0'
+                    }`}
+                  />
                 </button>
               </div>
 
-              <div className="space-y-3">
-                {(form.descontoPorValorTotal || []).length === 0 ? (
-                  <p className="text-sm text-slate-500 italic p-4 bg-slate-950/40 rounded-xl border border-dashed border-slate-800">
-                    Nenhuma regra de desconto por valor configurada.
-                  </p>
-                ) : (
-                  (form.descontoPorValorTotal || []).map((regra, idx) => (
-                    <div key={idx} className="p-4 bg-slate-950/50 border border-slate-700/50 rounded-2xl flex flex-wrap sm:flex-nowrap items-center gap-3 shadow-inner">
-                      <span className="text-sm font-bold text-slate-400 uppercase tracking-wider shrink-0">A partir de R$</span>
-                      <input
-                        type="number"
-                        step="1"
-                        min="1"
-                        value={regra.aPartirDeValor}
-                        onChange={e => {
-                          const arr = [...(form.descontoPorValorTotal || [])];
-                          arr[idx].aPartirDeValor = Number(e.target.value);
-                          setForm(prev => ({ ...prev, descontoPorValorTotal: arr }));
-                        }}
-                        className="w-24 sm:w-28 bg-slate-900 border border-slate-700/50 rounded-xl px-3 py-2 text-sm font-mono font-bold text-white focus:outline-none focus:border-emerald-500 transition-colors shadow-inner"
-                      />
-                      <span className="text-sm font-bold text-slate-400 uppercase tracking-wider shrink-0">cada cota fica por R$</span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0.01"
-                        value={regra.valorCotaComDesconto}
-                        onChange={e => {
-                          const arr = [...(form.descontoPorValorTotal || [])];
-                          arr[idx].valorCotaComDesconto = Number(e.target.value);
-                          setForm(prev => ({ ...prev, descontoPorValorTotal: arr }));
-                        }}
-                        className="w-24 sm:w-28 bg-slate-900 border border-slate-700/50 rounded-xl px-3 py-2 text-sm font-mono font-bold text-emerald-400 focus:outline-none focus:border-emerald-500 transition-colors shadow-inner"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const arr = (form.descontoPorValorTotal || []).filter((_, i) => i !== idx);
-                          setForm(prev => ({ ...prev, descontoPorValorTotal: arr }));
-                        }}
-                        className="p-2.5 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-colors ml-auto shrink-0"
-                        title="Remover Regra"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
-                    </div>
-                  ))
-                )}
-              </div>
+              {descontoAtivo && (
+                <div className="space-y-4 animate-in fade-in pt-2">
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const regras = form.descontoPorValorTotal || [];
+                        setForm(prev => ({
+                          ...prev,
+                          descontoPorValorTotal: [
+                            ...regras,
+                            { aPartirDeValor: 30, valorCotaComDesconto: 0.80 }
+                          ]
+                        }));
+                      }}
+                      className="px-4 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold rounded-xl text-xs flex items-center gap-2 transition-all shadow-sm active:scale-95"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Adicionar Nova Regra
+                    </button>
+                  </div>
+
+                  <div className="space-y-3">
+                    {(form.descontoPorValorTotal || []).length === 0 ? (
+                      <p className="text-sm text-slate-500 italic p-4 bg-slate-950/40 rounded-xl border border-dashed border-slate-800">
+                        Nenhuma regra configurada. Clique em "Adicionar Nova Regra" acima.
+                      </p>
+                    ) : (
+                      (form.descontoPorValorTotal || []).map((regra, idx) => (
+                        <div key={idx} className="p-4 bg-slate-950/50 border border-slate-700/50 rounded-2xl flex flex-wrap sm:flex-nowrap items-center gap-3 shadow-inner">
+                          <span className="text-sm font-bold text-slate-400 uppercase tracking-wider shrink-0">A partir de R$</span>
+                          <input
+                            type="number"
+                            step="1"
+                            min="1"
+                            value={regra.aPartirDeValor}
+                            onChange={e => {
+                              const arr = [...(form.descontoPorValorTotal || [])];
+                              arr[idx].aPartirDeValor = Number(e.target.value);
+                              setForm(prev => ({ ...prev, descontoPorValorTotal: arr }));
+                            }}
+                            className="w-24 sm:w-28 bg-slate-900 border border-slate-700/50 rounded-xl px-3 py-2 text-sm font-mono font-bold text-white focus:outline-none focus:border-emerald-500 transition-colors shadow-inner"
+                          />
+                          <span className="text-sm font-bold text-slate-400 uppercase tracking-wider shrink-0">cada cota fica por R$</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0.01"
+                            value={regra.valorCotaComDesconto}
+                            onChange={e => {
+                              const arr = [...(form.descontoPorValorTotal || [])];
+                              arr[idx].valorCotaComDesconto = Number(e.target.value);
+                              setForm(prev => ({ ...prev, descontoPorValorTotal: arr }));
+                            }}
+                            className="w-24 sm:w-28 bg-slate-900 border border-slate-700/50 rounded-xl px-3 py-2 text-sm font-mono font-bold text-emerald-400 focus:outline-none focus:border-emerald-500 transition-colors shadow-inner"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const arr = (form.descontoPorValorTotal || []).filter((_, i) => i !== idx);
+                              setForm(prev => ({ ...prev, descontoPorValorTotal: arr }));
+                            }}
+                            className="p-2.5 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-colors ml-auto shrink-0"
+                            title="Remover Regra"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </AcordeaoSecao>
@@ -2237,6 +2210,19 @@ export const CampanhasFormView: React.FC<Props> = ({
                   />
                   <label htmlFor="chk-exibir-selo" className="text-sm text-slate-200 font-medium cursor-pointer select-none">
                     Selo de Destaque no Banner
+                  </label>
+                </div>
+
+                <div className="flex items-center gap-3 p-3 bg-slate-900/60 rounded-xl border border-slate-700/50 hover:bg-slate-800/60 transition-colors">
+                  <input
+                    type="checkbox"
+                    id="chk-exibir-selo-oficial"
+                    checked={form.exibirSeloOficial ?? true}
+                    onChange={e => setForm(prev => ({ ...prev, exibirSeloOficial: e.target.checked }))}
+                    className="w-4 h-4 rounded text-emerald-500 bg-slate-900 border-slate-600 cursor-pointer accent-emerald-500 focus:ring-emerald-500 focus:ring-offset-slate-950"
+                  />
+                  <label htmlFor="chk-exibir-selo-oficial" className="text-sm text-slate-200 font-medium cursor-pointer select-none">
+                    Selo de Sorteio Oficial
                   </label>
                 </div>
 

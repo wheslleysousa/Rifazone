@@ -690,6 +690,7 @@ export async function testEfipayConnection(config?: ConfigOrganizador | null): P
   hasChavePix: boolean;
   details: string;
   statusCode?: number;
+  saldoReal?: number;
 }> {
   const creds = resolveEfipayCredentials(config);
 
@@ -741,6 +742,14 @@ export async function testEfipayConnection(config?: ConfigOrganizador | null): P
         });
 
         if (res.data && res.data.access_token) {
+          let saldoReal: number | undefined = undefined;
+          try {
+            const resSaldo = await consultarSaldoEfipay(config);
+            if (resSaldo.success) {
+              saldoReal = resSaldo.saldoReal;
+            }
+          } catch (e) {}
+
           return {
             success: true,
             source: isFromEnv ? 'env' : 'database',
@@ -750,6 +759,7 @@ export async function testEfipayConnection(config?: ConfigOrganizador | null): P
             hasCertificado: true,
             hasChavePix: !!creds.chavePix,
             statusCode: res.status,
+            saldoReal,
             details: `Conexão efetuada com SUCESSO! Token OAuth obtido da API Efí Pay (${creds.ambiente.toUpperCase()}) na URL (${tokenUrl}).`
           };
         } else if (tokenUrl === endpoints[endpoints.length - 1]) {

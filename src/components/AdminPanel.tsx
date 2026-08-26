@@ -92,6 +92,7 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
     exibirRanking: true,
     exibirBarraProgresso: true,
     exibirPaginaGanhadores: true,
+    exibirSeloOficial: true,
     exigirEmail: false,
     exigirCpf: false,
     status: 'publicada',
@@ -468,7 +469,7 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
 
   // Gerar com IA
   const handleGerarComIA = async () => {
-    const premio = prompt('Qual é o prêmio principal da sua rifa? (Ex: iPhone 16 Pro Max 256GB + R$ 2.000 no Pix)');
+    const premio = prompt('Descreva o que vai ser a sua rifa:\n(Ex: Rifa de um iPhone 15 por R$ 0,50 cada cota)');
     if (!premio || !premio.trim()) return;
 
     setIaAviso('Gerando dados persuasivos com a inteligência artificial Gemini...');
@@ -632,6 +633,7 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
       exibirQtdCotas: true,
       exibirCompradores: true,
       exibirSelo: true,
+      exibirSeloOficial: true,
       exibirPremios: true,
       exibirCotasPremiadas: true,
       tempoAnimacaoSorteioSegundos: 3,

@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Campanha, TemaCampanha, TEMA_PADRAO, EstiloSalvo, CheckoutConfig, DEFAULT_CHECKOUT_CONFIG } from '../../types';
+import { Campanha, TemaCampanha, TEMA_PADRAO, EstiloSalvo, CheckoutConfig, DEFAULT_CHECKOUT_CONFIG, GOOGLE_FONTS_LIST } from '../../types';
 import { CampanhaPublicaView } from '../CampanhaPublicaView';
 import { 
   Palette, Sparkles, Smartphone, Eye, GripVertical, Check, 
   RotateCcw, Save, Trash2, ArrowUp, ArrowDown, Layers, 
   Type, MousePointer, ShieldCheck, ChevronRight, Layout, 
   Sliders, X, RefreshCw, Bookmark, FolderHeart, CheckCircle2,
-  CreditCard, QrCode, FileText, CheckCheck, AlertCircle, Shield
+  CreditCard, QrCode, FileText, CheckCheck, AlertCircle, Shield, Image as ImageIcon, Video, User
 } from 'lucide-react';
 import { auth } from '../../lib/firebase';
 
@@ -27,7 +27,7 @@ interface BlocoConfig {
 }
 
 const BLOCOS_DISPONIVEIS: BlocoConfig[] = [
-  { id: 'banner', nome: 'Banner & Título', descricao: 'Foto de destaque, selo oficial e título do sorteio', icone: '🖼️' },
+  { id: 'banner', nome: 'Banner & Título', descricao: 'Foto de destaque e título do sorteio', icone: '🖼️' },
   { id: 'barraProgresso', nome: 'Barra de Progresso', descricao: 'Porcentagem de cotas vendidas em tempo real', icone: '📊' },
   { id: 'cotas', nome: 'Seleção de Cotas & Pacotes', descricao: 'Combos de desconto e seletor de bilhetes', icone: '🎟️' },
   { id: 'premios', nome: 'Prêmios Oficiais', descricao: 'Premiação de 1º, 2º, 3º lugar e extras', icone: '🏆' },
@@ -45,16 +45,11 @@ export const TemaBuilderView: React.FC<Props> = ({
   onSalvar,
   salvando = false
 }) => {
-  // Mobile tab toggle (controles vs preview)
   const [visualizacaoMobile, setVisualizacaoMobile] = useState<'controles' | 'preview'>('controles');
-  
-  // Seção ativa do editor: 'cores' | 'botao' | 'tipografia' | 'blocos' | 'checkout' | 'estilos'
-  const [secaoEditor, setSecaoEditor] = useState<'cores' | 'botao' | 'tipografia' | 'blocos' | 'checkout' | 'estilos'>('cores');
+  const [secaoEditor, setSecaoEditor] = useState<'cores' | 'botao' | 'tipografia' | 'blocos' | 'organizador' | 'estilos'>('cores');
 
-  // Drag & drop de blocos
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
 
-  // Estilos Salvos
   const [estilosSalvos, setEstilosSalvos] = useState<EstiloSalvo[]>([]);
   const [carregandoEstilos, setCarregandoEstilos] = useState(false);
   const [salvandoEstilo, setSalvandoEstilo] = useState(false);
@@ -62,63 +57,54 @@ export const TemaBuilderView: React.FC<Props> = ({
   const [modalNovoEstiloAberto, setModalNovoEstiloAberto] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
-  // Checkout Config seguro
-  const checkoutSeguro: CheckoutConfig = {
-    metodos: {
-      pix: campanha?.checkout?.metodos?.pix ?? DEFAULT_CHECKOUT_CONFIG.metodos.pix,
-      cartao: campanha?.checkout?.metodos?.cartao ?? DEFAULT_CHECKOUT_CONFIG.metodos.cartao,
-      boleto: campanha?.checkout?.metodos?.boleto ?? DEFAULT_CHECKOUT_CONFIG.metodos.boleto,
-    },
-    parcelasMax: campanha?.checkout?.parcelasMax ?? DEFAULT_CHECKOUT_CONFIG.parcelasMax,
-    taxaParcelamento: campanha?.checkout?.taxaParcelamento ?? DEFAULT_CHECKOUT_CONFIG.taxaParcelamento,
-    mensagens: {
-      topo: campanha?.checkout?.mensagens?.topo ?? DEFAULT_CHECKOUT_CONFIG.mensagens.topo,
-      pix: campanha?.checkout?.mensagens?.pix ?? DEFAULT_CHECKOUT_CONFIG.mensagens.pix,
-      cartao: campanha?.checkout?.mensagens?.cartao ?? DEFAULT_CHECKOUT_CONFIG.mensagens.cartao,
-      sucesso: campanha?.checkout?.mensagens?.sucesso ?? DEFAULT_CHECKOUT_CONFIG.mensagens.sucesso,
-      urgencia: campanha?.checkout?.mensagens?.urgencia ?? DEFAULT_CHECKOUT_CONFIG.mensagens.urgencia,
-    },
-    selosSeguranca: campanha?.checkout?.selosSeguranca ?? DEFAULT_CHECKOUT_CONFIG.selosSeguranca,
-  };
-
-  const handleUpdateCheckout = (updater: (prev: CheckoutConfig) => CheckoutConfig) => {
-    if (onChangeCampanha) {
-      onChangeCampanha(prev => ({
-        ...prev,
-        checkout: updater(prev.checkout || DEFAULT_CHECKOUT_CONFIG)
-      }));
-    }
-  };
-
-  // Garante valores seguros de tema
-  const temaSeguro: TemaCampanha = {
+  // Garante valores seguros de tema com todos os novos campos
+  const temaSeguro: TemaCampanha = React.useMemo(() => ({
     cores: {
       primaria: tema?.cores?.primaria || TEMA_PADRAO.cores.primaria,
       destaque: tema?.cores?.destaque || TEMA_PADRAO.cores.destaque,
       fundo: tema?.cores?.fundo || TEMA_PADRAO.cores.fundo,
       texto: tema?.cores?.texto || TEMA_PADRAO.cores.texto,
+      titulos: tema?.cores?.titulos || TEMA_PADRAO.cores.titulos,
+      descricoes: tema?.cores?.descricoes || TEMA_PADRAO.cores.descricoes,
       botao: tema?.cores?.botao || TEMA_PADRAO.cores.botao,
       textoBotao: tema?.cores?.textoBotao || TEMA_PADRAO.cores.textoBotao,
+      cardFundo: tema?.cores?.cardFundo || TEMA_PADRAO.cores.cardFundo,
+      cardBorda: tema?.cores?.cardBorda || TEMA_PADRAO.cores.cardBorda,
+      faviconFundo: tema?.cores?.faviconFundo || TEMA_PADRAO.cores.faviconFundo,
+      iconeCor: tema?.cores?.iconeCor || TEMA_PADRAO.cores.iconeCor,
     },
     botao: {
       formato: tema?.botao?.formato || TEMA_PADRAO.botao.formato,
-      tamanho: tema?.botao?.tamanho || TEMA_PADRAO.botao.tamanho,
-      sombra: tema?.botao?.sombra ?? TEMA_PADRAO.botao.sombra,
-      cta: tema?.botao?.cta || TEMA_PADRAO.botao.cta,
+      tamanhoAltura: tema?.botao?.tamanhoAltura ?? TEMA_PADRAO.botao.tamanhoAltura,
+      tamanhoTexto: tema?.botao?.tamanhoTexto ?? TEMA_PADRAO.botao.tamanhoTexto,
+      estilo: tema?.botao?.estilo || TEMA_PADRAO.botao.estilo,
+      estiloPacotes: tema?.botao?.estiloPacotes || TEMA_PADRAO.botao.estiloPacotes,
+      estiloCotas: tema?.botao?.estiloCotas || TEMA_PADRAO.botao.estiloCotas,
+      textoCompra: tema?.botao?.textoCompra || TEMA_PADRAO.botao.textoCompra,
     },
     tipografia: {
-      fonte: tema?.tipografia?.fonte || TEMA_PADRAO.tipografia.fonte,
-      tamanhoTitulo: tema?.tipografia?.tamanhoTitulo || TEMA_PADRAO.tipografia.tamanhoTitulo,
+      fonteTitulo: tema?.tipografia?.fonteTitulo || TEMA_PADRAO.tipografia.fonteTitulo,
+      fonteTexto: tema?.tipografia?.fonteTexto || TEMA_PADRAO.tipografia.fonteTexto,
+      tamanhoTitulo: (tema?.tipografia?.tamanhoTitulo ?? TEMA_PADRAO.tipografia.tamanhoTitulo),
+      tamanhoTexto: (tema?.tipografia?.tamanhoTexto ?? TEMA_PADRAO.tipografia.tamanhoTexto),
     },
+    fundoMidia: {
+      tipo: tema?.fundoMidia?.tipo || TEMA_PADRAO.fundoMidia?.tipo || 'cor',
+      url: tema?.fundoMidia?.url || TEMA_PADRAO.fundoMidia?.url || '',
+    },
+    organizadorCabecalho: {
+      logoTamanho: (tema?.organizadorCabecalho?.logoTamanho ?? TEMA_PADRAO.organizadorCabecalho?.logoTamanho) || 40,
+      logoAlinhamento: tema?.organizadorCabecalho?.logoAlinhamento || TEMA_PADRAO.organizadorCabecalho?.logoAlinhamento || 'centro',
+    },
+    ganhadorCelebracaoEstilo: tema?.ganhadorCelebracaoEstilo || TEMA_PADRAO.ganhadorCelebracaoEstilo || 'confetes',
     layout: {
       ordem: (tema?.layout?.ordem && tema.layout.ordem.length > 0)
         ? tema.layout.ordem
         : TEMA_PADRAO.layout.ordem,
       visivel: { ...TEMA_PADRAO.layout.visivel, ...(tema?.layout?.visivel || {}) }
     }
-  };
+  }), [tema]);
 
-  // Carregar estilos salvos da API
   const carregarEstilos = async () => {
     try {
       setCarregandoEstilos(true);
@@ -148,7 +134,6 @@ export const TemaBuilderView: React.FC<Props> = ({
     setTimeout(() => setToastMsg(null), 3000);
   };
 
-  // Helper para atualizar campos parciais do tema
   const atualizarTema = (parcial: Partial<TemaCampanha>) => {
     const novoTema: TemaCampanha = {
       ...temaSeguro,
@@ -156,6 +141,8 @@ export const TemaBuilderView: React.FC<Props> = ({
       cores: { ...temaSeguro.cores, ...(parcial.cores || {}) },
       botao: { ...temaSeguro.botao, ...(parcial.botao || {}) },
       tipografia: { ...temaSeguro.tipografia, ...(parcial.tipografia || {}) },
+      fundoMidia: { ...temaSeguro.fundoMidia, ...(parcial.fundoMidia || {}) },
+      organizadorCabecalho: { ...temaSeguro.organizadorCabecalho, ...(parcial.organizadorCabecalho || {}) },
       layout: {
         ordem: parcial.layout?.ordem || temaSeguro.layout.ordem,
         visivel: { ...temaSeguro.layout.visivel, ...(parcial.layout?.visivel || {}) }
@@ -167,9 +154,8 @@ export const TemaBuilderView: React.FC<Props> = ({
     }
   };
 
-  // Restaurar padrão
   const handleRestaurarPadrao = () => {
-    if (window.confirm('Deseja restaurar todas as cores, botão e ordem dos blocos para o Tema Padrão?')) {
+    if (window.confirm('Deseja restaurar todas as cores, botão e layout para o Tema Padrão?')) {
       onChangeTema(TEMA_PADRAO);
       if (onChangeCampanha) {
         onChangeCampanha(prev => ({ ...prev, tema: TEMA_PADRAO }));
@@ -178,9 +164,7 @@ export const TemaBuilderView: React.FC<Props> = ({
     }
   };
 
-  // Reordenação de blocos
   const ordemAtual = [...temaSeguro.layout.ordem];
-  // Garante que todos os blocos conhecidos estão na lista de ordem
   BLOCOS_DISPONIVEIS.forEach(b => {
     if (!ordemAtual.includes(b.id)) {
       ordemAtual.push(b.id);
@@ -191,55 +175,13 @@ export const TemaBuilderView: React.FC<Props> = ({
     const novaOrdem = [...ordemAtual];
     const targetIdx = direcao === 'cima' ? idx - 1 : idx + 1;
     if (targetIdx < 0 || targetIdx >= novaOrdem.length) return;
-    
     const [removido] = novaOrdem.splice(idx, 1);
     novaOrdem.splice(targetIdx, 0, removido);
-    
     atualizarTema({
-      layout: {
-        ...temaSeguro.layout,
-        ordem: novaOrdem
-      }
+      layout: { ...temaSeguro.layout, ordem: novaOrdem }
     });
   };
 
-  const handleDragStart = (idx: number) => {
-    setDraggedIdx(idx);
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-  };
-
-  const handleDrop = (dropIdx: number) => {
-    if (draggedIdx === null || draggedIdx === dropIdx) return;
-    const novaOrdem = [...ordemAtual];
-    const [removido] = novaOrdem.splice(draggedIdx, 1);
-    novaOrdem.splice(dropIdx, 0, removido);
-    
-    setDraggedIdx(null);
-    atualizarTema({
-      layout: {
-        ...temaSeguro.layout,
-        ordem: novaOrdem
-      }
-    });
-  };
-
-  const toggleVisibilidadeBloco = (blocoId: string) => {
-    const estadoAtual = temaSeguro.layout.visivel[blocoId] !== false;
-    atualizarTema({
-      layout: {
-        ...temaSeguro.layout,
-        visivel: {
-          ...temaSeguro.layout.visivel,
-          [blocoId]: !estadoAtual
-        }
-      }
-    });
-  };
-
-  // Salvar novo estilo reutilizável na API
   const handleSalvarEstilo = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nomeNovoEstilo.trim()) return;
@@ -280,7 +222,6 @@ export const TemaBuilderView: React.FC<Props> = ({
     }
   };
 
-  // Aplicar estilo salvo
   const handleAplicarEstilo = (estilo: EstiloSalvo) => {
     onChangeTema(estilo.tema);
     if (onChangeCampanha) {
@@ -289,28 +230,7 @@ export const TemaBuilderView: React.FC<Props> = ({
     exibirToast(`Estilo "${estilo.nome}" aplicado à campanha!`);
   };
 
-  // Excluir estilo salvo
-  const handleExcluirEstilo = async (id: string, nome: string) => {
-    if (!window.confirm(`Deseja realmente excluir o estilo "${nome}"?`)) return;
-    try {
-      const u = auth.currentUser;
-      if (!u) return;
-      const token = await u.getIdToken();
-      const res = await fetch(`/api/admin/estilos/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        setEstilosSalvos(prev => prev.filter(e => e.id !== id));
-        exibirToast('Estilo excluído.');
-      }
-    } catch (err) {
-      alert('Erro ao excluir estilo.');
-    }
-  };
-
-  // Objeto de mock para campanha preview com dados de exemplo se vazios
-  const campanhaPreview: Campanha = {
+  const campanhaPreview: Campanha = React.useMemo(() => ({
     id: campanha.id || 'preview-campanha',
     codigo: campanha.codigo || 'sorteio-preview',
     titulo: campanha.titulo || 'iPhone 16 Pro Max 256GB Titanium',
@@ -339,22 +259,25 @@ export const TemaBuilderView: React.FC<Props> = ({
     exibirPremios: campanha.exibirPremios ?? true,
     exibirCotasPremiadas: campanha.exibirCotasPremiadas ?? true,
     status: campanha.status || 'publicada',
-    premios: (campanha.premios && campanha.premios.length > 0) ? campanha.premios : [
+    premios: [
       { posicao: 1, descricao: 'iPhone 16 Pro Max 256GB Lacrado' },
       { posicao: 2, descricao: 'R$ 2.500,00 no Pix Instantâneo' },
       { posicao: 3, descricao: 'AirPods Pro 2ª Geração' }
     ],
-    cotasPremiadas: (campanha.cotasPremiadas && campanha.cotasPremiadas.length > 0) ? campanha.cotasPremiadas : [
+    cotasPremiadas: [
       { numero: '00123', premio: 'R$ 500 no Pix', status: 'disponivel', pedidoId: null },
       { numero: '04567', premio: 'R$ 250 no Pix', status: 'disponivel', pedidoId: null },
       { numero: '08999', premio: 'R$ 100 no Pix', status: 'disponivel', pedidoId: null }
     ],
-    promocoes: (campanha.promocoes && campanha.promocoes.length > 0) ? campanha.promocoes : [],
-    descontoPorValorTotal: campanha.descontoPorValorTotal || [],
+    promocoes: [
+      { quantidade: 10, valor: 4.50, destaque: false },
+      { quantidade: 50, valor: 20.00, destaque: true },
+      { quantidade: 100, valor: 35.00, destaque: false }
+    ],
     ofertasRelampago: campanha.ofertasRelampago || [],
-    criadaEm: campanha.criadaEm || new Date().toISOString(),
+    criadaEm: campanha.criadaEm || '2026-01-01T00:00:00.000Z',
     tema: temaSeguro
-  };
+  }), [campanha, temaSeguro]);
 
   return (
     <div className="space-y-4">
@@ -367,55 +290,56 @@ export const TemaBuilderView: React.FC<Props> = ({
       )}
 
       {/* Header do Builder com Controles Globais */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
-              <Palette className="w-4 h-4" />
-            </div>
-            <div>
-              <h2 className="text-base font-black text-white">
-                Personalizador Visual de Tema & Layout
-              </h2>
-              <p className="text-xs text-slate-400">
-                Ajuste cores, estilo do botão CTA, tipografia e a ordem dos blocos com prévia em tempo real.
-              </p>
-            </div>
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/30">
+            <Palette className="w-5 h-5" />
+          </div>
+          <div>
+            <h2 className="text-base font-black text-white">
+              Personalizador Visual de Tema & Layout
+            </h2>
+            <p className="text-xs text-slate-400">
+              Personalize cores, fontes, botões e ordem dos blocos com prévia em tempo real.
+            </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          <button
-            type="button"
-            onClick={handleRestaurarPadrao}
-            className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition flex items-center gap-1.5 border border-slate-700/60"
-            title="Restaurar configurações padrão"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span>Restaurar Padrão</span>
-          </button>
+        <div className="flex items-center justify-between md:justify-end gap-2.5 flex-wrap">
+          {/* Restaurar padrão e Salvar alterações lado a lado */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleRestaurarPadrao}
+              className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl transition flex items-center gap-1.5 border border-slate-700"
+              title="Restaurar padrão"
+            >
+              <RotateCcw className="w-4 h-4" />
+              <span>Restaurar Padrão</span>
+            </button>
 
+            {onSalvar && (
+              <button
+                type="button"
+                onClick={onSalvar}
+                disabled={salvando}
+                className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 text-slate-950 text-xs font-black rounded-xl transition flex items-center gap-1.5 shadow-lg shadow-emerald-500/20"
+              >
+                <Save className="w-4 h-4" />
+                <span>{salvando ? 'Salvando...' : 'Salvar Alterações'}</span>
+              </button>
+            )}
+          </div>
+
+          {/* Salvar como estilo mais discretamente no canto */}
           <button
             type="button"
             onClick={() => setModalNovoEstiloAberto(true)}
-            className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-emerald-400 text-xs font-bold rounded-xl transition flex items-center gap-1.5 border border-emerald-500/30"
-            title="Salvar tema atual como estilo reutilizável"
+            className="p-2.5 bg-slate-950 hover:bg-slate-800 text-slate-400 hover:text-emerald-400 border border-slate-800 rounded-xl transition"
+            title="Salvar tema como estilo reutilizável"
           >
-            <Bookmark className="w-3.5 h-3.5" />
-            <span>Salvar como Estilo</span>
+            <Bookmark className="w-4 h-4" />
           </button>
-
-          {onSalvar && (
-            <button
-              type="button"
-              onClick={onSalvar}
-              disabled={salvando}
-              className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 text-slate-950 text-xs font-black rounded-xl transition flex items-center gap-1.5 shadow-lg shadow-emerald-500/20"
-            >
-              <Save className="w-3.5 h-3.5" />
-              <span>{salvando ? 'Salvando...' : 'Salvar Alterações'}</span>
-            </button>
-          )}
         </div>
       </div>
 
@@ -443,82 +367,43 @@ export const TemaBuilderView: React.FC<Props> = ({
           }`}
         >
           <Smartphone className="w-4 h-4" />
-          <span>Ver Prévia ao Vivo</span>
+          <span>Prévia ao Vivo</span>
         </button>
       </div>
 
       {/* Layout Split-Screen Principal */}
-      <div className="flex flex-col gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
-        {/* COLUNA DA ESQUERDA: CONTROLES DO TEMA (Full width) */}
-        <div className={`w-full space-y-4 ${visualizacaoMobile === 'preview' ? 'hidden lg:block' : 'block'}`}>
+        {/* COLUNA DA ESQUERDA: CONTROLES DO TEMA */}
+        <div className={`lg:col-span-7 space-y-4 ${visualizacaoMobile === 'preview' ? 'hidden lg:block' : 'block'}`}>
           
-          {/* Navegação entre seções de customização */}
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 p-1 bg-slate-900 border border-slate-800 rounded-xl">
-            <button
-              type="button"
-              onClick={() => setSecaoEditor('cores')}
-              className={`py-2 px-1.5 rounded-lg text-xs font-bold flex flex-col sm:flex-row items-center justify-center gap-1.5 transition ${
-                secaoEditor === 'cores'
-                  ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
-              }`}
-            >
-              <Palette className="w-3.5 h-3.5" />
-              <span className="truncate">Cores</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setSecaoEditor('botao')}
-              className={`py-2 px-1.5 rounded-lg text-xs font-bold flex flex-col sm:flex-row items-center justify-center gap-1.5 transition ${
-                secaoEditor === 'botao'
-                  ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
-              }`}
-            >
-              <MousePointer className="w-3.5 h-3.5" />
-              <span className="truncate">Botão CTA</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setSecaoEditor('tipografia')}
-              className={`py-2 px-1.5 rounded-lg text-xs font-bold flex flex-col sm:flex-row items-center justify-center gap-1.5 transition ${
-                secaoEditor === 'tipografia'
-                  ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
-              }`}
-            >
-              <Type className="w-3.5 h-3.5" />
-              <span className="truncate">Tipografia</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setSecaoEditor('blocos')}
-              className={`py-2 px-1.5 rounded-lg text-xs font-bold flex flex-col sm:flex-row items-center justify-center gap-1.5 transition ${
-                secaoEditor === 'blocos'
-                  ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
-              }`}
-            >
-              <Layout className="w-3.5 h-3.5" />
-              <span className="truncate">Blocos</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setSecaoEditor('estilos')}
-              className={`py-2 px-1.5 rounded-lg text-xs font-bold flex flex-col sm:flex-row items-center justify-center gap-1.5 transition ${
-                secaoEditor === 'estilos'
-                  ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
-              }`}
-            >
-              <FolderHeart className="w-3.5 h-3.5" />
-              <span className="truncate">Estilos</span>
-            </button>
+          {/* Navegação entre seções */}
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-1 p-1 bg-slate-900 border border-slate-800 rounded-xl">
+            {[
+              { id: 'cores', label: 'Cores', icon: Palette },
+              { id: 'botao', label: 'Botões', icon: MousePointer },
+              { id: 'tipografia', label: 'Fontes', icon: Type },
+              { id: 'blocos', label: 'Blocos', icon: Layout },
+              { id: 'organizador', label: 'Logo / Topo', icon: User },
+              { id: 'estilos', label: 'Estilos', icon: FolderHeart },
+            ].map(tab => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setSecaoEditor(tab.id as any)}
+                  className={`py-2 px-1 rounded-lg text-xs font-bold flex flex-col items-center justify-center gap-1 transition ${
+                    secaoEditor === tab.id
+                      ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span className="truncate text-[10px]">{tab.label}</span>
+                </button>
+              );
+            })}
           </div>
 
           {/* 1. SEÇÃO CORES */}
@@ -527,189 +412,53 @@ export const TemaBuilderView: React.FC<Props> = ({
               <div className="border-b border-slate-800 pb-3">
                 <h3 className="text-sm font-black text-white flex items-center gap-2">
                   <Palette className="w-4 h-4 text-emerald-400" />
-                  Paleta de Cores da Campanha
+                  Paleta de Cores Completa
                 </h3>
                 <p className="text-xs text-slate-400">
-                  Personalize a identidade visual completa da página de sorteio.
+                  Personalize cada detalhe cromático da página pública de sua campanha.
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                
-                {/* Cor Primária */}
-                <div className="p-3.5 bg-slate-950/80 border border-slate-800 rounded-xl space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-slate-200">
-                      Cor Primária / Destaques
-                    </label>
-                    <span className="text-[10px] text-slate-500 font-mono">
-                      {temaSeguro.cores.primaria}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="color"
-                      value={temaSeguro.cores.primaria}
-                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, primaria: e.target.value } })}
-                      className="w-10 h-10 rounded-lg cursor-pointer bg-transparent border-0 p-0"
-                    />
-                    <input
-                      type="text"
-                      value={temaSeguro.cores.primaria}
-                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, primaria: e.target.value } })}
-                      className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono text-white uppercase focus:border-emerald-500 focus:outline-none"
-                    />
-                  </div>
-                  <p className="text-[11px] text-slate-400">
-                    Aplicada em badges, percentual de progresso e valores totais.
-                  </p>
-                </div>
-
-                {/* Cor de Destaque */}
-                <div className="p-3.5 bg-slate-950/80 border border-slate-800 rounded-xl space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-slate-200">
-                      Cor de Destaque Secundário
-                    </label>
-                    <span className="text-[10px] text-slate-500 font-mono">
-                      {temaSeguro.cores.destaque}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="color"
-                      value={temaSeguro.cores.destaque}
-                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, destaque: e.target.value } })}
-                      className="w-10 h-10 rounded-lg cursor-pointer bg-transparent border-0 p-0"
-                    />
-                    <input
-                      type="text"
-                      value={temaSeguro.cores.destaque}
-                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, destaque: e.target.value } })}
-                      className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono text-white uppercase focus:border-emerald-500 focus:outline-none"
-                    />
-                  </div>
-                  <p className="text-[11px] text-slate-400">
-                    Utilizada em ícones complementares e detalhes de ênfase.
-                  </p>
-                </div>
-
-                {/* Cor de Fundo */}
-                <div className="p-3.5 bg-slate-950/80 border border-slate-800 rounded-xl space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-slate-200">
-                      Cor de Fundo da Página
-                    </label>
-                    <span className="text-[10px] text-slate-500 font-mono">
-                      {temaSeguro.cores.fundo}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="color"
-                      value={temaSeguro.cores.fundo}
-                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, fundo: e.target.value } })}
-                      className="w-10 h-10 rounded-lg cursor-pointer bg-transparent border-0 p-0"
-                    />
-                    <input
-                      type="text"
-                      value={temaSeguro.cores.fundo}
-                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, fundo: e.target.value } })}
-                      className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono text-white uppercase focus:border-emerald-500 focus:outline-none"
-                    />
-                  </div>
-                  <p className="text-[11px] text-slate-400">
-                    Fundo base da experiência pública (padrão: dark slate).
-                  </p>
-                </div>
-
-                {/* Cor do Texto */}
-                <div className="p-3.5 bg-slate-950/80 border border-slate-800 rounded-xl space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-slate-200">
-                      Cor do Texto Base
-                    </label>
-                    <span className="text-[10px] text-slate-500 font-mono">
-                      {temaSeguro.cores.texto}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="color"
-                      value={temaSeguro.cores.texto}
-                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, texto: e.target.value } })}
-                      className="w-10 h-10 rounded-lg cursor-pointer bg-transparent border-0 p-0"
-                    />
-                    <input
-                      type="text"
-                      value={temaSeguro.cores.texto}
-                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, texto: e.target.value } })}
-                      className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono text-white uppercase focus:border-emerald-500 focus:outline-none"
-                    />
-                  </div>
-                  <p className="text-[11px] text-slate-400">
-                    Cor principal de títulos e informações textuais.
-                  </p>
-                </div>
-
-                {/* Cor do Botão CTA */}
-                <div className="p-3.5 bg-slate-950/80 border border-slate-800 rounded-xl space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-slate-200">
-                      Fundo do Botão CTA
-                    </label>
-                    <span className="text-[10px] text-slate-500 font-mono">
-                      {temaSeguro.cores.botao}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="color"
-                      value={temaSeguro.cores.botao}
-                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, botao: e.target.value } })}
-                      className="w-10 h-10 rounded-lg cursor-pointer bg-transparent border-0 p-0"
-                    />
-                    <input
-                      type="text"
-                      value={temaSeguro.cores.botao}
-                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, botao: e.target.value } })}
-                      className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono text-white uppercase focus:border-emerald-500 focus:outline-none"
-                    />
-                  </div>
-                  <p className="text-[11px] text-slate-400">
-                    Cor do botão principal de compra fixo na parte inferior.
-                  </p>
-                </div>
-
-                {/* Cor do Texto do Botão CTA */}
-                <div className="p-3.5 bg-slate-950/80 border border-slate-800 rounded-xl space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-slate-200">
-                      Texto do Botão CTA
-                    </label>
-                    <span className="text-[10px] text-slate-500 font-mono">
-                      {temaSeguro.cores.textoBotao}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="color"
-                      value={temaSeguro.cores.textoBotao}
-                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, textoBotao: e.target.value } })}
-                      className="w-10 h-10 rounded-lg cursor-pointer bg-transparent border-0 p-0"
-                    />
-                    <input
-                      type="text"
-                      value={temaSeguro.cores.textoBotao}
-                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, textoBotao: e.target.value } })}
-                      className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono text-white uppercase focus:border-emerald-500 focus:outline-none"
-                    />
-                  </div>
-                  <p className="text-[11px] text-slate-400">
-                    Garante alto contraste sobre o fundo do botão.
-                  </p>
-                </div>
-
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                {[
+                  { key: 'primaria', label: 'Cor Primária / Destaques', desc: 'Badges e elementos principais' },
+                  { key: 'destaque', label: 'Cor Destaque Secundário', desc: 'Gradientes e ênfases' },
+                  { key: 'fundo', label: 'Cor de Fundo da Página', desc: 'Fundo principal da tela' },
+                  { key: 'texto', label: 'Cor do Texto Geral', desc: 'Parágrafos e informações' },
+                  { key: 'titulos', label: 'Cor dos Títulos', desc: 'Cabeçalhos e nomes de prêmios' },
+                  { key: 'descricoes', label: 'Cor das Descrições', desc: 'Subtítulos e textos secundários' },
+                  { key: 'botao', label: 'Fundo do Botão de Compra', desc: 'Botão CTA principal' },
+                  { key: 'textoBotao', label: 'Texto do Botão de Compra', desc: 'Texto legível sobre o botão' },
+                  { key: 'cardFundo', label: 'Fundo dos Cards', desc: 'Blocos de pacotes e prêmios' },
+                  { key: 'cardBorda', label: 'Borda dos Cards', desc: 'Delimitação de caixas e modais' },
+                  { key: 'faviconFundo', label: 'Fundo do Ícone / Favicon', desc: 'Badges circulares de ícones' },
+                  { key: 'iconeCor', label: 'Cor dos Ícones e Símbolos', desc: 'Símbolos de regulamento e prêmios' },
+                ].map(item => {
+                  const val = (temaSeguro.cores as any)[item.key];
+                  return (
+                    <div key={item.key} className="p-3 bg-slate-950/80 border border-slate-800 rounded-xl space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-slate-200">{item.label}</label>
+                        <span className="text-[10px] text-slate-500 font-mono uppercase">{val}</span>
+                      </div>
+                      <div className="flex items-center gap-2.5">
+                        <input
+                          type="color"
+                          value={val}
+                          onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [item.key]: e.target.value } })}
+                          className="w-9 h-9 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                        />
+                        <input
+                          type="text"
+                          value={val}
+                          onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [item.key]: e.target.value } })}
+                          className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono text-white uppercase focus:border-emerald-500 focus:outline-none"
+                        />
+                      </div>
+                      <p className="text-[10px] text-slate-400">{item.desc}</p>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -720,104 +469,207 @@ export const TemaBuilderView: React.FC<Props> = ({
               <div className="border-b border-slate-800 pb-3">
                 <h3 className="text-sm font-black text-white flex items-center gap-2">
                   <MousePointer className="w-4 h-4 text-emerald-400" />
-                  Formato e Estilo do Botão de Compra
+                  Estilo e Formato dos Botões
                 </h3>
                 <p className="text-xs text-slate-400">
-                  Configure o visual do botão flutuante de checkout e conversão.
+                  Configure cantos, tamanhos, estilos Linktree (transparente, 3D, vidro) e o texto de compra.
                 </p>
               </div>
 
-              {/* Formato do Botão */}
-              <div>
-                <label className="text-xs font-bold text-slate-300 block mb-2">
-                  Formato dos Cantos do Botão
+              {/* Texto do Botão de Compra */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-300 block">
+                  Texto do Botão de Compra
                 </label>
-                <div className="grid grid-cols-3 gap-3">
+                <input
+                  type="text"
+                  value={temaSeguro.botao.textoCompra}
+                  onChange={e => atualizarTema({ botao: { ...temaSeguro.botao, textoCompra: e.target.value } })}
+                  placeholder="Ex: GARANTIR MEUS NÚMEROS"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-xs text-white focus:border-emerald-500 focus:outline-none font-bold"
+                />
+              </div>
+
+               {/* Formato dos Botões (Square, Rounded, Pilled, Round) */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-300 block">
+                  Formato do Botão (Square, Rounded, Pilled, Round)
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                   {[
-                    { id: 'reto', label: 'Reto', shape: 'rounded-none' },
-                    { id: 'arredondado', label: 'Arredondado', shape: 'rounded-xl' },
-                    { id: 'pill', label: 'Pílula / Pill', shape: 'rounded-full' }
+                    { id: 'square', label: 'Square', shape: 'rounded-none' },
+                    { id: 'rounded', label: 'Rounded', shape: 'rounded-xl' },
+                    { id: 'pilled', label: 'Pilled', shape: 'rounded-full px-4' },
+                    { id: 'round', label: 'Round', shape: 'rounded-full aspect-square w-10 h-10' },
                   ].map(f => (
                     <button
                       key={f.id}
                       type="button"
                       onClick={() => atualizarTema({ botao: { ...temaSeguro.botao, formato: f.id as any } })}
-                      className={`p-3.5 border text-center transition flex flex-col items-center gap-2 rounded-xl ${
+                      className={`p-3 border text-center transition flex flex-col items-center justify-center gap-2 rounded-xl ${
                         temaSeguro.botao.formato === f.id
                           ? 'border-emerald-500 bg-emerald-500/10 text-white shadow-sm'
                           : 'border-slate-800 bg-slate-950/60 text-slate-400 hover:border-slate-700'
                       }`}
                     >
-                      <div className={`w-16 h-5 bg-emerald-500/80 ${f.shape}`} />
-                      <span className="text-xs font-bold">{f.label}</span>
+                      <div className={`w-8 h-4 bg-emerald-500 flex items-center justify-center ${f.shape}`} />
+                      <span className="text-[11px] font-bold">{f.label}</span>
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* Tamanho do Botão */}
-              <div>
-                <label className="text-xs font-bold text-slate-300 block mb-2">
-                  Tamanho / Altura do Botão
+              {/* Estilo Visual do Botão (Solid, Glass, Transparent, 3D) */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-300 block">
+                  Estilo do Botão (Solid, Glass, Transparent, 3D)
                 </label>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {[
-                    { id: 'sm', label: 'Compacto (Pequeno)' },
-                    { id: 'md', label: 'Padrão (Médio)' },
-                    { id: 'lg', label: 'Impacto (Grande)' }
-                  ].map(t => (
+                    { id: 'solido', label: 'Solid' },
+                    { id: 'vidro', label: 'Glass' },
+                    { id: 'transparente', label: 'Transparent' },
+                    { id: '3d', label: '3D' },
+                  ].map(st => (
                     <button
-                      key={t.id}
+                      key={st.id}
                       type="button"
-                      onClick={() => atualizarTema({ botao: { ...temaSeguro.botao, tamanho: t.id as any } })}
-                      className={`py-3 px-3 border text-center text-xs font-bold rounded-xl transition ${
-                        temaSeguro.botao.tamanho === t.id
-                          ? 'border-emerald-500 bg-emerald-500/10 text-emerald-300 shadow-sm'
+                      onClick={() => atualizarTema({ botao: { ...temaSeguro.botao, estilo: st.id as any } })}
+                      className={`py-2 px-2.5 border text-center text-xs font-bold rounded-xl transition ${
+                        temaSeguro.botao.estilo === st.id
+                          ? 'border-emerald-500 bg-emerald-500/15 text-emerald-300'
                           : 'border-slate-800 bg-slate-950/60 text-slate-400 hover:border-slate-700'
                       }`}
                     >
-                      {t.label}
+                      {st.label}
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* Texto do CTA */}
-              <div>
-                <label className="text-xs font-bold text-slate-300 block mb-1">
-                  Texto da Chamada para Ação (CTA)
-                </label>
-                <input
-                  type="text"
-                  value={temaSeguro.botao.cta}
-                  onChange={e => atualizarTema({ botao: { ...temaSeguro.botao, cta: e.target.value } })}
-                  placeholder="Ex: PARTICIPAR DO SORTEIO"
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:border-emerald-500 focus:outline-none"
-                />
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Exemplos: "PARTICIPAR DO SORTEIO", "QUERO CONCORRER AGORA", "GARANTIR MEUS BILHETES".
-                </p>
-              </div>
-
-              {/* Sombra Projetada */}
-              <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-xl flex items-center justify-between">
-                <div>
-                  <h4 className="text-xs font-bold text-white">Sombra Projetada 3D</h4>
-                  <p className="text-[11px] text-slate-400">
-                    Aplica uma sombra elegante para dar destaque e profundidade ao botão.
-                  </p>
+              {/* Configurações Avançadas de Sombra quando 3D */}
+              {temaSeguro.botao.estilo === '3d' && (
+                <div className="p-4 bg-slate-950/90 border border-emerald-500/30 rounded-xl space-y-3 animate-in fade-in">
+                  <h4 className="text-xs font-black text-emerald-400 flex items-center gap-1.5">
+                    ⚙️ Configuração do Efeito 3D (Sombra & Altura)
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="text-slate-300 font-bold">Altura da Sombra (Elevado)</span>
+                        <span className="font-mono text-emerald-400">{temaSeguro.botao.sombraAltura ?? 4}px</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="1"
+                        max="12"
+                        value={temaSeguro.botao.sombraAltura ?? 4}
+                        onChange={e => atualizarTema({ botao: { ...temaSeguro.botao, sombraAltura: Number(e.target.value) } })}
+                        className="w-full accent-emerald-500 bg-slate-900 cursor-pointer"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="text-slate-300 font-bold">Largura / Offset da Sombra</span>
+                        <span className="font-mono text-emerald-400">{temaSeguro.botao.sombraLargura ?? 4}px</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="10"
+                        value={temaSeguro.botao.sombraLargura ?? 4}
+                        onChange={e => atualizarTema({ botao: { ...temaSeguro.botao, sombraLargura: Number(e.target.value) } })}
+                        className="w-full accent-emerald-500 bg-slate-900 cursor-pointer"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-300 block">Cor da Sombra 3D</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={temaSeguro.botao.corSombra || '#047857'}
+                        onChange={e => atualizarTema({ botao: { ...temaSeguro.botao, corSombra: e.target.value } })}
+                        className="w-8 h-8 rounded cursor-pointer bg-transparent border-0"
+                      />
+                      <input
+                        type="text"
+                        value={temaSeguro.botao.corSombra || '#047857'}
+                        onChange={e => atualizarTema({ botao: { ...temaSeguro.botao, corSombra: e.target.value } })}
+                        className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white font-mono uppercase"
+                      />
+                    </div>
+                  </div>
                 </div>
-                <label className="relative inline-flex items-center cursor-pointer">
+              )}
+
+              {/* Sliders de Altura e Tamanho de Texto */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-800">
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="font-bold text-slate-300">Altura / Padding do Botão</span>
+                    <span className="font-mono text-emerald-400">{temaSeguro.botao.tamanhoAltura}px</span>
+                  </div>
                   <input
-                    type="checkbox"
-                    checked={temaSeguro.botao.sombra}
-                    onChange={e => atualizarTema({ botao: { ...temaSeguro.botao, sombra: e.target.checked } })}
-                    className="sr-only peer"
+                    type="range"
+                    min="10"
+                    max="28"
+                    value={temaSeguro.botao.tamanhoAltura}
+                    onChange={e => atualizarTema({ botao: { ...temaSeguro.botao, tamanhoAltura: Number(e.target.value) } })}
+                    className="w-full accent-emerald-500 bg-slate-950 cursor-pointer"
                   />
-                  <div className="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
-                </label>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="font-bold text-slate-300">Tamanho da Fonte do Botão</span>
+                    <span className="font-mono text-emerald-400">{temaSeguro.botao.tamanhoTexto}px</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="12"
+                    max="22"
+                    value={temaSeguro.botao.tamanhoTexto}
+                    onChange={e => atualizarTema({ botao: { ...temaSeguro.botao, tamanhoTexto: Number(e.target.value) } })}
+                    className="w-full accent-emerald-500 bg-slate-950 cursor-pointer"
+                  />
+                </div>
               </div>
 
+              {/* Estilos específicos para Pacotes e Cotas */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-800">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-300 block">Estilo dos Botões de Pacotes Promocionais</label>
+                  <select
+                    value={temaSeguro.botao.estiloPacotes || 'solido'}
+                    onChange={e => atualizarTema({ botao: { ...temaSeguro.botao, estiloPacotes: e.target.value as any } })}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                  >
+                    <option value="solido">Sólido</option>
+                    <option value="gradiente">Gradiente</option>
+                    <option value="vidro">Vidro / Glass</option>
+                    <option value="transparente">Transparente</option>
+                    <option value="3d">3D</option>
+                    <option value="neon">Neon</option>
+                    <option value="outline">Outline</option>
+                    <option value="soft">Soft</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-300 block">Estilo da Grade de Cotas</label>
+                  <select
+                    value={temaSeguro.botao.estiloCotas || 'solido'}
+                    onChange={e => atualizarTema({ botao: { ...temaSeguro.botao, estiloCotas: e.target.value as any } })}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                  >
+                    <option value="solido">Sólido</option>
+                    <option value="vidro">Vidro</option>
+                    <option value="outline">Outline</option>
+                    <option value="soft">Soft</option>
+                  </select>
+                </div>
+              </div>
             </div>
           )}
 
@@ -827,397 +679,402 @@ export const TemaBuilderView: React.FC<Props> = ({
               <div className="border-b border-slate-800 pb-3">
                 <h3 className="text-sm font-black text-white flex items-center gap-2">
                   <Type className="w-4 h-4 text-emerald-400" />
-                  Tipografia & Fontes
+                  Tipografia & 20 Fontes do Google
                 </h3>
                 <p className="text-xs text-slate-400">
-                  Escolha a família tipográfica e o peso visual dos títulos.
+                  Escolha fontes distintas para títulos e textos, com controles de escala.
                 </p>
               </div>
 
-              {/* Família da Fonte */}
-              <div>
-                <label className="text-xs font-bold text-slate-300 block mb-2">
-                  Estilo da Família de Fontes
-                </label>
-                <div className="grid grid-cols-3 gap-3">
-                  {[
-                    { id: 'sans', label: 'Sans-serif Moderna', fontSample: 'font-sans' },
-                    { id: 'serif', label: 'Serifada Elegante', fontSample: 'font-serif' },
-                    { id: 'display', label: 'Display de Impacto', fontSample: 'font-sans tracking-tight' }
-                  ].map(f => (
-                    <button
-                      key={f.id}
-                      type="button"
-                      onClick={() => atualizarTema({ tipografia: { ...temaSeguro.tipografia, fonte: f.id as any } })}
-                      className={`p-3.5 border text-center transition flex flex-col items-center gap-1.5 rounded-xl ${
-                        temaSeguro.tipografia.fonte === f.id
-                          ? 'border-emerald-500 bg-emerald-500/10 text-emerald-300 shadow-sm'
-                          : 'border-slate-800 bg-slate-950/60 text-slate-400 hover:border-slate-700'
-                      }`}
-                    >
-                      <span className={`text-xl font-black text-white ${f.fontSample}`}>Aa</span>
-                      <span className="text-xs font-bold">{f.label}</span>
-                    </button>
-                  ))}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-300 block">Fonte dos Títulos (20 opções)</label>
+                  <select
+                    value={temaSeguro.tipografia.fonteTitulo}
+                    onChange={e => atualizarTema({ tipografia: { ...temaSeguro.tipografia, fonteTitulo: e.target.value } })}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                  >
+                    {GOOGLE_FONTS_LIST.map(f => (
+                      <option key={f} value={f}>{f}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-300 block">Fonte dos Textos (20 opções)</label>
+                  <select
+                    value={temaSeguro.tipografia.fonteTexto}
+                    onChange={e => atualizarTema({ tipografia: { ...temaSeguro.tipografia, fonteTexto: e.target.value } })}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                  >
+                    {GOOGLE_FONTS_LIST.map(f => (
+                      <option key={f} value={f}>{f}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
-              {/* Tamanho do Título */}
-              <div>
-                <label className="text-xs font-bold text-slate-300 block mb-2">
-                  Tamanho do Título do Sorteio
-                </label>
-                <div className="grid grid-cols-3 gap-3">
-                  {[
-                    { id: 'sm', label: 'Discreto (Pequeno)' },
-                    { id: 'md', label: 'Padrão (Médio)' },
-                    { id: 'lg', label: 'Imponente (Grande)' }
-                  ].map(t => (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => atualizarTema({ tipografia: { ...temaSeguro.tipografia, tamanhoTitulo: t.id as any } })}
-                      className={`py-3 px-3 border text-center text-xs font-bold rounded-xl transition ${
-                        temaSeguro.tipografia.tamanhoTitulo === t.id
-                          ? 'border-emerald-500 bg-emerald-500/10 text-emerald-300 shadow-sm'
-                          : 'border-slate-800 bg-slate-950/60 text-slate-400 hover:border-slate-700'
-                      }`}
-                    >
-                      {t.label}
-                    </button>
-                  ))}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-800">
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="font-bold text-slate-300">Tamanho Base Títulos</span>
+                    <span className="font-mono text-emerald-400">{temaSeguro.tipografia.tamanhoTitulo}px</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="18"
+                    max="36"
+                    value={temaSeguro.tipografia.tamanhoTitulo}
+                    onChange={e => atualizarTema({ tipografia: { ...temaSeguro.tipografia, tamanhoTitulo: Number(e.target.value) } })}
+                    className="w-full accent-emerald-500 bg-slate-950 cursor-pointer"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="font-bold text-slate-300">Tamanho Base Textos</span>
+                    <span className="font-mono text-emerald-400">{temaSeguro.tipografia.tamanhoTexto}px</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="12"
+                    max="20"
+                    value={temaSeguro.tipografia.tamanhoTexto}
+                    onChange={e => atualizarTema({ tipografia: { ...temaSeguro.tipografia, tamanhoTexto: Number(e.target.value) } })}
+                    className="w-full accent-emerald-500 bg-slate-950 cursor-pointer"
+                  />
                 </div>
               </div>
-
             </div>
           )}
 
-          {/* 4. SEÇÃO BLOCOS & ORDEM (DRAG & DROP) */}
+          {/* 4. SEÇÃO BLOCOS E FUNDO */}
           {secaoEditor === 'blocos' && (
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-5 animate-in fade-in">
-              <div className="border-b border-slate-800 pb-3 flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-black text-white flex items-center gap-2">
-                    <Layout className="w-4 h-4 text-emerald-400" />
-                    Ordem & Visibilidade dos Blocos
-                  </h3>
-                  <p className="text-xs text-slate-400">
-                    Arraste para reordenar a sequência da página ou desative blocos indesejados.
-                  </p>
-                </div>
-                <span className="text-[11px] font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">
-                  {ordemAtual.length} blocos
-                </span>
+              <div className="border-b border-slate-800 pb-3">
+                <h3 className="text-sm font-black text-white flex items-center gap-2">
+                  <Layout className="w-4 h-4 text-emerald-400" />
+                  Ordem dos Blocos e Fundo Multimídia
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Organize a ordem dos blocos e adicione imagens ou vídeos de fundo em loop.
+                </p>
               </div>
 
-              {/* Lista Interativa de Blocos */}
-              <div className="space-y-2">
-                {ordemAtual.map((blocoId, idx) => {
-                  const blocoInfo = BLOCOS_DISPONIVEIS.find(b => b.id === blocoId) || {
-                    id: blocoId,
-                    nome: blocoId,
-                    descricao: 'Bloco da página',
-                    icone: '📦'
-                  };
-                  const visivel = temaSeguro.layout.visivel[blocoId] !== false;
-
-                  return (
-                    <div
-                      key={blocoId}
-                      draggable
-                      onDragStart={() => handleDragStart(idx)}
-                      onDragOver={handleDragOver}
-                      onDrop={() => handleDrop(idx)}
-                      className={`p-3.5 rounded-xl border transition flex items-center gap-3 select-none ${
-                        visivel
-                          ? 'bg-slate-950/90 border-slate-800 hover:border-slate-700'
-                          : 'bg-slate-950/40 border-slate-850 opacity-60'
-                      } ${draggedIdx === idx ? 'border-emerald-500 bg-emerald-500/10 scale-[0.99]' : ''}`}
+              {/* Fundo Multimídia */}
+              <div className="space-y-3 p-3.5 bg-slate-950/80 border border-slate-800 rounded-xl">
+                <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
+                  <ImageIcon className="w-3.5 h-3.5 text-emerald-400" />
+                  Fundo da Página (Cor, Imagem ou Vídeo)
+                </h4>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: 'cor', label: 'Cor Sólida' },
+                    { id: 'imagem', label: 'Imagem URL' },
+                    { id: 'video', label: 'Vídeo Loop (MP4)' },
+                  ].map(m => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => atualizarTema({ fundoMidia: { ...temaSeguro.fundoMidia, tipo: m.id as any } })}
+                      className={`py-2 px-2 text-xs font-bold border rounded-xl transition ${
+                        temaSeguro.fundoMidia?.tipo === m.id
+                          ? 'border-emerald-500 bg-emerald-500/15 text-emerald-300'
+                          : 'border-slate-800 bg-slate-900 text-slate-400'
+                      }`}
                     >
-                      {/* Alça de Arrastar */}
-                      <div 
-                        className="cursor-grab active:cursor-grabbing text-slate-500 hover:text-slate-300 p-1"
-                        title="Arraste para reposicionar"
-                      >
-                        <GripVertical className="w-4 h-4" />
-                      </div>
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
 
-                      {/* Posição Numérica */}
-                      <div className="w-6 h-6 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 flex items-center justify-center text-xs font-black shrink-0">
-                        {idx + 1}
-                      </div>
-
-                      {/* Ícone e Nome */}
-                      <div className="text-xl shrink-0">{blocoInfo.icone}</div>
-
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h4 className="text-xs font-bold text-white truncate">
-                            {blocoInfo.nome}
-                          </h4>
-                          {!visivel && (
-                            <span className="text-[10px] uppercase font-bold text-amber-400 bg-amber-500/15 px-1.5 py-0.5 rounded">
-                              Oculto
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-[11px] text-slate-400 truncate">
-                          {blocoInfo.descricao}
-                        </p>
-                      </div>
-
-                      {/* Botões de Subir / Descer para acessibilidade */}
-                      <div className="flex items-center gap-1 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => moverBloco(idx, 'cima')}
-                          disabled={idx === 0}
-                          className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-30 text-slate-300 transition"
-                          title="Subir bloco"
-                        >
-                          <ArrowUp className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => moverBloco(idx, 'baixo')}
-                          disabled={idx === ordemAtual.length - 1}
-                          className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-30 text-slate-300 transition"
-                          title="Descer bloco"
-                        >
-                          <ArrowDown className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-
-                      {/* Toggle de Visibilidade */}
-                      <div className="shrink-0 pl-1 border-l border-slate-800">
-                        <label className="relative inline-flex items-center cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={visivel}
-                            onChange={() => toggleVisibilidadeBloco(blocoId)}
-                            className="sr-only peer"
-                          />
-                          <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
-                        </label>
-                      </div>
-
-                    </div>
-                  );
-                })}
+                {temaSeguro.fundoMidia?.tipo !== 'cor' && (
+                  <div className="space-y-1 pt-1">
+                    <label className="text-[11px] text-slate-400 block">
+                      URL da {temaSeguro.fundoMidia?.tipo === 'video' ? 'Vídeo (MP4/WebM)' : 'Imagem de Fundo'}
+                    </label>
+                    <input
+                      type="url"
+                      value={temaSeguro.fundoMidia?.url || ''}
+                      onChange={e => atualizarTema({ fundoMidia: { ...temaSeguro.fundoMidia, url: e.target.value } })}
+                      placeholder={temaSeguro.fundoMidia?.tipo === 'video' ? 'https://.../video.mp4' : 'https://.../background.jpg'}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                    />
+                  </div>
+                )}
               </div>
 
+              {/* Estilo de Celebração de Ganhadores */}
+              <div className="space-y-2 p-3.5 bg-slate-950/80 border border-slate-800 rounded-xl">
+                <label className="text-xs font-bold text-white block">
+                  Estilo de Comemoração de Ganhadores / Cotas Premiadas
+                </label>
+                <select
+                  value={temaSeguro.ganhadorCelebracaoEstilo || 'confetes'}
+                  onChange={e => atualizarTema({ ganhadorCelebracaoEstilo: e.target.value as any })}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                >
+                  <option value="confetes">🎉 Chuva de Confetes</option>
+                  <option value="estrela">⭐ Explosão de Estrelas</option>
+                  <option value="fogo">🔥 Efeito Chamas / Fogo</option>
+                  <option value="coracao">💖 Corações Amados</option>
+                  <option value="moeda">🪙 Moedas de Ouro</option>
+                  <option value="trofeu">🏆 Troféu de Ouro</option>
+                  <option value="diamante">💎 Diamantes Brilhantes</option>
+                  <option value="raio">⚡ Raios de Energia</option>
+                  <option value="coroa">👑 Coroa Real</option>
+                  <option value="foguete">🚀 Foguete ao Espaço</option>
+                </select>
+              </div>
+
+              {/* Reordenação de Blocos */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-300 block">
+                  Ordem dos Blocos da Página
+                </label>
+                <div className="space-y-2">
+                  {ordemAtual.map((blocoId, idx) => {
+                    const info = BLOCOS_DISPONIVEIS.find(b => b.id === blocoId) || { nome: blocoId, descricao: '', icone: '📦' };
+                    const visivel = temaSeguro.layout.visivel[blocoId] !== false;
+
+                    return (
+                      <div 
+                        key={blocoId}
+                        className={`p-3 rounded-xl border flex items-center justify-between gap-3 transition ${
+                          visivel ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-950/30 border-slate-900 opacity-60'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className="text-lg">{info.icone}</span>
+                          <div>
+                            <span className="text-xs font-bold text-white block">{info.nome}</span>
+                            <span className="text-[10px] text-slate-400 block">{info.descricao}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const v = { ...temaSeguro.layout.visivel };
+                              v[blocoId] = !visivel;
+                              atualizarTema({ layout: { ...temaSeguro.layout, visivel: v } });
+                            }}
+                            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition ${
+                              visivel ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-slate-800 text-slate-400'
+                            }`}
+                          >
+                            {visivel ? 'Visível' : 'Oculto'}
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={idx === 0}
+                            onClick={() => moverBloco(idx, 'cima')}
+                            className="p-1.5 bg-slate-900 hover:bg-slate-800 disabled:opacity-30 rounded-lg text-slate-300"
+                            title="Mover para cima"
+                          >
+                            <ArrowUp className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={idx === ordemAtual.length - 1}
+                            onClick={() => moverBloco(idx, 'baixo')}
+                            className="p-1.5 bg-slate-900 hover:bg-slate-800 disabled:opacity-30 rounded-lg text-slate-300"
+                            title="Mover para baixo"
+                          >
+                            <ArrowDown className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           )}
 
-          {/* 5. SEÇÃO ESTILOS SALVOS */}
+          {/* 5. SEÇÃO LOGO E TOPO */}
+          {secaoEditor === 'organizador' && (
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-5 animate-in fade-in">
+              <div className="border-b border-slate-800 pb-3">
+                <h3 className="text-sm font-black text-white flex items-center gap-2">
+                  <User className="w-4 h-4 text-emerald-400" />
+                  Configuração da Logo e Cabeçalho
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Defina o tamanho, alinhamento e o comportamento do clique na logo do organizador.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="font-bold text-slate-300">Tamanho da Logo no Topo</span>
+                    <span className="font-mono text-emerald-400">{temaSeguro.organizadorCabecalho?.logoTamanho || 40}px</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="28"
+                    max="64"
+                    value={temaSeguro.organizadorCabecalho?.logoTamanho || 40}
+                    onChange={e => atualizarTema({ organizadorCabecalho: { ...temaSeguro.organizadorCabecalho, logoTamanho: Number(e.target.value) } })}
+                    className="w-full accent-emerald-500 bg-slate-950 cursor-pointer"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-300 block">Alinhamento da Logo no Topo</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { id: 'esquerda', label: 'Esquerda' },
+                      { id: 'centro', label: 'Centro' },
+                      { id: 'direita', label: 'Direita' },
+                    ].map(al => (
+                      <button
+                        key={al.id}
+                        type="button"
+                        onClick={() => atualizarTema({ organizadorCabecalho: { ...temaSeguro.organizadorCabecalho, logoAlinhamento: al.id as any } })}
+                        className={`py-2 px-2 text-xs font-bold border rounded-xl transition ${
+                          temaSeguro.organizadorCabecalho?.logoAlinhamento === al.id
+                            ? 'border-emerald-500 bg-emerald-500/15 text-emerald-300'
+                            : 'border-slate-800 bg-slate-950 text-slate-400'
+                        }`}
+                      >
+                        {al.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-xl space-y-2">
+                  <h4 className="text-xs font-bold text-white">Página de Campanhas do Organizador</h4>
+                  <p className="text-[11px] text-slate-400">
+                    Quando o usuário clica na logo do organizador no topo da página, abre-se automaticamente uma página dedicada listando todas as campanhas ativas e redes sociais da conta.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 6. SEÇÃO ESTILOS SALVOS */}
           {secaoEditor === 'estilos' && (
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-5 animate-in fade-in">
               <div className="border-b border-slate-800 pb-3 flex items-center justify-between">
                 <div>
                   <h3 className="text-sm font-black text-white flex items-center gap-2">
                     <FolderHeart className="w-4 h-4 text-emerald-400" />
-                    Biblioteca de Estilos Salvos
+                    Estilos Salvos na Nuvem
                   </h3>
                   <p className="text-xs text-slate-400">
-                    Aplique combinações de estilo criadas anteriormente em um clique.
+                    Aplique temas salvos anteriormente com um clique.
                   </p>
                 </div>
-
                 <button
                   type="button"
                   onClick={() => setModalNovoEstiloAberto(true)}
-                  className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold rounded-xl transition flex items-center gap-1.5"
+                  className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black rounded-xl transition"
                 >
-                  <Bookmark className="w-3.5 h-3.5" />
-                  <span>Salvar Atual</span>
+                  Novo Estilo
                 </button>
               </div>
 
               {carregandoEstilos ? (
-                <div className="p-8 text-center text-slate-400 text-xs flex items-center justify-center gap-2">
-                  <RefreshCw className="w-4 h-4 animate-spin text-emerald-400" />
-                  Carregando seus estilos salvos...
+                <div className="p-8 text-center text-slate-400">
+                  <RefreshCw className="w-6 h-6 animate-spin mx-auto text-emerald-400 mb-2" />
+                  <p className="text-xs">Carregando seus estilos...</p>
                 </div>
               ) : estilosSalvos.length === 0 ? (
-                <div className="p-8 text-center border border-dashed border-slate-800 rounded-xl space-y-2">
-                  <FolderHeart className="w-8 h-8 text-slate-600 mx-auto" />
-                  <h4 className="text-xs font-bold text-slate-300">Nenhum estilo salvo ainda</h4>
-                  <p className="text-[11px] text-slate-500 max-w-sm mx-auto">
-                    Personalize as cores e botões como preferir e clique em "Salvar Atual" para reutilizar em todas as suas rifas.
-                  </p>
+                <div className="p-8 text-center text-slate-400">
+                  <Bookmark className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                  <p className="text-xs font-medium">Nenhum estilo salvo encontrado. Clique em "Novo Estilo" para salvar o tema atual.</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {estilosSalvos.map(estilo => (
-                    <div
-                      key={estilo.id}
-                      className="p-4 bg-slate-950/80 border border-slate-800 hover:border-slate-700 rounded-xl space-y-3 transition"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <h4 className="text-xs font-bold text-white">{estilo.nome}</h4>
-                          <span className="text-[10px] text-slate-500 font-mono">
-                            {new Date(estilo.criadoEm).toLocaleDateString('pt-BR')}
-                          </span>
-                        </div>
+                  {estilosSalvos.map(est => (
+                    <div key={est.id} className="p-3.5 bg-slate-950 border border-slate-800 rounded-xl flex items-center justify-between gap-3">
+                      <div>
+                        <span className="font-bold text-white text-xs block">{est.nome}</span>
+                        <span className="text-[10px] text-slate-500 block">Salvo em: {new Date(est.criadoEm).toLocaleDateString('pt-BR')}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
                         <button
                           type="button"
-                          onClick={() => handleExcluirEstilo(estilo.id, estilo.nome)}
-                          className="text-slate-500 hover:text-red-400 p-1 transition"
-                          title="Excluir estilo"
+                          onClick={() => handleAplicarEstilo(est)}
+                          className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold rounded-lg transition"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          Aplicar
                         </button>
                       </div>
-
-                      {/* Swatches de Cor */}
-                      <div className="flex items-center gap-1.5 p-2 bg-slate-900/90 rounded-lg border border-slate-800">
-                        <div className="w-4 h-4 rounded-full border border-slate-700" style={{ backgroundColor: estilo.tema?.cores?.primaria || '#10b981' }} title="Primária" />
-                        <div className="w-4 h-4 rounded-full border border-slate-700" style={{ backgroundColor: estilo.tema?.cores?.fundo || '#020617' }} title="Fundo" />
-                        <div className="w-4 h-4 rounded-full border border-slate-700" style={{ backgroundColor: estilo.tema?.cores?.botao || '#10b981' }} title="Botão" />
-                        <span className="text-[10px] text-slate-400 ml-auto font-mono">
-                          {estilo.tema?.botao?.formato || 'arredondado'}
-                        </span>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => handleAplicarEstilo(estilo)}
-                        className="w-full py-2 bg-slate-800 hover:bg-emerald-500/20 hover:text-emerald-300 text-slate-200 text-xs font-bold rounded-lg transition flex items-center justify-center gap-1.5 border border-slate-700/60"
-                      >
-                        <Check className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>Aplicar à Campanha</span>
-                      </button>
                     </div>
                   ))}
                 </div>
               )}
-
             </div>
           )}
 
-        </div> {/* FECHA O w-full */}
+        </div>
 
-        {/* COLUNA DA DIREITA: PRÉVIA EM TEMPO REAL COM MOCKUP DE CELULAR (Full width at bottom) */}
-        <div className={`w-full mt-8 border-t border-slate-800/60 pt-12 ${visualizacaoMobile === 'controles' ? 'hidden lg:block' : 'block'}`}>
-          <div className="flex flex-col items-center space-y-6">
-            <div className="flex flex-col items-center text-center px-4">
-              <div className="flex items-center gap-2 mb-1">
-                <div className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse" />
-                <h3 className="text-sm font-black text-white uppercase tracking-wider">
-                  Prévia em Tempo Real
-                </h3>
+        {/* COLUNA DA DIREITA: PRÉVIA AO VIVO */}
+        <div className={`lg:col-span-5 ${visualizacaoMobile === 'controles' ? 'hidden lg:block' : 'block'}`}>
+          <div className="sticky top-20 bg-slate-900 border border-slate-800 rounded-3xl p-4 shadow-2xl space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2.5 px-2">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-xs font-extrabold text-white tracking-wide uppercase">Prévia ao Vivo em Tempo Real</span>
               </div>
-              <p className="text-xs text-slate-400 max-w-md">
-                Veja como a sua página de sorteio está ficando. Esta é uma representação fiel de como os participantes verão o seu site.
-              </p>
+              <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full font-mono">Modo Live Preview</span>
             </div>
 
-            {/* MOCKUP DO SMARTPHONE COM MOLDURA REALISTA */}
-            <div className="mx-auto w-full max-w-[390px] bg-slate-950 border-[6px] border-slate-800 rounded-[44px] p-2 shadow-2xl shadow-emerald-950/20 relative">
-              
-              {/* Notch / Speaker Superior */}
-              <div className="absolute top-4 left-1/2 -translate-x-1/2 w-28 h-4 bg-slate-900 rounded-full z-40 flex items-center justify-center">
-                <div className="w-8 h-1 bg-slate-800 rounded-full" />
-              </div>
-
-              {/* Status Bar Superior */}
-              <div className="h-6 bg-slate-950 rounded-t-[34px] px-6 flex items-center justify-between text-[10px] font-bold text-slate-400 select-none z-30 relative pt-1">
-                <span>9:41</span>
-                <div className="flex items-center gap-1.5">
-                  <span>5G</span>
-                  <div className="w-4 h-2 border border-slate-400 rounded-sm p-0.5 flex items-center">
-                    <div className="w-full h-full bg-emerald-400 rounded-2xs" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Viewport Renderizável com Scroll da Página Pública */}
-              <div 
-                className="w-full h-[660px] bg-slate-950 rounded-[34px] overflow-y-auto overflow-x-hidden relative border border-slate-800/80 custom-scrollbar"
-                style={{
-                  backgroundColor: temaSeguro.cores.fundo || '#020617',
-                  color: temaSeguro.cores.texto || '#f8fafc'
-                }}
-              >
-                <CampanhaPublicaView
-                  modoPreview={true}
-                  previewCampanha={campanhaPreview}
-                  previewTema={temaSeguro}
-                />
-              </div>
-
-              {/* Home Indicator Inferior */}
-              <div className="h-4 flex items-center justify-center pt-1">
-                <div className="w-24 h-1 bg-slate-700 rounded-full" />
-              </div>
-
+            {/* Container Iframe-like do Preview */}
+            <div className="bg-slate-950 rounded-2xl border-4 border-slate-800 overflow-hidden shadow-inner max-h-[720px] overflow-y-auto">
+              <CampanhaPublicaView
+                modoPreview={true}
+                previewCampanha={campanhaPreview}
+                previewTema={temaSeguro}
+              />
             </div>
-
           </div>
         </div>
 
       </div>
 
-      {/* Modal: Salvar Estilo Reutilizável */}
+      {/* Modal para Salvar Novo Estilo */}
       {modalNovoEstiloAberto && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4 animate-in zoom-in-95">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-sm font-black text-white flex items-center gap-2">
-                <Bookmark className="w-4 h-4 text-emerald-400" />
-                Salvar Tema na Minha Biblioteca
-              </h3>
-              <button
-                type="button"
-                onClick={() => setModalNovoEstiloAberto(false)}
-                className="text-slate-500 hover:text-slate-300"
-              >
-                <X className="w-4 h-4" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-3xl p-6 shadow-2xl space-y-5 animate-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <h3 className="text-base font-black text-white">Salvar Tema como Estilo Reutilizável</h3>
+              <button onClick={() => setModalNovoEstiloAberto(false)} className="p-1.5 hover:bg-slate-800 rounded-xl text-slate-400">
+                <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={handleSalvarEstilo} className="space-y-4">
-              <div>
-                <label className="text-xs font-bold text-slate-300 block mb-1">
-                  Nome do Estilo / Template *
-                </label>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-300 block">Nome do Estilo (Ex: Neon Cyberpunk, Minimalista Luxo)</label>
                 <input
                   type="text"
                   value={nomeNovoEstilo}
                   onChange={e => setNomeNovoEstilo(e.target.value)}
-                  placeholder="Ex: Tema Ouro Luxo, Rifa Esportiva, Minimal Dark"
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:border-emerald-500 focus:outline-none"
+                  placeholder="Nome do estilo..."
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-3 text-xs text-white focus:border-emerald-500 focus:outline-none"
                   required
-                  autoFocus
                 />
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Este estilo ficará salvo na sua conta para você aplicar em qualquer rifa futura com 1 clique.
-                </p>
               </div>
 
-              {/* Swatch de Prévia */}
-              <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl flex items-center justify-between">
-                <span className="text-xs text-slate-400 font-medium">Paleta Selecionada:</span>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-4 h-4 rounded-full border border-slate-700" style={{ backgroundColor: temaSeguro.cores.primaria }} title="Primária" />
-                  <div className="w-4 h-4 rounded-full border border-slate-700" style={{ backgroundColor: temaSeguro.cores.fundo }} title="Fundo" />
-                  <div className="w-4 h-4 rounded-full border border-slate-700" style={{ backgroundColor: temaSeguro.cores.botao }} title="Botão" />
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 justify-end pt-2">
+              <div className="flex justify-end gap-3 pt-3 border-t border-slate-800">
                 <button
                   type="button"
                   onClick={() => setModalNovoEstiloAberto(false)}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl transition"
+                  className="px-4 py-2 bg-slate-800 text-slate-300 font-bold text-xs rounded-xl hover:bg-slate-700"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={salvandoEstilo || !nomeNovoEstilo.trim()}
-                  className="px-5 py-2 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 text-slate-950 text-xs font-black rounded-xl transition flex items-center gap-1.5"
+                  className="px-5 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-emerald-500/20"
                 >
                   {salvandoEstilo ? 'Salvando...' : 'Salvar Estilo'}
                 </button>
@@ -1226,7 +1083,6 @@ export const TemaBuilderView: React.FC<Props> = ({
           </div>
         </div>
       )}
-
     </div>
   );
 };

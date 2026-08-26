@@ -16,7 +16,7 @@ export const CarteiraAdminView: React.FC<CarteiraAdminViewProps> = ({ authFetch 
   const [visao, setVisao] = useState<'dashboard' | 'configuracoes_usuarios'>('dashboard');
 
   // Sub-abas dentro de "Configurações de Usuários"
-  const [abaConfig, setAbaConfig] = useState<'todos' | 'solicitacoes'>('todos');
+  const [abaConfig, setAbaConfig] = useState<'todos' | 'solicitacoes' | 'saques'>('todos');
   const [filtroSolicitacao, setFiltroSolicitacao] = useState<'todas' | 'diminuicao_taxa' | 'liberacao_carteira'>('todas');
   const [buscaUsuario, setBuscaUsuario] = useState('');
 
@@ -24,6 +24,11 @@ export const CarteiraAdminView: React.FC<CarteiraAdminViewProps> = ({ authFetch 
   const [usuariosCarteira, setUsuariosCarteira] = useState<any[]>([]);
   const [taxasPersonalizadasMap, setTaxasPersonalizadasMap] = useState<Record<string, { taxaVendaPct?: number; taxaSaqueImediato?: number; observacao?: string; atualizadoEm?: string }>>({});
   const [carregandoUsuarios, setCarregandoUsuarios] = useState(false);
+  const [saques, setSaques] = useState<any[]>([]);
+  const [carregandoSaques, setCarregandoSaques] = useState(false);
+  const [processandoSaqueId, setProcessandoSaqueId] = useState<string | null>(null);
+  const [motivoRejeicao, setMotivoRejeicao] = useState('');
+  const [saqueParaRejeitar, setSaqueParaRejeitar] = useState<any | null>(null);
 
   // Taxas Globais
   const [globalTaxaVenda, setGlobalTaxaVenda] = useState(8.0);
@@ -122,6 +127,67 @@ export const CarteiraAdminView: React.FC<CarteiraAdminViewProps> = ({ authFetch 
     }
   };
 
+  const carregarSaques = async () => {
+    setCarregandoSaques(true);
+    try {
+      const res = await authFetch('/api/admin/carteira/saques');
+      if (res.ok) {
+        const data = await res.json();
+        setSaques(Array.isArray(data) ? data : []);
+      }
+    } catch (err) {
+      console.error('Erro ao carregar saques:', err);
+    } finally {
+      setCarregandoSaques(false);
+    }
+  };
+
+  const handleAprovarSaque = async (saqueId: string, enviarPixViaEfi: boolean) => {
+    setProcessandoSaqueId(saqueId);
+    try {
+      const res = await authFetch(`/api/admin/carteira/saques/${saqueId}/aprovar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enviarPixViaEfi })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        mostrarFeedback('sucesso', enviarPixViaEfi ? 'Saque aprovado e transferência Pix realizada com sucesso via Efí Pay!' : 'Saque marcado como pago manualmente com sucesso!');
+        await carregarDados();
+      } else {
+        mostrarFeedback('erro', data.error || 'Erro ao aprovar saque.');
+      }
+    } catch (err: any) {
+      mostrarFeedback('erro', err.message || 'Falha ao conectar ao servidor.');
+    } finally {
+      setProcessandoSaqueId(null);
+    }
+  };
+
+  const handleRejeitarSaque = async (saqueId: string, motivo: string) => {
+    setProcessandoSaqueId(saqueId);
+    try {
+      const res = await authFetch(`/api/admin/carteira/saques/${saqueId}/rejeitar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ motivo })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        mostrarFeedback('sucesso', 'Solicitação de saque rejeitada e saldo estornado para o organizador com sucesso!');
+        setSaqueParaRejeitar(null);
+        setMotivoRejeicao('');
+        await carregarDados();
+      } else {
+        mostrarFeedback('erro', data.error || 'Erro ao rejeitar saque.');
+      }
+    } catch (err: any) {
+      mostrarFeedback('erro', err.message || 'Falha ao conectar ao servidor.');
+    } finally {
+      setProcessandoSaqueId(null);
+    }
+  };
+
   const carregarDados = async () => {
     try {
       const res = await authFetch('/api/admin/configuracoes');
@@ -143,7 +209,8 @@ export const CarteiraAdminView: React.FC<CarteiraAdminViewProps> = ({ authFetch 
     }
     await Promise.all([
       carregarUsuariosCarteira(),
-      carregarMetricasFinanceiras()
+      carregarMetricasFinanceiras(),
+      carregarSaques()
     ]);
   };
 
@@ -1090,8 +1157,8 @@ export const CarteiraAdminView: React.FC<CarteiraAdminViewProps> = ({ authFetch 
               </div>
             </div>
 
-            {/* ABAS NO TOPO DIREITO: TODOS OS USUÁRIOS & SOLICITAÇÕES */}
-            <div className="flex items-center gap-2 bg-slate-900 p-1.5 rounded-2xl border border-slate-800 self-start md:self-auto">
+            {/* ABAS NO TOPO DIREITO: TODOS OS USUÁRIOS, SOLICITAÇÕES & SAQUES */}
+            <div className="flex items-center gap-2 bg-slate-900 p-1.5 rounded-2xl border border-slate-800 self-start md:self-auto flex-wrap">
               <button
                 type="button"
                 onClick={() => setAbaConfig('todos')}
@@ -1121,6 +1188,26 @@ export const CarteiraAdminView: React.FC<CarteiraAdminViewProps> = ({ authFetch 
                     abaConfig === 'solicitacoes' ? 'bg-slate-950 text-sky-400' : 'bg-rose-500 text-white animate-pulse'
                   }`}>
                     {totalSolicitacoes}
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setAbaConfig('saques')}
+                className={`px-4 py-2 rounded-xl text-xs font-black transition flex items-center gap-2 relative ${
+                  abaConfig === 'saques'
+                    ? 'bg-sky-500 text-slate-950 shadow-lg shadow-sky-500/20'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                }`}
+              >
+                <DollarSign className="w-4 h-4" />
+                Saques Organizados
+                {saques.filter(s => s.status === 'pendente').length > 0 && (
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                    abaConfig === 'saques' ? 'bg-slate-950 text-sky-400' : 'bg-amber-500 text-slate-950 animate-pulse'
+                  }`}>
+                    {saques.filter(s => s.status === 'pendente').length}
                   </span>
                 )}
               </button>
@@ -1349,7 +1436,223 @@ export const CarteiraAdminView: React.FC<CarteiraAdminViewProps> = ({ authFetch 
           )}
 
           {/* ========================================================================= */}
+          {/* SUB-ABA: SAQUES ORGANIZADOS (MANUAL APPROVAL WORKFLOW)                   */}
+          {/* ========================================================================= */}
+          {abaConfig === 'saques' && (
+            <div className="space-y-5 animate-in fade-in">
+              {/* METRICAS RAPIDAS DE SAQUE */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="p-4 bg-slate-900/60 rounded-2xl border border-slate-800">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Pendentes de Aprovação</span>
+                  <span className="text-xl font-black text-amber-400 font-mono block mt-1">
+                    {saques.filter(s => s.status === 'pendente').length} solicitações
+                  </span>
+                </div>
+                <div className="p-4 bg-slate-900/60 rounded-2xl border border-slate-800">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Total Pago aos Organizadores</span>
+                  <span className="text-xl font-black text-emerald-400 font-mono block mt-1">
+                    R$ {saques
+                      .filter(s => s.status === 'pago' || s.status === 'aprovado')
+                      .reduce((sum, s) => sum + (Number(s.valorSolicitado) || 0), 0)
+                      .toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div className="p-4 bg-slate-900/60 rounded-2xl border border-slate-800">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Total de Taxas Coletadas</span>
+                  <span className="text-xl font-black text-sky-400 font-mono block mt-1">
+                    R$ {saques
+                      .filter(s => s.status === 'pago' || s.status === 'aprovado')
+                      .reduce((sum, s) => sum + (Number(s.taxaSaque) || 0), 0)
+                      .toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+
+              {/* LISTA DE SAQUES */}
+              <div className="bg-slate-900/80 rounded-3xl border border-slate-800 shadow-xl overflow-hidden">
+                <div className="p-5 border-b border-slate-800 flex items-center justify-between">
+                  <div>
+                    <h3 className="font-extrabold text-white text-base">Solicitações de Saque</h3>
+                    <p className="text-xs text-slate-400 mt-0.5">Gerencie os saques solicitados pelos organizadores da plataforma</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={carregarSaques}
+                    className="p-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white rounded-xl transition"
+                    title="Atualizar lista"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${carregandoSaques ? 'animate-spin' : ''}`} />
+                  </button>
+                </div>
+
+                {carregandoSaques ? (
+                  <div className="p-12 text-center text-slate-400 flex flex-col items-center gap-3">
+                    <RefreshCw className="w-8 h-8 text-sky-400 animate-spin" />
+                    <p className="text-xs font-medium">Carregando histórico de saques da plataforma...</p>
+                  </div>
+                ) : saques.length === 0 ? (
+                  <div className="p-12 text-center text-slate-400">
+                    <DollarSign className="w-12 h-12 text-slate-600 mx-auto mb-3" />
+                    <p className="text-xs font-semibold">Nenhuma solicitação de saque cadastrada até o momento.</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-800/80">
+                    {saques.map((s) => {
+                      const isPendente = s.status === 'pendente';
+                      const isPago = s.status === 'pago' || s.status === 'aprovado';
+                      const isRejeitado = s.status === 'rejeitado';
+                      
+                      // Encontra dados do usuário correspondente
+                      const userObj = usuariosCarteira.find(u => u.ownerId === s.ownerId);
+                      const userName = userObj?.nome || s.ownerName || 'Organizador';
+                      const userEmail = userObj?.email || s.ownerEmail || 'E-mail não informado';
+
+                      return (
+                        <div key={s.id} className={`p-5 transition ${isPendente ? 'bg-amber-950/10' : ''}`}>
+                          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                            
+                            {/* INFO DO SOLICITANTE */}
+                            <div className="space-y-1.5 flex-1 min-w-[200px]">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-extrabold text-white text-sm">{userName}</span>
+                                <span className="text-[10px] text-slate-500 font-mono">ID: {s.ownerId?.slice(0, 8)}...</span>
+                                {isPendente && (
+                                  <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-pulse">
+                                    Pendente
+                                  </span>
+                                )}
+                                {isPago && (
+                                  <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                                    Pago/Aprovado
+                                  </span>
+                                )}
+                                {isRejeitado && (
+                                  <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                                    Rejeitado
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-xs text-slate-400 flex items-center gap-1.5 flex-wrap">
+                                <span>{userEmail}</span>
+                                <span className="text-slate-600">•</span>
+                                <span>Solicitado em: {s.criadoEm ? new Date(s.criadoEm).toLocaleDateString('pt-BR') + ' ' + new Date(s.criadoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : 'Data indisponível'}</span>
+                              </div>
+                            </div>
+
+                            {/* VALORES */}
+                            <div className="grid grid-cols-3 gap-3 bg-slate-950 p-3 rounded-2xl border border-slate-800/80 min-w-[260px]">
+                              <div className="text-center">
+                                <span className="text-[9px] text-slate-500 font-bold uppercase block">Solicitado</span>
+                                <span className="text-xs font-black text-slate-300 font-mono">
+                                  R$ {Number(s.valorSolicitado).toFixed(2).replace('.', ',')}
+                                </span>
+                              </div>
+                              <div className="text-center border-x border-slate-800/80 px-2">
+                                <span className="text-[9px] text-slate-500 font-bold uppercase block">Taxa</span>
+                                <span className="text-xs font-black text-rose-400/90 font-mono">
+                                  - R$ {Number(s.taxaSaque).toFixed(2).replace('.', ',')}
+                                </span>
+                              </div>
+                              <div className="text-center">
+                                <span className="text-[9px] text-slate-400 font-extrabold uppercase block">Líquido</span>
+                                <span className="text-xs font-black text-emerald-400 font-mono">
+                                  R$ {Number(s.valorLiquido).toFixed(2).replace('.', ',')}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* DADOS PIX */}
+                            <div className="bg-slate-950/60 p-3 rounded-2xl border border-slate-800/50 min-w-[220px] flex items-center justify-between gap-2.5">
+                              <div>
+                                <span className="text-[9px] text-slate-500 font-bold uppercase block">Destinatário Pix</span>
+                                <span className="text-xs font-black text-slate-200 block truncate max-w-[170px] mt-0.5">
+                                  {s.chavePix}
+                                </span>
+                                <span className="text-[9px] text-slate-400 font-medium uppercase mt-0.5 block">
+                                  Chave: {s.tipoChavePix || 'pix'}
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(s.chavePix || '');
+                                  mostrarFeedback('sucesso', 'Chave Pix copiada para a área de transferência!');
+                                }}
+                                className="p-2 hover:bg-slate-800 text-slate-400 hover:text-white rounded-xl transition shrink-0 border border-slate-800"
+                                title="Copiar Chave Pix"
+                              >
+                                <Copy className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+
+                          </div>
+
+                          {/* HISTÓRICO / OBSERVAÇÕES */}
+                          {s.observacao && (
+                            <div className="mt-3 bg-slate-950/40 px-3.5 py-2.5 rounded-xl border border-slate-800/60 text-[11px] text-slate-400">
+                              <span className="font-bold text-slate-300 block mb-0.5">Histórico do Saque:</span>
+                              {s.observacao}
+                            </div>
+                          )}
+
+                          {/* PAINEL DE AÇÃO SE PENDENTE */}
+                          {isPendente && (
+                            <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-slate-800/50">
+                              <span className="text-[10px] text-amber-500/90 font-bold flex items-center gap-1">
+                                <AlertTriangle className="w-3.5 h-3.5" />
+                                Confirme as informações bancárias e a chave Pix antes de efetuar o pagamento.
+                              </span>
+
+                              <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
+                                <button
+                                  type="button"
+                                  disabled={processandoSaqueId !== null}
+                                  onClick={() => setSaqueParaRejeitar(s)}
+                                  className="flex-1 sm:flex-none px-4 py-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5"
+                                >
+                                  <X className="w-4 h-4 text-rose-400" />
+                                  Rejeitar
+                                </button>
+
+                                <button
+                                  type="button"
+                                  disabled={processandoSaqueId !== null}
+                                  onClick={() => handleAprovarSaque(s.id, false)}
+                                  className="flex-1 sm:flex-none px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5"
+                                  title="Aprova no sistema sem disparar API Efí"
+                                >
+                                  <Check className="w-4 h-4 text-slate-400" />
+                                  Pagar Manualmente
+                                </button>
+
+                                <button
+                                  type="button"
+                                  disabled={processandoSaqueId !== null}
+                                  onClick={() => handleAprovarSaque(s.id, true)}
+                                  className="flex-1 sm:flex-none px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-emerald-500/20 transition flex items-center justify-center gap-1.5"
+                                >
+                                  {processandoSaqueId === s.id ? (
+                                    <RefreshCw className="w-4 h-4 animate-spin" />
+                                  ) : (
+                                    <Zap className="w-4 h-4 fill-slate-950" />
+                                  )}
+                                  Aprovar e Enviar Pix (Efí)
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================================= */}
           {/* SUB-ABA: TODOS OS USUÁRIOS (TABELA FORMATO PLANILHA COMPLETA)             */}
+          {/* ========================================================================= */}
           {/* ========================================================================= */}
           {abaConfig === 'todos' && (
             <div className="space-y-4 animate-in fade-in">
@@ -2075,6 +2378,93 @@ export const CarteiraAdminView: React.FC<CarteiraAdminViewProps> = ({ authFetch 
               >
                 {salvandoRetiradaLucro ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                 Confirmar Retirada
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 6: REJEITAR SOLICITAÇÃO DE SAQUE COM MOTIVO                         */}
+      {/* ========================================================================= */}
+      {saqueParaRejeitar && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-3xl p-6 shadow-2xl space-y-5 animate-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-rose-500/20 text-rose-400 flex items-center justify-center border border-rose-500/30">
+                  <XCircle className="w-5 h-5 text-rose-400" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-white">Rejeitar Solicitação de Saque</h3>
+                  <p className="text-xs text-slate-400">O valor será integralmente estornado ao usuário</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSaqueParaRejeitar(null)}
+                className="p-1.5 hover:bg-slate-800 rounded-xl text-slate-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 text-xs text-slate-300">
+                <div className="flex justify-between mb-1">
+                  <span className="text-slate-400">Solicitante:</span>
+                  <span className="font-extrabold text-white">
+                    {usuariosCarteira.find(u => u.ownerId === saqueParaRejeitar.ownerId)?.nome || saqueParaRejeitar.ownerName || 'Organizador'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Valor Bruto:</span>
+                  <span className="font-extrabold text-rose-400 font-mono">
+                    R$ {Number(saqueParaRejeitar.valorSolicitado).toFixed(2).replace('.', ',')}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-300 block">
+                  Motivo da Rejeição (Será exibido ao usuário) *
+                </label>
+                <textarea
+                  placeholder="Ex: Dados bancários ou chave Pix inválida. Por favor, corrija em suas configurações e solicite novamente."
+                  value={motivoRejeicao}
+                  onChange={e => setMotivoRejeicao(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 text-white rounded-xl px-3.5 py-3 text-xs focus:border-rose-500 focus:outline-none min-h-[100px] resize-none"
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Botões de Ação */}
+            <div className="flex items-center justify-between gap-3 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => {
+                  setSaqueParaRejeitar(null);
+                  setMotivoRejeicao('');
+                }}
+                className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl transition"
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="button"
+                disabled={!motivoRejeicao.trim() || processandoSaqueId !== null}
+                onClick={() => handleRejeitarSaque(saqueParaRejeitar.id, motivoRejeicao)}
+                className="px-5 py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-black text-xs rounded-xl shadow-lg shadow-rose-600/20 transition flex items-center gap-2"
+              >
+                {processandoSaqueId === saqueParaRejeitar.id ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <XCircle className="w-4 h-4 text-white" />
+                )}
+                Confirmar Rejeição
               </button>
             </div>
 

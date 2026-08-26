@@ -24,6 +24,8 @@ interface CheckoutConfigExtended extends CheckoutConfig {
   mensagemEscassez?: string;
   selosExtras?: string[];
   confirmacao?: ConfirmacaoCompraConfig;
+  exigirCpf?: boolean;
+  exigirEmail?: boolean;
 }
 
 const SELOS_DISPONIVEIS = [
@@ -376,10 +378,36 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
               </div>
             </div>
 
-            {/* 4. Temporizador */}
+            {/* 4. Campos Obrigatórios */}
             <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4">
               <h2 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
-                <Clock className="w-4 h-4 text-amber-400" /> 4. Temporizador de Urgência
+                <ShieldCheck className="w-4 h-4 text-emerald-400" /> 4. Campos Obrigatórios no Checkout
+              </h2>
+              <div className="space-y-3">
+                <label className="flex items-center gap-3 p-3 bg-slate-950/60 border border-slate-800 rounded-xl cursor-pointer hover:bg-slate-950 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={checkoutConfig.exigirCpf || false}
+                    onChange={e => upd({ exigirCpf: e.target.checked })}
+                    className="w-4 h-4 rounded text-emerald-500 bg-slate-900 border-slate-700 cursor-pointer"
+                  />
+                  <span className="text-xs text-slate-200 font-medium">Exigir CPF do comprador para participar</span>
+                </label>
+                <label className="flex items-center gap-3 p-3 bg-slate-950/60 border border-slate-800 rounded-xl cursor-pointer hover:bg-slate-950 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={checkoutConfig.exigirEmail || false}
+                    onChange={e => upd({ exigirEmail: e.target.checked })}
+                    className="w-4 h-4 rounded text-emerald-500 bg-slate-900 border-slate-700 cursor-pointer"
+                  />
+                  <span className="text-xs text-slate-200 font-medium">Exigir E-mail do comprador para confirmação</span>
+                </label>
+              </div>
+            </div>
+            {/* 5. Temporizador */}
+            <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4">
+              <h2 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
+                <Clock className="w-4 h-4 text-amber-400" /> 5. Temporizador de Urgência
               </h2>
               <label className="flex items-center justify-between p-3 bg-slate-950/60 border border-slate-800 rounded-xl cursor-pointer">
                 <div>

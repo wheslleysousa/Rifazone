@@ -12,6 +12,8 @@ import { BoletoPaymentModal } from './BoletoPaymentModal';
 import { CartaoSuccessModal } from './CartaoSuccessModal';
 import { MeusNumerosModal } from './MeusNumerosModal';
 import { MeusDadosModal } from './MeusDadosModal';
+import { SocialNotifications } from './SocialNotifications';
+import { ExitPopup } from './ExitPopup';
 import { formatarMoeda, toCents, toReais } from '../lib/money';
 import { 
   initMetaPixel, 
@@ -2664,6 +2666,20 @@ export const CampanhaPublicaView: React.FC<Props> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Prova social (toast de vendas) e Exit Pop-up — só na página real, não no preview */}
+      {!modoPreview && campanha.checkout?.notificacoesSociais?.ativo && (
+        <SocialNotifications
+          config={campanha.checkout.notificacoesSociais}
+          campanhaTitulo={campanha.titulo}
+        />
+      )}
+      {!modoPreview && campanha.checkout?.exitPopup?.ativo && (
+        <ExitPopup
+          config={campanha.checkout.exitPopup}
+          onComprar={handleIniciarCompra}
+        />
       )}
 
     </div>

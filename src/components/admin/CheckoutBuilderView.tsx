@@ -638,6 +638,87 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
               </div>
             </div>
 
+            {/* Conversão & Retenção */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-4">
+              <h4 className="text-sm font-black text-white flex items-center gap-2">🔔 Conversão & Retenção</h4>
+
+              {/* Notificações Sociais */}
+              <div className="rounded-xl border border-slate-800 bg-slate-950 p-3">
+                <label className="flex items-center justify-between cursor-pointer">
+                  <span className="text-xs font-bold text-slate-200">Notificações sociais (toast "fulano comprou")</span>
+                  <input
+                    type="checkbox"
+                    checked={!!checkoutConfig.notificacoesSociais?.ativo}
+                    onChange={e => upd({ notificacoesSociais: { ...checkoutConfig.notificacoesSociais, ativo: e.target.checked } })}
+                    className="rounded border-slate-700 bg-slate-900 text-emerald-500 w-4 h-4"
+                  />
+                </label>
+                {checkoutConfig.notificacoesSociais?.ativo && (
+                  <div className="grid grid-cols-2 gap-2 mt-3">
+                    <div>
+                      <label className="text-[10px] text-slate-400 block mb-1">Posição</label>
+                      <select
+                        value={checkoutConfig.notificacoesSociais?.posicao || 'base-esq'}
+                        onChange={e => upd({ notificacoesSociais: { ...checkoutConfig.notificacoesSociais, ativo: true, posicao: e.target.value as any } })}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white"
+                      >
+                        <option value="base-esq">Inferior esquerda</option>
+                        <option value="base-dir">Inferior direita</option>
+                        <option value="topo-esq">Superior esquerda</option>
+                        <option value="topo-dir">Superior direita</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-slate-400 block mb-1">Intervalo (seg)</label>
+                      <input
+                        type="number" min={4}
+                        value={checkoutConfig.notificacoesSociais?.intervalo || 12}
+                        onChange={e => upd({ notificacoesSociais: { ...checkoutConfig.notificacoesSociais, ativo: true, intervalo: Number(e.target.value) } })}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Exit Pop-up */}
+              <div className="rounded-xl border border-slate-800 bg-slate-950 p-3">
+                <label className="flex items-center justify-between cursor-pointer">
+                  <span className="text-xs font-bold text-slate-200">Pop-up de retenção (Exit Pop-up)</span>
+                  <input
+                    type="checkbox"
+                    checked={!!checkoutConfig.exitPopup?.ativo}
+                    onChange={e => upd({ exitPopup: { ...checkoutConfig.exitPopup, ativo: e.target.checked } })}
+                    className="rounded border-slate-700 bg-slate-900 text-emerald-500 w-4 h-4"
+                  />
+                </label>
+                {checkoutConfig.exitPopup?.ativo && (
+                  <div className="mt-3">
+                    <label className="text-[10px] text-slate-400 block mb-1">Gatilho</label>
+                    <select
+                      value={checkoutConfig.exitPopup?.gatilho || 'saida'}
+                      onChange={e => upd({ exitPopup: { ...checkoutConfig.exitPopup, ativo: true, gatilho: e.target.value as any } })}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white"
+                    >
+                      <option value="saida">Mouse saindo pelo topo (desktop)</option>
+                      <option value="aba">Trocar de aba/app</option>
+                      <option value="voltar">Botão voltar do navegador</option>
+                      <option value="tempo">Após X segundos na página</option>
+                    </select>
+                    {checkoutConfig.exitPopup?.gatilho === 'tempo' && (
+                      <input
+                        type="number" min={3}
+                        value={checkoutConfig.exitPopup?.tempoSegundos || 20}
+                        onChange={e => upd({ exitPopup: { ...checkoutConfig.exitPopup, ativo: true, gatilho: 'tempo', tempoSegundos: Number(e.target.value) } })}
+                        placeholder="Segundos"
+                        className="w-full mt-2 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white"
+                      />
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Salvar */}
             <div className="flex items-center gap-3">
               <button onClick={handleSalvar} disabled={salvando} className="flex-1 py-3.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-black rounded-xl flex items-center justify-center gap-2 transition shadow-lg disabled:opacity-60 active:scale-[0.98]">

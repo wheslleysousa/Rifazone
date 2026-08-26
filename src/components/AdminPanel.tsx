@@ -6,7 +6,7 @@ import {
   Eye, Edit3, Link2, Copy, CheckCircle2, AlertCircle, Menu, X, Mail, Lock, User as UserIcon, Key,
   ExternalLink, Zap, Unlink, ShieldCheck, HelpCircle, ChevronDown, ChevronUp, Info,
   Trophy, Trash2, Play, Pause, Camera, Sparkles, Palette, BarChart3,
-  ArrowLeft, Save, CreditCard, Wallet
+  ArrowLeft, Save, CreditCard, Wallet, Search
 } from 'lucide-react';
 import {
   auth, observarAuth, cadastrarComEmail, entrarComEmail, entrarComGoogle, sair,
@@ -19,8 +19,10 @@ import { toReais } from '../lib/money';
 const DashboardView = React.lazy(() => import('./admin/DashboardView').then(m => ({ default: m.DashboardView })));
 const AnalyticsView = React.lazy(() => import('./admin/AnalyticsView').then(m => ({ default: m.AnalyticsView })));
 const RemarketingView = React.lazy(() => import('./admin/RemarketingView').then(m => ({ default: m.RemarketingView })));
+const HistoricoView = React.lazy(() => import('./admin/HistoricoView').then(m => ({ default: m.HistoricoView })));
 const ClientesView = React.lazy(() => import('./admin/ClientesView').then(m => ({ default: m.ClientesView })));
 const SorteadorView = React.lazy(() => import('./admin/SorteadorView').then(m => ({ default: m.SorteadorView })));
+const BuscarGanhadorView = React.lazy(() => import('./admin/BuscarGanhadorView').then(m => ({ default: m.BuscarGanhadorView })));
 const CampanhasFormView = React.lazy(() => import('./admin/CampanhasFormView').then(m => ({ default: m.CampanhasFormView })));
 const TemaBuilderView = React.lazy(() => import('./admin/TemaBuilderView').then(m => ({ default: m.TemaBuilderView })));
 const CheckoutBuilderView = React.lazy(() => import('./admin/CheckoutBuilderView').then(m => ({ default: m.CheckoutBuilderView })));
@@ -765,27 +767,26 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
   // ITENS DO MENU LATERAL (ESTILO RIFA 365)
   const navSections = [
     {
-      titulo: 'Principal',
+      titulo: 'Menu Principal',
       itens: [
         { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-4 h-4" /> },
-        { id: 'carteira', label: 'Carteira & Saques', icon: <Wallet className="w-4 h-4 text-emerald-400" /> },
+        { id: 'campanhas', label: 'Campanhas', icon: <LayoutGrid className="w-4 h-4" />, count: campanhas.length },
         { id: 'analytics', label: 'Meta Ads', icon: <BarChart3 className="w-4 h-4 text-emerald-400" /> },
         { id: 'remarketing', label: 'Remarketing', icon: <MessageSquare className="w-4 h-4" /> },
+        { id: 'historico', label: 'Histórico', icon: <Users className="w-4 h-4" /> },
       ]
     },
     {
-      titulo: 'Operação',
+      titulo: 'Funcionalidades',
       itens: [
-        { id: 'campanhas', label: 'Campanhas', icon: <LayoutGrid className="w-4 h-4" />, count: campanhas.length },
-        { id: 'clientes', label: 'Histórico de Clientes', icon: <Users className="w-4 h-4" /> },
-        { id: 'pedidos', label: 'Pedidos & Transações', icon: <Ticket className="w-4 h-4" /> },
+        { id: 'sorteador', label: 'Sorteador Oficial', icon: <RotateCw className="w-4 h-4" /> },
+        { id: 'buscar_ganhador', label: 'Buscar Ganhador / Cota', icon: <Search className="w-4 h-4 text-emerald-400" /> },
       ]
     },
     {
       titulo: 'Personalização & Ajustes',
       itens: [
-        { id: 'checkouts', label: 'Checkouts', icon: <CreditCard className="w-4 h-4 text-indigo-400" /> },
-        { id: 'sorteador', label: 'Sorteador Oficial', icon: <RotateCw className="w-4 h-4" /> },
+        { id: 'checkouts', label: 'Checkout', icon: <CreditCard className="w-4 h-4 text-indigo-400" /> },
         { id: 'configuracoes', label: 'Configurações', icon: <Settings className="w-4 h-4" />, alerta: !configPagamento?.mpConfigurado },
       ]
     }
@@ -948,8 +949,11 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
             />
           )}
 
-          {/* 3. HISTÓRICO DE CLIENTES */}
-          {abaAtiva === 'clientes' && <ClientesView pedidos={pedidos} />}
+          {/* HISTÓRICO UNIFICADO */}
+          {abaAtiva === 'historico' && <HistoricoView pedidos={pedidos} authFetch={authFetch} />}
+
+          {/* BUSCAR GANHADOR */}
+          {abaAtiva === 'buscar_ganhador' && <BuscarGanhadorView pedidos={pedidos} />}
 
           {/* 4. SORTEADOR */}
           {abaAtiva === 'sorteador' && (

@@ -463,6 +463,11 @@ export class FileStorage implements Storage {
       .sort((a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime());
   }
 
+  public async getPedidoPorPaymentId(paymentId: string): Promise<Pedido | null> {
+    const pedidos = await this.getTodosPedidos();
+    return pedidos.find(p => p.mpPaymentId === paymentId || p.efiPaymentId === paymentId || p.id === paymentId.replace('carteira_', '')) || null;
+  }
+
   public async getTodosPedidos(): Promise<Pedido[]> {
     return Array.from(this.pedidos.values())
       .sort((a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime());

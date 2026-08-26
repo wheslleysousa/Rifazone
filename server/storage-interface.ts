@@ -160,6 +160,7 @@ export interface Storage {
   getPedido(id: string): Promise<Pedido | null>;
   getPedidosPorCampanha(campanhaId: string): Promise<Pedido[]>;
   getTodosPedidos(): Promise<Pedido[]>;
+  getPedidoPorPaymentId(paymentId: string): Promise<Pedido | null>;
   confirmarPedido(pedidoId: string, mpPaymentId?: string): Promise<ConfirmarPedidoResult>;
   getMeusNumeros(campanhaId: string, rawWhatsapp: string): Promise<MeusNumerosResult>;
 

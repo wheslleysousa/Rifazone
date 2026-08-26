@@ -25,7 +25,7 @@ process.on('unhandledRejection', (reason: any, promise) => {
 });
 
 import { createServer as createViteServer } from 'vite';
-import { db, usandoFirestore } from './server/db.js';
+import { db, usandoFirestore, usandoSupabase } from './server/db.js';
 import { mpService } from './server/mercadopago.js';
 import { geminiService } from './server/gemini.js';
 import { verifyFirebaseToken } from './server/auth.js';
@@ -43,6 +43,7 @@ import { toCents, toReais } from './server/money-utils.js';
 import { EmailNotificador } from './server/notifications.js';
 import { gerarPixMultiGateway, consultarPagamentoAsaas, consultarPagamentoEfipay, testEfipayConnection, resolveEfipayCredentials, consultarSaldoEfipay, enviarPixEfipay, registrarWebhookEfipay } from './server/gateways.js';
 import { Campanha, TEMA_PADRAO, DEFAULT_CHECKOUT_CONFIG } from './src/types.js';
+import { executarMigracaoFirebaseParaSupabase } from './server/migrate-v2.js';
 
 // Sanitiza e normaliza campos de Campanha de forma única para criação e edição (evita divergências)
 export function sanitizarCampanha(
@@ -249,9 +250,24 @@ app.get('/api/health', (_req, res) => {
     status: 'ok',
     mpConfigured: mpService.isConfigured(),
     iaConfigured: geminiService.isConfigured(),
-    storage: usandoFirestore ? 'firestore' : 'file',
+    storage: usandoSupabase ? 'supabase' : (usandoFirestore ? 'firestore' : 'file'),
     timestamp: new Date().toISOString()
   });
+});
+
+// Endpoint para disparar a migração completa do Firebase Firestore para o Supabase
+app.post('/api/admin/migrar-firebase-para-supabase', async (req, res) => {
+  try {
+    console.log('Solicitação de migração Firebase -> Supabase recebida via API...');
+    const resultado = await executarMigracaoFirebaseParaSupabase();
+    res.json(resultado);
+  } catch (error: any) {
+    console.error('Erro ao executar migração:', error);
+    res.status(500).json({
+      success: false,
+      error: error?.message || 'Erro inesperado durante a migração.'
+    });
+  }
 });
 
 // GET /api/campanhas/:codigo -> Dados da campanha para página pública + estatísticas + ranking
@@ -1034,14 +1050,13 @@ app.post('/api/webhooks/mercadopago', async (req, res) => {
     }
 
     // 3) Localiza o pedido para descobrir o organizador (e o token MP dele)
-    const todosPedidos = await db.getTodosPedidos();
-    let pedidoEncontrado = todosPedidos.find(p => p.mpPaymentId === String(paymentId));
+    let pedidoEncontrado = await db.getPedidoPorPaymentId(String(paymentId));
     let mpToken = pedidoEncontrado ? await db.getMpTokenPorCampanha(pedidoEncontrado.campanhaId) : null;
 
     // 4) Busca o pagamento REAL na API do Mercado Pago (Fonte da Verdade)
     const pagamento = await mpService.consultarPagamento(String(paymentId), mpToken);
     if (!pedidoEncontrado && pagamento?.external_reference) {
-      pedidoEncontrado = todosPedidos.find(p => p.id === pagamento.external_reference);
+      pedidoEncontrado = await db.getPedido(pagamento.external_reference);
     }
 
     if (pagamento && pagamento.approved && pedidoEncontrado) {
@@ -1069,8 +1084,13 @@ app.post('/api/webhooks/asaas', async (req, res) => {
       const externalReference = payment?.externalReference;
       const paymentId = payment?.id;
       
-      const todosPedidos = await db.getTodosPedidos();
-      let pedidoEncontrado = todosPedidos.find(p => p.id === externalReference || p.mpPaymentId === `asaas_${paymentId}`);
+      let pedidoEncontrado = undefined;
+      if (externalReference) {
+        pedidoEncontrado = await db.getPedido(externalReference) || undefined;
+      }
+      if (!pedidoEncontrado && paymentId) {
+        pedidoEncontrado = await db.getPedidoPorPaymentId(`asaas_${paymentId}`) || undefined;
+      }
       
       if (!pedidoEncontrado && externalReference) {
         pedidoEncontrado = (await db.getPedido(externalReference)) || undefined;
@@ -1140,8 +1160,10 @@ app.post('/api/webhooks/efipay', async (req, res) => {
         const txid = pixItem.txid;
         if (!txid) continue;
 
-        const todosPedidos = await db.getTodosPedidos();
-        const pedidoEncontrado = todosPedidos.find(p => p.mpPaymentId === `efi_${txid}` || p.id === txid);
+        let pedidoEncontrado = await db.getPedido(txid) || undefined;
+        if (!pedidoEncontrado) {
+          pedidoEncontrado = await db.getPedidoPorPaymentId(`efi_${txid}`) || undefined;
+        }
 
         if (pedidoEncontrado) {
           await processarConfirmacaoPedido(pedidoEncontrado.id, `efi_${txid}`, req);
@@ -2447,9 +2469,9 @@ app.get('/api/admin/meta/insights', firebaseAuthMiddleware, async (req, res) => 
       pedidos = await db.getPedidosPorCampanha(String(campanhaId));
     } else {
       const campanhas = await db.getCampanhas(ownerId);
-      const campanhaIds = new Set(campanhas.map(c => c.id));
-      const todos = await db.getTodosPedidos();
-      pedidos = todos.filter(p => campanhaIds.has(p.campanhaId));
+      // Fetch concurrently for all campaigns
+      const arraysOfPedidos = await Promise.all(campanhas.map(c => db.getPedidosPorCampanha(c.id)));
+      pedidos = arraysOfPedidos.flat();
     }
 
     const pedidosPagos = pedidos.filter(p => p.status === 'pago');
@@ -2802,9 +2824,8 @@ app.delete('/api/admin/checkouts/:id', firebaseAuthMiddleware, async (req, res) 
 app.get('/api/admin/pedidos', firebaseAuthMiddleware, async (req, res) => {
   try {
     const campanhas = await db.getCampanhas((req as any).userId);
-    const campanhaIds = new Set(campanhas.map(c => c.id));
-    const todosPedidos = await db.getTodosPedidos();
-    const meusPedidos = todosPedidos.filter(p => campanhaIds.has(p.campanhaId));
+    const arraysOfPedidos = await Promise.all(campanhas.map(c => db.getPedidosPorCampanha(c.id)));
+    const meusPedidos = arraysOfPedidos.flat();
     return res.json(meusPedidos.map(formatarPedidoParaEnvio));
   } catch (err: any) {
     console.error('Erro ao buscar pedidos do organizador:', err);
@@ -3076,7 +3097,8 @@ app.post('/api/tarefas/remarketing', verificarCronSecret, async (req, res) => {
       });
     }
 
-    const todosPedidos = await db.getTodosPedidos();
+    const arraysOfPedidos = await Promise.all(campanhasAtivas.map(c => db.getPedidosPorCampanha(c.id)));
+    const todosPedidos = arraysOfPedidos.flat();
     const agoraMs = Date.now();
     const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
     const host = req.get('host') || 'localhost:3000';

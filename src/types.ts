@@ -602,6 +602,7 @@ export interface Comprador {
 
 export interface Pedido {
   id: string;
+  ownerId?: string;
   campanhaId: string;
   compradorId: string;
   comprador: {
@@ -616,6 +617,7 @@ export interface Pedido {
   status: 'pendente' | 'pago' | 'expirado' | 'cancelado';
   metodoPagamento?: 'pix' | 'cartao' | 'boleto' | 'gratis';
   mpPaymentId: string | null;
+  efiPaymentId?: string | null;
   pixCopiaCola: string | null;
   pixQrCodeBase64: string | null;
   boletoUrl?: string | null;

@@ -87,6 +87,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
   } | null>(null);
 
   const [conectandoFacebook, setConectandoFacebook] = useState(false);
+  const [modalDesconectarOpen, setModalDesconectarOpen] = useState(false);
 
   // Novos estados para seleção de contas
   const [bms, setBms] = useState<any[]>([]);
@@ -300,19 +301,10 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
       {/* HEADER DA ABA */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/90 border border-slate-800 rounded-3xl p-6 shadow-xl">
         <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="px-2.5 py-0.5 rounded-full bg-sky-500/10 text-sky-400 text-[10px] font-black uppercase tracking-wider border border-sky-500/20 flex items-center gap-1">
-              <Zap className="w-3 h-3 text-sky-400" />
-              Marketing API + Conversions API
-            </span>
-          </div>
           <h1 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
             <BarChart3 className="w-6 h-6 text-emerald-400" />
             Meta Ads
           </h1>
-          <p className="text-slate-400 text-xs max-w-2xl">
-            Acompanhe o desempenho das suas campanhas de tráfego, veja o gasto real da sua conta de anúncios e descubra o seu verdadeiro Lucro e ROAS (Retorno Sobre Investimento).
-          </p>
         </div>
 
         <div className="flex items-center gap-2 self-start sm:self-center">
@@ -324,7 +316,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
               </span>
               <button
                 type="button"
-                onClick={handleDesconectarFacebook}
+                onClick={() => setModalDesconectarOpen(true)}
                 className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs font-bold rounded-xl border border-rose-500/30 transition"
               >
                 Desconectar
@@ -335,22 +327,12 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
               type="button"
               onClick={handleConectarFacebook}
               disabled={conectandoFacebook}
-              className="px-4 py-2.5 bg-sky-600 hover:bg-sky-500 text-white text-xs font-black rounded-xl shadow-lg shadow-sky-600/20 flex items-center gap-2 transition disabled:opacity-50"
+              className="px-5 py-3 bg-sky-600 hover:bg-sky-500 text-white text-xs font-black rounded-xl shadow-lg shadow-sky-600/20 flex items-center gap-2 transition disabled:opacity-50 mx-auto"
             >
               <Zap className="w-4 h-4" />
               {conectandoFacebook ? 'Conectando...' : 'Conectar Conta do Facebook'}
             </button>
           )}
-          
-          <button
-            type="button"
-            onClick={buscarInsights}
-            disabled={carregandoInsights}
-            className="p-2.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-xl border border-emerald-500/30 transition disabled:opacity-50"
-            title="Atualizar Dados"
-          >
-            <RefreshCw className={`w-4 h-4 ${carregandoInsights ? 'animate-spin' : ''}`} />
-          </button>
         </div>
       </div>
 
@@ -368,7 +350,6 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                 const id = e.target.value;
                 setBmSelecionadaId(id);
                 carregarContas(id);
-                // Ao mudar BM, reseta conta para 'todas' dessa BM
                 setContaSelecionadaId('todas');
                 buscarInsights('todas', id);
               }}
@@ -412,66 +393,58 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
       )}
 
       {/* SELETOR DE CAMPANHA */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-900 border border-slate-800 rounded-2xl p-4">
-        <div className="flex items-center gap-2 text-xs font-bold text-slate-300">
-          <Layers className="w-4 h-4 text-emerald-400" />
-          <span>Filtrar por Campanha:</span>
+      {insightsData?.conectado && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-900 border border-slate-800 rounded-2xl p-4">
+          <div className="flex items-center gap-2 text-xs font-bold text-slate-300">
+            <Layers className="w-4 h-4 text-emerald-400" />
+            <span>Filtrar por Campanha:</span>
+          </div>
+          <select
+            value={campanhaIdSelecionada}
+            onChange={e => setCampanhaIdSelecionada(e.target.value)}
+            className="w-full sm:w-72 bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white font-bold focus:border-emerald-500 focus:outline-none"
+          >
+            <option value="todas">🌐 Todas as Campanhas ({campanhas.length})</option>
+            {campanhas.map(c => (
+              <option key={c.id} value={c.id}>
+                🎯 {c.titulo}
+              </option>
+            ))}
+          </select>
         </div>
-        <select
-          value={campanhaIdSelecionada}
-          onChange={e => setCampanhaIdSelecionada(e.target.value)}
-          className="w-full sm:w-72 bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white font-bold focus:border-emerald-500 focus:outline-none"
-        >
-          <option value="todas">🌐 Todas as Campanhas ({campanhas.length})</option>
-          {campanhas.map(c => (
-            <option key={c.id} value={c.id}>
-              🎯 {c.titulo}
-            </option>
-          ))}
-        </select>
-      </div>
+      )}
 
-      {/* AVISO DE CONFIGURAÇÃO SE NÃO TIVER CONECTADO OU SEM CONTA */}
-      {(erroInsights || (insightsData?.conectado && !insightsData?.adAccountId)) && (
-        <div className={`p-6 rounded-3xl border space-y-4 shadow-xl ${
-          insightsData?.conectado ? 'border-emerald-500/30 bg-emerald-950/10' : 'border-sky-500/30 bg-gradient-to-br from-sky-950/40 via-slate-900 to-slate-900'
-        } text-slate-200`}>
-          <div className="flex items-start gap-3.5">
-            <div className={`w-10 h-10 rounded-2xl border flex items-center justify-center shrink-0 ${
-              insightsData?.conectado ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400' : 'bg-sky-500/20 border-sky-500/30 text-sky-400'
-            }`}>
-              <HelpCircle className="w-5 h-5" />
+      {/* MODAL DE CONFIRMAÇÃO DE DESCONEXÃO */}
+      {modalDesconectarOpen && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center">
+              <AlertCircle className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="text-sm font-black text-white">
-                {insightsData?.conectado ? 'Configuração Quase Completa!' : 'Conecte sua Conta do Facebook para Ver o ROAS e Gastos'}
-              </h3>
+              <h3 className="text-lg font-black text-white">Desconectar Conta do Facebook?</h3>
               <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                {insightsData?.conectado 
-                  ? 'Você já conectou seu Facebook. Agora, utilize os seletores acima para escolher qual Business Manager e qual Conta de Anúncios você deseja monitorar.'
-                  : 'Clique no botão abaixo para fazer login com sua conta do Facebook e autorizar o RifaZone a consultar os dados de anúncios automaticamente. Cada cliente gerencia sua própria conta com 1 clique!'}
+                Ao desconectar, o RifaZone deixará de consultar os dados e gastos do Meta Ads automaticamente. Deseja realmente prosseguir?
               </p>
-              {(erroInsights || insightsData?.error) && (
-                <p className="text-[11px] text-amber-400/90 mt-2 font-mono">
-                  ⚠️ {erroInsights || insightsData?.error}
-                </p>
-              )}
             </div>
-          </div>
-
-          {!insightsData?.conectado && (
-            <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-800">
+            <div className="flex items-center justify-end gap-3 pt-2">
               <button
-                type="button"
-                onClick={handleConectarFacebook}
-                disabled={conectandoFacebook}
-                className="px-5 py-2.5 bg-sky-600 hover:bg-sky-500 text-white font-black text-xs rounded-xl shadow-lg shadow-sky-600/20 flex items-center gap-2 transition disabled:opacity-50"
+                onClick={() => setModalDesconectarOpen(false)}
+                className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl transition"
               >
-                <Zap className="w-4 h-4" />
-                {conectandoFacebook ? 'Redirecionando...' : 'Conectar com o Facebook'}
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  setModalDesconectarOpen(false);
+                  handleDesconectarFacebook();
+                }}
+                className="px-5 py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-black rounded-xl shadow-lg shadow-rose-600/20 transition"
+              >
+                Sim, Desconectar
               </button>
             </div>
-          )}
+          </div>
         </div>
       )}
 
@@ -939,7 +912,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
       <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
         <h3 className="text-sm font-black text-white flex items-center gap-2">
           <Sparkles className="w-4 h-4 text-amber-400" />
-          Resumo de Faturamento das Rias ({campanhas.length})
+          Faturamento ({campanhas.length})
         </h3>
 
         <div className="overflow-x-auto">
@@ -950,7 +923,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                 <th className="p-3">Valor Cota</th>
                 <th className="p-3">Cotas Vendidas</th>
                 <th className="p-3">Pedidos Pagos</th>
-                <th className="p-3">Faturamento Real</th>
+                <th className="p-3">Faturamento Líquido (Real)</th>
                 <th className="p-3 text-right">Status</th>
               </tr>
             </thead>
@@ -958,6 +931,8 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
               {campanhas.map(c => {
                 const pedidosC = pedidos.filter(p => p.campanhaId === c.id && p.status === 'pago');
                 const fatC = pedidosC.reduce((acc, p) => acc + (p.valorTotal || 0), 0);
+                // Faturamento líquido real excluindo taxa da plataforma (ex: 8%)
+                const faturamentoLiquido = fatC * 0.92;
                 const qtdCotasC = pedidosC.reduce((acc, p) => acc + (p.quantidade || 0), 0);
 
                 return (
@@ -976,7 +951,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                     <td className="p-3 font-mono">{qtdCotasC} / {c.totalCotas}</td>
                     <td className="p-3 font-mono">{pedidosC.length}</td>
                     <td className="p-3 font-black text-emerald-400 font-mono">
-                      R$ {fatC.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      R$ {faturamentoLiquido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </td>
                     <td className="p-3 text-right">
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${

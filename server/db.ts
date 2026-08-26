@@ -1,26 +1,37 @@
 import { Storage } from './storage-interface.js';
 import { FileStorage } from './storage.js';
 import { FirestoreStorage, firebaseCredencialDisponivel } from './firestore-storage.js';
+import { SupabaseStorage, supabaseDisponivel } from './supabase-storage.js';
 
 /**
  * Seleciona o backend de armazenamento:
- * - Se houver credenciais do Firebase Admin (FIREBASE_SERVICE_ACCOUNT ou
- *   GOOGLE_APPLICATION_CREDENTIALS), usa o FIRESTORE (dados reais e persistentes).
- * - Caso contrário, usa o armazenamento em ARQUIVO local (dev/preview).
+ * - 1º Supabase (se configurado)
+ * - 2º Firestore (se configurado)
+ * - 3º Arquivo local
  */
 function criarStorage(): Storage {
+  if (supabaseDisponivel()) {
+    try {
+      console.log('🚀 Inicializando backend com SUPABASE...');
+      return new SupabaseStorage();
+    } catch (err) {
+      console.error('Falha ao inicializar o Supabase:', err);
+    }
+  }
+
   if (firebaseCredencialDisponivel()) {
     try {
+      console.log('🔥 Inicializando backend com FIRESTORE...');
       return new FirestoreStorage();
     } catch (err) {
-      console.error('Falha ao inicializar o Firestore. Caindo para armazenamento em arquivo:', err);
+      console.error('Falha ao inicializar o Firestore:', err);
     }
-  } else {
-    console.log('Firebase Admin não configurado (FIREBASE_SERVICE_ACCOUNT ausente). Usando armazenamento em ARQUIVO local.');
   }
+
+  console.log('📁 Inicializando backend com ARQUIVO LOCAL...');
   return new FileStorage();
 }
 
 export const db: Storage = criarStorage();
-
-export const usandoFirestore = firebaseCredencialDisponivel();
+export const usandoSupabase = supabaseDisponivel();
+export const usandoFirestore = !usandoSupabase && firebaseCredencialDisponivel();

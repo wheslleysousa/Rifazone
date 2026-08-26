@@ -22,7 +22,7 @@ export function formatarMoeda(value: number | string | undefined | null): string
   if (value === undefined || value === null || value === '') return 'R$ 0,00';
   const num = typeof value === 'string' ? parseFloat(value.replace(',', '.')) : Number(value);
   if (isNaN(num)) return 'R$ 0,00';
-  if (num === 0) return 'R$ 0,00 (Grátis)';
+  if (num === 0) return 'R$ 0,00';
 
   const absNum = Math.abs(num);
   let decimals = 2;

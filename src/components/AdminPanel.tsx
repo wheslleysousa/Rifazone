@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import {
   auth, observarAuth, cadastrarComEmail, entrarComEmail, entrarComGoogle, sair,
-  atualizarPerfilUsuario, atualizarEmailUsuario, atualizarSenhaUsuario,
+  atualizarPerfilUsuario, atualizarEmailUsuario, atualizarSenhaUsuario, reautenticarEAlterarSenha,
   traduzErroAuth, type User
 } from '../lib/firebase';
 import { toReais } from '../lib/money';
@@ -166,13 +166,20 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
   const [configErro, setConfigErro] = useState('');
 
   // Sub-abas de configuração
-  const [subAbaConfig, setSubAbaConfig] = useState<'perfil' | 'pix' | 'taxas' | 'carteira-sistema'>('perfil');
+  const [subAbaConfig, setSubAbaConfig] = useState<'perfil' | 'carteira-sistema'>('perfil');
+  const [modoEdicaoPerfil, setModoEdicaoPerfil] = useState(false);
   const [perfilNome, setPerfilNome] = useState('');
   const [perfilFoto, setPerfilFoto] = useState('');
   const [perfilLogo, setPerfilLogo] = useState('');
   const [perfilEmail, setPerfilEmail] = useState('');
-  const [perfilSenha, setPerfilSenha] = useState('');
   const [salvandoPerfil, setSalvandoPerfil] = useState(false);
+
+  // Alteração de Senha com Reautenticação
+  const [modoAlterarSenha, setModoAlterarSenha] = useState(false);
+  const [senhaAtual, setSenhaAtual] = useState('');
+  const [novaSenha, setNovaSenha] = useState('');
+  const [confirmarNovaSenha, setConfirmarNovaSenha] = useState('');
+  const [salvandoSenha, setSalvandoSenha] = useState(false);
 
   // Inicializa dados do perfil
   useEffect(() => {
@@ -186,6 +193,30 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
     }
   }, [user, configPagamento]);
 
+  const handleFotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      if (evt.target?.result) {
+        setPerfilFoto(evt.target.result as string);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      if (evt.target?.result) {
+        setPerfilLogo(evt.target.result as string);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleSalvarPerfil = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -197,22 +228,8 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
       if (perfilNome.trim() !== (user.displayName || '') || perfilFoto.trim() !== (user.photoURL || '')) {
         await atualizarPerfilUsuario(perfilNome.trim(), perfilFoto.trim());
       }
-      
-      // 2) Atualiza email se mudou
-      if (perfilEmail.trim() !== (user.email || '')) {
-        await atualizarEmailUsuario(perfilEmail.trim());
-      }
 
-      // 3) Atualiza senha se preenchida
-      if (perfilSenha) {
-        if (perfilSenha.length < 6) {
-          throw new Error('A nova senha deve ter no mínimo 6 caracteres.');
-        }
-        await atualizarSenhaUsuario(perfilSenha);
-        setPerfilSenha('');
-      }
-
-      // 4) Atualiza Logo da Marca na Config
+      // 2) Atualiza Logo da Marca na Config
       if (perfilLogo.trim() !== (configPagamento?.marca?.logoUrl || '')) {
         await authFetch('/api/admin/configuracoes', {
           method: 'PUT',
@@ -230,15 +247,53 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
       setUser({
         ...user,
         displayName: perfilNome.trim(),
-        photoURL: perfilFoto.trim(),
-        email: perfilEmail.trim()
+        photoURL: perfilFoto.trim()
       } as any);
 
-      setConfigMsg('Seus dados de perfil foram atualizados com sucesso no Firebase!');
+      setConfigMsg('Informações de perfil atualizadas com sucesso!');
+      setModoEdicaoPerfil(false);
     } catch (err: any) {
       setConfigErro(traduzErroAuth(err?.code || '') || err.message || 'Erro ao atualizar dados da conta.');
     } finally {
       setSalvandoPerfil(false);
+    }
+  };
+
+  const handleAlterarSenha = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setConfigMsg('');
+    setConfigErro('');
+
+    if (!senhaAtual) {
+      setConfigErro('Informe sua senha atual para confirmação.');
+      return;
+    }
+    if (!novaSenha || novaSenha.length < 6) {
+      setConfigErro('A nova senha deve ter no mínimo 6 caracteres.');
+      return;
+    }
+    if (novaSenha !== confirmarNovaSenha) {
+      setConfigErro('A nova senha e a confirmação não coincidem.');
+      return;
+    }
+
+    setSalvandoSenha(true);
+    try {
+      await reautenticarEAlterarSenha(senhaAtual, novaSenha);
+      setConfigMsg('Sua senha foi alterada com sucesso!');
+      setSenhaAtual('');
+      setNovaSenha('');
+      setConfirmarNovaSenha('');
+      setModoAlterarSenha(false);
+    } catch (err: any) {
+      console.error('Erro ao alterar senha:', err);
+      if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+        setConfigErro('A senha atual está incorreta. Verifique sua senha e tente novamente.');
+      } else {
+        setConfigErro(traduzErroAuth(err.code) || err.message || 'Erro ao alterar a senha.');
+      }
+    } finally {
+      setSalvandoSenha(false);
     }
   };
 
@@ -287,6 +342,9 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
     if (!auth.currentUser) return;
     setCarregando(true);
     try {
+      // Dispara o Warmup / Pré-carregamento em background para todas as APIs cadastradas (Efí Pay, Facebook, Carteira, etc.)
+      authFetch('/api/admin/warmup').catch(() => {});
+
       // 1) Campanhas
       const resCamp = await authFetch('/api/admin/campanhas');
       if (resCamp.ok) {
@@ -787,6 +845,7 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
       titulo: 'Personalização & Ajustes',
       itens: [
         { id: 'checkouts', label: 'Checkout', icon: <CreditCard className="w-4 h-4 text-indigo-400" /> },
+        { id: 'metodos-pagamento', label: 'Métodos de Pagamento', icon: <Wallet className="w-4 h-4 text-emerald-400" /> },
         { id: 'configuracoes', label: 'Configurações', icon: <Settings className="w-4 h-4" />, alerta: !configPagamento?.mpConfigurado },
       ]
     }
@@ -1352,6 +1411,15 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
             </div>
           )}
 
+          {/* MÉTODOS DE PAGAMENTO */}
+          {abaAtiva === 'metodos-pagamento' && (
+            <MetodosPagamentoView
+              authFetch={authFetch}
+              isAdmin={user?.email === 'wheslleyaviz@gmail.com'}
+              userEmail={user?.email || ''}
+            />
+          )}
+
           {/* 11. CONFIGURAÇÕES */}
           {abaAtiva === 'configuracoes' && (
             <div className="max-w-2xl mx-auto space-y-6">
@@ -1377,19 +1445,7 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
                   }`}
                 >
                   <UserIcon className="w-4 h-4" />
-                  Minha Conta / Perfil
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setSubAbaConfig('pix'); setConfigMsg(''); setConfigErro(''); }}
-                  className={`flex-1 min-w-[140px] py-3 text-xs font-black rounded-xl transition flex items-center justify-center gap-2 ${
-                    subAbaConfig === 'pix'
-                      ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/10'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  <CreditCard className="w-4 h-4" />
-                  Métodos de Pagamento
+                  Minha Conta
                 </button>
                 
                 {user?.email === 'wheslleyaviz@gmail.com' && (
@@ -1429,154 +1485,270 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
                 </div>
               )}
 
-              {/* ABA 1: CONFIGURAÇÃO DE PERFIL */}
+              {/* ABA MINHA CONTA */}
               {subAbaConfig === 'perfil' && (
-                <form onSubmit={handleSalvarPerfil} className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 space-y-6 shadow-xl">
-                  <div className="flex flex-col sm:flex-row items-center gap-5 pb-2 border-b border-slate-800/80">
-                    <div className="relative group">
-                      <div className="w-20 h-20 rounded-full bg-slate-950 border-2 border-emerald-500/30 overflow-hidden flex items-center justify-center shadow-lg">
-                        {perfilFoto ? (
-                          <img
-                            src={perfilFoto}
-                            alt="Avatar"
-                            className="w-full h-full object-cover"
-                            referrerPolicy="no-referrer"
-                            onError={(e) => {
-                              // Fallback se a imagem falhar
-                              (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(perfilNome || 'Rifa')}`;
-                            }}
-                          />
-                        ) : (
-                          <UserIcon className="w-8 h-8 text-slate-500" />
-                        )}
+                <div className="space-y-6">
+                  {!modoEdicaoPerfil ? (
+                    /* Visualização do Perfil */
+                    <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-6">
+                      <div className="flex flex-col sm:flex-row items-center gap-5 pb-6 border-b border-slate-800/80">
+                        <div className="w-24 h-24 rounded-full bg-slate-950 border-2 border-emerald-500/40 overflow-hidden flex items-center justify-center shadow-lg shrink-0">
+                          {perfilFoto ? (
+                            <img
+                              src={perfilFoto}
+                              alt="Foto de Perfil"
+                              className="w-full h-full object-cover"
+                              referrerPolicy="no-referrer"
+                            />
+                          ) : (
+                            <UserIcon className="w-10 h-10 text-slate-500" />
+                          )}
+                        </div>
+                        <div className="text-center sm:text-left space-y-1.5 flex-1">
+                          <h2 className="text-lg font-black text-white">{perfilNome || user?.displayName || 'Organizador'}</h2>
+                          <p className="text-xs text-slate-400 flex items-center justify-center sm:justify-start gap-1.5">
+                            <Mail className="w-3.5 h-3.5 text-emerald-400" />
+                            {user?.email}
+                          </p>
+                          <div className="pt-2">
+                            <button
+                              type="button"
+                              onClick={() => setModoEdicaoPerfil(true)}
+                              className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl shadow-md transition flex items-center gap-1.5 mx-auto sm:mx-0"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                              Editar Informações
+                            </button>
+                          </div>
+                        </div>
                       </div>
-                      <div className="absolute -bottom-1 -right-1 w-7 h-7 bg-emerald-500 text-slate-950 rounded-full flex items-center justify-center shadow-md border border-slate-900">
-                        <Camera className="w-3.5 h-3.5" />
+
+                      {/* Dados Básicos */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="p-4 bg-slate-950 border border-slate-800/80 rounded-2xl space-y-1">
+                          <span className="text-[10px] uppercase font-bold text-slate-400">Nome Completo / Fantasia</span>
+                          <p className="text-sm font-black text-white">{perfilNome || 'Não informado'}</p>
+                        </div>
+                        <div className="p-4 bg-slate-950 border border-slate-800/80 rounded-2xl space-y-1">
+                          <span className="text-[10px] uppercase font-bold text-slate-400">E-mail Cadastrado</span>
+                          <p className="text-sm font-black text-emerald-400 font-mono">{user?.email}</p>
+                        </div>
                       </div>
                     </div>
-                    <div className="text-center sm:text-left space-y-1">
-                      <h3 className="text-sm font-black text-white">Foto do Organizador</h3>
-                      <p className="text-[11px] text-slate-400 leading-normal max-w-sm">
-                        Adicione um link direto de imagem (.jpg, .png ou .svg) ou clique no botão abaixo para gerar uma foto moderna baseada no seu nome.
-                      </p>
+                  ) : (
+                    /* Edição de Informações */
+                    <form onSubmit={handleSalvarPerfil} className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 space-y-6 shadow-xl animate-in fade-in">
+                      <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+                        <h3 className="text-sm font-black text-white flex items-center gap-2">
+                          <Edit3 className="w-4 h-4 text-emerald-400" />
+                          Editar Informações Pessoais
+                        </h3>
+                        <button
+                          type="button"
+                          onClick={() => setModoEdicaoPerfil(false)}
+                          className="text-xs text-slate-400 hover:text-white"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+
+                      {/* Upload de Foto */}
+                      <div className="flex flex-col sm:flex-row items-center gap-5 p-4 bg-slate-950 rounded-2xl border border-slate-800">
+                        <div className="w-20 h-20 rounded-full bg-slate-900 border-2 border-emerald-500/40 overflow-hidden flex items-center justify-center shrink-0">
+                          {perfilFoto ? (
+                            <img src={perfilFoto} alt="Preview" className="w-full h-full object-cover" />
+                          ) : (
+                            <UserIcon className="w-8 h-8 text-slate-500" />
+                          )}
+                        </div>
+                        <div className="space-y-2 text-center sm:text-left flex-1">
+                          <h4 className="text-xs font-bold text-white">Foto do Perfil</h4>
+                          <p className="text-[11px] text-slate-400">Selecione uma foto diretamente do seu dispositivo.</p>
+                          <label className="inline-flex items-center gap-2 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl border border-slate-700 cursor-pointer transition">
+                            <Camera className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>Upload da Foto</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={handleFotoUpload}
+                              className="hidden"
+                            />
+                          </label>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {/* Campo Nome */}
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-slate-300">Nome Completo / Fantasia *</label>
+                          <input
+                            type="text"
+                            required
+                            value={perfilNome}
+                            onChange={e => setPerfilNome(e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:border-emerald-500 focus:outline-none"
+                          />
+                        </div>
+
+                        {/* Campo Email Bloqueado */}
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs font-bold text-slate-300">E-mail (Bloqueado)</label>
+                            <span className="text-[10px] text-rose-400 font-bold bg-rose-500/10 px-2 py-0.5 rounded-full border border-rose-500/20">
+                              Não alterável
+                            </span>
+                          </div>
+                          <input
+                            type="email"
+                            disabled
+                            value={user?.email || ''}
+                            className="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-400 cursor-not-allowed font-mono"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Logo da Plataforma por Upload */}
+                      <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
+                              <Palette className="w-3.5 h-3.5 text-emerald-400" />
+                              Logo da Marca / Plataforma
+                            </h4>
+                            <p className="text-[11px] text-slate-400">Faça o upload do logo para exibir nas páginas das rifas e no painel.</p>
+                          </div>
+                          {perfilLogo && (
+                            <div className="w-12 h-12 rounded-xl bg-slate-900 border border-slate-700 p-1 flex items-center justify-center overflow-hidden">
+                              <img src={perfilLogo} alt="Logo" className="max-w-full max-h-full object-contain" />
+                            </div>
+                          )}
+                        </div>
+
+                        <label className="inline-flex items-center gap-2 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl border border-slate-700 cursor-pointer transition">
+                          <Camera className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>Upload do Logo</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleLogoUpload}
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
+
+                      <div className="flex justify-end gap-3 pt-2">
+                        <button
+                          type="button"
+                          onClick={() => setModoEdicaoPerfil(false)}
+                          className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl transition"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={salvandoPerfil}
+                          className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 text-slate-950 font-black text-xs rounded-xl shadow-lg transition flex items-center gap-2"
+                        >
+                          {salvandoPerfil ? (
+                            <>
+                              <RefreshCw className="w-4 h-4 animate-spin" />
+                              Salvando...
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle2 className="w-4 h-4" />
+                              Salvar Alterações
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </form>
+                  )}
+
+                  {/* SEÇÃO ALTERAR SENHA */}
+                  <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-sm font-black text-white flex items-center gap-2">
+                          <Lock className="w-4 h-4 text-amber-400" />
+                          Alterar Senha da Conta
+                        </h3>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          Para sua segurança, informe sua senha atual para definir uma nova senha.
+                        </p>
+                      </div>
                       <button
                         type="button"
-                        onClick={() => {
-                          const seed = perfilNome.trim() || user?.email || 'rifapix';
-                          const randomNum = Math.floor(Math.random() * 1000);
-                          setPerfilFoto(`https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(seed)}-${randomNum}`);
-                        }}
-                        className="mt-1.5 px-3 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-black rounded-lg transition flex items-center gap-1 mx-auto sm:mx-0"
+                        onClick={() => setModoAlterarSenha(!modoAlterarSenha)}
+                        className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-amber-400 border border-amber-500/30 text-xs font-bold rounded-xl transition"
                       >
-                        <Sparkles className="w-3 h-3" />
-                        Gerar Avatar Moderno
+                        {modoAlterarSenha ? 'Fechar Formatos' : 'Alterar Senha'}
                       </button>
                     </div>
-                  </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-slate-300 flex items-center gap-1">
-                        <UserIcon className="w-3.5 h-3.5 text-emerald-400" />
-                        Nome Completo / Fantasia *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={perfilNome}
-                        onChange={e => setPerfilNome(e.target.value)}
-                        placeholder="Ex: Carlos Prêmios"
-                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:border-emerald-500 focus:outline-none"
-                      />
-                    </div>
+                    {modoAlterarSenha && (
+                      <form onSubmit={handleAlterarSenha} className="pt-4 border-t border-slate-800 space-y-4 animate-in fade-in">
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-slate-300">1. Senha Atual da Conta *</label>
+                          <input
+                            type="password"
+                            required
+                            value={senhaAtual}
+                            onChange={e => setSenhaAtual(e.target.value)}
+                            placeholder="Digite sua senha atual"
+                            className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:border-amber-500 focus:outline-none"
+                          />
+                        </div>
 
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-slate-300 flex items-center gap-1">
-                        <Mail className="w-3.5 h-3.5 text-emerald-400" />
-                        E-mail de Acesso *
-                      </label>
-                      <input
-                        type="email"
-                        required
-                        value={perfilEmail}
-                        onChange={e => setPerfilEmail(e.target.value)}
-                        placeholder="Ex: organizador@email.com"
-                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:border-emerald-500 focus:outline-none"
-                      />
-                    </div>
-                  </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-bold text-slate-300">2. Nova Senha *</label>
+                            <input
+                              type="password"
+                              required
+                              value={novaSenha}
+                              onChange={e => setNovaSenha(e.target.value)}
+                              placeholder="Mínimo de 6 caracteres"
+                              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:border-emerald-500 focus:outline-none"
+                            />
+                          </div>
 
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-300 flex items-center gap-1">
-                      <Link2 className="w-3.5 h-3.5 text-emerald-400" />
-                      Link da Imagem de Perfil
-                    </label>
-                    <input
-                      type="url"
-                      value={perfilFoto}
-                      onChange={e => setPerfilFoto(e.target.value)}
-                      placeholder="https://exemplo.com/sua-foto.png"
-                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white font-mono focus:border-emerald-500 focus:outline-none"
-                    />
-                  </div>
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-bold text-slate-300">3. Confirmar Nova Senha *</label>
+                            <input
+                              type="password"
+                              required
+                              value={confirmarNovaSenha}
+                              onChange={e => setConfirmarNovaSenha(e.target.value)}
+                              placeholder="Repita a nova senha"
+                              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:border-emerald-500 focus:outline-none"
+                            />
+                          </div>
+                        </div>
 
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-300 flex items-center gap-1">
-                      <Palette className="w-3.5 h-3.5 text-emerald-400" />
-                      Logo da Plataforma (Link da Imagem)
-                    </label>
-                    <input
-                      type="url"
-                      value={perfilLogo}
-                      onChange={e => setPerfilLogo(e.target.value)}
-                      placeholder="https://exemplo.com/seu-logo.png"
-                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white font-mono focus:border-emerald-500 focus:outline-none"
-                    />
-                    <p className="text-[10px] text-slate-500 ml-1">Este logo aparecerá no topo do painel e nas páginas públicas das rifas.</p>
+                        <div className="flex justify-end pt-2">
+                          <button
+                            type="submit"
+                            disabled={salvandoSenha}
+                            className="px-6 py-2.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-slate-950 font-black text-xs rounded-xl shadow-lg transition flex items-center gap-2"
+                          >
+                            {salvandoSenha ? (
+                              <>
+                                <RefreshCw className="w-4 h-4 animate-spin" />
+                                Validando e Alterando Senha...
+                              </>
+                            ) : (
+                              <>
+                                <Lock className="w-4 h-4" />
+                                Confirmar Alteração de Senha
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </form>
+                    )}
                   </div>
-
-                  <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-3.5">
-                    <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
-                      <Lock className="w-3.5 h-3.5 text-amber-400" />
-                      Alterar Senha de Acesso (Opcional)
-                    </h4>
-                    <p className="text-[10px] text-slate-400 leading-normal">
-                      Se deseja alterar sua senha, preencha o campo abaixo. Deixe em branco se deseja continuar utilizando sua senha atual de acesso ao painel do organizador.
-                    </p>
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-slate-300 block">
-                        Nova Senha de Acesso
-                      </label>
-                      <input
-                        type="password"
-                        value={perfilSenha}
-                        onChange={e => setPerfilSenha(e.target.value)}
-                        placeholder="No mínimo 6 caracteres"
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:border-emerald-500 focus:outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex justify-end pt-2">
-                    <button
-                      type="submit"
-                      disabled={salvandoPerfil}
-                      className="w-full sm:w-auto px-6 py-3 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-emerald-500/20 transition flex items-center justify-center gap-2"
-                    >
-                      {salvandoPerfil ? (
-                        <>
-                          <RefreshCw className="w-4 h-4 animate-spin" />
-                          Salvando alterações...
-                        </>
-                      ) : (
-                        <>
-                          <CheckCircle2 className="w-4 h-4" />
-                          Salvar Meus Dados
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </form>
+                </div>
               )}
 
               {/* ABA 2: MÉTODOS DE PAGAMENTO OU TAXAS DO ADMIN */}

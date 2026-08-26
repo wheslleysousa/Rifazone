@@ -102,7 +102,10 @@ export async function executarMigracaoFirebaseParaSupabase(): Promise<MigracaoRe
     erros: []
   };
 
-  console.log('🔄 [MIGRAÇÃO] Iniciando migração do Firebase Firestore para o Supabase...');
+  console.log('🔄 [MIGRAÇÃO] Iniciando migração completa do Firebase Firestore para o Supabase...');
+
+  // Mapeamento de campanhaId -> ownerId para garantir consistência
+  const campanhaOwnerMap: Record<string, string> = {};
 
   // 1. CONFIGURAÇÕES
   try {
@@ -126,9 +129,12 @@ export async function executarMigracaoFirebaseParaSupabase(): Promise<MigracaoRe
     const snap = await firestore.collection('campanhas').get();
     for (const doc of snap.docs) {
       const data = doc.data();
+      const ownerId = data.ownerId || '';
+      campanhaOwnerMap[doc.id] = ownerId;
+
       const { error } = await supabase.from('campanhas').upsert({
         id: doc.id,
-        owner_id: data.ownerId || '',
+        owner_id: ownerId,
         codigo: (data.codigo || '').toLowerCase().trim(),
         dados: data
       });
@@ -156,7 +162,6 @@ export async function executarMigracaoFirebaseParaSupabase(): Promise<MigracaoRe
             };
           });
 
-          // Inserir em chunks de 400
           for (let i = 0; i < cotasRows.length; i += 400) {
             const chunk = cotasRows.slice(i, i + 400);
             const { error: cotaErr } = await supabase
@@ -179,19 +184,24 @@ export async function executarMigracaoFirebaseParaSupabase(): Promise<MigracaoRe
     relatorio.erros.push(`Erro em campanhas: ${err?.message || err}`);
   }
 
-  // 3. PEDIDOS
+  // 3. PEDIDOS (garantindo owner_id preenchido)
   try {
     const snap = await firestore.collection('pedidos').get();
     for (const doc of snap.docs) {
       const data = doc.data();
+      const ownerId = data.ownerId || campanhaOwnerMap[data.campanhaId] || '';
+      
       const { error } = await supabase.from('pedidos').upsert({
         id: doc.id,
-        owner_id: data.ownerId || '',
+        owner_id: ownerId,
         campanha_id: data.campanhaId || '',
         mp_payment_id: data.mpPaymentId ? String(data.mpPaymentId) : null,
         efi_payment_id: data.efiPaymentId ? String(data.efiPaymentId) : null,
         status: data.status || 'pendente',
-        dados: data
+        dados: {
+          ...data,
+          ownerId: ownerId
+        }
       });
 
       if (!error) relatorio.detalhes.pedidos++;
@@ -219,7 +229,61 @@ export async function executarMigracaoFirebaseParaSupabase(): Promise<MigracaoRe
     relatorio.erros.push(`Erro em compradores: ${err?.message || err}`);
   }
 
-  // 5. ESTILOS
+  // 5. SOLICITAÇÕES DE SAQUE (Lê tanto 'solicitacoes_saque' quanto 'saques')
+  try {
+    const saquesFirestore: any[] = [];
+    const snap1 = await firestore.collection('solicitacoes_saque').get();
+    snap1.docs.forEach(d => saquesFirestore.push({ id: d.id, ...d.data() }));
+
+    const snap2 = await firestore.collection('saques').get();
+    snap2.docs.forEach(d => {
+      if (!saquesFirestore.some(s => s.id === d.id)) {
+        saquesFirestore.push({ id: d.id, ...d.data() });
+      }
+    });
+
+    for (const s of saquesFirestore) {
+      const { error } = await supabase.from('saques').upsert({
+        id: s.id,
+        owner_id: s.ownerId || '',
+        dados: s
+      });
+      if (!error) relatorio.detalhes.saques++;
+      else relatorio.erros.push(`Saque ${s.id}: ${error.message}`);
+    }
+    console.log(`✅ [MIGRAÇÃO] ${relatorio.detalhes.saques} solicitações de saque migradas.`);
+  } catch (err: any) {
+    relatorio.erros.push(`Erro em saques: ${err?.message || err}`);
+  }
+
+  // 6. TRANSAÇÕES DA CARTEIRA (Lê tanto 'transacoes_carteira' quanto 'transacoes')
+  try {
+    const txFirestore: any[] = [];
+    const snap1 = await firestore.collection('transacoes_carteira').get();
+    snap1.docs.forEach(d => txFirestore.push({ id: d.id, ...d.data() }));
+
+    const snap2 = await firestore.collection('transacoes').get();
+    snap2.docs.forEach(d => {
+      if (!txFirestore.some(t => t.id === d.id)) {
+        txFirestore.push({ id: d.id, ...d.data() });
+      }
+    });
+
+    for (const t of txFirestore) {
+      const { error } = await supabase.from('transacoes').upsert({
+        id: t.id,
+        owner_id: t.ownerId || '',
+        dados: t
+      });
+      if (!error) relatorio.detalhes.transacoes++;
+      else relatorio.erros.push(`Transacao ${t.id}: ${error.message}`);
+    }
+    console.log(`✅ [MIGRAÇÃO] ${relatorio.detalhes.transacoes} transações da carteira migradas.`);
+  } catch (err: any) {
+    relatorio.erros.push(`Erro em transacoes: ${err?.message || err}`);
+  }
+
+  // 7. ESTILOS
   try {
     const snap = await firestore.collection('estilos').get();
     for (const doc of snap.docs) {
@@ -233,7 +297,7 @@ export async function executarMigracaoFirebaseParaSupabase(): Promise<MigracaoRe
     }
   } catch {}
 
-  // 6. CHECKOUTS
+  // 8. CHECKOUTS
   try {
     const snap = await firestore.collection('checkouts').get();
     for (const doc of snap.docs) {
@@ -244,34 +308,6 @@ export async function executarMigracaoFirebaseParaSupabase(): Promise<MigracaoRe
         dados: data
       });
       if (!error) relatorio.detalhes.checkouts++;
-    }
-  } catch {}
-
-  // 7. TRANSACOES
-  try {
-    const snap = await firestore.collection('transacoes').get();
-    for (const doc of snap.docs) {
-      const data = doc.data();
-      const { error } = await supabase.from('transacoes').upsert({
-        id: doc.id,
-        owner_id: data.ownerId || '',
-        dados: data
-      });
-      if (!error) relatorio.detalhes.transacoes++;
-    }
-  } catch {}
-
-  // 8. SAQUES
-  try {
-    const snap = await firestore.collection('saques').get();
-    for (const doc of snap.docs) {
-      const data = doc.data();
-      const { error } = await supabase.from('saques').upsert({
-        id: doc.id,
-        owner_id: data.ownerId || '',
-        dados: data
-      });
-      if (!error) relatorio.detalhes.saques++;
     }
   } catch {}
 

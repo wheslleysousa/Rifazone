@@ -11,14 +11,25 @@ export function toCents(value: number | string | undefined | null): number {
 }
 
 export function toReais(value: number | string | undefined | null): number {
-  if (value === undefined || value === null || value === '') return 0;
-  const num = typeof value === 'number' ? value : parseFloat(String(value).replace(',', '.'));
-  if (isNaN(num)) return 0;
-  
-  // Se o valor vier do Firestore como centavos (inteiro), dividimos por 100
-  // Note: Esta função é usada principalmente para converter o que vem do banco (centavos) para exibição (reais)
-  return Number((num / 100).toFixed(2));
+  return extrairValorReaisPedido(value);
 }
+
+export function extrairValorReaisPedido(p: any): number {
+  if (!p) return 0;
+  const raw = p.valorTotal !== undefined ? p.valorTotal : (p.valorTotalReais !== undefined ? p.valorTotalReais : p);
+  if (raw === undefined || raw === null || raw === '') return 0;
+  const num = typeof raw === 'string' ? parseFloat(raw.replace(',', '.')) : Number(raw);
+  if (isNaN(num) || num <= 0) return 0;
+  
+  // No banco do RifaZone, pedidos pagos salvam o valor total em centavos (ex: 5205 = R$ 52,05).
+  // Se o número for inteiro (centavos), divide por 100:
+  if (Number.isInteger(num)) {
+    return Number((num / 100).toFixed(2));
+  }
+  // Se já tiver fração decimal (ex: 52.05):
+  return Number(num.toFixed(2));
+}
+
 
 export function formatarMoeda(value: number | string | undefined | null): string {
   if (value === undefined || value === null || value === '') return 'R$ 0,00';

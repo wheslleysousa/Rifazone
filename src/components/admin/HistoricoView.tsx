@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Users, Search, DollarSign, Ticket, Phone, Calendar, CheckCircle2, Clock, XCircle, ShieldCheck } from 'lucide-react';
 import { Pedido } from '../../types';
+import { extrairValorReaisPedido } from '../../lib/money';
 
 interface HistoricoViewProps {
   pedidos: Pedido[];
@@ -25,6 +26,7 @@ export const HistoricoView: React.FC<HistoricoViewProps> = ({ pedidos }) => {
 
   pedidos.filter(p => p.status === 'pago').forEach(p => {
     const key = p.comprador?.whatsapp || p.compradorId || p.comprador?.nome || 'anônimo';
+    const valReais = extrairValorReaisPedido(p);
     if (!clientesMap[key]) {
       clientesMap[key] = {
         nome: p.comprador?.nome || 'Participante',
@@ -38,7 +40,7 @@ export const HistoricoView: React.FC<HistoricoViewProps> = ({ pedidos }) => {
       };
     }
     clientesMap[key].totalCotas += p.quantidade;
-    clientesMap[key].totalGasto += p.valorTotal;
+    clientesMap[key].totalGasto += valReais;
     clientesMap[key].pedidosCount += 1;
     const dataAtual = new Date(p.pagoEm || p.criadoEm).getTime();
     const dataRegistrada = new Date(clientesMap[key].ultimaCompra).getTime();
@@ -228,7 +230,7 @@ export const HistoricoView: React.FC<HistoricoViewProps> = ({ pedidos }) => {
                         <div className="text-[11px] text-slate-400 font-mono">{p.comprador?.whatsapp}</div>
                       </td>
                       <td className="p-4 font-mono font-bold">{p.quantidade} cotas</td>
-                      <td className="p-4 font-mono font-black text-emerald-400">R$ {(p.valorTotal || 0).toFixed(2)}</td>
+                      <td className="p-4 font-mono font-black text-emerald-400">R$ {extrairValorReaisPedido(p).toFixed(2).replace('.', ',')}</td>
                       <td className="p-4">
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
                           p.status === 'pago' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :

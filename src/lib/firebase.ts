@@ -10,6 +10,8 @@ import {
   updateEmail,
   updatePassword,
   onAuthStateChanged,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
   type User
 } from 'firebase/auth';
 import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
@@ -73,6 +75,15 @@ export async function atualizarEmailUsuario(novoEmail: string): Promise<void> {
 export async function atualizarSenhaUsuario(novaSenha: string): Promise<void> {
   if (!auth.currentUser) throw new Error('Usuário não autenticado');
   await updatePassword(auth.currentUser, novaSenha);
+}
+
+export async function reautenticarEAlterarSenha(senhaAtual: string, novaSenha: string): Promise<void> {
+  const user = auth.currentUser;
+  if (!user) throw new Error('Usuário não autenticado');
+  if (!user.email) throw new Error('E-mail do usuário não identificado');
+  const credential = EmailAuthProvider.credential(user.email, senhaAtual);
+  await reauthenticateWithCredential(user, credential);
+  await updatePassword(user, novaSenha);
 }
 
 // Traduz códigos de erro do Firebase Auth para mensagens amigáveis em pt-BR.

@@ -5,6 +5,7 @@ import { Campanha, Cota, Pedido, Comprador, RankingItem, CotaPremiada, ConfigOrg
 import { Storage, EstatisticasCampanha, MeusNumerosResult, ConfirmarPedidoResult, SorteioResult, DadosConfig } from './storage-interface.js';
 import { mergeConfig } from './config-utils.js';
 import { decryptToken } from './crypto-utils.js';
+import { extrairValorReaisPedido } from './money-utils.js';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 if (!fs.existsSync(DATA_DIR)) {
@@ -790,7 +791,7 @@ export class FileStorage implements Storage {
     return false;
   }
 
-  public async getCarteiraSaldo(ownerId: string): Promise<CarteiraSaldo> {
+  public async getCarteiraSaldo(ownerId: string, _forcarRecalculo: boolean = false): Promise<CarteiraSaldo> {
     const todasTransacoes = Array.from(this.transacoesCarteira.values()).filter(t => t.ownerId === ownerId && !this.ehTransacaoSimulada(t));
     const saques = Array.from(this.saques.values()).filter(s => s.ownerId === ownerId);
 
@@ -811,9 +812,12 @@ export class FileStorage implements Storage {
 
     for (const t of transacoes) {
       if (t.tipo === 'venda' && (t.status === 'concluida' || t.status === 'processando')) {
-        totalArrecadado += t.valorBruto;
-        totalTaxas += t.taxa;
-        saldoDisponivel += t.valorLiquido;
+        const vBruto = extrairValorReaisPedido(t.valorBruto || 0);
+        const vTaxa = extrairValorReaisPedido(t.taxa || 0);
+        const vLiquido = extrairValorReaisPedido(t.valorLiquido || (vBruto - vTaxa));
+        totalArrecadado += vBruto;
+        totalTaxas += vTaxa;
+        saldoDisponivel += vLiquido;
       }
     }
 

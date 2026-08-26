@@ -195,7 +195,7 @@ export interface Storage {
   listarTodasMensagensFila(campanhaId?: string): Promise<MensagemFila[]>;
 
   // Carteira do Sistema & Saques
-  getCarteiraSaldo(ownerId: string): Promise<CarteiraSaldo>;
+  getCarteiraSaldo(ownerId: string, forcarRecalculo?: boolean): Promise<CarteiraSaldo>;
   creditarVendaCarteira(ownerId: string, valorBruto: number, taxaPct: number, pedidoId: string, descricao: string): Promise<TransacaoCarteira>;
   solicitarSaque(dados: Omit<SolicitacaoSaque, 'id' | 'criadoEm' | 'status'>): Promise<SolicitacaoSaque>;
   listarTransacoesCarteira(ownerId: string): Promise<TransacaoCarteira[]>;

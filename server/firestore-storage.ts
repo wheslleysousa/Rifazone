@@ -7,6 +7,7 @@ import { Campanha, Cota, Pedido, Comprador, RankingItem, CotaPremiada, ConfigOrg
 import { Storage, EstatisticasCampanha, MeusNumerosResult, ConfirmarPedidoResult, SorteioResult, DadosConfig } from './storage-interface.js';
 import { mergeConfig } from './config-utils.js';
 import { decryptToken } from './crypto-utils.js';
+import { extrairValorReaisPedido } from './money-utils.js';
 
 // Lê o databaseId (Firestore nomeado) do config do Firebase.
 function getDatabaseId(): string | undefined {
@@ -669,9 +670,12 @@ export class FirestoreStorage implements Storage {
 
     for (const t of transacoes) {
       if (t.tipo === 'venda' && (t.status === 'concluida' || t.status === 'processando')) {
-        totalArrecadado += t.valorBruto;
-        totalTaxas += t.taxa;
-        saldoDisponivel += t.valorLiquido;
+        const vBruto = extrairValorReaisPedido(t.valorBruto || 0);
+        const vTaxa = extrairValorReaisPedido(t.taxa || 0);
+        const vLiquido = extrairValorReaisPedido(t.valorLiquido || (vBruto - vTaxa));
+        totalArrecadado += vBruto;
+        totalTaxas += vTaxa;
+        saldoDisponivel += vLiquido;
       }
     }
 
@@ -679,12 +683,13 @@ export class FirestoreStorage implements Storage {
     let saldoPendente = 0;
 
     for (const s of saques) {
+      const val = Number(s.valorSolicitado || 0);
       if (s.status === 'pago' || s.status === 'aprovado') {
-        totalSacado += s.valorSolicitado;
-        saldoDisponivel -= s.valorSolicitado;
+        totalSacado += val;
+        saldoDisponivel -= val;
       } else if (s.status === 'pendente') {
-        saldoPendente += s.valorSolicitado;
-        saldoDisponivel -= s.valorSolicitado;
+        saldoPendente += val;
+        saldoDisponivel -= val;
       }
     }
 

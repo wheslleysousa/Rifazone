@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Users, Search, DollarSign, Ticket, MessageCircle, Calendar, ShieldCheck, Phone } from 'lucide-react';
 import { Pedido } from '../../types';
+import { extrairValorReaisPedido } from '../../lib/money';
 
 interface Props {
   pedidos: Pedido[];
@@ -23,6 +24,7 @@ export const ClientesView: React.FC<Props> = ({ pedidos }) => {
 
   pedidos.filter(p => p.status === 'pago').forEach(p => {
     const key = p.comprador?.whatsapp || p.compradorId || p.comprador?.nome || 'anônimo';
+    const valReais = extrairValorReaisPedido(p);
     if (!clientesMap[key]) {
       clientesMap[key] = {
         nome: p.comprador?.nome || 'Participante',
@@ -37,7 +39,7 @@ export const ClientesView: React.FC<Props> = ({ pedidos }) => {
     }
 
     clientesMap[key].totalCotas += p.quantidade;
-    clientesMap[key].totalGasto += p.valorTotal;
+    clientesMap[key].totalGasto += valReais;
     clientesMap[key].pedidosCount += 1;
 
     const dataAtual = new Date(p.pagoEm || p.criadoEm).getTime();

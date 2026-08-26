@@ -934,6 +934,121 @@ export async function enviarPixEfipay(params: {
 }
 
 /**
+ * Consulta o status de um envio Pix realizado via Efí Pay para saber se o dinheiro realmente saiu da conta
+ */
+export async function consultarEnvioPixEfipay(params: {
+  idEnvio?: string;
+  e2eId?: string;
+  config?: ConfigOrganizador | null;
+}): Promise<{
+  success: boolean;
+  statusPix: 'REALIZADO' | 'EM_PROCESSAMENTO' | 'NAO_REALIZADO' | 'DEVOLVIDO' | 'NAO_ENCONTRADO';
+  e2eId?: string;
+  valor?: number;
+  horario?: string;
+  detalhes: string;
+}> {
+  const creds = resolveEfipayCredentials(params.config);
+  if (!creds || !creds.clientId || !creds.clientSecret) {
+    return { success: false, statusPix: 'NAO_ENCONTRADO', detalhes: 'Credenciais Efí Pay não configuradas.' };
+  }
+
+  const token = await getEfipayAccessToken(creds);
+  if (!token) {
+    return { success: false, statusPix: 'NAO_ENCONTRADO', detalhes: 'Não foi possível obter token OAuth da Efí Pay.' };
+  }
+
+  const isProd = creds.ambiente !== 'homologacao';
+  const baseUrls = isProd
+    ? ['https://pix.api.efipay.com.br', 'https://api-pix.gerencianet.com.br']
+    : ['https://pix-h.api.efipay.com.br', 'https://api-pix-h.gerencianet.com.br'];
+
+  // 1. Consulta pelo idEnvio (GET /v2/gn/pix/{idEnvio})
+  if (params.idEnvio) {
+    let idClean = params.idEnvio.replace(/[^a-zA-Z0-9]/g, '');
+    if (idClean.length < 26) {
+      idClean = idClean.padEnd(26, '0');
+    } else if (idClean.length > 35) {
+      idClean = idClean.slice(0, 35);
+    }
+
+    for (const baseUrl of baseUrls) {
+      const url = `${baseUrl}/v2/gn/pix/${idClean}`;
+      try {
+        const res = await efipayFetch({
+          method: 'GET',
+          url,
+          headers: { 'Authorization': `Bearer ${token}` },
+          certificadoBase64: creds.certificadoBase64
+        });
+
+        if (res.status === 200 && res.data) {
+          const data = res.data;
+          const statusUpper = String(data.status || '').toUpperCase();
+          if (statusUpper === 'REALIZADO' || statusUpper === 'CONCLUIDA' || statusUpper === 'PAGO' || statusUpper === 'LIQUIDADO') {
+            return {
+              success: true,
+              statusPix: 'REALIZADO',
+              e2eId: data.e2eId || idClean,
+              valor: Number(data.valor) || undefined,
+              horario: data.horario || data.criacao,
+              detalhes: 'Pix confirmado e liquidado com sucesso pela instituição financeira na Efí Pay.'
+            };
+          } else if (statusUpper === 'EM_PROCESSAMENTO' || statusUpper === 'PROCESSANDO') {
+            return {
+              success: true,
+              statusPix: 'EM_PROCESSAMENTO',
+              detalhes: 'Pix ainda consta em processamento no Banco Central / Efí Pay.'
+            };
+          } else if (statusUpper === 'NAO_REALIZADO' || statusUpper === 'DEVOLVIDO' || statusUpper === 'CANCELADO' || statusUpper === 'REJEITADO' || statusUpper === 'ERRO') {
+            return {
+              success: true,
+              statusPix: 'NAO_REALIZADO',
+              detalhes: `Pix não foi realizado pela instituição financeira (Status: ${statusUpper}).`
+            };
+          }
+        }
+      } catch (err: any) {
+        console.warn(`[Efí Consulta Envio Pix] Erro ao consultar ${url}:`, err?.message || err);
+      }
+    }
+  }
+
+  // 2. Consulta pelo EndToEndId (GET /v2/pix/{e2eId})
+  if (params.e2eId && params.e2eId.startsWith('E')) {
+    for (const baseUrl of baseUrls) {
+      const url = `${baseUrl}/v2/pix/${params.e2eId}`;
+      try {
+        const res = await efipayFetch({
+          method: 'GET',
+          url,
+          headers: { 'Authorization': `Bearer ${token}` },
+          certificadoBase64: creds.certificadoBase64
+        });
+
+        if (res.status === 200 && res.data) {
+          const data = res.data;
+          return {
+            success: true,
+            statusPix: 'REALIZADO',
+            e2eId: data.endToEndId || params.e2eId,
+            valor: Number(data.valor) || undefined,
+            horario: data.horario,
+            detalhes: 'Pix confirmado com sucesso na Efí Pay pelo EndToEndId.'
+          };
+        }
+      } catch (err: any) {}
+    }
+  }
+
+  return {
+    success: false,
+    statusPix: 'NAO_ENCONTRADO',
+    detalhes: 'Nenhuma liquidação de saída Pix encontrada para esta solicitação na Efí Pay.'
+  };
+}
+
+/**
  * Registra o webhook para uma chave Pix específica na Efí Pay
  */
 export async function registrarWebhookEfipay(params: {

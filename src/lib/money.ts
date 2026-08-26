@@ -11,11 +11,23 @@ export function toCents(value: number | string | undefined | null): number {
 }
 
 export function toReais(value: number | string | undefined | null): number {
-  if (value === undefined || value === null || value === '') return 0;
-  const num = typeof value === 'string' ? parseFloat(value.replace(',', '.')) : Number(value);
-  if (isNaN(num)) return 0;
-  // Converte centavos para Reais
-  return num / 100;
+  return extrairValorReaisPedido(value);
+}
+
+export function extrairValorReaisPedido(p: any): number {
+  if (!p) return 0;
+  const raw = p.valorTotal !== undefined ? p.valorTotal : (p.valorTotalReais !== undefined ? p.valorTotalReais : p);
+  if (raw === undefined || raw === null || raw === '') return 0;
+  const num = typeof raw === 'string' ? parseFloat(raw.replace(',', '.')) : Number(raw);
+  if (isNaN(num) || num <= 0) return 0;
+  
+  // No banco de dados do RifaZone, pedidos pagos salvam o valorTotal em centavos (ex: 5205 = R$ 52,05).
+  // Se for um número inteiro maior que 0, converte de centavos para Reais:
+  if (Number.isInteger(num)) {
+    return Number((num / 100).toFixed(2));
+  }
+  // Se já tiver casas decimais (ex: 52.05):
+  return Number(num.toFixed(2));
 }
 
 export function formatarMoeda(value: number | string | undefined | null): string {

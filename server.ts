@@ -39,9 +39,9 @@ import {
   buscarInsightsDeVariasContas,
   buscarTodasAsContasDeAnunciosDoUsuario
 } from './server/meta-service.js';
-import { toCents, toReais } from './server/money-utils.js';
+import { toCents, toReais, extrairValorReaisPedido } from './server/money-utils.js';
 import { EmailNotificador } from './server/notifications.js';
-import { gerarPixMultiGateway, consultarPagamentoAsaas, consultarPagamentoEfipay, testEfipayConnection, resolveEfipayCredentials, consultarSaldoEfipay, enviarPixEfipay, registrarWebhookEfipay } from './server/gateways.js';
+import { gerarPixMultiGateway, consultarPagamentoAsaas, consultarPagamentoEfipay, testEfipayConnection, resolveEfipayCredentials, consultarSaldoEfipay, enviarPixEfipay, consultarEnvioPixEfipay, registrarWebhookEfipay } from './server/gateways.js';
 import { Campanha, TEMA_PADRAO, DEFAULT_CHECKOUT_CONFIG } from './src/types.js';
 import { executarMigracaoFirebaseParaSupabase } from './server/migrate-v2.js';
 
@@ -2168,15 +2168,132 @@ app.put('/api/admin/configuracoes', firebaseAuthMiddleware, async (req, res) => 
   }
 });
 
-// GET /api/admin/carteira/saldo -> Saldo detalhado da Carteira do Sistema
+/**
+ * Motor de Verificação e Estorno Automático de Saques:
+ * Verifica saques que estão pendentes há mais de 10 minutos (ou sem confirmação bancária).
+ * Consulta a API bancária (Efí Pay) para ter 100% de certeza se o dinheiro saiu da conta.
+ * - Se confirmado pela API como REALIZADO: marca como 'pago' com e2eId oficial.
+ * - Se não foi liquidado/não concluído após 10 minutos: estorna o saque automaticamente,
+ *   marca como 'rejeitado' e devolve o valor integralmente ao saldo disponível do organizador.
+ */
+export async function verificarEEstornarSaquesPendentes(limiteMinutos: number = 10): Promise<{
+  totalVerificados: number;
+  estornados: Array<{ id: string; ownerId: string; valor: number; motivo: string }>;
+  confirmadosPagos: Array<{ id: string; ownerId: string; valor: number; e2eId?: string }>;
+}> {
+  const estornados: Array<{ id: string; ownerId: string; valor: number; motivo: string }> = [];
+  const confirmadosPagos: Array<{ id: string; ownerId: string; valor: number; e2eId?: string }> = [];
+
+  try {
+    const todosSaques = await db.listarSolicitacoesSaque();
+    const agora = Date.now();
+    const limiteMs = limiteMinutos * 60 * 1000;
+
+    // Filtra saques que continuam em estado 'pendente' ou 'processando' (não 'pago' e não 'rejeitado')
+    const saquesParaChecar = todosSaques.filter(s => {
+      if (!s || s.status === 'pago' || s.status === 'rejeitado') return false;
+      const criadoEmMs = s.criadoEm ? new Date(s.criadoEm).getTime() : 0;
+      if (!criadoEmMs || isNaN(criadoEmMs)) return true;
+      return (agora - criadoEmMs) >= limiteMs;
+    });
+
+    if (saquesParaChecar.length === 0) {
+      return { totalVerificados: 0, estornados, confirmadosPagos };
+    }
+
+    console.log(`[Auto-Verificação Saques] Encontrados ${saquesParaChecar.length} saque(s) pendente(s) há mais de ${limiteMinutos} minutos. Iniciando auditoria com API bancária...`);
+
+    const adminConfig = await db.getConfig('wheslleyaviz@gmail.com');
+
+    for (const saque of saquesParaChecar) {
+      const minutosDecorridos = Math.max(10, Math.round((agora - (saque.criadoEm ? new Date(saque.criadoEm).getTime() : agora)) / 60000));
+      console.log(`[Auto-Verificação Saques] Auditando saque #${saque.id} (R$ ${saque.valorSolicitado}) do usuário ${saque.ownerId} (${minutosDecorridos} min decorridos)...`);
+
+      let pixConfirmado = false;
+      let e2eIdConfirmado: string | undefined = saque.codigoAutenticacao;
+
+      // 1. Consulta com a API da Efí Pay para saber se a transferência Pix realmente saiu da conta
+      try {
+        const resConsulta = await consultarEnvioPixEfipay({
+          idEnvio: saque.id,
+          e2eId: saque.codigoAutenticacao,
+          config: adminConfig
+        });
+
+        if (resConsulta.success && resConsulta.statusPix === 'REALIZADO') {
+          pixConfirmado = true;
+          e2eIdConfirmado = resConsulta.e2eId || e2eIdConfirmado;
+        }
+      } catch (checkErr) {
+        console.warn(`[Auto-Verificação Saques] Falha ao consultar Efí Pay para saque #${saque.id}:`, checkErr);
+      }
+
+      if (pixConfirmado) {
+        // O Pix foi concluído com sucesso pelo banco!
+        const obsMsg = `Transferência Pix confirmada com sucesso pela API da Efí Pay (auditoria automática após ${minutosDecorridos} minutos).`;
+        await db.atualizarStatusSaque(saque.id, 'pago', e2eIdConfirmado, obsMsg);
+        await db.getCarteiraSaldo(saque.ownerId, true).catch(() => {});
+        confirmadosPagos.push({
+          id: saque.id,
+          ownerId: saque.ownerId,
+          valor: saque.valorSolicitado,
+          e2eId: e2eIdConfirmado
+        });
+        console.log(`✅ [Auto-Verificação Saques] Saque #${saque.id} confirmado como PAGO pela API Bancária Efí Pay.`);
+      } else {
+        // NÃO foi concluído pelo banco após 10 minutos -> Estorna automaticamente e devolve o dinheiro
+        const motivoEstorno = `Estorno Automático (${minutosDecorridos} minutos): A transferência não foi liquidada pela instituição financeira dentro do prazo de 10 minutos. O valor de R$ ${Number(saque.valorSolicitado).toFixed(2)} foi integralmente devolvido ao seu saldo disponível.`;
+        await db.atualizarStatusSaque(saque.id, 'rejeitado', undefined, motivoEstorno);
+        await db.getCarteiraSaldo(saque.ownerId, true).catch(() => {});
+        estornados.push({
+          id: saque.id,
+          ownerId: saque.ownerId,
+          valor: saque.valorSolicitado,
+          motivo: motivoEstorno
+        });
+        console.log(`🔄 [Auto-Estorno Saques] Saque #${saque.id} (R$ ${saque.valorSolicitado}) do usuário ${saque.ownerId} foi ESTORNADO automaticamente. Dinheiro devolvido ao saldo disponível.`);
+      }
+    }
+  } catch (err: any) {
+    console.error('Erro na rotina de verificação e estorno automático de saques:', err);
+  }
+
+  return {
+    totalVerificados: estornados.length + confirmadosPagos.length,
+    estornados,
+    confirmadosPagos
+  };
+}
+
+// GET /api/admin/carteira/saldo -> Saldo detalhado da Carteira do Sistema (com checkpoint incremental e auto-verificação)
 app.get('/api/admin/carteira/saldo', firebaseAuthMiddleware, async (req, res) => {
   try {
     const userId = (req as any).userId;
-    const saldo = await db.getCarteiraSaldo(userId);
+    const forcar = req.query.recalcular === 'true' || req.query.force === 'true';
+
+    // Executa verificação de saques pendentes se forçar recálculo
+    if (forcar) {
+      await verificarEEstornarSaquesPendentes(10).catch(() => {});
+    }
+
+    const saldo = await db.getCarteiraSaldo(userId, forcar);
     return res.json(saldo);
   } catch (err: any) {
     console.error('Erro ao consultar saldo da carteira:', err);
     return res.status(500).json({ error: 'Erro ao consultar saldo.' });
+  }
+});
+
+// POST /api/admin/carteira/recalcular -> Força conciliação, verificação de saques e recálculo total do saldo
+app.post('/api/admin/carteira/recalcular', firebaseAuthMiddleware, async (req, res) => {
+  try {
+    const userId = (req as any).userId;
+    await verificarEEstornarSaquesPendentes(10).catch(() => {});
+    const saldo = await db.getCarteiraSaldo(userId, true);
+    return res.json({ success: true, saldo });
+  } catch (err: any) {
+    console.error('Erro ao recalcular saldo:', err);
+    return res.status(500).json({ error: 'Erro ao recalcular saldo da carteira.' });
   }
 });
 
@@ -2199,12 +2316,107 @@ app.get('/api/admin/carteira/saques', firebaseAuthMiddleware, async (req, res) =
     const userEmail = ((req as any).userEmail || '').toLowerCase();
     const isSuperAdmin = userEmail === 'wheslleyaviz@gmail.com';
     
+    // Executa auto-verificação de saques que passaram de 10 minutos
+    await verificarEEstornarSaquesPendentes(10).catch(() => {});
+
     // Super Admin vê todos os saques; Usuário comum vê apenas os seus
     const saques = await db.listarSolicitacoesSaque(isSuperAdmin ? undefined : userId);
     return res.json(saques);
   } catch (err: any) {
     console.error('Erro ao listar solicitações de saque:', err);
     return res.status(500).json({ error: 'Erro ao carregar saques.' });
+  }
+});
+
+// POST /api/admin/carteira/saques/verificar-pendentes -> Aciona verificação e estorno de saques pendentes com mais de 10 minutos
+app.post('/api/admin/carteira/saques/verificar-pendentes', firebaseAuthMiddleware, async (req, res) => {
+  try {
+    const userId = (req as any).userId;
+    const resultado = await verificarEEstornarSaquesPendentes(10);
+    const novoSaldo = await db.getCarteiraSaldo(userId, true);
+
+    return res.json({
+      success: true,
+      resultado,
+      saldo: novoSaldo,
+      mensagem: resultado.estornados.length > 0 
+        ? `${resultado.estornados.length} saque(s) não concluído(s) em 10 minutos foram estornados e o valor creditado de volta ao saldo disponível.`
+        : 'Todos os saques estão devidamente conciliados.'
+    });
+  } catch (err: any) {
+    console.error('Erro ao verificar saques pendentes:', err);
+    return res.status(500).json({ error: err.message || 'Erro ao verificar saques pendentes.' });
+  }
+});
+
+// POST /api/admin/carteira/saques/:id/estornar -> Estorna saque e devolve o valor integralmente ao saldo disponível
+app.post('/api/admin/carteira/saques/:id/estornar', firebaseAuthMiddleware, async (req, res) => {
+  try {
+    const userId = (req as any).userId;
+    const userEmail = ((req as any).userEmail || '').toLowerCase();
+    const isSuperAdmin = userEmail === 'wheslleyaviz@gmail.com';
+    const { id } = req.params;
+    const { motivo } = req.body || {};
+
+    const saques = await db.listarSolicitacoesSaque();
+    const saque = saques.find(s => s.id === id);
+    if (!saque) {
+      return res.status(404).json({ error: 'Solicitação de saque não encontrada.' });
+    }
+
+    // Permite se for o criador do saque ou o Super Admin
+    if (!isSuperAdmin && saque.ownerId !== userId && saque.ownerId !== userEmail) {
+      return res.status(403).json({ error: 'Permissão negada para estornar este saque.' });
+    }
+
+    const obs = motivo || 'Saque estornado a pedido do usuário. Valor creditado de volta ao saldo disponível.';
+    const saqueAtualizado = await db.atualizarStatusSaque(id, 'rejeitado', undefined, obs);
+
+    // Recalcula o saldo imediatamente
+    const novoSaldo = await db.getCarteiraSaldo(saque.ownerId || userId, true);
+
+    return res.json({
+      success: true,
+      saque: saqueAtualizado,
+      saldo: novoSaldo,
+      mensagem: 'Saque estornado com sucesso! O valor retornou ao seu saldo disponível.'
+    });
+  } catch (err: any) {
+    console.error('Erro ao estornar saque:', err);
+    return res.status(500).json({ error: err.message || 'Erro ao estornar saque.' });
+  }
+});
+
+// GET /api/admin/warmup -> Inicialização e pré-carregamento em lote ao entrar no app
+app.get('/api/admin/warmup', firebaseAuthMiddleware, async (req, res) => {
+  try {
+    const userId = (req as any).userId;
+    const userEmail = ((req as any).userEmail || '').toLowerCase();
+    const isSuperAdmin = userEmail === 'wheslleyaviz@gmail.com';
+
+    // Executa em paralelo todas as consultas para acelerar a experiência
+    const [saldo, transacoes, saques, config, campanhas] = await Promise.all([
+      db.getCarteiraSaldo(userId, false).catch(() => null),
+      db.listarTransacoesCarteira(userId).catch(() => []),
+      db.listarSolicitacoesSaque(isSuperAdmin ? undefined : userId).catch(() => []),
+      db.getConfig(userId).catch(() => null),
+      db.getCampanhas(isSuperAdmin ? undefined : userId).catch(() => [])
+    ]);
+
+    return res.json({
+      success: true,
+      prontoEm: new Date().toISOString(),
+      saldo,
+      totalTransacoes: transacoes.length,
+      totalSaques: saques.length,
+      totalCampanhas: campanhas.length,
+      temEfiConfigurada: !!(config?.efipayConfig?.clientId),
+      temMpConfigurado: !!(config?.mpAccessToken),
+      temMetaConfigurado: !!(config?.metaAccessToken || config?.metaCapiToken)
+    });
+  } catch (err: any) {
+    console.error('Erro no warmup da aplicação:', err);
+    return res.json({ success: false, erro: err?.message || 'Erro no warmup' });
   }
 });
 
@@ -2475,7 +2687,7 @@ app.get('/api/admin/meta/insights', firebaseAuthMiddleware, async (req, res) => 
     }
 
     const pedidosPagos = pedidos.filter(p => p.status === 'pago');
-    const faturamento = pedidosPagos.reduce((acc, p) => acc + (p.valorTotal || 0), 0);
+    const faturamento = Number(pedidosPagos.reduce((acc, p) => acc + extrairValorReaisPedido(p), 0).toFixed(2));
     const cotasVendidas = pedidosPagos.reduce((acc, p) => acc + (p.quantidade || 0), 0);
 
     const spend = metaInsights.spend || 0;
@@ -3444,6 +3656,22 @@ async function startServer() {
       // silencioso
     }
   }, 30 * 1000);
+
+  // Verificação e estorno automático de saques não liquidados após 10 minutos (a cada 60s)
+  setInterval(async () => {
+    try {
+      await verificarEEstornarSaquesPendentes(10);
+    } catch (e) {
+      // silencioso
+    }
+  }, 60 * 1000);
+
+  // Executa uma verificação inicial após 5s de boot
+  setTimeout(async () => {
+    try {
+      await verificarEEstornarSaquesPendentes(10);
+    } catch (e) {}
+  }, 5000);
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`\n🚀 Servidor RifaZone rodando com sucesso em http://0.0.0.0:${PORT}`);

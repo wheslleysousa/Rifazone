@@ -461,7 +461,13 @@ export const MetodosPagamentoView: React.FC<MetodosPagamentoViewProps> = ({
           return (
             <div
               key={g.id}
-              onClick={() => setModalGateway(g.id as MetodoPagamentoAtivo)}
+              onClick={() => {
+                if (isCarteira) {
+                  if (onAbrirCarteira) onAbrirCarteira();
+                } else {
+                  setModalGateway(g.id as MetodoPagamentoAtivo);
+                }
+              }}
               className={`p-5 rounded-3xl border cursor-pointer transition-all duration-200 flex flex-col justify-between group relative overflow-hidden ${
                 isAtivo
                   ? 'border-emerald-500/80 bg-gradient-to-br from-emerald-950/40 via-slate-900 to-slate-950 shadow-xl shadow-emerald-500/10 ring-1 ring-emerald-500/30'

@@ -4,6 +4,7 @@ import { Storage, EstatisticasCampanha, MeusNumerosResult, ConfirmarPedidoResult
 import { Campanha, Pedido, Comprador, RankingItem, CotaPremiada, ConfigOrganizador, EstiloSalvo, TemaCampanha, CheckoutSalvo, CheckoutConfig, MensagemFila, CarteiraSaldo, TransacaoCarteira, SolicitacaoSaque, Cota } from '../src/types.js';
 import { mergeConfig } from './config-utils.js';
 import { decryptToken } from './crypto-utils.js';
+import { extrairValorReaisPedido } from './money-utils.js';
 
 export function getSupabaseUrl(): string | undefined {
   return (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim() || undefined;
@@ -837,58 +838,249 @@ export class SupabaseStorage implements Storage {
     return lista.sort((a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime());
   }
 
-  // --- CARTEIRA DO SISTEMA & SAQUES ---
-  async getCarteiraSaldo(ownerId: string): Promise<CarteiraSaldo> {
-    const { data: txData } = await this.client.from('transacoes').select('dados').eq('owner_id', ownerId);
-    const { data: saqueData } = await this.client.from('saques').select('dados').eq('owner_id', ownerId);
+  // --- CARTEIRA DO SISTEMA & SAQUES COM CHECKPOINT INCREMENTAL ---
 
-    const todasTransacoes = (txData || []).map(r => r.dados as TransacaoCarteira);
-    const saques = (saqueData || []).map(r => r.dados as SolicitacaoSaque);
+  // Resolve todos os IDs/Emails associados ao mesmo usuário para conciliação global
+  private async resolverOwnerIds(ownerId: string): Promise<string[]> {
+    const ids = new Set<string>();
+    if (ownerId) ids.add(ownerId);
 
-    const seen = new Set<string>();
-    const transacoes: TransacaoCarteira[] = [];
-    for (const t of todasTransacoes) {
-      if (t.tipo === 'venda' && t.referenciaId) {
-        if (seen.has(t.referenciaId)) continue;
-        seen.add(t.referenciaId);
+    try {
+      // 1. Busca configurações para achar email ou uid associado
+      const { data: configs } = await this.client.from('configs').select('owner_id, dados');
+      for (const c of configs || []) {
+        if (c.owner_id === ownerId || c.dados?.userEmail === ownerId || c.dados?.userId === ownerId) {
+          if (c.owner_id) ids.add(c.owner_id);
+          if (c.dados?.userEmail) ids.add(c.dados.userEmail);
+          if (c.dados?.userId) ids.add(c.dados.userId);
+        }
       }
-      transacoes.push(t);
+
+      // 2. Busca campanhas associadas para descobrir IDs
+      const { data: camps } = await this.client.from('campanhas').select('owner_id, dados');
+      for (const camp of camps || []) {
+        if (camp.owner_id === ownerId || camp.dados?.ownerEmail === ownerId || camp.dados?.ownerId === ownerId) {
+          if (camp.owner_id) ids.add(camp.owner_id);
+          if (camp.dados?.ownerId) ids.add(camp.dados.ownerId);
+          if (camp.dados?.ownerEmail) ids.add(camp.dados.ownerEmail);
+        }
+      }
+    } catch (err) {
+      console.warn('Aviso ao resolver ownerIds múltiplos:', err);
     }
 
+    return Array.from(ids);
+  }
+
+  async getCarteiraSaldo(ownerId: string, forcarRecalculo: boolean = false): Promise<CarteiraSaldo> {
+    const allOwnerIds = await this.resolverOwnerIds(ownerId);
+    
+    // 1. Carrega configuração do organizador para ler a taxa de venda e checkpoint
+    let configGeral: any = null;
+    for (const id of allOwnerIds) {
+      const { data: cfgRow } = await this.client.from('configs').select('dados').eq('owner_id', id).maybeSingle();
+      if (cfgRow?.dados) {
+        configGeral = cfgRow.dados;
+        break;
+      }
+    }
+
+    const carteiraConfig = configGeral?.carteiraConfig || {};
+    const taxaVendaPct = carteiraConfig.taxaVenda !== undefined ? Number(carteiraConfig.taxaVenda) : 8.0; // Padrão 8%
+    const checkpoint = configGeral?.carteiraCheckpoint;
+
+    // 2. Se já existe um checkpoint gravado e não foi forçado recálculo
+    if (checkpoint && checkpoint.ultimaContagemEm && !forcarRecalculo) {
+      const dataUltimaContagem = checkpoint.ultimaContagemEm;
+
+      // Verifica se houve novos pedidos pagos desde a última contagem
+      const { data: novosPedidos } = await this.client
+        .from('pedidos')
+        .select('id, owner_id, dados')
+        .or(`status.eq.pago,status.eq.aprovado`);
+
+      const pedidosDoUsuarioNovos = (novosPedidos || []).filter(p => {
+        const d = p.dados || {};
+        const pOwner = p.owner_id || d.ownerId || '';
+        const pertence = allOwnerIds.includes(pOwner);
+        if (!pertence) return false;
+        
+        const dataPedido = d.pagoEm || d.criadoEm || '';
+        return dataPedido > dataUltimaContagem;
+      });
+
+      // Verifica se houve novos saques ou alterações de saques desde a última contagem
+      const { data: novosSaques } = await this.client
+        .from('saques')
+        .select('dados');
+
+      const saquesDoUsuarioNovos = (novosSaques || []).filter(s => {
+        const d = s.dados || {};
+        const sOwner = d.ownerId || '';
+        const pertence = allOwnerIds.includes(sOwner);
+        if (!pertence) return false;
+
+        const dataSaque = d.processadoEm || d.criadoEm || '';
+        return dataSaque > dataUltimaContagem;
+      });
+
+      // Se NENHUM registro novo ocorreu após a última checagem, valida se o checkpoint não está corrompido
+      if (pedidosDoUsuarioNovos.length === 0 && saquesDoUsuarioNovos.length === 0) {
+        const ckDisponivel = Number((checkpoint.saldoDisponivel || 0).toFixed(2));
+        const ckArrecadado = Number((checkpoint.totalArrecadado || checkpoint.totalVendido || 0).toFixed(2));
+        // Se o checkpoint for plausível (saldo disponível não supera arrecadação), utiliza-o
+        if (ckDisponivel <= ckArrecadado + 0.01) {
+          return {
+            ownerId,
+            saldoTotal: Number((checkpoint.saldoTotal || (ckDisponivel + checkpoint.saldoPendente)).toFixed(2)),
+            saldoDisponivel: ckDisponivel,
+            saldoPendente: Number((checkpoint.saldoPendente || 0).toFixed(2)),
+            totalVendido: ckArrecadado,
+            totalArrecadado: ckArrecadado,
+            totalSacado: Number((checkpoint.totalSacado || 0).toFixed(2)),
+            totalTaxasPagas: Number((checkpoint.totalTaxasPagas || checkpoint.totalTaxas || 0).toFixed(2)),
+            totalTaxas: Number((checkpoint.totalTaxas || checkpoint.totalTaxasPagas || 0).toFixed(2)),
+            atualizadoEm: checkpoint.ultimaContagemEm
+          };
+        }
+      }
+    }
+
+    // 3. EXECUTA A AUDITORIA E CÁLCULO COMPLETO / INCREMENTAL
+    console.log(`📊 [CARTEIRA] Calculando saldo em tempo real para ownerId=${ownerId}...`);
+
+    // Busca todas as campanhas do usuário para pegar seus IDs
+    const { data: campsData } = await this.client.from('campanhas').select('id, owner_id, dados');
+    const campanhasIds = new Set<string>();
+    for (const c of campsData || []) {
+      const cOwner = c.owner_id || c.dados?.ownerId || c.dados?.ownerEmail || '';
+      if (allOwnerIds.includes(cOwner)) {
+        campanhasIds.add(c.id);
+      }
+    }
+
+    // Busca todos os pedidos pagos
+    const { data: todosPedidos } = await this.client
+      .from('pedidos')
+      .select('id, owner_id, campanha_id, dados')
+      .or('status.eq.pago,status.eq.aprovado');
+
+    const pedidosPagosDoUsuario = (todosPedidos || []).filter(p => {
+      const d = p.dados || {};
+      const pOwner = p.owner_id || d.ownerId || '';
+      return allOwnerIds.includes(pOwner) || (p.campanha_id && campanhasIds.has(p.campanha_id));
+    });
+
+    // Busca todas as transações da carteira
+    const { data: todasTransacoes } = await this.client.from('transacoes').select('id, owner_id, dados');
+    const transacoesExistentes = (todasTransacoes || [])
+      .filter(t => allOwnerIds.includes(t.owner_id || t.dados?.ownerId || ''))
+      .map(t => t.dados as TransacaoCarteira);
+
+    const transacoesMapPorRef = new Map<string, TransacaoCarteira>();
+    for (const tx of transacoesExistentes) {
+      if (tx.referenciaId) {
+        transacoesMapPorRef.set(tx.referenciaId, tx);
+      }
+    }
+
+    // Sincroniza pedidos pagos para garantir que cada um tenha uma transação de crédito
     let totalArrecadado = 0;
     let totalTaxas = 0;
     let saldoDisponivel = 0;
 
-    for (const t of transacoes) {
-      if (t.tipo === 'venda' && (t.status === 'concluida' || t.status === 'processando')) {
-        totalArrecadado += t.valorBruto;
-        totalTaxas += t.taxa;
-        saldoDisponivel += t.valorLiquido;
+    for (const ped of pedidosPagosDoUsuario) {
+      const d = ped.dados || {};
+      const valorBruto = extrairValorReaisPedido(d);
+      const taxa = Number(((valorBruto * (taxaVendaPct || 0)) / 100).toFixed(2));
+      const valorLiquido = Number((valorBruto - taxa).toFixed(2));
+
+      totalArrecadado += valorBruto;
+      totalTaxas += taxa;
+      saldoDisponivel += valorLiquido;
+
+      // Se ainda não tiver transação para este pedido pago, insere no Supabase
+      if (!transacoesMapPorRef.has(ped.id)) {
+        const txId = `tx-venda-${ped.id}`;
+        const novaTx: TransacaoCarteira = {
+          id: txId,
+          ownerId,
+          tipo: 'venda',
+          valorBruto,
+          taxa,
+          valorLiquido,
+          status: 'concluida',
+          descricao: `Venda Pedido #${ped.id.slice(-6).toUpperCase()} (${d.comprador?.nome || 'Comprador'})`,
+          pedidoId: ped.id,
+          referenciaId: ped.id,
+          criadoEm: d.pagoEm || d.criadoEm || new Date().toISOString()
+        };
+
+        await this.client.from('transacoes').upsert({
+          id: txId,
+          owner_id: ownerId,
+          dados: novaTx
+        });
+        transacoesMapPorRef.set(ped.id, novaTx);
       }
     }
+
+    // Busca todas as solicitações de saque do usuário
+    const { data: todosSaques } = await this.client.from('saques').select('id, owner_id, dados');
+    const saquesDoUsuario = (todosSaques || [])
+      .filter(s => allOwnerIds.includes(s.owner_id || s.dados?.ownerId || ''))
+      .map(s => s.dados as SolicitacaoSaque);
 
     let totalSacado = 0;
     let saldoPendente = 0;
 
-    for (const s of saques) {
+    for (const s of saquesDoUsuario) {
+      const val = Number(s.valorSolicitado || 0);
       if (s.status === 'pago' || s.status === 'aprovado') {
-        totalSacado += s.valorSolicitado;
-        saldoDisponivel -= s.valorSolicitado;
+        totalSacado += val;
+        saldoDisponivel -= val;
       } else if (s.status === 'pendente') {
-        saldoPendente += s.valorSolicitado;
-        saldoDisponivel -= s.valorSolicitado;
+        saldoPendente += val;
+        saldoDisponivel -= val;
       }
+      // Se status === 'rejeitado' ou 'cancelada', o valor NÃO é deduzido (permanece 100% no saldo disponível)
     }
 
-    return {
+    const agoraISO = new Date().toISOString();
+    const saldoFinal: CarteiraSaldo = {
       ownerId,
-      saldoDisponivel: Math.max(0, Number(saldoDisponivel.toFixed(2))),
-      saldoPendente: Number(saldoPendente.toFixed(2)),
+      saldoTotal: Number(Math.max(0, saldoDisponivel + saldoPendente).toFixed(2)),
+      saldoDisponivel: Number(Math.max(0, saldoDisponivel).toFixed(2)),
+      saldoPendente: Number(Math.max(0, saldoPendente).toFixed(2)),
+      totalVendido: Number(totalArrecadado.toFixed(2)),
       totalArrecadado: Number(totalArrecadado.toFixed(2)),
       totalSacado: Number(totalSacado.toFixed(2)),
+      totalTaxasPagas: Number(totalTaxas.toFixed(2)),
       totalTaxas: Number(totalTaxas.toFixed(2)),
-      atualizadoEm: new Date().toISOString()
+      atualizadoEm: agoraISO
     };
+
+    // 4. GRAVA O CHECKPOINT NO BANCO COM A DATA DA ÚLTIMA CONTAGEM
+    try {
+      const configAtualizada = {
+        ...(configGeral || {}),
+        carteiraCheckpoint: {
+          ...saldoFinal,
+          ultimaContagemEm: agoraISO,
+          versao: 2
+        }
+      };
+
+      await this.client.from('configs').upsert({
+        owner_id: ownerId,
+        dados: configAtualizada
+      });
+      console.log(`💾 [CARTEIRA] Checkpoint gravado com sucesso para ${ownerId} na data ${agoraISO}`);
+    } catch (saveErr) {
+      console.error('Erro ao gravar checkpoint da carteira:', saveErr);
+    }
+
+    return saldoFinal;
   }
 
   async creditarVendaCarteira(ownerId: string, valorBruto: number, taxaPct: number, pedidoId: string, descricao: string): Promise<TransacaoCarteira> {
@@ -915,11 +1107,14 @@ export class SupabaseStorage implements Storage {
       dados: transacao
     });
 
+    // Invalida checkpoint para forçar atualização no próximo acesso
+    await this.getCarteiraSaldo(ownerId, true).catch(() => {});
+
     return transacao;
   }
 
   async solicitarSaque(dados: Omit<SolicitacaoSaque, 'id' | 'criadoEm' | 'status'>): Promise<SolicitacaoSaque> {
-    const saldo = await this.getCarteiraSaldo(dados.ownerId);
+    const saldo = await this.getCarteiraSaldo(dados.ownerId, true);
     if (dados.valorSolicitado <= 0) {
       throw new Error('O valor do saque deve ser maior que zero.');
     }
@@ -961,40 +1156,52 @@ export class SupabaseStorage implements Storage {
       dados: transacaoDebito
     });
 
+    // Atualiza o checkpoint
+    await this.getCarteiraSaldo(dados.ownerId, true).catch(() => {});
+
     return novoSaque;
   }
 
   async listarTransacoesCarteira(ownerId: string): Promise<TransacaoCarteira[]> {
-    const { data, error } = await this.client.from('transacoes').select('dados').eq('owner_id', ownerId);
+    const allOwnerIds = await this.resolverOwnerIds(ownerId);
+    
+    // Garante sincronização de saldo e transações
+    await this.getCarteiraSaldo(ownerId, false).catch(() => {});
+
+    const { data, error } = await this.client.from('transacoes').select('dados');
     if (error) {
       console.error('Erro ao listar transações no Supabase:', error);
       return [];
     }
 
-    const todas = (data || []).map(r => r.dados as TransacaoCarteira);
+    const todas = (data || [])
+      .map(r => r.dados as TransacaoCarteira)
+      .filter(t => allOwnerIds.includes(t.ownerId || ''));
+
     const seen = new Set<string>();
     const deduplicado: TransacaoCarteira[] = [];
     for (const t of todas) {
-      if (t.tipo === 'venda' && t.referenciaId) {
-        if (seen.has(t.referenciaId)) continue;
-        seen.add(t.referenciaId);
-      }
+      const key = t.referenciaId ? `${t.tipo}-${t.referenciaId}` : t.id;
+      if (seen.has(key)) continue;
+      seen.add(key);
       deduplicado.push(t);
     }
     return deduplicado.sort((a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime());
   }
 
   async listarSolicitacoesSaque(ownerId?: string): Promise<SolicitacaoSaque[]> {
-    let query = this.client.from('saques').select('dados');
-    if (ownerId) {
-      query = query.eq('owner_id', ownerId);
-    }
-    const { data, error } = await query;
+    const { data, error } = await this.client.from('saques').select('dados');
     if (error) {
       console.error('Erro ao listar saques no Supabase:', error);
       return [];
     }
-    const lista = (data || []).map(r => r.dados as SolicitacaoSaque);
+    
+    let lista = (data || []).map(r => r.dados as SolicitacaoSaque);
+    if (ownerId) {
+      const allOwnerIds = await this.resolverOwnerIds(ownerId);
+      lista = lista.filter(s => allOwnerIds.includes(s.ownerId || ''));
+    }
+
     return lista.sort((a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime());
   }
 
@@ -1018,6 +1225,12 @@ export class SupabaseStorage implements Storage {
       await this.client.from('transacoes').update({ dados: tx }).eq('id', txId);
     }
 
+    // Invalida o checkpoint para recalcular imediatamente
+    if (saque.ownerId) {
+      await this.getCarteiraSaldo(saque.ownerId, true).catch(() => {});
+    }
+
     return saque;
   }
 }
+

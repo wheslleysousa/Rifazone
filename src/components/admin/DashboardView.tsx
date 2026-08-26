@@ -6,7 +6,7 @@ import {
   CreditCard, Barcode, ArrowLeftRight
 } from 'lucide-react';
 import { Campanha, Pedido } from '../../types';
-import { formatarMoeda } from '../../lib/money';
+import { formatarMoeda, extrairValorReaisPedido } from '../../lib/money';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { format, parseISO, isAfter, isBefore, startOfDay, endOfDay, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -80,7 +80,7 @@ export const DashboardView: React.FC<Props> = ({
     : (campanhasAtivasUser.find(c => c.id === campanhaSelecionada) ? 1 : 0);
   
   const totalCotasVendidas = pedidosPagos.reduce((acc, p) => acc + (p.quantidade || 0), 0);
-  const faturamentoTotal = pedidosPagos.reduce((acc, p) => acc + (p.valorTotal || 0), 0);
+  const faturamentoTotal = Number(pedidosPagos.reduce((acc, p) => acc + extrairValorReaisPedido(p), 0).toFixed(2));
   const totalCompradoresUnicos = new Set(pedidosPagos.map(p => p.comprador?.whatsapp || p.compradorId)).size;
   const ticketMedio = pedidosPagos.length > 0 ? faturamentoTotal / pedidosPagos.length : 0;
 
@@ -124,11 +124,12 @@ export const DashboardView: React.FC<Props> = ({
     pedidosPagos.forEach(p => {
       const d = p.pagoEm ? new Date(p.pagoEm) : new Date(p.criadoEm);
       const key = format(d, 'yyyy-MM-dd');
+      const valReais = extrairValorReaisPedido(p);
       if (dataMap[key]) {
         dataMap[key].vendas += p.quantidade || 0;
-        dataMap[key].valor += p.valorTotal || 0;
+        dataMap[key].valor += valReais;
       } else {
-        dataMap[key] = { date: format(d, 'dd/MM'), vendas: p.quantidade || 0, valor: p.valorTotal || 0 };
+        dataMap[key] = { date: format(d, 'dd/MM'), vendas: p.quantidade || 0, valor: valReais };
       }
     });
 
@@ -139,6 +140,7 @@ export const DashboardView: React.FC<Props> = ({
   const compradoresMap: Record<string, { nome: string; whatsapp: string; cotas: number; total: number }> = {};
   pedidosPagos.forEach(p => {
     const key = p.comprador?.whatsapp || p.compradorId || 'anônimo';
+    const valReais = extrairValorReaisPedido(p);
     if (!compradoresMap[key]) {
       compradoresMap[key] = {
         nome: p.comprador?.nome || 'Comprador',
@@ -148,7 +150,7 @@ export const DashboardView: React.FC<Props> = ({
       };
     }
     compradoresMap[key].cotas += p.quantidade;
-    compradoresMap[key].total += p.valorTotal;
+    compradoresMap[key].total += valReais;
   });
 
   const rankingCompradores = Object.values(compradoresMap)

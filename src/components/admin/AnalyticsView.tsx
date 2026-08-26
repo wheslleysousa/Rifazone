@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Campanha, Pedido } from '../../types';
+import { extrairValorReaisPedido } from '../../lib/money';
 import {
   BarChart3,
   DollarSign,
@@ -293,7 +294,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
     return true;
   });
 
-  const faturamentoLocal = pedidosPagosLocais.reduce((acc, p) => acc + (p.valorTotal || 0), 0);
+  const faturamentoLocal = Number(pedidosPagosLocais.reduce((acc, p) => acc + extrairValorReaisPedido(p), 0).toFixed(2));
   const cotasVendidasLocais = pedidosPagosLocais.reduce((acc, p) => acc + (p.quantidade || 0), 0);
 
   return (
@@ -799,7 +800,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                   let pedidosPagosCount = 0;
                   if (rifaVinculada) {
                     const pedidosRifa = pedidos.filter(p => p.campanhaId === rifaVinculada.id && p.status === 'pago');
-                    faturamentoRifa = pedidosRifa.reduce((acc, p) => acc + (p.valorTotal || 0), 0);
+                    faturamentoRifa = Number(pedidosRifa.reduce((acc, p) => acc + extrairValorReaisPedido(p), 0).toFixed(2));
                     pedidosPagosCount = pedidosRifa.length;
                   }
 
@@ -947,7 +948,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                       </div>
                       <span className="truncate max-w-xs">{c.titulo}</span>
                     </td>
-                    <td className="p-3 font-mono">R$ {Number(c.valorCota || 0).toFixed(2)}</td>
+                    <td className="p-3 font-mono">R$ {extrairValorReaisPedido(c.valorCota || 0).toFixed(2).replace('.', ',')}</td>
                     <td className="p-3 font-mono">{qtdCotasC} / {c.totalCotas}</td>
                     <td className="p-3 font-mono">{pedidosC.length}</td>
                     <td className="p-3 font-black text-emerald-400 font-mono">

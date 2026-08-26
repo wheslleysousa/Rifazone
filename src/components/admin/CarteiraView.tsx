@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Wallet, ArrowUpRight, ArrowDownLeft, Clock, CheckCircle2, 
-  AlertCircle, DollarSign, ShieldCheck, RefreshCw, Send, 
+  AlertCircle, DollarSign, RefreshCw, Send, 
   Calendar, Building2, User, HelpCircle, ChevronRight, Download,
   TrendingUp, MessageSquare, AlertTriangle, X, Zap
 } from 'lucide-react';
 import { CarteiraSaldo, SolicitacaoSaque, TransacaoCarteira } from '../../types';
+import { extrairValorReaisPedido } from '../../lib/money';
 
 interface CarteiraViewProps {
   authFetch: (url: string, init?: RequestInit) => Promise<Response>;
@@ -63,11 +64,14 @@ export const CarteiraView: React.FC<CarteiraViewProps> = ({ authFetch }) => {
     ? Number(carteiraConfig.taxaSaqueImediato) 
     : 4.50;
 
-  const carregarDados = async () => {
+  const [ultimaContagem, setUltimaContagem] = useState<string>('');
+
+  const carregarDados = async (forcarRecalculo = false) => {
     setCarregando(true);
     try {
+      const urlSaldo = forcarRecalculo ? '/api/admin/carteira/saldo?recalcular=true' : '/api/admin/carteira/saldo';
       const [resSaldo, resTrans, resSaques, resConfig] = await Promise.all([
-        authFetch('/api/admin/carteira/saldo').catch(() => null),
+        authFetch(urlSaldo).catch(() => null),
         authFetch('/api/admin/carteira/transacoes').catch(() => null),
         authFetch('/api/admin/carteira/saques').catch(() => null),
         authFetch('/api/admin/configuracoes').catch(() => null)
@@ -80,10 +84,14 @@ export const CarteiraView: React.FC<CarteiraViewProps> = ({ authFetch }) => {
             saldoTotal: Number(dataSaldo.saldoTotal || 0),
             saldoDisponivel: Number(dataSaldo.saldoDisponivel || 0),
             saldoPendente: Number(dataSaldo.saldoPendente || 0),
-            totalVendido: Number(dataSaldo.totalVendido || 0),
-            totalTaxasPagas: Number(dataSaldo.totalTaxasPagas || 0),
-            totalSacado: Number(dataSaldo.totalSacado || 0)
+            totalVendido: Number(dataSaldo.totalVendido || dataSaldo.totalArrecadado || 0),
+            totalTaxasPagas: Number(dataSaldo.totalTaxasPagas || dataSaldo.totalTaxas || 0),
+            totalSacado: Number(dataSaldo.totalSacado || 0),
+            atualizadoEm: dataSaldo.atualizadoEm || dataSaldo.ultimaContagemEm
           });
+          if (dataSaldo.atualizadoEm || dataSaldo.ultimaContagemEm) {
+            setUltimaContagem(dataSaldo.atualizadoEm || dataSaldo.ultimaContagemEm);
+          }
         }
       }
 
@@ -123,32 +131,6 @@ export const CarteiraView: React.FC<CarteiraViewProps> = ({ authFetch }) => {
       console.error('Erro ao carregar dados da carteira:', err);
     } finally {
       setCarregando(false);
-    }
-  };
-
-  const [processandoEstornoId, setProcessandoEstornoId] = useState<string | null>(null);
-  
-  const handleRejeitarSaque = async (saqueId: string) => {
-    if (!window.confirm('Tem certeza de que deseja estornar este saque? O valor líquido e a taxa retida serão integralmente devolvidos ao seu saldo disponível.')) {
-      return;
-    }
-    setProcessandoEstornoId(saqueId);
-    try {
-      const res = await authFetch(`/api/admin/carteira/saques/${saqueId}/rejeitar`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ motivo: 'Estornado e cancelado manualmente pelo usuário.' })
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        await carregarDados();
-      } else {
-        alert(data.error || 'Erro ao estornar saque.');
-      }
-    } catch (err: any) {
-      alert('Erro de conexão ao estornar saque.');
-    } finally {
-      setProcessandoEstornoId(null);
     }
   };
 
@@ -317,19 +299,26 @@ export const CarteiraView: React.FC<CarteiraViewProps> = ({ authFetch }) => {
           className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${abaCarteira === 'ajuda' ? 'bg-emerald-500 text-slate-950 shadow-lg shadow-emerald-500/20' : 'bg-slate-900 text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}
         >
           <HelpCircle className="w-4 h-4" />
-          Dificuldades
+          Suporte
         </button>
         
         <div className="flex-1"></div>
         
+        {ultimaContagem && (
+          <div className="hidden md:flex items-center gap-1.5 text-[11px] text-slate-400 bg-slate-900/60 px-3 py-1.5 rounded-xl border border-slate-800">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Última contagem: <strong className="text-slate-300">{new Date(ultimaContagem).toLocaleDateString('pt-BR')} às {new Date(ultimaContagem).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</strong></span>
+          </div>
+        )}
+
         <button
-          onClick={carregarDados}
+          onClick={() => carregarDados(true)}
           disabled={carregando}
-          className="p-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded-xl border border-slate-800 text-xs font-bold transition flex items-center gap-1.5"
-          title="Atualizar saldo"
+          className="p-2.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 rounded-xl border border-emerald-500/30 text-xs font-bold transition flex items-center gap-1.5"
+          title="Recalcular e sincronizar saldo em tempo real com a API"
         >
-          <RefreshCw className={`w-4 h-4 ${carregando ? 'animate-spin' : ''}`} />
-          <span className="hidden sm:inline">Atualizar</span>
+          <RefreshCw className={`w-4 h-4 ${carregando ? 'animate-spin text-emerald-400' : ''}`} />
+          <span className="hidden sm:inline">Recalcular Saldo</span>
         </button>
       </div>
 
@@ -341,59 +330,76 @@ export const CarteiraView: React.FC<CarteiraViewProps> = ({ authFetch }) => {
       )}
 
       {/* -------------------- ABA 1: VISÃO GERAL -------------------- */}
-      {abaCarteira === 'visao_geral' && (
-        <div className="space-y-6 animate-in fade-in duration-200">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl">
-            {/* Total Arrecadado (Topo) */}
-            <div className="md:col-span-2 bg-slate-900/90 border border-slate-800 rounded-3xl p-6 shadow-lg">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-black uppercase tracking-wider text-slate-400">Total Arrecadado</span>
-                <div className="w-8 h-8 rounded-xl bg-sky-500/10 text-sky-400 flex items-center justify-center border border-sky-500/20">
-                  <ArrowUpRight className="w-4 h-4" />
-                </div>
-              </div>
-              <div className="text-3xl sm:text-4xl font-black text-white">
-                R$ {(saldo?.totalVendido ?? 0).toFixed(2).replace('.', ',')}
-              </div>
-              <p className="text-xs text-slate-400 mt-2">Volume bruto total em vendas</p>
-            </div>
-
-            {/* Saldo Disponível (Com botão de saque) */}
-            <div className="md:col-span-2 bg-gradient-to-br from-emerald-950/40 via-slate-900 to-slate-900 border border-emerald-500/40 rounded-3xl p-6 shadow-xl relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-6">
-              <div className="absolute top-0 right-0 p-4 opacity-10">
-                <Wallet className="w-32 h-32 text-emerald-400" />
-              </div>
-              
-              <div className="relative z-10">
-                <div className="flex items-center gap-3 mb-3">
-                  <span className="text-xs font-black uppercase tracking-wider text-emerald-400">Saldo Disponível</span>
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold border border-emerald-500/30">
-                    Liberado p/ Saque
-                  </span>
+      {abaCarteira === 'visao_geral' && (() => {
+        const totalVendidoVal = Number(saldo?.totalVendido ?? 0);
+        const saldoDisponivelVal = Number(saldo?.saldoDisponivel ?? 0);
+        return (
+          <div className="space-y-6 animate-in fade-in duration-200">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl">
+              {/* Total Arrecadado (Topo) */}
+              <div className="md:col-span-2 bg-slate-900/90 border border-slate-800 rounded-3xl p-6 shadow-lg">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-black uppercase tracking-wider text-slate-400">Total Arrecadado</span>
+                  <div className="w-8 h-8 rounded-xl bg-sky-500/10 text-sky-400 flex items-center justify-center border border-sky-500/20">
+                    <ArrowUpRight className="w-4 h-4" />
+                  </div>
                 </div>
                 <div className="text-3xl sm:text-4xl font-black text-white">
-                  R$ {(saldo?.saldoDisponivel ?? 0).toFixed(2).replace('.', ',')}
+                  R$ {totalVendidoVal.toFixed(2).replace('.', ',')}
                 </div>
+                <p className="text-xs text-slate-400 mt-2">Volume bruto total em vendas</p>
               </div>
 
-              <div className="relative z-10">
-                <button
-                  onClick={() => {
-                    setSaqueMsg('');
-                    setSaqueErro('');
-                    setModalSaqueAberto(true);
-                  }}
-                  disabled={saldo.saldoDisponivel <= 0}
-                  className="w-full md:w-auto px-8 py-4 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 text-sm font-black rounded-xl shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 transition"
-                >
-                  <Send className="w-5 h-5" />
-                  Solicitar Saque
-                </button>
+              {/* Saldo Disponível (Com botões Enviar Pix e Solicitar Saque) */}
+              <div className="md:col-span-2 bg-gradient-to-br from-emerald-950/40 via-slate-900 to-slate-900 border border-emerald-500/40 rounded-3xl p-6 shadow-xl relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-6">
+                <div className="absolute top-0 right-0 p-4 opacity-10">
+                  <Wallet className="w-32 h-32 text-emerald-400" />
+                </div>
+                
+                <div className="relative z-10">
+                  <div className="flex items-center gap-3 mb-3">
+                    <span className="text-xs font-black uppercase tracking-wider text-emerald-400">Saldo Disponível</span>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold border border-emerald-500/30">
+                      Liberado p/ Saque
+                    </span>
+                  </div>
+                  <div className="text-3xl sm:text-4xl font-black text-white">
+                    R$ {saldoDisponivelVal.toFixed(2).replace('.', ',')}
+                  </div>
+                </div>
+
+                <div className="relative z-10 flex flex-col sm:flex-row gap-2.5">
+                  <button
+                    onClick={() => {
+                      setTipoDestino('pix');
+                      setSaqueMsg('');
+                      setSaqueErro('');
+                      setModalSaqueAberto(true);
+                    }}
+                    disabled={saldoDisponivelVal <= 0}
+                    className="px-6 py-3.5 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 text-xs font-black rounded-xl shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 transition"
+                  >
+                    <Send className="w-4 h-4" />
+                    Enviar Pix
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSaqueMsg('');
+                      setSaqueErro('');
+                      setModalSaqueAberto(true);
+                    }}
+                    disabled={saldoDisponivelVal <= 0}
+                    className="px-6 py-3.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl border border-slate-700 flex items-center justify-center gap-2 transition"
+                  >
+                    <Wallet className="w-4 h-4 text-emerald-400" />
+                    Solicitar Saque
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* -------------------- ABA 2: TRANSAÇÕES -------------------- */}
       {abaCarteira === 'transacoes' && (
@@ -459,7 +465,7 @@ export const CarteiraView: React.FC<CarteiraViewProps> = ({ authFetch }) => {
                         </div>
                       </td>
                       <td className={`p-3 font-black text-sm ${t.tipo === 'venda' ? 'text-emerald-400' : 'text-purple-400'}`}>
-                        {t.tipo === 'venda' ? '+' : '-'} R$ {(t.tipo === 'venda' ? (t?.valorBruto ?? 0) : (t?.valorLiquido ?? 0)).toFixed(2).replace('.', ',')}
+                        {t.tipo === 'venda' ? '+' : '-'} R$ {Number(t.tipo === 'venda' ? (t?.valorLiquido ?? t?.valorBruto ?? 0) : (t?.valorSolicitado ?? t?.valorLiquido ?? 0)).toFixed(2).replace('.', ',')}
                       </td>
                       <td className="p-3 text-slate-400 text-[11px] font-sans">
                         {new Date(t.criadoEm).toLocaleDateString('pt-BR')} às {new Date(t.criadoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
@@ -476,17 +482,22 @@ export const CarteiraView: React.FC<CarteiraViewProps> = ({ authFetch }) => {
       {/* -------------------- ABA 3: MEUS SAQUES -------------------- */}
       {abaCarteira === 'saques' && (
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-xl space-y-4 animate-in fade-in duration-200">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-black text-white flex items-center gap-2">
-              <Send className="w-4 h-4 text-purple-400" />
-              Histórico de Saques
-            </h3>
-            <span className="text-[11px] text-slate-500 font-mono">({saques.length} solicitações)</span>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+            <div>
+              <h3 className="text-sm font-black text-white flex items-center gap-2">
+                <Send className="w-4 h-4 text-purple-400" />
+                Histórico de Saques
+              </h3>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Acompanhe o status e histórico de transferências solicitadas
+              </p>
+            </div>
+            <span className="text-xs text-slate-400 font-mono">({saques.length} solicitações)</span>
           </div>
 
           <div className="space-y-3">
             {(!Array.isArray(saques) || saques.length === 0) ? (
-              <div className="p-6 text-center text-slate-500 text-xs border border-dashed border-slate-800 rounded-2xl">
+              <div className="p-8 text-center text-slate-500 text-xs border border-dashed border-slate-800 rounded-2xl">
                 Nenhum saque solicitado ainda.
               </div>
             ) : (
@@ -498,10 +509,10 @@ export const CarteiraView: React.FC<CarteiraViewProps> = ({ authFetch }) => {
                     </span>
                     <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider ${
                       s.status === 'pago' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm' :
-                      s.status === 'rejeitado' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40' :
+                      s.status === 'rejeitado' ? 'bg-slate-800 text-slate-400 border border-slate-700' :
                       'bg-amber-500/20 text-amber-300 border border-amber-500/40'
                     }`}>
-                      {s.status === 'pago' ? 'Saque Concluído' : s.status === 'rejeitado' ? 'Não Concluído (Estornado)' : 'Em Processamento'}
+                      {s.status === 'pago' ? 'Saque Concluído' : s.status === 'rejeitado' ? 'Cancelado' : 'Em Processamento'}
                     </span>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
@@ -512,7 +523,7 @@ export const CarteiraView: React.FC<CarteiraViewProps> = ({ authFetch }) => {
                       </div>
                       <div className="flex justify-between truncate">
                         <span className="text-slate-500">Destino:</span>
-                        <span className="text-slate-300">{s.chavePix}</span>
+                        <span className="text-slate-300">{s.chavePix || '-'}</span>
                       </div>
                     </div>
                     <div className="space-y-1">
@@ -522,32 +533,10 @@ export const CarteiraView: React.FC<CarteiraViewProps> = ({ authFetch }) => {
                       </div>
                       <div className="flex justify-between text-slate-400">
                         <span className="text-slate-500">Solicitado em:</span>
-                        <span>{new Date(s.criadoEm).toLocaleDateString('pt-BR')}</span>
+                        <span>{new Date(s.criadoEm).toLocaleDateString('pt-BR')} às {new Date(s.criadoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
                     </div>
                   </div>
-                  {s.observacao && (
-                    <div className="text-[11px] text-amber-300 bg-amber-500/10 p-2 rounded-lg border border-amber-500/20 mt-2 font-sans">
-                      ℹ️ {s.observacao}
-                    </div>
-                  )}
-                  {(isAdmin || userEmail.toLowerCase() === 'wheslleyaviz@gmail.com') && s.status !== 'rejeitado' && (
-                    <button
-                      type="button"
-                      onClick={() => handleRejeitarSaque(s.id)}
-                      disabled={processandoEstornoId === s.id}
-                      className="mt-2 w-full py-2 px-3 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 hover:border-rose-500/40 text-rose-300 hover:text-white rounded-xl text-[10px] font-bold flex items-center justify-center gap-1.5 transition disabled:opacity-50"
-                    >
-                      {processandoEstornoId === s.id ? (
-                        <>
-                          <RefreshCw className="w-3.5 h-3.5 animate-spin text-rose-400" />
-                          Estornando...
-                        </>
-                      ) : (
-                        'Estornar Saque Manualmente (Admin)'
-                      )}
-                    </button>
-                  )}
                 </div>
               ))
             )}
@@ -609,37 +598,80 @@ export const CarteiraView: React.FC<CarteiraViewProps> = ({ authFetch }) => {
         </div>
       )}
 
-      {/* -------------------- ABA 5: DIFICULDADES (AJUDA) -------------------- */}
+      {/* -------------------- ABA 5: SUPORTE -------------------- */}
       {abaCarteira === 'ajuda' && (
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-6 animate-in fade-in duration-200">
           <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
-            <div className="w-10 h-10 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30">
-              <HelpCircle className="w-5 h-5" />
+            <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
+              <MessageSquare className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-black text-white">Dificuldades do Usuário</h3>
-              <p className="text-[11px] text-slate-400">Suporte e solicitações especiais</p>
+              <h3 className="text-base font-black text-white">Central de Suporte & Atendimento</h3>
+              <p className="text-xs text-slate-400">Selecione o assunto desejado para gerar a mensagem ou solicitar suporte</p>
             </div>
           </div>
 
-          <div className="bg-slate-950 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-sm max-w-2xl">
-            <h4 className="text-sm font-black text-white flex items-center gap-2 mb-2">
-              <TrendingUp className="w-4 h-4 text-emerald-400" />
-              Solicitar Redução de Taxas
-            </h4>
-            <p className="text-xs text-slate-400 mb-6">
-              Seu volume de vendas aumentou? Envie uma solicitação para nossa equipe analisar e propor uma taxa reduzida para seu negócio.
-            </p>
+          <div className="space-y-3">
+            <label className="text-xs font-bold text-slate-300 block">Opções Rápidas de Atendimento</label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {[
+                {
+                  id: 'taxas',
+                  titulo: 'Redução de Taxas',
+                  desc: 'Negociar taxas por volume de vendas',
+                  msg: 'Olá! Gostaria de negociar a redução das minhas taxas de venda e saque com base no meu volume de arrecadação.'
+                },
+                {
+                  id: 'saques',
+                  titulo: 'Dúvidas sobre Saques',
+                  desc: 'Prazos, chaves e transferências Pix',
+                  msg: 'Olá! Preciso de ajuda em relação aos meus saques e transferências Pix no sistema.'
+                },
+                {
+                  id: 'gateway',
+                  titulo: 'Integração de Gateway',
+                  desc: 'Auxílio na configuração de credenciais',
+                  msg: 'Olá! Preciso de auxílio técnico para integrar ou configurar meu gateway de pagamento.'
+                },
+                {
+                  id: 'campanhas',
+                  titulo: 'Gerenciamento de Rifas',
+                  desc: 'Dúvidas sobre sorteios e cotas',
+                  msg: 'Olá! Tenho dúvidas referente ao gerenciamento das minhas campanhas e apuração do sorteio.'
+                },
+                {
+                  id: 'suporte_geral',
+                  titulo: 'Outro Assunto',
+                  desc: 'Atendimento direto com suporte técnico',
+                  msg: 'Olá! Gostaria de falar com o suporte referente a outro assunto do meu painel.'
+                }
+              ].map(opt => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setMensagemReducao(opt.msg)}
+                  className="p-4 rounded-2xl border border-slate-800 bg-slate-950 hover:border-emerald-500/50 hover:bg-slate-900 transition text-left space-y-1 group"
+                >
+                  <div className="text-xs font-black text-white group-hover:text-emerald-300 flex items-center justify-between">
+                    <span>{opt.titulo}</span>
+                    <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-emerald-400" />
+                  </div>
+                  <p className="text-[11px] text-slate-400 leading-relaxed">{opt.desc}</p>
+                </button>
+              ))}
+            </div>
+          </div>
 
+          <div className="bg-slate-950 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4 max-w-2xl">
             {reducaoMsg && (
-              <div className="mb-6 p-3 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs rounded-xl flex items-center gap-2">
+              <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs rounded-xl flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 shrink-0" />
                 <span>{reducaoMsg}</span>
               </div>
             )}
             
             {reducaoErro && (
-              <div className="mb-6 p-3 bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs rounded-xl flex items-center gap-2">
+              <div className="p-3 bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs rounded-xl flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4 shrink-0" />
                 <span>{reducaoErro}</span>
               </div>
@@ -670,34 +702,50 @@ export const CarteiraView: React.FC<CarteiraViewProps> = ({ authFetch }) => {
                   />
                 </div>
               </div>
+
               <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-slate-400">Mensagem Adicional / Justificativa</label>
+                <label className="text-[11px] font-bold text-slate-400">Mensagem do Atendimento</label>
                 <textarea
                   required
-                  rows={3}
+                  rows={4}
                   value={mensagemReducao}
                   onChange={e => setMensagemReducao(e.target.value)}
-                  placeholder="Ex: Minhas vendas aumentaram para R$ 10.000 mensais, gostaria de negociar as taxas..."
+                  placeholder="Selecione um tópico acima ou digite sua solicitação..."
                   className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white placeholder-slate-600 focus:border-emerald-500 focus:outline-none transition resize-none custom-scrollbar"
                 ></textarea>
               </div>
-              <button
-                type="submit"
-                disabled={enviandoReducao}
-                className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition w-full sm:w-auto"
-              >
-                {enviandoReducao ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    Enviando Solicitação...
-                  </>
-                ) : (
-                  <>
-                    <Send className="w-4 h-4" />
-                    Enviar Solicitação de Redução
-                  </>
-                )}
-              </button>
+
+              <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                <button
+                  type="submit"
+                  disabled={enviandoReducao}
+                  className="px-5 py-3 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition"
+                >
+                  {enviandoReducao ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      Enviando Mensagem...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4" />
+                      Enviar Solicitação de Suporte
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const encoded = encodeURIComponent(mensagemReducao || 'Olá! Preciso de suporte no RifaZone.');
+                    window.open(`https://wa.me/5591983058888?text=${encoded}`, '_blank');
+                  }}
+                  className="px-5 py-3 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl border border-slate-700 flex items-center justify-center gap-2 transition"
+                >
+                  <MessageSquare className="w-4 h-4 text-emerald-400" />
+                  Abrir WhatsApp do Suporte
+                </button>
+              </div>
             </form>
           </div>
         </div>
@@ -740,12 +788,12 @@ export const CarteiraView: React.FC<CarteiraViewProps> = ({ authFetch }) => {
                 <div>
                   <span className="text-slate-400 text-[11px] block">Saldo Disponível no Momento:</span>
                   <span className="text-lg font-black text-emerald-400 font-mono">
-                    R$ {saldo.saldoDisponivel.toFixed(2).replace('.', ',')}
+                    R$ {Number(saldo?.saldoDisponivel || 0).toFixed(2).replace('.', ',')}
                   </span>
                 </div>
                 <button
                   type="button"
-                  onClick={() => setValorSaque(saldo.saldoDisponivel.toFixed(2))}
+                  onClick={() => setValorSaque(Number(saldo?.saldoDisponivel || 0).toFixed(2))}
                   className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-[11px] font-bold rounded-lg border border-emerald-500/20 transition"
                 >
                   Sacar Tudo

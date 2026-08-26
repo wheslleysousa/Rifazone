@@ -64,6 +64,12 @@ export function isPedidoProcessedByCarteira(pedido: any): boolean {
   if (!pedido) return false;
   const d = pedido.dados || pedido || {};
   
+  // 0. Exclui pagamentos simulados/mock de testes
+  const paymentId = String(d.mpPaymentId || d.paymentId || (pedido as any).mp_payment_id || (pedido as any).mpPaymentId || '').toLowerCase();
+  if (paymentId.startsWith('simulado_') || paymentId.startsWith('mock_') || paymentId.startsWith('teste_')) {
+    return false;
+  }
+  
   // 1. Gateway explicitamente salvo
   const gateway = String(d.gateway || d.gatewayId || (pedido as any).gateway || '').toLowerCase();
   

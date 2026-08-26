@@ -981,7 +981,7 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
 
           {/* CARTEIRA DO SISTEMA & SAQUES */}
           {abaAtiva === 'carteira' && (
-            <CarteiraView authFetch={authFetch} />
+            <CarteiraView authFetch={authFetch} carteiraConfigProp={configPagamento?.carteiraConfig} />
           )}
 
           {/* MÉTODOS DE PAGAMENTO (MULTI-GATEWAY) */}

@@ -662,9 +662,22 @@ export class FirestoreStorage implements Storage {
       };
     }
 
-    const configGeral = await this.getConfig(ownerId);
-    const carteiraConfig = (configGeral as any)?.carteiraConfig || {};
-    const taxaVendaPct = carteiraConfig.taxaVenda !== undefined ? Number(carteiraConfig.taxaVenda) : 5.0; // Padrão 5%
+    const ownerConfig = await this.getConfig(ownerId);
+    const adminConfig = await this.getConfig('wheslleyaviz@gmail.com');
+
+    const ownerKey = ownerId.toLowerCase();
+    const ownerEmailKey = ((ownerConfig as any)?.carteiraConfig?.email || '').toLowerCase();
+    const custom = (adminConfig as any)?.carteiraConfig?.taxasPersonalizadas?.[ownerKey] 
+                || (adminConfig as any)?.carteiraConfig?.taxasPersonalizadas?.[ownerEmailKey];
+
+    let taxaVendaPct = 8.0;
+    if (custom && custom.taxaVendaPct !== undefined) {
+      taxaVendaPct = Number(custom.taxaVendaPct);
+    } else if ((ownerConfig as any)?.carteiraConfig?.taxaVendaPct !== undefined) {
+      taxaVendaPct = Number((ownerConfig as any).carteiraConfig.taxaVendaPct);
+    } else if ((adminConfig as any)?.carteiraConfig?.taxaVendaPct !== undefined) {
+      taxaVendaPct = Number((adminConfig as any).carteiraConfig.taxaVendaPct);
+    }
 
     const campanhas = await this.getCampanhas(ownerId);
     const campanhasIds = new Set(campanhas.map(c => c.id));

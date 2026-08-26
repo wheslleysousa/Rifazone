@@ -10,9 +10,10 @@ import { extrairValorReaisPedido } from '../../lib/money';
 
 interface CarteiraViewProps {
   authFetch: (url: string, init?: RequestInit) => Promise<Response>;
+  carteiraConfigProp?: any;
 }
 
-export const CarteiraView: React.FC<CarteiraViewProps> = ({ authFetch }) => {
+export const CarteiraView: React.FC<CarteiraViewProps> = ({ authFetch, carteiraConfigProp }) => {
   const [saldo, setSaldo] = useState<CarteiraSaldo>({
     saldoTotal: 0,
     saldoDisponivel: 0,
@@ -30,7 +31,7 @@ export const CarteiraView: React.FC<CarteiraViewProps> = ({ authFetch }) => {
   const [abaCarteira, setAbaCarteira] = useState<'visao_geral' | 'transacoes' | 'saques' | 'perfil' | 'ajuda'>('visao_geral');
 
   // Redução de taxas
-  const [carteiraConfig, setCarteiraConfig] = useState<any>(null);
+  const [carteiraConfig, setCarteiraConfig] = useState<any>(carteiraConfigProp || null);
   const [taxaVendaDesejada, setTaxaVendaDesejada] = useState('3.0');
   const [taxaSaqueDesejada, setTaxaSaqueDesejada] = useState('0.00');
   const [mensagemReducao, setMensagemReducao] = useState('');
@@ -45,8 +46,10 @@ export const CarteiraView: React.FC<CarteiraViewProps> = ({ authFetch }) => {
   const [valorSaque, setValorSaque] = useState('');
   const [modalidade, setModalidade] = useState<'imediato' | 'd_mais_um'>('imediato');
   const [tipoDestino, setTipoDestino] = useState<'pix' | 'banco'>('pix');
-  const [tipoChavePix, setTipoChavePix] = useState<'cpf' | 'cnpj' | 'email' | 'telefone' | 'aleatoria'>('cpf');
-  const [chavePix, setChavePix] = useState('');
+  const [tipoChavePix, setTipoChavePix] = useState<'cpf' | 'cnpj' | 'email' | 'telefone' | 'aleatoria'>(
+    carteiraConfigProp?.tipoChavePix || 'cpf'
+  );
+  const [chavePix, setChavePix] = useState(carteiraConfigProp?.chavePix || '');
   const [bancoNome, setBancoNome] = useState('');
   const [bancoAgencia, setBancoAgencia] = useState('');
   const [bancoConta, setBancoConta] = useState('');
@@ -60,6 +63,18 @@ export const CarteiraView: React.FC<CarteiraViewProps> = ({ authFetch }) => {
   
   const [erroCarregamento, setErroCarregamento] = useState(false);
   const [filtroTipo, setFiltroTipo] = useState<'todos' | 'venda' | 'saque'>('todos');
+
+  useEffect(() => {
+    if (carteiraConfigProp) {
+      setCarteiraConfig(carteiraConfigProp);
+      if (carteiraConfigProp.chavePix) {
+        setChavePix(carteiraConfigProp.chavePix);
+        if (carteiraConfigProp.tipoChavePix) {
+          setTipoChavePix(carteiraConfigProp.tipoChavePix);
+        }
+      }
+    }
+  }, [carteiraConfigProp]);
 
   const taxaSaqueImediato = carteiraConfig?.taxaSaqueImediato !== undefined 
     ? Number(carteiraConfig.taxaSaqueImediato) 

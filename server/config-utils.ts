@@ -120,7 +120,7 @@ export function mergeConfig(ownerId: string, existente: ConfigOrganizador | null
             ? dados.carteiraConfig.taxasPersonalizadas
             : existente?.carteiraConfig?.taxasPersonalizadas
         } 
-      : (existente?.carteiraConfig || { ativo: true, taxaVendaPct: 5.0, taxaSaqueImediato: 4.5 }),
+      : (existente?.carteiraConfig || { ativo: true, taxaVendaPct: 8.0, taxaSaqueImediato: 4.50 }),
     efipayConfig: {
       ...existente?.efipayConfig,
       ...dados.efipayConfig,
@@ -200,7 +200,7 @@ export function configParaPainel(config: ConfigOrganizador | null) {
     mpConectadoEm: config?.mpConectadoEm || null,
 
     // Carteira
-    carteiraConfig: config?.carteiraConfig || { ativo: true, taxaVendaPct: 5.0, taxaSaqueImediato: 4.5 },
+    carteiraConfig: config?.carteiraConfig || { ativo: true, taxaVendaPct: 8.0, taxaSaqueImediato: 4.50 },
 
     // Asaas
     asaasConfig: {

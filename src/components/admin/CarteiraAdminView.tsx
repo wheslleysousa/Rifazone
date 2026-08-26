@@ -55,7 +55,7 @@ export const CarteiraAdminView: React.FC<CarteiraAdminViewProps> = ({ authFetch 
   const [usuarioParaEditarTaxas, setUsuarioParaEditarTaxas] = useState<any | null>(null);
   const [menuAbertoId, setMenuAbertoId] = useState<string | null>(null);
   const [taxaVendaModal, setTaxaVendaModal] = useState<number | string>(8.0);
-  const [taxaSaqueModal, setTaxaSaqueModal] = useState<number | string>(5.00);
+  const [taxaSaqueModal, setTaxaSaqueModal] = useState<number | string>(4.50);
   const [obsModal, setObsModal] = useState('');
   const [salvandoModal, setSalvandoModal] = useState(false);
 
@@ -132,7 +132,7 @@ export const CarteiraAdminView: React.FC<CarteiraAdminViewProps> = ({ authFetch 
         }
         if (data.carteiraConfig) {
           setGlobalTaxaVenda(data.carteiraConfig.taxaVendaPct ?? 8.0);
-          setGlobalTaxaSaque(data.carteiraConfig.taxaSaqueImediato ?? 5.00);
+          setGlobalTaxaSaque(data.carteiraConfig.taxaSaqueImediato ?? 4.50);
           setChavePixAdmin(data.carteiraConfig.chavePixRecebimento || data.carteiraConfig.chavePix || '');
           setTipoChavePixAdmin(data.carteiraConfig.tipoChavePixRecebimento || data.carteiraConfig.tipoChavePix || 'cpf');
           setTitularPixAdmin(data.carteiraConfig.nomeTitularRecebimento || data.carteiraConfig.nome || '');

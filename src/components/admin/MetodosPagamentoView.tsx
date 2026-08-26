@@ -39,7 +39,7 @@ export const MetodosPagamentoView: React.FC<MetodosPagamentoViewProps> = ({
   const [modalGateway, setModalGateway] = useState<MetodoPagamentoAtivo | null>(null);
 
   // Form States para Carteira do Sistema (Efí Pay Integrada)
-  const [carteiraTaxaPct, setCarteiraTaxaPct] = useState(5.0);
+  const [carteiraTaxaPct, setCarteiraTaxaPct] = useState(8.0);
   const [carteiraTaxaSaque, setCarteiraTaxaSaque] = useState(4.50);
   const [carteiraNome, setCarteiraNome] = useState('');
   const [carteiraDataNascimento, setCarteiraDataNascimento] = useState('');
@@ -109,7 +109,7 @@ export const MetodosPagamentoView: React.FC<MetodosPagamentoViewProps> = ({
 
         // Preenche campos da Carteira do Sistema
         if (data.carteiraConfig) {
-          setCarteiraTaxaPct(data.carteiraConfig.taxaVendaPct ?? 5.0);
+          setCarteiraTaxaPct(data.carteiraConfig.taxaVendaPct ?? 8.0);
           setCarteiraTaxaSaque(data.carteiraConfig.taxaSaqueImediato ?? 4.50);
           setCarteiraNome(data.carteiraConfig.nome || data.nomeIdentificacao || '');
           setCarteiraDataNascimento(data.carteiraConfig.dataNascimento || '');

@@ -1553,9 +1553,9 @@ app.get('/api/admin/configuracoes', firebaseAuthMiddleware, async (req, res) => 
   const baseUrl = (process.env.BASE_URL || process.env.APP_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
   const redirectUri = `${baseUrl}/api/auth/mercadopago/callback`;
 
-  // Taxas Globais padrão (definidas pelo Super Admin)
+  // Taxas Globais padrão (definidas pelo Super Admin no banco de dados, com fallback padrão 8.0% / 4.50)
   const globalTaxaVenda = Number(adminConfig?.carteiraConfig?.taxaVendaPct ?? config?.carteiraConfig?.taxaVendaPct ?? 8.0);
-  const globalTaxaSaque = Number(adminConfig?.carteiraConfig?.taxaSaqueImediato ?? config?.carteiraConfig?.taxaSaqueImediato ?? 5.00);
+  const globalTaxaSaque = Number(adminConfig?.carteiraConfig?.taxaSaqueImediato ?? config?.carteiraConfig?.taxaSaqueImediato ?? 4.50);
 
   let taxaVendaAplicada = globalTaxaVenda;
   let taxaSaqueAplicada = globalTaxaSaque;
@@ -1630,7 +1630,7 @@ app.post('/api/admin/usuarios/taxa', firebaseAuthMiddleware, async (req, res) =>
     delete currentMap[targetKey];
   } else {
     currentMap[targetKey] = {
-      taxaVendaPct: taxaVendaPct !== undefined ? Number(taxaVendaPct) : 5.0,
+      taxaVendaPct: taxaVendaPct !== undefined ? Number(taxaVendaPct) : 8.0,
       taxaSaqueImediato: taxaSaqueImediato !== undefined ? Number(taxaSaqueImediato) : 4.50,
       observacao: observacao || '',
       atualizadoEm: new Date().toISOString()

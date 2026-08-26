@@ -792,20 +792,59 @@ export class FileStorage implements Storage {
   }
 
   public async getCarteiraSaldo(ownerId: string, _forcarRecalculo: boolean = false): Promise<CarteiraSaldo> {
+    if (!ownerId) {
+      return {
+        ownerId: '',
+        saldoTotal: 0,
+        saldoDisponivel: 0,
+        saldoPendente: 0,
+        totalVendido: 0,
+        totalArrecadado: 0,
+        totalSacado: 0,
+        totalTaxasPagas: 0,
+        totalTaxas: 0,
+        atualizadoEm: new Date().toISOString()
+      };
+    }
+
     const configGeral = await this.getConfig(ownerId);
     const carteiraConfig = (configGeral as any)?.carteiraConfig || {};
-    const taxaVendaPct = carteiraConfig.taxaVenda !== undefined ? Number(carteiraConfig.taxaVenda) : 8.0;
+    const taxaVendaPct = carteiraConfig.taxaVenda !== undefined ? Number(carteiraConfig.taxaVenda) : 5.0; // Padrão 5%
 
-    const campanhasDoUsuario = Array.from(this.campanhas.values()).filter(c => c.ownerId === ownerId);
-    const campanhasIds = new Set(campanhasDoUsuario.map(c => c.id));
+    const campanhas = await this.getCampanhas(ownerId);
+    const campanhasIds = new Set(campanhas.map(c => c.id));
 
-    const todosPedidos = Array.from(this.pedidos.values());
-    const pedidosPagosDoUsuario = todosPedidos.filter(p => {
+    if (campanhasIds.size === 0) {
+      const saques = Array.from(this.saques.values()).filter(s => s.ownerId === ownerId);
+      let totalSacado = 0;
+      let saldoPendente = 0;
+      for (const s of saques) {
+        const val = Number(s.valorSolicitado || 0);
+        if (s.status === 'pago' || s.status === 'aprovado') totalSacado += val;
+        else if (s.status === 'pendente') saldoPendente += val;
+      }
+      return {
+        ownerId,
+        saldoTotal: 0,
+        saldoDisponivel: 0,
+        saldoPendente,
+        totalVendido: 0,
+        totalArrecadado: 0,
+        totalSacado,
+        totalTaxasPagas: 0,
+        totalTaxas: 0,
+        atualizadoEm: new Date().toISOString()
+      };
+    }
+
+    const arraysOfPedidos = await Promise.all(
+      Array.from(campanhasIds).map(cId => this.getPedidosPorCampanha(cId))
+    );
+    const todosPedidosDoUsuario = arraysOfPedidos.flat();
+
+    const pedidosPagosDoUsuario = todosPedidosDoUsuario.filter(p => {
       const statusPed = (p as any).status || '';
       if (statusPed !== 'pago' && statusPed !== 'aprovado') return false;
-      const pOwner = p.ownerId || (p as any).owner_id || '';
-      const ehDoUsuario = pOwner === ownerId || campanhasIds.has(p.campanhaId);
-      if (!ehDoUsuario) return false;
       return isPedidoProcessedByCarteira(p);
     });
 

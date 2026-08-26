@@ -872,10 +872,24 @@ export class SupabaseStorage implements Storage {
     return Array.from(ids);
   }
 
-  async getCarteiraSaldo(ownerId: string, forcarRecalculo: boolean = false): Promise<CarteiraSaldo> {
+  async getCarteiraSaldo(ownerId: string, _forcarRecalculo: boolean = false): Promise<CarteiraSaldo> {
+    if (!ownerId) {
+      return {
+        ownerId: '',
+        saldoTotal: 0,
+        saldoDisponivel: 0,
+        saldoPendente: 0,
+        totalVendido: 0,
+        totalArrecadado: 0,
+        totalSacado: 0,
+        totalTaxasPagas: 0,
+        totalTaxas: 0,
+        atualizadoEm: new Date().toISOString()
+      };
+    }
+
     const allOwnerIds = await this.resolverOwnerIds(ownerId);
     
-    // 1. Carrega configuração do organizador para ler a taxa de venda e checkpoint
     let configGeral: any = null;
     for (const id of allOwnerIds) {
       const { data: cfgRow } = await this.client.from('configs').select('dados').eq('owner_id', id).maybeSingle();
@@ -886,93 +900,60 @@ export class SupabaseStorage implements Storage {
     }
 
     const carteiraConfig = configGeral?.carteiraConfig || {};
-    const taxaVendaPct = carteiraConfig.taxaVenda !== undefined ? Number(carteiraConfig.taxaVenda) : 8.0; // Padrão 8%
-    const checkpoint = configGeral?.carteiraCheckpoint;
+    const taxaVendaPct = carteiraConfig.taxaVenda !== undefined ? Number(carteiraConfig.taxaVenda) : 5.0; // Padrão 5%
 
-    // 2. AUDITORIA E CÁLCULO COMPLETO EM TEMPO REAL
-    console.log(`📊 [CARTEIRA] Calculando saldo em tempo real para ownerId=${ownerId}...`);
+    const campanhas = await this.getCampanhas(ownerId);
+    const campanhasIds = new Set(campanhas.map(c => c.id));
 
-    // Busca todas as campanhas do usuário para pegar seus IDs
-    const { data: campsData } = await this.client.from('campanhas').select('id, owner_id, dados');
-    const campanhasIds = new Set<string>();
-    for (const c of campsData || []) {
-      const cOwner = c.owner_id || c.dados?.ownerId || c.dados?.ownerEmail || '';
-      if (allOwnerIds.includes(cOwner)) {
-        campanhasIds.add(c.id);
+    if (campanhasIds.size === 0) {
+      const { data: todosSaques } = await this.client.from('saques').select('id, owner_id, dados');
+      const saquesDoUsuario = (todosSaques || [])
+        .filter(s => allOwnerIds.includes(s.owner_id || s.dados?.ownerId || ''))
+        .map(s => s.dados as SolicitacaoSaque);
+
+      let totalSacado = 0;
+      let saldoPendente = 0;
+      for (const s of saquesDoUsuario) {
+        const val = Number(s.valorSolicitado || 0);
+        if (s.status === 'pago' || s.status === 'aprovado') totalSacado += val;
+        else if (s.status === 'pendente') saldoPendente += val;
       }
+
+      return {
+        ownerId,
+        saldoTotal: 0,
+        saldoDisponivel: 0,
+        saldoPendente,
+        totalVendido: 0,
+        totalArrecadado: 0,
+        totalSacado,
+        totalTaxasPagas: 0,
+        totalTaxas: 0,
+        atualizadoEm: new Date().toISOString()
+      };
     }
 
-    // Busca todos os pedidos pagos
-    const { data: todosPedidos } = await this.client
-      .from('pedidos')
-      .select('id, owner_id, campanha_id, dados');
+    const arraysOfPedidos = await Promise.all(
+      Array.from(campanhasIds).map(cId => this.getPedidosPorCampanha(cId))
+    );
+    const todosPedidosDoUsuario = arraysOfPedidos.flat();
 
-    const pedidosPagosDoUsuario = (todosPedidos || []).filter(p => {
-      const d = p.dados || {};
-      const statusPed = (p as any).status || d.status || '';
+    const pedidosPagosDoUsuario = todosPedidosDoUsuario.filter(p => {
+      const statusPed = (p as any).status || '';
       if (statusPed !== 'pago' && statusPed !== 'aprovado') return false;
-      const pOwner = p.owner_id || d.ownerId || '';
-      const ehDoUsuario = allOwnerIds.includes(pOwner) || (p.campanha_id && campanhasIds.has(p.campanha_id));
-      if (!ehDoUsuario) return false;
-      // Filtra estritamente apenas vendas processadas pela Carteira do Sistema / Efí Pay Central
       return isPedidoProcessedByCarteira(p);
     });
 
-    // Busca todas as transações da carteira
-    const { data: todasTransacoes } = await this.client.from('transacoes').select('id, owner_id, dados');
-    const transacoesExistentes = (todasTransacoes || [])
-      .filter(t => allOwnerIds.includes(t.owner_id || t.dados?.ownerId || ''))
-      .map(t => t.dados as TransacaoCarteira);
-
-    const transacoesMapPorRef = new Map<string, TransacaoCarteira>();
-    for (const tx of transacoesExistentes) {
-      if (tx.referenciaId) {
-        transacoesMapPorRef.set(tx.referenciaId, tx);
-      }
-    }
-
-    // Sincroniza pedidos pagos para garantir que cada um tenha uma transação de crédito
     let totalArrecadado = 0;
     let totalTaxas = 0;
-    let saldoDisponivel = 0;
 
     for (const ped of pedidosPagosDoUsuario) {
-      const d = ped.dados || {};
-      const valorBruto = extrairValorReaisPedido(d);
+      const valorBruto = extrairValorReaisPedido(ped);
       const taxa = Number(((valorBruto * (taxaVendaPct || 0)) / 100).toFixed(2));
-      const valorLiquido = Number((valorBruto - taxa).toFixed(2));
-
       totalArrecadado += valorBruto;
       totalTaxas += taxa;
-      saldoDisponivel += valorLiquido;
-
-      // Se ainda não tiver transação para este pedido pago, insere no Supabase
-      if (!transacoesMapPorRef.has(ped.id)) {
-        const txId = `tx-venda-${ped.id}`;
-        const novaTx: TransacaoCarteira = {
-          id: txId,
-          ownerId,
-          tipo: 'venda',
-          valorBruto,
-          taxa,
-          valorLiquido,
-          status: 'concluida',
-          descricao: `Venda Pedido #${ped.id.slice(-6).toUpperCase()} (${d.comprador?.nome || 'Comprador'})`,
-          pedidoId: ped.id,
-          referenciaId: ped.id,
-          criadoEm: d.pagoEm || d.criadoEm || new Date().toISOString()
-        };
-
-        await this.client.from('transacoes').upsert({
-          id: txId,
-          owner_id: ownerId,
-          dados: novaTx
-        });
-        transacoesMapPorRef.set(ped.id, novaTx);
-      }
     }
 
-    // Busca todas as solicitações de saque do usuário
     const { data: todosSaques } = await this.client.from('saques').select('id, owner_id, dados');
     const saquesDoUsuario = (todosSaques || [])
       .filter(s => allOwnerIds.includes(s.owner_id || s.dados?.ownerId || ''))
@@ -990,45 +971,22 @@ export class SupabaseStorage implements Storage {
       }
     }
 
-    // O saldo disponível líquido NUNCA pode ser superior ao total líquido (arrecadado - taxas - sacado - pendente)
-    const saldoMaximoReal = Math.max(0, Number((totalArrecadado - totalTaxas - totalSacado - saldoPendente).toFixed(2)));
-    saldoDisponivel = Math.min(Math.max(0, saldoDisponivel - totalSacado - saldoPendente), saldoMaximoReal);
+    const totalLiquido = Math.max(0, Number((totalArrecadado - totalTaxas).toFixed(2)));
+    const saldoDisponivel = Math.max(0, Number((totalLiquido - totalSacado - saldoPendente).toFixed(2)));
+    const saldoTotal = Math.max(0, Number((saldoDisponivel + saldoPendente).toFixed(2)));
 
-    const agoraISO = new Date().toISOString();
-    const saldoFinal: CarteiraSaldo = {
+    return {
       ownerId,
-      saldoTotal: Number(Math.max(0, saldoDisponivel + saldoPendente).toFixed(2)),
-      saldoDisponivel: Number(saldoDisponivel.toFixed(2)),
-      saldoPendente: Number(Math.max(0, saldoPendente).toFixed(2)),
+      saldoTotal,
+      saldoDisponivel,
+      saldoPendente,
       totalVendido: Number(totalArrecadado.toFixed(2)),
       totalArrecadado: Number(totalArrecadado.toFixed(2)),
       totalSacado: Number(totalSacado.toFixed(2)),
       totalTaxasPagas: Number(totalTaxas.toFixed(2)),
       totalTaxas: Number(totalTaxas.toFixed(2)),
-      atualizadoEm: agoraISO
+      atualizadoEm: new Date().toISOString()
     };
-
-    // 4. GRAVA O CHECKPOINT NO BANCO COM A DATA DA ÚLTIMA CONTAGEM
-    try {
-      const configAtualizada = {
-        ...(configGeral || {}),
-        carteiraCheckpoint: {
-          ...saldoFinal,
-          ultimaContagemEm: agoraISO,
-          versao: 2
-        }
-      };
-
-      await this.client.from('configs').upsert({
-        owner_id: ownerId,
-        dados: configAtualizada
-      });
-      console.log(`💾 [CARTEIRA] Checkpoint gravado com sucesso para ${ownerId} na data ${agoraISO}`);
-    } catch (saveErr) {
-      console.error('Erro ao gravar checkpoint da carteira:', saveErr);
-    }
-
-    return saldoFinal;
   }
 
   async creditarVendaCarteira(ownerId: string, valorBruto: number, taxaPct: number, pedidoId: string, descricao: string): Promise<TransacaoCarteira> {

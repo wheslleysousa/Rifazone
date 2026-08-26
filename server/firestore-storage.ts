@@ -647,22 +647,60 @@ export class FirestoreStorage implements Storage {
 
   // --- CARTEIRA DO SISTEMA & SAQUES ---
   public async getCarteiraSaldo(ownerId: string): Promise<CarteiraSaldo> {
+    if (!ownerId) {
+      return {
+        ownerId: '',
+        saldoTotal: 0,
+        saldoDisponivel: 0,
+        saldoPendente: 0,
+        totalVendido: 0,
+        totalArrecadado: 0,
+        totalSacado: 0,
+        totalTaxasPagas: 0,
+        totalTaxas: 0,
+        atualizadoEm: new Date().toISOString()
+      };
+    }
+
     const configGeral = await this.getConfig(ownerId);
     const carteiraConfig = (configGeral as any)?.carteiraConfig || {};
-    const taxaVendaPct = carteiraConfig.taxaVenda !== undefined ? Number(carteiraConfig.taxaVenda) : 8.0;
+    const taxaVendaPct = carteiraConfig.taxaVenda !== undefined ? Number(carteiraConfig.taxaVenda) : 5.0; // Padrão 5%
 
-    const campSnap = await this.campanhasCol().where('ownerId', '==', ownerId).get();
-    const campanhasIds = new Set(campSnap.docs.map(d => d.id));
+    const campanhas = await this.getCampanhas(ownerId);
+    const campanhasIds = new Set(campanhas.map(c => c.id));
 
-    const pedSnap = await this.pedidosCol().get();
-    const todosPedidos = pedSnap.docs.map(d => d.data() as Pedido);
+    if (campanhasIds.size === 0) {
+      const saqueSnap = await this.saquesCol().where('ownerId', '==', ownerId).get();
+      const saques = saqueSnap.docs.map(d => d.data() as SolicitacaoSaque);
+      let totalSacado = 0;
+      let saldoPendente = 0;
+      for (const s of saques) {
+        const val = Number(s.valorSolicitado || 0);
+        if (s.status === 'pago' || s.status === 'aprovado') totalSacado += val;
+        else if (s.status === 'pendente') saldoPendente += val;
+      }
+      return {
+        ownerId,
+        saldoTotal: 0,
+        saldoDisponivel: 0,
+        saldoPendente,
+        totalVendido: 0,
+        totalArrecadado: 0,
+        totalSacado,
+        totalTaxasPagas: 0,
+        totalTaxas: 0,
+        atualizadoEm: new Date().toISOString()
+      };
+    }
 
-    const pedidosPagosDoUsuario = todosPedidos.filter(p => {
+    const arraysOfPedidos = await Promise.all(
+      Array.from(campanhasIds).map(cId => this.getPedidosPorCampanha(cId))
+    );
+    const todosPedidosDoUsuario = arraysOfPedidos.flat();
+
+    const pedidosPagosDoUsuario = todosPedidosDoUsuario.filter(p => {
       const statusPed = (p as any).status || '';
       if (statusPed !== 'pago' && statusPed !== 'aprovado') return false;
-      const pOwner = p.ownerId || (p as any).owner_id || '';
-      const ehDoUsuario = pOwner === ownerId || campanhasIds.has(p.campanhaId);
-      if (!ehDoUsuario) return false;
       return isPedidoProcessedByCarteira(p);
     });
 

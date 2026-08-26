@@ -2264,7 +2264,9 @@ export async function verificarEEstornarSaquesPendentes(limiteMinutos: number = 
       console.log(`[Auto-Verificação Saques] Auditando saque #${saque.id} (R$ ${saque.valorSolicitado}) do usuário ${saque.ownerId} (${minutosDecorridos} min decorridos)...`);
 
       let pixConfirmado = false;
+      let pixEmProcessamento = false;
       let e2eIdConfirmado: string | undefined = saque.codigoAutenticacao;
+      let detalhesStatus = '';
 
       // 1. Consulta com a API da Efí Pay para saber se a transferência Pix realmente saiu da conta
       try {
@@ -2274,9 +2276,15 @@ export async function verificarEEstornarSaquesPendentes(limiteMinutos: number = 
           config: adminConfig
         });
 
-        if (resConsulta.success && resConsulta.statusPix === 'REALIZADO') {
-          pixConfirmado = true;
-          e2eIdConfirmado = resConsulta.e2eId || e2eIdConfirmado;
+        detalhesStatus = resConsulta.detalhes || '';
+
+        if (resConsulta.success) {
+          if (resConsulta.statusPix === 'REALIZADO') {
+            pixConfirmado = true;
+            e2eIdConfirmado = resConsulta.e2eId || e2eIdConfirmado;
+          } else if (resConsulta.statusPix === 'EM_PROCESSAMENTO') {
+            pixEmProcessamento = true;
+          }
         }
       } catch (checkErr) {
         console.warn(`[Auto-Verificação Saques] Falha ao consultar Efí Pay para saque #${saque.id}:`, checkErr);
@@ -2294,9 +2302,12 @@ export async function verificarEEstornarSaquesPendentes(limiteMinutos: number = 
           e2eId: e2eIdConfirmado
         });
         console.log(`✅ [Auto-Verificação Saques] Saque #${saque.id} confirmado como PAGO pela API Bancária Efí Pay.`);
+      } else if (pixEmProcessamento) {
+        // Ainda está sendo processado pelo banco, não estorna nem conclui!
+        console.log(`⏳ [Auto-Verificação Saques] Saque #${saque.id} continua em PROCESSAMENTO no banco. Mantendo estado.`);
       } else {
-        // NÃO foi concluído pelo banco após 10 minutos -> Estorna automaticamente e devolve o dinheiro
-        const motivoEstorno = `Estorno Automático (${minutosDecorridos} minutos): A transferência não foi liquidada pela instituição financeira dentro do prazo de 10 minutos. O valor de R$ ${Number(saque.valorSolicitado).toFixed(2)} foi integralmente devolvido ao seu saldo disponível.`;
+        // NÃO foi concluído e NÃO está em processamento (ou deu erro/falha explícita no banco) -> Estorna e devolve o dinheiro
+        const motivoEstorno = `Estorno Automático (${minutosDecorridos} minutos): A transferência não foi liquidada pela instituição financeira. Detalhes: ${detalhesStatus || 'Sem resposta do banco'}. O valor de R$ ${Number(saque.valorSolicitado).toFixed(2)} foi integralmente devolvido ao seu saldo disponível.`;
         await db.atualizarStatusSaque(saque.id, 'rejeitado', undefined, motivoEstorno);
         await db.getCarteiraSaldo(saque.ownerId, true).catch(() => {});
         estornados.push({
@@ -2540,19 +2551,25 @@ app.post('/api/admin/carteira/solicitar-saque', firebaseAuthMiddleware, async (r
         });
 
         if (envResult.success) {
-          const obsMsg = 'Transferência Pix realizada com SUCESSO via API Efí Pay.';
+          const isRealizado = envResult.statusPix === 'REALIZADO';
+          const statusDestino = isRealizado ? 'pago' : 'aprovado';
+          const obsMsg = isRealizado
+            ? 'Transferência Pix realizada e CONFIRMADA com sucesso pela API Efí Pay.'
+            : 'Transferência Pix enviada para processamento na Efí Pay. Aguardando liquidação final.';
 
           const saqueAtualizado = await db.atualizarStatusSaque(
             saque.id,
-            'pago',
+            statusDestino,
             envResult.e2eId,
             obsMsg
           );
           return res.status(201).json({
             success: true,
             saque: saqueAtualizado || saque,
-            status: 'pago',
-            mensagem: 'Saque concluído! O Pix foi enviado com sucesso para sua chave.'
+            status: statusDestino,
+            mensagem: isRealizado
+              ? 'Saque concluído! O Pix foi enviado com sucesso para sua chave.'
+              : 'Saque enviado para processamento no banco! Seu Pix será creditado assim que a transferência for liquidada.'
           });
         } else {
           console.warn(`[Envio Automático Pix] Não foi possível enviar imediatamente: ${envResult.detalhes}`);
@@ -2633,11 +2650,18 @@ app.post('/api/admin/carteira/saques/:id/aprovar', firebaseAuthMiddleware, async
       }
 
       e2eId = envResult.e2eId || e2eId;
-      obs = 'Saque APROVADO e Pix enviado via Efí Pay!';
+      const isRealizado = envResult.statusPix === 'REALIZADO';
+      const statusDestino = isRealizado ? 'pago' : 'aprovado';
+      obs = isRealizado
+        ? 'Saque APROVADO e Pix enviado com CONFIRMAÇÃO de liquidação via Efí Pay!'
+        : 'Saque APROVADO e enviado para processamento no banco via Efí Pay!';
+      
+      const saqueAtualizado = await db.atualizarStatusSaque(id, statusDestino, e2eId, obs);
+      return res.json({ success: true, status: statusDestino, saque: saqueAtualizado });
     }
 
     const saqueAtualizado = await db.atualizarStatusSaque(id, 'pago', e2eId, obs);
-    return res.json({ success: true, saque: saqueAtualizado });
+    return res.json({ success: true, status: 'pago', saque: saqueAtualizado });
   } catch (err: any) {
     console.error('Erro ao aprovar saque:', err);
     return res.status(500).json({ error: err.message || 'Erro ao aprovar saque.' });

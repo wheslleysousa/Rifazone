@@ -858,6 +858,7 @@ export async function enviarPixEfipay(params: {
   config?: ConfigOrganizador | null;
 }): Promise<{
   success: boolean;
+  statusPix?: string;
   e2eId?: string;
   detalhes?: string;
 }> {
@@ -914,6 +915,7 @@ export async function enviarPixEfipay(params: {
       if (isStatusOk && !hasErrorPayload && isTransferSuccess) {
         return {
           success: true,
+          statusPix: data?.status || (data?.e2eId ? 'REALIZADO' : 'EM_PROCESSAMENTO'),
           e2eId: data?.e2eId || data?.idEnvio || idEnvioClean,
           detalhes: 'Pix enviado com sucesso via Efí Pay!'
         };

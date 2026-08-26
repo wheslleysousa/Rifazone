@@ -3,7 +3,7 @@ import {
   Wallet, ArrowUpRight, ArrowDownLeft, Clock, CheckCircle2, 
   AlertCircle, DollarSign, RefreshCw, Send, 
   Calendar, Building2, User, HelpCircle, ChevronRight, Download,
-  TrendingUp, MessageSquare, AlertTriangle, X, Zap
+  TrendingUp, MessageSquare, AlertTriangle, X, Zap, Copy
 } from 'lucide-react';
 import { CarteiraSaldo, SolicitacaoSaque, TransacaoCarteira } from '../../types';
 import { extrairValorReaisPedido } from '../../lib/money';
@@ -63,6 +63,51 @@ export const CarteiraView: React.FC<CarteiraViewProps> = ({ authFetch, carteiraC
   
   const [erroCarregamento, setErroCarregamento] = useState(false);
   const [filtroTipo, setFiltroTipo] = useState<'todos' | 'venda' | 'saque'>('todos');
+
+  // Teste de conexão Efí Pay
+  const [testandoEfi, setTestandoEfi] = useState(false);
+  const [resultadoEfi, setResultadoEfi] = useState<any>(null);
+  const [erroEfi, setErroEfi] = useState<string>('');
+  const [copiadoEfi, setCopiadoEfi] = useState(false);
+
+  const handleTestarConexaoEfi = async () => {
+    setTestandoEfi(true);
+    setResultadoEfi(null);
+    setErroEfi('');
+    setCopiadoEfi(false);
+    try {
+      const res = await authFetch('/api/admin/carteira/testar-conexao', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setResultadoEfi(data);
+      } else {
+        const errorMsg = data.details || data.error || 'Erro ao testar conexão.';
+        setErroEfi(errorMsg);
+        window.dispatchEvent(new CustomEvent('app-error', {
+          detail: {
+            message: `Falha na Conexão Efí Pay: ${errorMsg}`,
+            type: 'Efí Pay Integration Error',
+            stack: JSON.stringify(data, null, 2)
+          }
+        }));
+      }
+    } catch (err: any) {
+      const errorMsg = err.message || 'Erro de rede ou conexão.';
+      setErroEfi(errorMsg);
+      window.dispatchEvent(new CustomEvent('app-error', {
+        detail: {
+          message: `Falha na Conexão Efí Pay: ${errorMsg}`,
+          type: 'Network Error',
+          stack: err.stack || String(err)
+        }
+      }));
+    } finally {
+      setTestandoEfi(false);
+    }
+  };
 
   useEffect(() => {
     if (carteiraConfigProp) {
@@ -645,6 +690,121 @@ export const CarteiraView: React.FC<CarteiraViewProps> = ({ authFetch, carteiraC
               Para alterar os dados de repasse ou chave Pix, entre em contato com o suporte do sistema por questões de segurança.
             </p>
           </div>
+
+          {/* TESTE DE CONEXÃO EFÍ PAY */}
+          {isAdmin && (
+            <div className="mt-6 border border-slate-800 bg-slate-950/40 rounded-2xl p-5 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20">
+                    <Zap className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black text-white">Painel Técnico: Validar Conexão Efí Pay</h4>
+                    <p className="text-[10px] text-slate-400">Verifique a validade de suas credenciais de produção/homologação e mTLS</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleTestarConexaoEfi}
+                  disabled={testandoEfi}
+                  className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 text-xs font-black rounded-lg shadow-md transition flex items-center justify-center gap-1.5 whitespace-nowrap"
+                >
+                  {testandoEfi ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      Testando...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      Testar Conexão Oficial
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {erroEfi && (
+                <div className="p-4 bg-rose-500/10 border border-rose-500/30 rounded-xl space-y-2">
+                  <p className="text-xs font-bold text-rose-300 flex items-center gap-1.5">
+                    <AlertTriangle className="w-4 h-4 text-rose-400" />
+                    Erro na Conexão / Chaves Inválidas
+                  </p>
+                  <pre className="text-[10px] bg-slate-950 p-3 rounded-lg text-rose-400 font-mono overflow-x-auto whitespace-pre-wrap max-h-40 custom-scrollbar select-text">
+                    {erroEfi}
+                  </pre>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(erroEfi);
+                      setCopiadoEfi(true);
+                      setTimeout(() => setCopiadoEfi(false), 2000);
+                    }}
+                    className="px-3 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-[10px] font-bold rounded border border-rose-500/30 transition flex items-center gap-1"
+                  >
+                    <Copy className="w-3 h-3" />
+                    {copiadoEfi ? 'Copiado!' : 'Copiar Mensagem de Erro'}
+                  </button>
+                </div>
+              )}
+
+              {resultadoEfi && (
+                <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-slate-400">Resultado do Diagnóstico</span>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${resultadoEfi.success ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'}`}>
+                      {resultadoEfi.success ? 'Sucesso (Online)' : 'Falha'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-[11px]">
+                    <div className="p-2.5 bg-slate-900 rounded-lg border border-slate-800/60">
+                      <span className="text-slate-500 block">Ambiente Ativo:</span>
+                      <strong className={`uppercase ${resultadoEfi.ambiente === 'producao' ? 'text-emerald-400' : 'text-amber-400'}`}>
+                        {resultadoEfi.ambiente}
+                      </strong>
+                    </div>
+                    <div className="p-2.5 bg-slate-900 rounded-lg border border-slate-800/60">
+                      <span className="text-slate-500 block">Origem Chaves:</span>
+                      <strong className="text-white uppercase">{resultadoEfi.source === 'env' ? 'Variáveis do Render' : 'Config Banco'}</strong>
+                    </div>
+                    <div className="p-2.5 bg-slate-900 rounded-lg border border-slate-800/60">
+                      <span className="text-slate-500 block">Certificado mTLS:</span>
+                      <strong className={resultadoEfi.hasCertificado ? "text-emerald-400" : "text-rose-400"}>
+                        {resultadoEfi.hasCertificado ? "OK" : "Ausente"}
+                      </strong>
+                    </div>
+                    <div className="p-2.5 bg-slate-900 rounded-lg border border-slate-800/60">
+                      <span className="text-slate-500 block">Chave Pix:</span>
+                      <strong className={resultadoEfi.hasChavePix ? "text-emerald-400" : "text-rose-400"}>
+                        {resultadoEfi.hasChavePix ? "Configurada" : "Ausente"}
+                      </strong>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-bold text-slate-500 block">Retorno Completo da API:</span>
+                    <pre className="text-[10px] bg-slate-900 p-3 rounded-lg text-slate-300 font-mono overflow-x-auto select-text whitespace-pre-wrap max-h-48 custom-scrollbar">
+                      {JSON.stringify(resultadoEfi, null, 2)}
+                    </pre>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(JSON.stringify(resultadoEfi, null, 2));
+                      setCopiadoEfi(true);
+                      setTimeout(() => setCopiadoEfi(false), 2000);
+                    }}
+                    className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-300 text-[10px] font-bold rounded border border-slate-800 transition flex items-center gap-1.5"
+                  >
+                    <Copy className="w-3 h-3" />
+                    {copiadoEfi ? 'Copiado!' : 'Copiar Diagnóstico Completo'}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

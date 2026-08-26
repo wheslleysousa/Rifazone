@@ -621,9 +621,11 @@ export const CarteiraAdminView: React.FC<CarteiraAdminViewProps> = ({ authFetch 
                       <div className="text-2xl font-black text-sky-400 font-mono tracking-tight">
                         R$ {Number(valorExibido).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </div>
-                      <div className="text-[10px] mt-1.5 flex items-center gap-1 text-slate-400 font-bold">
+                      <div className="text-[10px] mt-1.5 flex items-center gap-1 font-bold">
                         <span className={`w-1.5 h-1.5 rounded-full ${isRealBanco ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400 animate-pulse'}`}></span>
-                        {isRealBanco ? '100% Real via API Efí' : 'Informações desatualizadas'}
+                        <span className={isRealBanco ? 'text-emerald-400' : 'text-amber-400'}>
+                          {isRealBanco ? '100% Real via API Efí' : 'Informação indisponível no momento'}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -643,8 +645,11 @@ export const CarteiraAdminView: React.FC<CarteiraAdminViewProps> = ({ authFetch 
                       <div className="text-2xl font-black text-purple-300 font-mono tracking-tight">
                         R$ {Number(safeMetricas.saldoCustodiaOrganizadores).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </div>
-                      <div className="text-[10px] text-slate-400 mt-1.5">
-                        Soma em custódia dos usuários
+                      <div className="text-[10px] mt-1.5 flex items-center gap-1 font-bold">
+                        <span className={`w-1.5 h-1.5 rounded-full ${isRealBanco ? 'bg-purple-400' : 'bg-amber-400 animate-pulse'}`}></span>
+                        <span className={isRealBanco ? 'text-slate-400' : 'text-amber-400'}>
+                          {isRealBanco ? 'Soma em custódia dos usuários' : 'Informação indisponível no momento'}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -664,8 +669,11 @@ export const CarteiraAdminView: React.FC<CarteiraAdminViewProps> = ({ authFetch 
                       <div className="text-2xl font-black text-emerald-400 font-mono tracking-tight mt-1.5">
                         R$ {Number(safeMetricas.lucroDisponivelParaRetirada).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </div>
-                      <div className="text-[10px] text-slate-400 mt-1">
-                        Seu lucro real líquido retido
+                      <div className="text-[10px] mt-1 flex items-center gap-1 font-bold">
+                        <span className={`w-1.5 h-1.5 rounded-full ${isRealBanco ? 'bg-emerald-400' : 'bg-amber-400 animate-pulse'}`}></span>
+                        <span className={isRealBanco ? 'text-slate-400' : 'text-amber-400'}>
+                          {isRealBanco ? 'Seu lucro real líquido retido' : 'Informação indisponível no momento'}
+                        </span>
                       </div>
                     </div>
 
@@ -724,9 +732,9 @@ export const CarteiraAdminView: React.FC<CarteiraAdminViewProps> = ({ authFetch 
                 </div>
 
                 {!isRealBanco && (
-                  <div className="p-3.5 bg-slate-900/40 border border-slate-800/80 rounded-2xl text-[11px] text-slate-400 flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0 animate-pulse"></span>
-                    <span>Informações desatualizadas</span>
+                  <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-[11px] text-amber-300 font-semibold flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0 animate-pulse"></span>
+                    <span>Informação indisponível no momento</span>
                   </div>
                 )}
               </div>

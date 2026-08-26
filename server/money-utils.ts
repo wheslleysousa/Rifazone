@@ -55,3 +55,41 @@ export function formatarMoeda(value: number | string | undefined | null): string
     maximumFractionDigits: decimals
   }).format(num);
 }
+
+/**
+ * Identifica se um pedido foi processado via Carteira do Sistema / Efí Pay Central
+ * ou se foi feito por gateway externo direto do organizador (ex: Mercado Pago, Asaas, PushinPay).
+ */
+export function isPedidoProcessedByCarteira(pedido: any): boolean {
+  if (!pedido) return false;
+  const d = pedido.dados || pedido || {};
+  
+  // 1. Gateway explicitamente salvo
+  const gateway = String(d.gateway || d.gatewayId || (pedido as any).gateway || '').toLowerCase();
+  
+  if (['mercadopago', 'asaas', 'pushinpay', 'pay2m', 'paggue', 'mp', 'efipay_direto'].includes(gateway)) {
+    return false;
+  }
+  if (['carteira', 'efipay', 'system', 'sistema'].includes(gateway)) {
+    return true;
+  }
+
+  // 2. Flags/Tokens de gateways externos do organizador
+  if (d.mpToken || d.usedExternalMp || d.externalGateway || d.metodoAtivo === 'mercadopago') {
+    return false;
+  }
+
+  // 3. Prefixo do ID de pagamento no Pix
+  const mpPaymentId = String((pedido as any).mp_payment_id || (pedido as any).mpPaymentId || d.mpPaymentId || d.paymentId || '');
+  if (mpPaymentId.startsWith('carteira_') || mpPaymentId.startsWith('efi_')) {
+    return true;
+  }
+
+  // IDs puramente numéricos longos (ex: 987654321) pertencem ao Mercado Pago direto do organizador
+  if (/^\d{5,}$/.test(mpPaymentId)) {
+    return false;
+  }
+
+  // Se não tem prefixo de carteira do sistema e não tem indicador de carteira, não pertence à carteira do sistema
+  return false;
+}

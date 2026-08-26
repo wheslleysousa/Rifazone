@@ -4,7 +4,7 @@ import { Storage, EstatisticasCampanha, MeusNumerosResult, ConfirmarPedidoResult
 import { Campanha, Pedido, Comprador, RankingItem, CotaPremiada, ConfigOrganizador, EstiloSalvo, TemaCampanha, CheckoutSalvo, CheckoutConfig, MensagemFila, CarteiraSaldo, TransacaoCarteira, SolicitacaoSaque, Cota } from '../src/types.js';
 import { mergeConfig } from './config-utils.js';
 import { decryptToken } from './crypto-utils.js';
-import { extrairValorReaisPedido } from './money-utils.js';
+import { extrairValorReaisPedido, isPedidoProcessedByCarteira } from './money-utils.js';
 
 export function getSupabaseUrl(): string | undefined {
   return (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim() || undefined;
@@ -962,13 +962,17 @@ export class SupabaseStorage implements Storage {
     // Busca todos os pedidos pagos
     const { data: todosPedidos } = await this.client
       .from('pedidos')
-      .select('id, owner_id, campanha_id, dados')
-      .or('status.eq.pago,status.eq.aprovado');
+      .select('id, owner_id, campanha_id, dados');
 
     const pedidosPagosDoUsuario = (todosPedidos || []).filter(p => {
       const d = p.dados || {};
+      const statusPed = (p as any).status || d.status || '';
+      if (statusPed !== 'pago' && statusPed !== 'aprovado') return false;
       const pOwner = p.owner_id || d.ownerId || '';
-      return allOwnerIds.includes(pOwner) || (p.campanha_id && campanhasIds.has(p.campanha_id));
+      const ehDoUsuario = allOwnerIds.includes(pOwner) || (p.campanha_id && campanhasIds.has(p.campanha_id));
+      if (!ehDoUsuario) return false;
+      // Filtra estritamente apenas vendas processadas pela Carteira do Sistema / Efí Pay Central
+      return isPedidoProcessedByCarteira(p);
     });
 
     // Busca todas as transações da carteira
@@ -1038,19 +1042,20 @@ export class SupabaseStorage implements Storage {
       const val = Number(s.valorSolicitado || 0);
       if (s.status === 'pago' || s.status === 'aprovado') {
         totalSacado += val;
-        saldoDisponivel -= val;
       } else if (s.status === 'pendente') {
         saldoPendente += val;
-        saldoDisponivel -= val;
       }
-      // Se status === 'rejeitado' ou 'cancelada', o valor NÃO é deduzido (permanece 100% no saldo disponível)
     }
+
+    // O saldo disponível líquido NUNCA pode ser superior ao total líquido (arrecadado - taxas - sacado - pendente)
+    const saldoMaximoReal = Math.max(0, Number((totalArrecadado - totalTaxas - totalSacado - saldoPendente).toFixed(2)));
+    saldoDisponivel = Math.min(Math.max(0, saldoDisponivel - totalSacado - saldoPendente), saldoMaximoReal);
 
     const agoraISO = new Date().toISOString();
     const saldoFinal: CarteiraSaldo = {
       ownerId,
       saldoTotal: Number(Math.max(0, saldoDisponivel + saldoPendente).toFixed(2)),
-      saldoDisponivel: Number(Math.max(0, saldoDisponivel).toFixed(2)),
+      saldoDisponivel: Number(saldoDisponivel.toFixed(2)),
       saldoPendente: Number(Math.max(0, saldoPendente).toFixed(2)),
       totalVendido: Number(totalArrecadado.toFixed(2)),
       totalArrecadado: Number(totalArrecadado.toFixed(2)),

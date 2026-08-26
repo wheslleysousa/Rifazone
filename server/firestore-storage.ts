@@ -7,7 +7,7 @@ import { Campanha, Cota, Pedido, Comprador, RankingItem, CotaPremiada, ConfigOrg
 import { Storage, EstatisticasCampanha, MeusNumerosResult, ConfirmarPedidoResult, SorteioResult, DadosConfig } from './storage-interface.js';
 import { mergeConfig } from './config-utils.js';
 import { decryptToken } from './crypto-utils.js';
-import { extrairValorReaisPedido } from './money-utils.js';
+import { extrairValorReaisPedido, isPedidoProcessedByCarteira } from './money-utils.js';
 
 // Lê o databaseId (Firestore nomeado) do config do Firebase.
 function getDatabaseId(): string | undefined {

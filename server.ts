@@ -39,7 +39,7 @@ import {
   buscarInsightsDeVariasContas,
   buscarTodasAsContasDeAnunciosDoUsuario
 } from './server/meta-service.js';
-import { toCents, toReais, extrairValorReaisPedido } from './server/money-utils.js';
+import { toCents, toReais, extrairValorReaisPedido, isPedidoProcessedByCarteira } from './server/money-utils.js';
 import { EmailNotificador } from './server/notifications.js';
 import { gerarPixMultiGateway, consultarPagamentoAsaas, consultarPagamentoEfipay, testEfipayConnection, resolveEfipayCredentials, consultarSaldoEfipay, enviarPixEfipay, consultarEnvioPixEfipay, registrarWebhookEfipay } from './server/gateways.js';
 import { Campanha, TEMA_PADRAO, DEFAULT_CHECKOUT_CONFIG } from './src/types.js';
@@ -632,6 +632,8 @@ app.post('/api/pedidos', async (req, res) => {
       });
     }
 
+    const gatewayName = (pixResult as any).gateway || (metodoAtivo === 'mercadopago' ? 'mercadopago' : 'carteira');
+
     const novoPedido = await db.savePedido({
       id: pedidoId,
       campanhaId: campanha.id,
@@ -647,6 +649,7 @@ app.post('/api/pedidos', async (req, res) => {
       valorTotal: valorTotalCents,
       status: 'pendente',
       metodoPagamento: 'pix',
+      gateway: gatewayName,
       mpPaymentId: pixResult.paymentId,
       pixCopiaCola: pixResult.pixCopiaCola,
       pixQrCodeBase64: pixResult.pixQrCodeBase64,
@@ -654,7 +657,7 @@ app.post('/api/pedidos', async (req, res) => {
       expiraEm: expiraEm.toISOString(),
       criadoEm: agora.toISOString(),
       pagoEm: null
-    });
+    } as any);
 
     return res.status(201).json({
       pedidoId: novoPedido.id,
@@ -824,8 +827,8 @@ async function processarConfirmacaoPedido(pedidoId: string, paymentId?: string, 
                            String(pedidoAtualizado.mpPaymentId || '').startsWith('simulado_') ||
                            String(pedidoAtualizado.mpPaymentId || '').startsWith('mock_');
 
-        const metodoAtivo = ownerConfig?.metodoAtivo || (ownerConfig?.mpAccessToken ? 'mercadopago' : 'carteira');
-        if (!isSimulado && (metodoAtivo === 'carteira' || ownerConfig?.carteiraConfig?.ativo)) {
+        const isCarteiraDoSistema = isPedidoProcessedByCarteira(pedidoAtualizado);
+        if (!isSimulado && isCarteiraDoSistema) {
           let taxaPct = 5.0;
 
           if (adminConfig?.carteiraConfig?.taxasPersonalizadas) {
@@ -1260,22 +1263,10 @@ app.get('/api/admin/carteira/metricas-financeiras', firebaseAuthMiddleware, asyn
         totalPedidosPagos++;
 
         // Verifica se o pedido foi pago pela Carteira do Sistema / Efí Pay Central
-        if (p.mpPaymentId?.startsWith('efi_') || p.mpPaymentId?.startsWith('carteira_')) {
+        if (isPedidoProcessedByCarteira(p)) {
           faturamentoCarteira += valorReais;
-        } else {
-          // Se o organizador usa a carteira do sistema por padrão
-          const configOrg = todasConfigs.find(c => c.ownerId === (p as any).ownerId)?.config;
-          const metodoAtivo = (configOrg as any)?.metodoAtivo || 'carteira';
-          if (metodoAtivo === 'carteira' || metodoAtivo === 'efipay') {
-            faturamentoCarteira += valorReais;
-          }
         }
       }
-    }
-
-    // Se faturamentoCarteira for 0 mas houver faturamentoTotalGeral, considera o total faturado
-    if (faturamentoCarteira === 0 && faturamentoTotalGeral > 0) {
-      faturamentoCarteira = faturamentoTotalGeral;
     }
 
     // 2. Transações da Carteira & Taxas de Venda Retidas
@@ -1310,20 +1301,7 @@ app.get('/api/admin/carteira/metricas-financeiras', firebaseAuthMiddleware, asyn
       }
     }
 
-    // Fallback de taxa de venda estimada se as transações diretas forem inferiores
-    const taxaGlobalPadrao = Number((adminConfig as any)?.carteiraConfig?.taxaVendaPct ?? 5.0);
-    if (totalTaxasVendasRetidas === 0 && faturamentoCarteira > 0) {
-      totalTaxasVendasRetidas = Number(((faturamentoCarteira * taxaGlobalPadrao) / 100).toFixed(2));
-    }
-
-    // 3. Custos Oficiais Efí Pay (Entrada 1,19% no Pix)
-    const taxaEfiPixPct = 1.19; // Taxa padrão oficial da Efí Pay para recebimento Pix
-    const custoEfiPixEntrada = Number(((faturamentoCarteira * taxaEfiPixPct) / 100).toFixed(2));
-
-    // Lucro Líquido sobre Vendas = Taxas Retidas do Organizador - Custo que a Efí desconta do Admin
-    const lucroLiquidoVendas = Math.max(0, Number((totalTaxasVendasRetidas - custoEfiPixEntrada).toFixed(2)));
-
-    // 4. Saques de Organizadores & Taxas de Saque Retidas
+    // 3. Saques de Organizadores & Taxas de Saque Retidas
     let totalSacadoOrganizadores = 0;
     let totalSaquesPendentes = 0;
     let totalTaxasSaquesRetidas = 0;
@@ -1336,6 +1314,25 @@ app.get('/api/admin/carteira/metricas-financeiras', firebaseAuthMiddleware, asyn
         totalSaquesPendentes += Number(s.valorSolicitado || 0);
       }
     }
+
+    // A soma em custódia dos usuários e o lucro do admin não podem ultrapassar o faturamento total da plataforma
+    saldoCustodiaOrganizadores = Math.min(
+      Math.max(0, Number(saldoCustodiaOrganizadores.toFixed(2))),
+      Math.max(0, Number((faturamentoCarteira - totalSacadoOrganizadores).toFixed(2)))
+    );
+
+    // Fallback de taxa de venda estimada se as transações diretas forem inferiores
+    const taxaGlobalPadrao = Number((adminConfig as any)?.carteiraConfig?.taxaVendaPct ?? 5.0);
+    if (totalTaxasVendasRetidas === 0 && faturamentoCarteira > 0) {
+      totalTaxasVendasRetidas = Number(((faturamentoCarteira * taxaGlobalPadrao) / 100).toFixed(2));
+    }
+
+    // Custos Oficiais Efí Pay (Entrada 1,19% no Pix)
+    const taxaEfiPixPct = 1.19; // Taxa padrão oficial da Efí Pay para recebimento Pix
+    const custoEfiPixEntrada = Number(((faturamentoCarteira * taxaEfiPixPct) / 100).toFixed(2));
+
+    // Lucro Líquido sobre Vendas = Taxas Retidas do Organizador - Custo que a Efí desconta do Admin
+    const lucroLiquidoVendas = Math.max(0, Number((totalTaxasVendasRetidas - custoEfiPixEntrada).toFixed(2)));
 
     // Custo Efí Pay para Envio Pix (Transferência/Saque) -> R$ 0,00 Grátis na Efí
     const custoEfiPixSaque = 0.00;
@@ -1352,9 +1349,10 @@ app.get('/api/admin/carteira/metricas-financeiras', firebaseAuthMiddleware, asyn
       retiradasLucroAdmin.reduce((acc, r) => acc + (Number(r.valor) || 0), 0).toFixed(2)
     );
 
-    const lucroDisponivelParaRetirada = Math.max(
-      0,
-      Number((lucroLiquidoTotal - totalLucroRetiradoAdmin).toFixed(2))
+    const lucroMaximoPossivel = Math.max(0, Number((faturamentoCarteira - saldoCustodiaOrganizadores - totalLucroRetiradoAdmin).toFixed(2)));
+    const lucroDisponivelParaRetirada = Math.min(
+      lucroMaximoPossivel,
+      Math.max(0, Number((lucroLiquidoTotal - totalLucroRetiradoAdmin).toFixed(2)))
     );
 
     // 6b. Saldo Total Bruto na Conta Efí Pay (Total faturado via Efí - custo Efí 1.19% - total sacado por usuários - total retirado pelo admin)

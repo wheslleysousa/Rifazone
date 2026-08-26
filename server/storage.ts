@@ -5,7 +5,7 @@ import { Campanha, Cota, Pedido, Comprador, RankingItem, CotaPremiada, ConfigOrg
 import { Storage, EstatisticasCampanha, MeusNumerosResult, ConfirmarPedidoResult, SorteioResult, DadosConfig } from './storage-interface.js';
 import { mergeConfig } from './config-utils.js';
 import { decryptToken } from './crypto-utils.js';
-import { extrairValorReaisPedido } from './money-utils.js';
+import { extrairValorReaisPedido, isPedidoProcessedByCarteira } from './money-utils.js';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 if (!fs.existsSync(DATA_DIR)) {

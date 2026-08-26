@@ -58,6 +58,7 @@ export const CarteiraView: React.FC<CarteiraViewProps> = ({ authFetch }) => {
   const [saqueMsg, setSaqueMsg] = useState('');
   const [saqueErro, setSaqueErro] = useState('');
   
+  const [erroCarregamento, setErroCarregamento] = useState(false);
   const [filtroTipo, setFiltroTipo] = useState<'todos' | 'venda' | 'saque'>('todos');
 
   const taxaSaqueImediato = carteiraConfig?.taxaSaqueImediato !== undefined 
@@ -68,6 +69,7 @@ export const CarteiraView: React.FC<CarteiraViewProps> = ({ authFetch }) => {
 
   const carregarDados = async (forcarRecalculo = false) => {
     setCarregando(true);
+    setErroCarregamento(false);
     try {
       const urlSaldo = forcarRecalculo ? '/api/admin/carteira/saldo?recalcular=true' : '/api/admin/carteira/saldo';
       const [resSaldo, resTrans, resSaques, resConfig] = await Promise.all([
@@ -92,7 +94,11 @@ export const CarteiraView: React.FC<CarteiraViewProps> = ({ authFetch }) => {
           if (dataSaldo.atualizadoEm || dataSaldo.ultimaContagemEm) {
             setUltimaContagem(dataSaldo.atualizadoEm || dataSaldo.ultimaContagemEm);
           }
+        } else {
+          setErroCarregamento(true);
         }
+      } else {
+        setErroCarregamento(true);
       }
 
       if (resTrans && resTrans.ok) {
@@ -335,6 +341,13 @@ export const CarteiraView: React.FC<CarteiraViewProps> = ({ authFetch }) => {
         const saldoDisponivelVal = Number(saldo?.saldoDisponivel ?? 0);
         return (
           <div className="space-y-6 animate-in fade-in duration-200">
+            {erroCarregamento && (
+              <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-semibold rounded-2xl flex items-center gap-3">
+                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                <span>Informação indisponível no momento</span>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl">
               {/* Total Arrecadado (Topo) */}
               <div className="md:col-span-2 bg-slate-900/90 border border-slate-800 rounded-3xl p-6 shadow-lg">
@@ -345,12 +358,18 @@ export const CarteiraView: React.FC<CarteiraViewProps> = ({ authFetch }) => {
                   </div>
                 </div>
                 <div className="text-3xl sm:text-4xl font-black text-white">
-                  R$ {totalVendidoVal.toFixed(2).replace('.', ',')}
+                  {erroCarregamento ? (
+                    <span className="text-amber-400 text-base font-normal flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4" /> Informação indisponível no momento
+                    </span>
+                  ) : (
+                    `R$ ${totalVendidoVal.toFixed(2).replace('.', ',')}`
+                  )}
                 </div>
                 <p className="text-xs text-slate-400 mt-2">Volume bruto total em vendas</p>
               </div>
 
-              {/* Saldo Disponível (Com botões Enviar Pix e Solicitar Saque) */}
+              {/* Saldo Disponível (Apenas com botão Solicitar Saque) */}
               <div className="md:col-span-2 bg-gradient-to-br from-emerald-950/40 via-slate-900 to-slate-900 border border-emerald-500/40 rounded-3xl p-6 shadow-xl relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-6">
                 <div className="absolute top-0 right-0 p-4 opacity-10">
                   <Wallet className="w-32 h-32 text-emerald-400" />
@@ -364,34 +383,27 @@ export const CarteiraView: React.FC<CarteiraViewProps> = ({ authFetch }) => {
                     </span>
                   </div>
                   <div className="text-3xl sm:text-4xl font-black text-white">
-                    R$ {saldoDisponivelVal.toFixed(2).replace('.', ',')}
+                    {erroCarregamento ? (
+                      <span className="text-amber-400 text-base font-normal flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4" /> Informação indisponível no momento
+                      </span>
+                    ) : (
+                      `R$ ${saldoDisponivelVal.toFixed(2).replace('.', ',')}`
+                    )}
                   </div>
                 </div>
 
                 <div className="relative z-10 flex flex-col sm:flex-row gap-2.5">
                   <button
                     onClick={() => {
-                      setTipoDestino('pix');
                       setSaqueMsg('');
                       setSaqueErro('');
                       setModalSaqueAberto(true);
                     }}
-                    disabled={saldoDisponivelVal <= 0}
-                    className="px-6 py-3.5 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 text-xs font-black rounded-xl shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 transition"
+                    disabled={saldoDisponivelVal <= 0 || erroCarregamento}
+                    className="px-6 py-3.5 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 text-xs font-black rounded-xl shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 transition w-full sm:w-auto"
                   >
-                    <Send className="w-4 h-4" />
-                    Enviar Pix
-                  </button>
-                  <button
-                    onClick={() => {
-                      setSaqueMsg('');
-                      setSaqueErro('');
-                      setModalSaqueAberto(true);
-                    }}
-                    disabled={saldoDisponivelVal <= 0}
-                    className="px-6 py-3.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl border border-slate-700 flex items-center justify-center gap-2 transition"
-                  >
-                    <Wallet className="w-4 h-4 text-emerald-400" />
+                    <Wallet className="w-4 h-4 text-slate-950" />
                     Solicitar Saque
                   </button>
                 </div>

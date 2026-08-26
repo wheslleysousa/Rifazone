@@ -647,37 +647,37 @@ export class FirestoreStorage implements Storage {
 
   // --- CARTEIRA DO SISTEMA & SAQUES ---
   public async getCarteiraSaldo(ownerId: string): Promise<CarteiraSaldo> {
-    const txSnap = await this.transacoesCol().where('ownerId', '==', ownerId).get();
-    const saqueSnap = await this.saquesCol().where('ownerId', '==', ownerId).get();
+    const configGeral = await this.getConfig(ownerId);
+    const carteiraConfig = (configGeral as any)?.carteiraConfig || {};
+    const taxaVendaPct = carteiraConfig.taxaVenda !== undefined ? Number(carteiraConfig.taxaVenda) : 8.0;
 
-    const todasTransacoes = txSnap.docs.map(d => d.data() as TransacaoCarteira);
-    const saques = saqueSnap.docs.map(d => d.data() as SolicitacaoSaque);
+    const campSnap = await this.campanhasCol().where('ownerId', '==', ownerId).get();
+    const campanhasIds = new Set(campSnap.docs.map(d => d.id));
 
-    // Deduplica transações de venda com mesma referência (pedidoId) retroativamente em tempo real
-    const seen = new Set<string>();
-    const transacoes: TransacaoCarteira[] = [];
-    for (const t of todasTransacoes) {
-      if (t.tipo === 'venda' && t.referenciaId) {
-        if (seen.has(t.referenciaId)) continue;
-        seen.add(t.referenciaId);
-      }
-      transacoes.push(t);
-    }
+    const pedSnap = await this.pedidosCol().get();
+    const todosPedidos = pedSnap.docs.map(d => d.data() as Pedido);
+
+    const pedidosPagosDoUsuario = todosPedidos.filter(p => {
+      const statusPed = (p as any).status || '';
+      if (statusPed !== 'pago' && statusPed !== 'aprovado') return false;
+      const pOwner = p.ownerId || (p as any).owner_id || '';
+      const ehDoUsuario = pOwner === ownerId || campanhasIds.has(p.campanhaId);
+      if (!ehDoUsuario) return false;
+      return isPedidoProcessedByCarteira(p);
+    });
 
     let totalArrecadado = 0;
     let totalTaxas = 0;
-    let saldoDisponivel = 0;
 
-    for (const t of transacoes) {
-      if (t.tipo === 'venda' && (t.status === 'concluida' || t.status === 'processando')) {
-        const vBruto = extrairValorReaisPedido(t.valorBruto || 0);
-        const vTaxa = extrairValorReaisPedido(t.taxa || 0);
-        const vLiquido = extrairValorReaisPedido(t.valorLiquido || (vBruto - vTaxa));
-        totalArrecadado += vBruto;
-        totalTaxas += vTaxa;
-        saldoDisponivel += vLiquido;
-      }
+    for (const ped of pedidosPagosDoUsuario) {
+      const valorBruto = extrairValorReaisPedido(ped);
+      const taxa = Number(((valorBruto * (taxaVendaPct || 0)) / 100).toFixed(2));
+      totalArrecadado += valorBruto;
+      totalTaxas += taxa;
     }
+
+    const saqueSnap = await this.saquesCol().where('ownerId', '==', ownerId).get();
+    const saques = saqueSnap.docs.map(d => d.data() as SolicitacaoSaque);
 
     let totalSacado = 0;
     let saldoPendente = 0;
@@ -686,19 +686,24 @@ export class FirestoreStorage implements Storage {
       const val = Number(s.valorSolicitado || 0);
       if (s.status === 'pago' || s.status === 'aprovado') {
         totalSacado += val;
-        saldoDisponivel -= val;
       } else if (s.status === 'pendente') {
         saldoPendente += val;
-        saldoDisponivel -= val;
       }
     }
 
+    const totalLiquido = Math.max(0, Number((totalArrecadado - totalTaxas).toFixed(2)));
+    const saldoDisponivel = Math.max(0, Number((totalLiquido - totalSacado - saldoPendente).toFixed(2)));
+    const saldoTotal = Math.max(0, Number((saldoDisponivel + saldoPendente).toFixed(2)));
+
     return {
       ownerId,
-      saldoDisponivel: Math.max(0, Number(saldoDisponivel.toFixed(2))),
-      saldoPendente: Number(saldoPendente.toFixed(2)),
+      saldoTotal,
+      saldoDisponivel,
+      saldoPendente,
+      totalVendido: Number(totalArrecadado.toFixed(2)),
       totalArrecadado: Number(totalArrecadado.toFixed(2)),
       totalSacado: Number(totalSacado.toFixed(2)),
+      totalTaxasPagas: Number(totalTaxas.toFixed(2)),
       totalTaxas: Number(totalTaxas.toFixed(2)),
       atualizadoEm: new Date().toISOString()
     };

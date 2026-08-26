@@ -889,64 +889,7 @@ export class SupabaseStorage implements Storage {
     const taxaVendaPct = carteiraConfig.taxaVenda !== undefined ? Number(carteiraConfig.taxaVenda) : 8.0; // Padrão 8%
     const checkpoint = configGeral?.carteiraCheckpoint;
 
-    // 2. Se já existe um checkpoint gravado e não foi forçado recálculo
-    if (checkpoint && checkpoint.ultimaContagemEm && !forcarRecalculo) {
-      const dataUltimaContagem = checkpoint.ultimaContagemEm;
-
-      // Verifica se houve novos pedidos pagos desde a última contagem
-      const { data: novosPedidos } = await this.client
-        .from('pedidos')
-        .select('id, owner_id, dados')
-        .or(`status.eq.pago,status.eq.aprovado`);
-
-      const pedidosDoUsuarioNovos = (novosPedidos || []).filter(p => {
-        const d = p.dados || {};
-        const pOwner = p.owner_id || d.ownerId || '';
-        const pertence = allOwnerIds.includes(pOwner);
-        if (!pertence) return false;
-        
-        const dataPedido = d.pagoEm || d.criadoEm || '';
-        return dataPedido > dataUltimaContagem;
-      });
-
-      // Verifica se houve novos saques ou alterações de saques desde a última contagem
-      const { data: novosSaques } = await this.client
-        .from('saques')
-        .select('dados');
-
-      const saquesDoUsuarioNovos = (novosSaques || []).filter(s => {
-        const d = s.dados || {};
-        const sOwner = d.ownerId || '';
-        const pertence = allOwnerIds.includes(sOwner);
-        if (!pertence) return false;
-
-        const dataSaque = d.processadoEm || d.criadoEm || '';
-        return dataSaque > dataUltimaContagem;
-      });
-
-      // Se NENHUM registro novo ocorreu após a última checagem, valida se o checkpoint não está corrompido
-      if (pedidosDoUsuarioNovos.length === 0 && saquesDoUsuarioNovos.length === 0) {
-        const ckDisponivel = Number((checkpoint.saldoDisponivel || 0).toFixed(2));
-        const ckArrecadado = Number((checkpoint.totalArrecadado || checkpoint.totalVendido || 0).toFixed(2));
-        // Se o checkpoint for plausível (saldo disponível não supera arrecadação), utiliza-o
-        if (ckDisponivel <= ckArrecadado + 0.01) {
-          return {
-            ownerId,
-            saldoTotal: Number((checkpoint.saldoTotal || (ckDisponivel + checkpoint.saldoPendente)).toFixed(2)),
-            saldoDisponivel: ckDisponivel,
-            saldoPendente: Number((checkpoint.saldoPendente || 0).toFixed(2)),
-            totalVendido: ckArrecadado,
-            totalArrecadado: ckArrecadado,
-            totalSacado: Number((checkpoint.totalSacado || 0).toFixed(2)),
-            totalTaxasPagas: Number((checkpoint.totalTaxasPagas || checkpoint.totalTaxas || 0).toFixed(2)),
-            totalTaxas: Number((checkpoint.totalTaxas || checkpoint.totalTaxasPagas || 0).toFixed(2)),
-            atualizadoEm: checkpoint.ultimaContagemEm
-          };
-        }
-      }
-    }
-
-    // 3. EXECUTA A AUDITORIA E CÁLCULO COMPLETO / INCREMENTAL
+    // 2. AUDITORIA E CÁLCULO COMPLETO EM TEMPO REAL
     console.log(`📊 [CARTEIRA] Calculando saldo em tempo real para ownerId=${ownerId}...`);
 
     // Busca todas as campanhas do usuário para pegar seus IDs

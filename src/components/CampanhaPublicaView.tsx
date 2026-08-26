@@ -1653,7 +1653,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
       <main className="max-w-xl mx-auto px-4 pb-28 pt-3 space-y-4">
         
         {/* BANNER CAMPANHA PAUSADA / DESATIVADA */}
-        {(campanha.status === 'pausada' || campanha.status === 'pausada' || campanha.status === 'rascunho') && (
+        {((campanha.status as string) === 'pausada' || campanha.status === 'rascunho') && (
           <div className="bg-amber-500/15 border-2 border-amber-500/40 rounded-2xl p-4 text-center shadow-lg animate-in fade-in">
             <div className="w-10 h-10 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center mx-auto mb-2 font-black text-lg">
               ⏸️
@@ -1769,15 +1769,13 @@ export const CampanhaPublicaView: React.FC<Props> = ({
             disabled={
               tempoRestante?.status === 'aguardando_inicio' ||
               tempoRestante?.status === 'encerrada' ||
-              campanha.status === 'pausada' ||
-              campanha.status === 'pausada' ||
+              (campanha.status as string) === 'pausada' ||
               campanha.status === 'rascunho'
             }
             style={
               tempoRestante?.status === 'aguardando_inicio' ||
               tempoRestante?.status === 'encerrada' ||
-              campanha.status === 'pausada' ||
-              campanha.status === 'pausada' ||
+              (campanha.status as string) === 'pausada' ||
               campanha.status === 'rascunho'
                 ? undefined
                 : {
@@ -1786,7 +1784,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                   }
             }
             className={`flex-1 font-black flex items-center justify-center gap-2 transition active:scale-[0.98] ${getBtnRoundingClass(tema.botao.formato)} ${getBtnSizeClass(tema.botao.tamanhoAltura)} shadow-lg ${
-              campanha.status === 'pausada' || campanha.status === 'pausada' || campanha.status === 'rascunho'
+              (campanha.status as string) === 'pausada' || campanha.status === 'rascunho'
                 ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40 cursor-not-allowed shadow-none'
                 : tempoRestante?.status === 'aguardando_inicio'
                 ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40 cursor-not-allowed shadow-none'
@@ -1796,11 +1794,11 @@ export const CampanhaPublicaView: React.FC<Props> = ({
             }`}
           >
             <Sparkles className={`w-4 h-4 ${
-              tempoRestante?.status === 'aguardando_inicio' || tempoRestante?.status === 'encerrada' || campanha.status === 'pausada' || campanha.status === 'pausada'
+              tempoRestante?.status === 'aguardando_inicio' || tempoRestante?.status === 'encerrada' || (campanha.status as string) === 'pausada'
                 ? 'text-current'
                 : 'fill-current'
             }`} />
-            {campanha.status === 'pausada' || campanha.status === 'pausada' || campanha.status === 'rascunho'
+            {(campanha.status as string) === 'pausada' || campanha.status === 'rascunho'
               ? 'CAMPANHA PAUSADA'
               : tempoRestante?.status === 'aguardando_inicio'
               ? 'AGUARDANDO INÍCIO DAS VENDAS'

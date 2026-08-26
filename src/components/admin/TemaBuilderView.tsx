@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Campanha, TemaCampanha, TEMA_PADRAO, EstiloSalvo, CheckoutConfig, DEFAULT_CHECKOUT_CONFIG, GOOGLE_FONTS_LIST } from '../../types';
 import { CampanhaPublicaView } from '../CampanhaPublicaView';
+import { ErrorBoundary } from '../ErrorBoundary';
 import { 
   Palette, Sparkles, Smartphone, Eye, GripVertical, Check, 
   RotateCcw, Save, Trash2, ArrowUp, ArrowDown, Layers, 
@@ -303,6 +304,7 @@ export const TemaBuilderView: React.FC<Props> = ({
       { quantidade: 100, valor: 35.00, destaque: false }
     ],
     ofertasRelampago: campanha.ofertasRelampago || [],
+    checkout: (campanha as any).checkout || DEFAULT_CHECKOUT_CONFIG,
     criadaEm: campanha.criadaEm || '2026-01-01T00:00:00.000Z',
     tema: temaSeguro
   }), [campanha, temaSeguro]);
@@ -1237,13 +1239,15 @@ export const TemaBuilderView: React.FC<Props> = ({
               <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full font-mono">Modo Live Preview</span>
             </div>
 
-            {/* Container Iframe-like do Preview */}
+            {/* Container Iframe-like do Preview (protegido por ErrorBoundary p/ nunca dar tela branca) */}
             <div className="bg-slate-950 rounded-2xl border-4 border-slate-800 overflow-hidden shadow-inner max-h-[720px] overflow-y-auto">
-              <CampanhaPublicaView
-                modoPreview={true}
-                previewCampanha={campanhaPreview}
-                previewTema={temaSeguro}
-              />
+              <ErrorBoundary titulo="Erro na prévia do tema" resetKey={temaSeguro}>
+                <CampanhaPublicaView
+                  modoPreview={true}
+                  previewCampanha={campanhaPreview}
+                  previewTema={temaSeguro}
+                />
+              </ErrorBoundary>
             </div>
           </div>
         </div>

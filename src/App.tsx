@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { CampanhaPublicaView } from './components/CampanhaPublicaView';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { AlertTriangle, Copy, X, Check } from 'lucide-react';
 
 const AdminPanel = React.lazy(() => import('./components/AdminPanel').then(m => ({ default: m.AdminPanel })));
@@ -122,7 +123,9 @@ ${globalError.stack || 'Sem mais detalhes'}`;
             </div>
           </div>
         }>
-          <AdminPanel onSelectCampanha={navigateToCampanha} />
+          <ErrorBoundary titulo="Erro no painel">
+            <AdminPanel onSelectCampanha={navigateToCampanha} />
+          </ErrorBoundary>
         </React.Suspense>
       )}
 

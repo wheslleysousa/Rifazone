@@ -1053,7 +1053,7 @@ export const TemaBuilderView: React.FC<Props> = ({
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" className="accent-emerald-500 w-4 h-4"
                       checked={campanha.checkout?.timerUrgencia?.ativo ?? false}
-                      onChange={e => onChangeCampanha(prev => ({ ...prev, checkout: { ...(prev.checkout || DEFAULT_CHECKOUT_CONFIG), timerUrgencia: { ...(prev.checkout?.timerUrgencia), ativo: e.target.checked } } })))}
+                      onChange={e => onChangeCampanha(prev => ({ ...prev, checkout: { ...(prev.checkout || DEFAULT_CHECKOUT_CONFIG), timerUrgencia: { ...(prev.checkout?.timerUrgencia), ativo: e.target.checked } } }))}
                     />
                     <span className="text-xs text-slate-400">Ativar cronômetro de escassez</span>
                   </label>

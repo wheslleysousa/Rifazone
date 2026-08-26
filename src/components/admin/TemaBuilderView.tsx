@@ -6,9 +6,37 @@ import {
   RotateCcw, Save, Trash2, ArrowUp, ArrowDown, Layers, 
   Type, MousePointer, ShieldCheck, ChevronRight, Layout, 
   Sliders, X, RefreshCw, Bookmark, FolderHeart, CheckCircle2,
-  CreditCard, QrCode, FileText, CheckCheck, AlertCircle, Shield, Image as ImageIcon, Video, User
+  CreditCard, QrCode, FileText, CheckCheck, AlertCircle, Shield, Image as ImageIcon, Video, User, ShoppingCart
 } from 'lucide-react';
 import { auth } from '../../lib/firebase';
+
+const PRESETS = [
+  {
+    nome: 'Dark Moderno',
+    tema: { ...TEMA_PADRAO }
+  },
+  {
+    nome: 'Padrão Claro',
+    tema: { ...TEMA_PADRAO, cores: { primaria: '#10b981', destaque: '#059669', fundo: '#f8fafc', texto: '#0f172a', titulos: '#020617', descricoes: '#475569', botao: '#10b981', textoBotao: '#ffffff', cardFundo: '#ffffff', cardBorda: '#e2e8f0', faviconFundo: '#10b981', iconeCor: '#10b981' } }
+  },
+  {
+    nome: 'Oceano Azul',
+    tema: { ...TEMA_PADRAO, cores: { primaria: '#3b82f6', destaque: '#2563eb', fundo: '#0a192f', texto: '#e2e8f0', titulos: '#ffffff', descricoes: '#94a3b8', botao: '#3b82f6', textoBotao: '#ffffff', cardFundo: '#112240', cardBorda: '#1e293b', faviconFundo: '#3b82f6', iconeCor: '#3b82f6' } }
+  },
+  {
+    nome: 'Floresta Verde',
+    tema: { ...TEMA_PADRAO, cores: { primaria: '#22c55e', destaque: '#16a34a', fundo: '#064e3b', texto: '#ecfdf5', titulos: '#ffffff', descricoes: '#a7f3d0', botao: '#22c55e', textoBotao: '#064e3b', cardFundo: '#065f46', cardBorda: '#047857', faviconFundo: '#22c55e', iconeCor: '#22c55e' } }
+  },
+  {
+    nome: 'Dourado Escuro',
+    tema: { ...TEMA_PADRAO, cores: { primaria: '#eab308', destaque: '#ca8a04', fundo: '#18181b', texto: '#fafafa', titulos: '#ffffff', descricoes: '#a1a1aa', botao: '#eab308', textoBotao: '#18181b', cardFundo: '#27272a', cardBorda: '#3f3f46', faviconFundo: '#eab308', iconeCor: '#eab308' } }
+  },
+  {
+    nome: 'Roxo Escuro',
+    tema: { ...TEMA_PADRAO, cores: { primaria: '#a855f7', destaque: '#9333ea', fundo: '#2e1065', texto: '#f3e8ff', titulos: '#ffffff', descricoes: '#d8b4fe', botao: '#a855f7', textoBotao: '#ffffff', cardFundo: '#3b0764', cardBorda: '#581c87', faviconFundo: '#a855f7', iconeCor: '#a855f7' } }
+  }
+];
+
 
 interface Props {
   campanha: Partial<Campanha>;
@@ -378,13 +406,14 @@ export const TemaBuilderView: React.FC<Props> = ({
         <div className={`lg:col-span-7 space-y-4 ${visualizacaoMobile === 'preview' ? 'hidden lg:block' : 'block'}`}>
           
           {/* Navegação entre seções */}
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-1 p-1 bg-slate-900 border border-slate-800 rounded-xl">
+          <div className="grid grid-cols-3 sm:grid-cols-7 gap-1 p-1 bg-slate-900 border border-slate-800 rounded-xl">
             {[
               { id: 'cores', label: 'Cores', icon: Palette },
               { id: 'botao', label: 'Botões', icon: MousePointer },
               { id: 'tipografia', label: 'Fontes', icon: Type },
               { id: 'blocos', label: 'Blocos', icon: Layout },
               { id: 'organizador', label: 'Logo / Topo', icon: User },
+              { id: 'checkout', label: 'Checkout', icon: ShoppingCart },
               { id: 'estilos', label: 'Estilos', icon: FolderHeart },
             ].map(tab => {
               const Icon = tab.icon;
@@ -957,8 +986,189 @@ export const TemaBuilderView: React.FC<Props> = ({
             </div>
           )}
 
-          {/* 6. SEÇÃO ESTILOS SALVOS */}
+          
+          {/* SEÇÃO CHECKOUT E PAGAMENTO */}
+          {secaoEditor === 'checkout' && (
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-5 animate-in fade-in">
+              <div className="border-b border-slate-800 pb-3">
+                <h3 className="text-sm font-black text-white flex items-center gap-2">
+                  <ShoppingCart className="w-4 h-4 text-emerald-400" />
+                  Estrutura e Campos do Checkout
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Configure o layout do checkout, quais dados coletar do cliente e opções de pagamento.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                {/* Layout */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-300 block">Modelo do Checkout</label>
+                  <select
+                    value={campanha.checkout?.layout || 'padrao'}
+                    onChange={e => onChangeCampanha(prev => ({ ...prev, checkout: { ...(campanha.checkout || DEFAULT_CHECKOUT_CONFIG), layout: e.target.value as any } }))}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white focus:border-emerald-500"
+                  >
+                    <option value="padrao">Checkout Original</option>
+                    <option value="limpo">Checkout Limpo (Foco em Conversão)</option>
+                    <option value="passos">Passo-a-Passo (Simplificado)</option>
+                    <option value="rapido">Checkout Rápido (Com Urgência)</option>
+                  </select>
+                </div>
+
+                {/* Coleta de Dados */}
+                <div className="space-y-2 pt-3 border-t border-slate-800/50">
+                  <label className="text-xs font-bold text-slate-300 block">Coleta de Dados</label>
+                  
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" className="accent-emerald-500 w-4 h-4"
+                      checked={campanha.checkout?.coletaDados?.exigirEmail ?? false}
+                      onChange={e => onChangeCampanha(prev => ({ ...prev, checkout: { ...(campanha.checkout || DEFAULT_CHECKOUT_CONFIG), coletaDados: { ...(campanha.checkout?.coletaDados), exigirEmail: e.target.checked } } }))}
+                    />
+                    <span className="text-xs text-slate-400">Coletar E-mail</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" className="accent-emerald-500 w-4 h-4"
+                      checked={campanha.checkout?.coletaDados?.confirmarEmail ?? false}
+                      onChange={e => onChangeCampanha(prev => ({ ...prev, checkout: { ...(campanha.checkout || DEFAULT_CHECKOUT_CONFIG), coletaDados: { ...(campanha.checkout?.coletaDados), confirmarEmail: e.target.checked } } }))}
+                    />
+                    <span className="text-xs text-slate-400">Exigir confirmação de E-mail</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" className="accent-emerald-500 w-4 h-4"
+                      checked={campanha.checkout?.coletaDados?.exigirCpf ?? false}
+                      onChange={e => onChangeCampanha(prev => ({ ...prev, checkout: { ...(campanha.checkout || DEFAULT_CHECKOUT_CONFIG), coletaDados: { ...(campanha.checkout?.coletaDados), exigirCpf: e.target.checked } } }))}
+                    />
+                    <span className="text-xs text-slate-400">Coletar CPF</span>
+                  </label>
+                </div>
+
+                
+                {/* Timer de Urgência */}
+                <div className="space-y-3 pt-3 border-t border-slate-800/50">
+                  <label className="text-xs font-bold text-slate-300 block">Timer de Urgência no Checkout</label>
+                  
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" className="accent-emerald-500 w-4 h-4"
+                      checked={campanha.checkout?.timerUrgencia?.ativo ?? false}
+                      onChange={e => onChangeCampanha(prev => ({ ...prev, checkout: { ...(prev.checkout || DEFAULT_CHECKOUT_CONFIG), timerUrgencia: { ...(prev.checkout?.timerUrgencia), ativo: e.target.checked } } })))}
+                    />
+                    <span className="text-xs text-slate-400">Ativar cronômetro de escassez</span>
+                  </label>
+
+                  {campanha.checkout?.timerUrgencia?.ativo && (
+                    <div className="pl-6 space-y-2">
+                      <label className="text-[11px] text-slate-400 block">Duração (Minutos)</label>
+                      <input 
+                        type="number"
+                        min="1"
+                        max="60"
+                        value={campanha.checkout?.timerUrgencia?.minutos || 10}
+                        onChange={e => onChangeCampanha(prev => ({ ...prev, checkout: { ...(prev.checkout || DEFAULT_CHECKOUT_CONFIG), timerUrgencia: { ...(prev.checkout?.timerUrgencia), minutos: parseInt(e.target.value) } } }))}
+                        className="w-24 bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:border-emerald-500"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Métodos de Pagamento */}
+                <div className="space-y-2 pt-3 border-t border-slate-800/50">
+                  <label className="text-xs font-bold text-slate-300 block">Formas de Pagamento Habilitadas</label>
+                  
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" className="accent-emerald-500 w-4 h-4"
+                      checked={campanha.checkout?.metodos?.pix ?? true}
+                      onChange={e => onChangeCampanha(prev => ({ ...prev, checkout: { ...(campanha.checkout || DEFAULT_CHECKOUT_CONFIG), metodos: { ...(campanha.checkout?.metodos), pix: e.target.checked } } }))}
+                    />
+                    <span className="text-xs text-slate-400">Pix</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" className="accent-emerald-500 w-4 h-4"
+                      checked={campanha.checkout?.metodos?.cartao ?? true}
+                      onChange={e => onChangeCampanha(prev => ({ ...prev, checkout: { ...(campanha.checkout || DEFAULT_CHECKOUT_CONFIG), metodos: { ...(campanha.checkout?.metodos), cartao: e.target.checked } } }))}
+                    />
+                    <span className="text-xs text-slate-400">Cartão de Crédito</span>
+                  </label>
+                  
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" className="accent-emerald-500 w-4 h-4"
+                      checked={campanha.checkout?.metodos?.boleto ?? false}
+                      onChange={e => onChangeCampanha(prev => ({ ...prev, checkout: { ...(campanha.checkout || DEFAULT_CHECKOUT_CONFIG), metodos: { ...(campanha.checkout?.metodos), boleto: e.target.checked } } }))}
+                    />
+                    <span className="text-xs text-slate-400">Boleto</span>
+                  </label>
+                </div>
+
+                {/* Configurações Avançadas do Pix */}
+                {campanha.checkout?.metodos?.pix !== false && (
+                  <div className="space-y-3 pt-3 border-t border-slate-800/50">
+                    <label className="text-xs font-bold text-slate-300 block">Configurações Avançadas do Pix</label>
+                    
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[11px] text-slate-400 block mb-1">Desconto (%)</label>
+                        <input 
+                          type="number"
+                          min="0"
+                          max="100"
+                          placeholder="Ex: 5"
+                          value={campanha.checkout?.pixConfig?.descontoPct || ''}
+                          onChange={e => onChangeCampanha(prev => ({ ...prev, checkout: { ...(prev.checkout || DEFAULT_CHECKOUT_CONFIG), pixConfig: { ...(prev.checkout?.pixConfig), descontoPct: parseFloat(e.target.value) || undefined } } }))}
+                          className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:border-emerald-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] text-slate-400 block mb-1">Ordem Gateways (Cascata)</label>
+                        <select
+                          className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-[10px] text-white focus:border-emerald-500"
+                        >
+                          <option>Mercado Pago - Padrão</option>
+                          <option>PushInPay &gt; Mercado Pago</option>
+                          <option>Suitpay &gt; PushInPay</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          
+          {/* SEÇÃO ESTILOS SALVOS E PRESETS */}
           {secaoEditor === 'estilos' && (
+            <div className="space-y-4">
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-5 animate-in fade-in">
+                <div className="border-b border-slate-800 pb-3">
+                  <h3 className="text-sm font-black text-white flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-emerald-400" />
+                    Temas Prontos
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Escolha um dos presets para aplicar rapidamente.
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {PRESETS.map((preset, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => atualizarTema(preset.tema)}
+                      className="p-3 bg-slate-950 border border-slate-800 hover:border-emerald-500 rounded-xl transition text-left flex flex-col gap-2"
+                    >
+                      <div className="flex gap-1.5 h-6 w-full rounded-md overflow-hidden" style={{ backgroundColor: preset.tema.cores.fundo }}>
+                        <div className="w-1/3 h-full" style={{ backgroundColor: preset.tema.cores.primaria }}></div>
+                        <div className="w-2/3 h-full" style={{ backgroundColor: preset.tema.cores.cardFundo }}></div>
+                      </div>
+                      <span className="text-xs font-bold text-white block mt-1">{preset.nome}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-5 animate-in fade-in">
               <div className="border-b border-slate-800 pb-3 flex items-center justify-between">
                 <div>
@@ -1010,6 +1220,7 @@ export const TemaBuilderView: React.FC<Props> = ({
                   ))}
                 </div>
               )}
+            </div>
             </div>
           )}
 

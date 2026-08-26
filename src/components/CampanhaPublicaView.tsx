@@ -67,6 +67,35 @@ export const CampanhaPublicaView: React.FC<Props> = ({
   // Checkout Transparente: Métodos de Pagamento & Cartão
   const [metodoPagamento, setMetodoPagamento] = useState<'pix' | 'cartao' | 'boleto'>('pix');
   const [cartaoNumero, setCartaoNumero] = useState('');
+  const [checkoutTimer, setCheckoutTimer] = useState<number | null>(null);
+
+  // Timer logic
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (checkoutAberto && data?.campanha?.checkout?.timerUrgencia?.ativo) {
+      if (checkoutTimer === null) {
+        setCheckoutTimer((data.campanha.checkout.timerUrgencia.minutos || 10) * 60);
+      }
+      interval = setInterval(() => {
+        setCheckoutTimer(prev => {
+          if (prev === null || prev <= 0) {
+            clearInterval(interval);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } else {
+      setCheckoutTimer(null);
+    }
+    return () => clearInterval(interval);
+  }, [checkoutAberto, data?.campanha?.checkout?.timerUrgencia]);
+
+  const formatTimer = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
   const [cartaoNome, setCartaoNome] = useState('');
   const [cartaoValidade, setCartaoValidade] = useState('');
   const [cartaoCvv, setCartaoCvv] = useState('');
@@ -594,9 +623,14 @@ export const CampanhaPublicaView: React.FC<Props> = ({
   };
 
   const valorSemCupom = calcularValorTotal(quantidade);
-  const valorTotalAtual = cupomAplicado
+  let valorBase = cupomAplicado
     ? Number((valorSemCupom * (1 - cupomAplicado.descontoPct / 100)).toFixed(2))
     : valorSemCupom;
+    
+  if (metodoPagamento === 'pix' && data?.campanha?.checkout?.pixConfig?.descontoPct) {
+    valorBase = Number((valorBase * (1 - data.campanha.checkout.pixConfig.descontoPct / 100)).toFixed(2));
+  }
+  const valorTotalAtual = valorBase;
 
   // Botão Comprar / Iniciar Checkout
   const handleIniciarCompra = () => {
@@ -676,13 +710,13 @@ export const CampanhaPublicaView: React.FC<Props> = ({
 
     // Validação de CPF
     const cleanCpf = cpf.replace(/\D/g, '');
-    if ((campanha.exigirCpf || metodoPagamento === 'boleto') && cleanCpf.length !== 11) {
+    if (((campanha.checkout?.coletaDados?.exigirCpf || campanha.exigirCpf) || metodoPagamento === 'boleto') && cleanCpf.length !== 11) {
       setFormErro('Informe um CPF válido com 11 dígitos (obrigatório para emissão de boleto bancário).');
       return;
     }
 
     // Validação de E-mail
-    if ((campanha.exigirEmail || metodoPagamento === 'cartao') && (!email || !email.includes('@'))) {
+    if (((campanha.checkout?.coletaDados?.exigirEmail || campanha.exigirEmail) || metodoPagamento === 'cartao') && (!email || !email.includes('@'))) {
       setFormErro('Informe um endereço de e-mail válido para confirmação do pagamento.');
       return;
     }
@@ -1619,7 +1653,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
       <main className="max-w-xl mx-auto px-4 pb-28 pt-3 space-y-4">
         
         {/* BANNER CAMPANHA PAUSADA / DESATIVADA */}
-        {(campanha.status === 'pausada' || campanha.status === 'inativa' || campanha.status === 'rascunho') && (
+        {(campanha.status === 'pausada' || campanha.status === 'pausada' || campanha.status === 'rascunho') && (
           <div className="bg-amber-500/15 border-2 border-amber-500/40 rounded-2xl p-4 text-center shadow-lg animate-in fade-in">
             <div className="w-10 h-10 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center mx-auto mb-2 font-black text-lg">
               ⏸️
@@ -1736,14 +1770,14 @@ export const CampanhaPublicaView: React.FC<Props> = ({
               tempoRestante?.status === 'aguardando_inicio' ||
               tempoRestante?.status === 'encerrada' ||
               campanha.status === 'pausada' ||
-              campanha.status === 'inativa' ||
+              campanha.status === 'pausada' ||
               campanha.status === 'rascunho'
             }
             style={
               tempoRestante?.status === 'aguardando_inicio' ||
               tempoRestante?.status === 'encerrada' ||
               campanha.status === 'pausada' ||
-              campanha.status === 'inativa' ||
+              campanha.status === 'pausada' ||
               campanha.status === 'rascunho'
                 ? undefined
                 : {
@@ -1752,7 +1786,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                   }
             }
             className={`flex-1 font-black flex items-center justify-center gap-2 transition active:scale-[0.98] ${getBtnRoundingClass(tema.botao.formato)} ${getBtnSizeClass(tema.botao.tamanhoAltura)} shadow-lg ${
-              campanha.status === 'pausada' || campanha.status === 'inativa' || campanha.status === 'rascunho'
+              campanha.status === 'pausada' || campanha.status === 'pausada' || campanha.status === 'rascunho'
                 ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40 cursor-not-allowed shadow-none'
                 : tempoRestante?.status === 'aguardando_inicio'
                 ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40 cursor-not-allowed shadow-none'
@@ -1762,11 +1796,11 @@ export const CampanhaPublicaView: React.FC<Props> = ({
             }`}
           >
             <Sparkles className={`w-4 h-4 ${
-              tempoRestante?.status === 'aguardando_inicio' || tempoRestante?.status === 'encerrada' || campanha.status === 'pausada' || campanha.status === 'inativa'
+              tempoRestante?.status === 'aguardando_inicio' || tempoRestante?.status === 'encerrada' || campanha.status === 'pausada' || campanha.status === 'pausada'
                 ? 'text-current'
                 : 'fill-current'
             }`} />
-            {campanha.status === 'pausada' || campanha.status === 'inativa' || campanha.status === 'rascunho'
+            {campanha.status === 'pausada' || campanha.status === 'pausada' || campanha.status === 'rascunho'
               ? 'CAMPANHA PAUSADA'
               : tempoRestante?.status === 'aguardando_inicio'
               ? 'AGUARDANDO INÍCIO DAS VENDAS'
@@ -1813,6 +1847,17 @@ export const CampanhaPublicaView: React.FC<Props> = ({
               </button>
             </div>
 
+            {/* Timer de Urgência Checkout */}
+            {campanha.checkout?.timerUrgencia?.ativo && checkoutTimer !== null && checkoutTimer > 0 && (
+              <div className="mb-4 p-3 bg-red-500/15 border border-red-500/30 rounded-xl flex items-center justify-between text-red-400">
+                <div className="flex items-center gap-2">
+                  <Flame className="w-5 h-5 animate-pulse" />
+                  <span className="text-sm font-bold">Oferta expira em:</span>
+                </div>
+                <span className="text-xl font-mono font-black tracking-widest">{formatTimer(checkoutTimer)}</span>
+              </div>
+            )}
+            
             {/* Mensagem de Urgência / Banner Topo */}
             {campanha.checkout?.mensagens?.urgencia && (
               <div className="mb-4 p-2.5 bg-amber-500/15 border border-amber-500/30 rounded-xl text-xs font-semibold text-amber-300 flex items-center gap-2 animate-pulse">
@@ -1931,7 +1976,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                   />
                 </div>
 
-                {(campanha.exigirCpf || campanha.modalidade === 'gratis' || metodoPagamento === 'boleto') && (
+                {((campanha.checkout?.coletaDados?.exigirCpf || campanha.exigirCpf) || campanha.modalidade === 'gratis' || metodoPagamento === 'boleto') && (
                   <div>
                     <label className="text-xs font-semibold text-slate-300 block mb-1">
                       CPF * {campanha.modalidade === 'gratis' ? <span className="text-purple-400 font-normal text-[11px]">(1 cota por CPF)</span> : metodoPagamento === 'boleto' && <span className="text-amber-400 font-normal text-[11px]">(obrigatório para boleto)</span>}
@@ -1948,7 +1993,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                   </div>
                 )}
 
-                {(campanha.exigirEmail || campanha.modalidade === 'gratis' || metodoPagamento === 'cartao') && (
+                {((campanha.checkout?.coletaDados?.exigirEmail || campanha.exigirEmail) || campanha.modalidade === 'gratis' || metodoPagamento === 'cartao') && (
                   <div>
                     <label className="text-xs font-semibold text-slate-300 block mb-1">
                       E-mail * {metodoPagamento === 'cartao' && <span className="text-blue-400 font-normal text-[11px]">(para comprovante do cartão)</span>}
@@ -2202,6 +2247,12 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                     {campanha.modalidade === 'gratis' ? '1 cota' : `${quantidade + (ofertaSelecionada ? ofertaSelecionada.cotasExtras : 0)} cotas`}
                   </span>
                 </div>
+                {metodoPagamento === 'pix' && campanha.checkout?.pixConfig?.descontoPct && (
+                  <div className="flex justify-between text-emerald-400 text-[11px] mb-1">
+                    <span>Desconto Pix ({campanha.checkout.pixConfig.descontoPct}%)</span>
+                    <span className="font-bold">- {formatarMoeda(valorSemCupom * (campanha.checkout.pixConfig.descontoPct / 100))}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-slate-300 border-t border-slate-700/50 pt-1">
                   <span>Total:</span>
                   <span className="font-extrabold text-sm" style={{ color: 'var(--brand)' }}>
@@ -2363,8 +2414,8 @@ export const CampanhaPublicaView: React.FC<Props> = ({
       {meusDadosAberto && (
         <MeusDadosModal
           onClose={() => setMeusDadosAberto(false)}
-          exigirCpf={campanha.exigirCpf}
-          exigirEmail={campanha.exigirEmail}
+          exigirCpf={(campanha.checkout?.coletaDados?.exigirCpf || campanha.exigirCpf)}
+          exigirEmail={(campanha.checkout?.coletaDados?.exigirEmail || campanha.exigirEmail)}
           onSalvarSucesso={(dados) => {
             setNome(dados.nome);
             setWhatsapp(dados.whatsapp);

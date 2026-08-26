@@ -203,63 +203,12 @@ export interface ConfirmacaoCompraConfig {
 }
 
 export interface CheckoutConfig {
-  layout?: 'padrao' | 'limpo' | 'passos' | 'rapido';
-  metodoPrimario?: 'pix' | 'cartao' | 'boleto';
   metodos: {
     pix: boolean;
     cartao: boolean;
     boleto: boolean;
   };
-  pixConfig?: {
-    descontoPct?: number;
-    descontoFixo?: number;
-    permitirComprovante?: boolean;
-    cascata?: string[];
-  };
-  cartaoConfig?: {
-    exibirValorParcelado?: boolean;
-  };
-  coletaDados?: {
-    exigirEmail?: boolean;
-    confirmarEmail?: boolean;
-    exigirCpf?: boolean;
-    exigirTelefone?: boolean;
-    confirmarTelefone?: boolean;
-    telefoneUnico?: boolean;
-  };
-  timerUrgencia?: {
-    ativo?: boolean;
-    minutos?: number;
-    sticky?: boolean;
-  };
-  notificacoesSociais?: {
-    ativo?: boolean;
-    posicao?: 'topo-esq' | 'topo-dir' | 'base-esq' | 'base-dir';
-    intervalo?: number;
-    mensagens?: string[];
-  };
-  exitPopup?: {
-    ativo?: boolean;
-    gatilho?: 'saida' | 'voltar' | 'aba' | 'tempo';
-    tempoSegundos?: number;
-  };
-  pixels?: {
-    metaPixelId?: string;
-    ga4Id?: string;
-    tiktokPixelId?: string;
-    utmifyId?: string;
-  };
-  pagamentosInternacionais?: boolean;
-  redirectPosCompra?: string;
-  orderBumps?: {
-    id: string;
-    titulo: string;
-    descricao: string;
-    preco: number;
-    imagemUrl?: string;
-  }[];
-  // Campos originais:
-  parcelasMax: number;
+  parcelasMax: number; // ex: 1 a 12
   taxaParcelamento: 'comprador' | 'organizador';
   mensagens: {
     topo?: string;
@@ -283,40 +232,45 @@ export interface CheckoutConfig {
 }
 
 export const DEFAULT_CHECKOUT_CONFIG: CheckoutConfig = {
-  layout: 'padrao',
-  metodoPrimario: 'pix',
   metodos: {
     pix: true,
     cartao: true,
     boleto: false
-  },
-  pixConfig: {
-    permitirComprovante: false,
-    cascata: ['padrao']
-  },
-  cartaoConfig: {
-    exibirValorParcelado: true
-  },
-  coletaDados: {
-    exigirEmail: false,
-    confirmarEmail: false,
-    exigirCpf: false,
-    exigirTelefone: true,
-    confirmarTelefone: false,
-    telefoneUnico: true
   },
   parcelasMax: 12,
   taxaParcelamento: 'comprador',
   mensagens: {
     topo: 'Selecione a forma de pagamento:',
     pix: 'Aprovação imediata via Pix com QR Code e Copia e Cola.',
-    cartao: 'Pague em até 12x no cartão de crédito.',
-    sucesso: 'Pagamento aprovado! Boa sorte no sorteio.',
-    urgencia: 'Finalize sua compra rápido, as cotas estão acabando!'
+    cartao: 'Pagamento rápido e seguro processado no cartão de crédito.',
+    sucesso: 'Seu pagamento foi confirmado! Seus números foram gerados com sucesso.',
+    urgencia: 'Seus números estão reservados por tempo limitado. Conclua o pagamento!'
   },
   selosSeguranca: true,
+  confirmacao: {
+    titulo: 'Pagamento Confirmado! 🎉',
+    subtitulo: 'Seu pagamento foi processado com sucesso. Seus números já estão salvos e vinculados ao seu WhatsApp!',
+    mensagemAgradecimento: 'Obrigado por participar! Boa sorte no sorteio!',
+    exibirConfetes: true,
+    exibirNumeros: true,
+    exibirBotaoCopiar: true,
+    exibirBotaoWhatsapp: true,
+    exibirBotaoMeusNumeros: true,
+    botaoGrupoVipAtivo: false,
+    botaoGrupoVipTexto: 'Entrar no Grupo VIP do WhatsApp',
+    botaoGrupoVipLink: '',
+    bannerSucessoUrl: '',
+    instrucoesPosCompra: 'Acompanhe a apuração e o sorteio oficial pelos nossos canais oficiais.'
+  },
+  corPrimaria: '#10b981',
+  corFundo: '#020617',
+  fonteFamilia: 'Inter',
+  textoBotao: 'GERAR PIX AGORA',
+  textoRodape: 'Pagamento 100% seguro com tecnologia criptografada de ponta a ponta.',
   temporizadorAtivo: false,
-  temporizadorMinutos: 15,
+  temporizadorMinutos: 10,
+  mensagemEscassez: '🔥 Alta demanda: restam poucas cotas disponíveis para este sorteio!',
+  selosExtras: ['ssl', 'aprovacao']
 };
 
 export interface CupomDesconto {

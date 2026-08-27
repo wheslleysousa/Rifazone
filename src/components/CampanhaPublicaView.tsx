@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Campanha, CampanhaPublicaResponse, Promocao, OfertaRelampago, TemaCampanha, TEMA_PADRAO, DEFAULT_CHECKOUT_CONFIG, RankingItem } from '../types';
 import { 
   Trophy, Flame, Sparkles, ShieldCheck, Ticket, Users,
   ChevronDown, ChevronUp, Plus, Minus, Gift, Info,
   Smartphone, Share2, Instagram, AlertTriangle, AlertCircle, Copy, CheckCircle2,
-  User, CreditCard, QrCode, FileText, Lock, Shield, X, Music2, MessageCircle
+  User, CreditCard, QrCode, FileText, Lock, Shield, X, Music2, MessageCircle,
+  ChevronLeft, ChevronRight, Star, TrendingUp, Zap, Camera, Video, Layout
 } from 'lucide-react';
 import { UpsellModal } from './UpsellModal';
 import { PixPaymentModal } from './PixPaymentModal';
@@ -514,24 +516,31 @@ export const CampanhaPublicaView: React.FC<Props> = ({
     '--texto': tema.cores.texto,
     '--btn': tema.cores.botao,
     '--btn-txt': tema.cores.textoBotao,
+    '--barra-fundo': tema.cores.barraProgressoFundo,
+    '--barra-preenchimento': tema.cores.barraProgressoPreenchimento,
+    '--barra-texto': tema.cores.barraProgressoTexto,
+    '--card-barra-fundo': tema.cores.cardBarraProgressoFundo,
+    '--botao-cotas-fundo': tema.cores.botaoCotasFundo,
+    '--botao-cotas-texto': tema.cores.botaoCotasTexto,
+    '--botao-cotas-numero': tema.cores.botaoCotasNumero,
+    '--controles-fundo': tema.cores.controlesFundo,
+    '--controles-texto': tema.cores.controlesTexto,
+    '--texto-preco-barra': tema.cores.textoPrecoBarra,
+    '--subtitulo-cor': tema.cores.subtituloCor,
+    '--local-sorteio-cor': tema.cores.localSorteioCor,
+    '--icone-cor': tema.cores.iconeCor,
   } as React.CSSProperties;
 
+  const getIcon = (name: string) => {
+    const icons: Record<string, any> = {
+      Trophy, Gift, Ticket, Zap, Sparkles, TrendingUp, Users, FileText, Info, Shield, Camera, Video, Layout, ShieldCheck
+    };
+    return icons[name] || Trophy;
+  };
+
   // Carregamento dinâmico de fontes do Google Fonts para títulos e textos
-  useEffect(() => {
-    const fontTitle = tema.tipografia.fonteTitulo || 'Inter';
-    const fontText = tema.tipografia.fonteTexto || 'Inter';
-    const fontId = 'google-fonts-dynamic-loader';
-    let link = document.getElementById(fontId) as HTMLLinkElement;
-    if (!link) {
-      link = document.createElement('link');
-      link.id = fontId;
-      link.rel = 'stylesheet';
-      document.head.appendChild(link);
-    }
-    const fontsToLoad = Array.from(new Set([fontTitle, fontText]));
-    const families = fontsToLoad.map(f => `family=${f.replace(/\s+/g, '+')}:wght@400;500;600;700;800;900`).join('&');
-    link.href = `https://fonts.googleapis.com/css2?${families}&display=swap`;
-  }, [tema.tipografia.fonteTitulo, tema.tipografia.fonteTexto]);
+  // Efeito temporariamente removido para teste
+
 
   // Helpers de classes de estilo baseadas no tema
   const getBtnRoundingClass = (formato?: string) => {
@@ -953,38 +962,121 @@ export const CampanhaPublicaView: React.FC<Props> = ({
 
   // --- SUBCOMPONENTES DE SEÇÃO EXTRAÍDOS ---
 
-  // 1. Seção Banner / Hero
-  const SecaoBanner = () => {
+  // 1. Seção Banner / Hero (Carousel Infinito)
+  const BannerSection = ({ campanha, tema }: { campanha: Campanha; tema: TemaCampanha }) => {
+    const imagens = [campanha.bannerUrl, ...(campanha.fotosCarrossel || [])].filter(Boolean);
+    const [index, setIndex] = useState(0);
+
+    // Auto-play opcional
+    useEffect(() => {
+      if (imagens.length <= 1 || !campanha.autoplayGaleria) return;
+      const intervalo = (campanha.autoplayIntervaloGaleria || 5) * 1000;
+      const timer = setInterval(() => {
+        setIndex(prev => (prev + 1) % imagens.length);
+      }, intervalo);
+      return () => clearInterval(timer);
+    }, [imagens.length, campanha.autoplayGaleria, campanha.autoplayIntervaloGaleria]);
+
+    if (imagens.length === 0) return null;
+
     return (
-      <div className="relative rounded-2xl overflow-hidden border border-slate-800 shadow-2xl bg-slate-900">
-        <img
-          src={campanha.bannerUrl}
-          alt={campanha.titulo}
-          className="w-full aspect-[16/9] object-cover"
-        />
+      <div className="relative rounded-2xl overflow-hidden border border-slate-800 shadow-2xl bg-slate-900 group">
+        <div className="relative aspect-[16/9] overflow-hidden">
+          <AnimatePresence initial={false} mode="wait">
+            <div key={index} className="absolute inset-0 bg-slate-950">
+              {/* Fundo Desfocado para preencher espaços se a imagem for menor/proporção diferente */}
+              <img 
+                src={imagens[index]} 
+                className="absolute inset-0 w-full h-full object-cover blur-3xl opacity-20 scale-110" 
+                alt="" 
+              />
+              <motion.img
+                src={imagens[index]}
+                alt={`${campanha.titulo} - Foto ${index + 1}`}
+                initial={{ opacity: 0, scale: 1.1 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                transition={{ duration: 0.5 }}
+                className="relative z-10 w-full h-full object-contain cursor-grab active:cursor-grabbing"
+                drag="x"
+                dragConstraints={{ left: 0, right: 0 }}
+                onDragEnd={(_, info) => {
+                  if (info.offset.x < -50) {
+                    setIndex(prev => (prev + 1) % imagens.length);
+                  } else if (info.offset.x > 50) {
+                    setIndex(prev => (prev - 1 + imagens.length) % imagens.length);
+                  }
+                }}
+              />
+            </div>
+          </AnimatePresence>
+
+          {imagens.length > 1 && (
+            <>
+              {/* Indicadores de Paginação */}
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-10">
+                {imagens.map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setIndex(i)}
+                    className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
+                      index === i ? 'bg-emerald-400 w-4 shadow-[0_0_8px_rgba(52,211,153,0.5)]' : 'bg-white/30 hover:bg-white/50'
+                    }`}
+                  />
+                ))}
+              </div>
+
+              {/* Botões de Navegação (Visíveis em hover ou Desktop) */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIndex(prev => (prev - 1 + imagens.length) % imagens.length);
+                }}
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity z-10"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIndex(prev => (prev + 1) % imagens.length);
+                }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity z-10"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </>
+          )}
+        </div>
         
         {campanha.selo && (campanha.exibirSelo ?? true) && (
-          <div className="absolute top-3 left-3 px-3 py-1 bg-amber-500 text-slate-950 font-black text-xs uppercase tracking-wider rounded-full shadow-lg flex items-center gap-1">
-            <Flame className="w-3.5 h-3.5 fill-slate-950" />
+          <div className="absolute top-3 left-3 px-3 py-1 bg-amber-500 text-slate-950 font-black text-[10px] uppercase tracking-wider rounded-full shadow-lg flex items-center gap-1 z-20">
+            <Flame className="w-3 h-3 fill-slate-950" />
             {campanha.selo}
           </div>
         )}
 
-        <div className="p-4 bg-gradient-to-t from-slate-950 via-slate-900 to-transparent">
+        <div className="p-4 bg-gradient-to-t from-slate-950 via-slate-900/80 to-transparent relative z-10">
           {campanha.exibirSeloOficial !== false && (
             <div
-              className="flex items-center gap-2 text-xs font-semibold mb-1"
+              className="flex items-center gap-2 text-[10px] font-bold mb-1 uppercase tracking-widest"
               style={{ color: 'var(--brand)' }}
             >
-              <ShieldCheck className="w-4 h-4" />
+              <ShieldCheck className="w-3.5 h-3.5" />
               <span>Sorteio oficial: {campanha.localSorteio}</span>
             </div>
           )}
-          <h1 className={`font-black text-white leading-tight ${getTitleSizeClass(tema.tipografia.tamanhoTitulo)}`}>
+          <h1 
+            className={`font-black leading-tight ${getTitleSizeClass(tema.tipografia.tamanhoTitulo)}`}
+            style={{ color: tema.cores.titulos, fontFamily: tema.tipografia.fonteTitulo }}
+          >
             {campanha.titulo}
           </h1>
           {campanha.subtitulo && (
-            <p className="text-slate-300 text-xs mt-1">
+            <p 
+              className="text-[11px] mt-1 line-clamp-1 opacity-80 uppercase tracking-tighter"
+              style={{ color: tema.cores.subtituloCor, fontFamily: tema.tipografia.fonteTexto }}
+            >
               {campanha.subtitulo}
             </p>
           )}
@@ -994,29 +1086,32 @@ export const CampanhaPublicaView: React.FC<Props> = ({
   };
 
   // 2. Seção Barra de Progresso
-  const SecaoBarraProgresso = () => {
+  const ProgressoSection = ({ campanha, estatisticas, tema }: { campanha: Campanha; estatisticas: any, tema: TemaCampanha }) => {
     if (campanha.exibirBarraProgresso === false || estatisticas.vendidas === 0) return null;
     return (
-      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-sm">
+      <div 
+        className="border border-slate-800 rounded-2xl p-4 shadow-sm"
+        style={{ backgroundColor: tema.cores.cardBarraProgressoFundo }}
+      >
         <div className="flex items-center justify-between text-xs mb-2">
-          <span className="text-slate-400 font-medium">Progresso do sorteio</span>
+          <span className="opacity-60 font-medium">Progresso do sorteio</span>
           <span className="font-extrabold" style={{ color: 'var(--brand)' }}>
             {estatisticas.percentualVendido}% vendido
           </span>
         </div>
-        <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden p-0.5 border border-slate-700/50">
+        <div className="w-full h-3 rounded-full overflow-hidden p-0.5 border border-slate-700/50" style={{ backgroundColor: tema.cores.barraProgressoFundo }}>
           <div
             className="h-full rounded-full transition-all duration-500 shadow-sm"
             style={{
               width: `${Math.min(100, Math.max(2, estatisticas.percentualVendido))}%`,
-              background: `linear-gradient(to right, var(--brand), var(--brand-2, var(--brand)))`
+              background: tema.cores.barraProgressoPreenchimento
             }}
           />
         </div>
         {(campanha.exibirQtdCotas ?? true) && (
-          <div className="flex justify-between text-[11px] text-slate-400 mt-2">
-            <span>{estatisticas.vendidas.toLocaleString('pt-BR')} cotas vendidas</span>
-            <span>{estatisticas.disponiveis.toLocaleString('pt-BR')} disponíveis</span>
+          <div className="flex justify-between text-[11px] mt-2 opacity-60">
+            <span style={{ color: tema.cores.barraProgressoTexto }}>{estatisticas.vendidas.toLocaleString('pt-BR')} cotas vendidas</span>
+            <span style={{ color: tema.cores.barraProgressoTexto }}>{estatisticas.disponiveis.toLocaleString('pt-BR')} disponíveis</span>
           </div>
         )}
       </div>
@@ -1024,7 +1119,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
   };
 
   // 3. Seção Seletor de Cotas
-  const SecaoCotas = () => {
+  const CotasSection = ({ campanha, tema, setQuantidade, setCheckoutAberto }: { campanha: Campanha; tema: TemaCampanha; setQuantidade: any; setCheckoutAberto: any }) => {
     return (
       <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
         <div className="flex items-center justify-between">
@@ -1054,7 +1149,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                 setQuantidade(1);
                 setCheckoutAberto(true);
               }}
-              style={{ backgroundColor: 'var(--btn)', color: 'var(--btn-txt)' }}
+              style={{ backgroundColor: 'var(--btn)', color: 'var(--btn-txt)', borderRadius: `${tema.botao.raioBorda}px` }}
               className={`w-full py-3.5 font-black text-sm rounded-xl shadow-lg flex items-center justify-center gap-2 transition hover:opacity-90 active:scale-[0.98] ${getBtnRoundingClass(tema.botao.formato)}`}
             >
               <Gift className="w-4 h-4" />
@@ -1095,7 +1190,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                         key={idx}
                         type="button"
                         onClick={() => {
-                          setQuantidade(prev => {
+                          setQuantidade((prev: number) => {
                             const max = campanha.maxPorCompra || 500000;
                             const min = campanha.minPorCompra || 1;
                             const atual = Number(prev) || 0;
@@ -1114,12 +1209,12 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                             Mais Popular
                           </span>
                         )}
-                        <span className="block text-sm font-black text-white group-hover:text-emerald-400 transition-colors">
+                        <span className="block text-sm font-black group-hover:opacity-80 transition-opacity" style={{ color: tema.cores.botaoCotasNumero }}>
                           +{item.quantidade}
                         </span>
                         <span
                           className="block text-[11px] font-extrabold"
-                          style={{ color: 'var(--brand)' }}
+                          style={{ color: tema.cores.botaoCotasTexto }}
                         >
                           {formatarMoeda(item.valor)}
                         </span>
@@ -1131,13 +1226,14 @@ export const CampanhaPublicaView: React.FC<Props> = ({
             })()}
 
             {/* Seletor Manual (+1 / -1 e Input Direto) */}
-            <div className="p-3 bg-slate-950/80 border border-slate-800 rounded-xl">
+            <div className="p-3 border border-slate-800 rounded-xl" style={{ backgroundColor: tema.cores.cardFundo }}>
               <div className="flex items-center justify-between gap-2">
                 {/* Botão Decrementar -1 */}
                 <button
                   type="button"
-                  onClick={() => setQuantidade(q => Math.max(campanha.minPorCompra || 1, (Number(q) || 1) - 1))}
-                  className="w-11 h-11 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-white flex items-center justify-center font-black transition shrink-0 border border-slate-700/60 shadow-sm"
+                  onClick={() => setQuantidade((q: number) => Math.max(campanha.minPorCompra || 1, (Number(q) || 1) - 1))}
+                  className="w-11 h-11 rounded-xl active:scale-95 flex items-center justify-center font-black transition shrink-0 border border-slate-700/60 shadow-sm"
+                  style={{ backgroundColor: tema.cores.controlesFundo, color: tema.cores.controlesTexto }}
                   aria-label="Diminuir 1 cota"
                   title="Diminuir 1 cota"
                 >
@@ -1173,16 +1269,17 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                         setQuantidade(min);
                       }
                     }}
-                    className="w-28 bg-slate-900 border border-slate-700 rounded-xl py-1.5 px-2 text-center text-xl font-black text-white focus:border-[var(--brand)] focus:outline-none font-mono shadow-inner"
+                    className="w-28 bg-transparent border border-slate-700 rounded-xl py-1.5 px-2 text-center text-xl font-black focus:outline-none font-mono shadow-inner"
+                    style={{ color: tema.cores.texto, borderColor: tema.cores.cardBorda }}
                   />
-                  <span className="text-sm font-bold text-slate-300">cotas</span>
+                  <span className="text-sm font-bold opacity-70">cotas</span>
                 </div>
 
                 {/* Botão Incrementar +1 */}
                 <button
                   type="button"
-                  onClick={() => setQuantidade(q => Math.min(campanha.maxPorCompra || 500000, (Number(q) || 0) + 1))}
-                  style={{ backgroundColor: 'var(--btn)', color: 'var(--btn-txt)' }}
+                  onClick={() => setQuantidade((q: number) => Math.min(campanha.maxPorCompra || 500000, (Number(q) || 0) + 1))}
+                  style={{ backgroundColor: tema.cores.controlesFundo, color: tema.cores.controlesTexto, borderRadius: `${tema.botao.raioBorda}px` }}
                   className="w-11 h-11 rounded-xl flex items-center justify-center font-black transition active:scale-95 shrink-0 hover:opacity-90 shadow-sm"
                   aria-label="Aumentar 1 cota"
                   title="Aumentar 1 cota"
@@ -1198,24 +1295,29 @@ export const CampanhaPublicaView: React.FC<Props> = ({
   };
 
   // 4. Seção Prêmios Oficiais
-  const SecaoPremios = () => {
+  const PremiosSection = ({ campanha, tema }: { campanha: Campanha; tema: TemaCampanha }) => {
     if (campanha.exibirPremios === false || !campanha.premios || campanha.premios.length === 0) return null;
+    const SectionIcon = getIcon(tema.secaoIcones?.ganhadores || 'Trophy');
     return (
-      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-1.5">
-          <Trophy className="w-4 h-4 text-amber-400" />
+      <div className="border border-slate-800 rounded-2xl p-5 shadow-sm" style={{ backgroundColor: tema.cores.cardFundo }}>
+        <h3 className="text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-1.5 opacity-60">
+          <SectionIcon className="w-4 h-4" style={{ color: tema.cores.iconeCor }} />
           Premiação Oficial
         </h3>
         <div className="space-y-2">
           {campanha.premios.map((premio, idx) => (
             <div
               key={idx}
-              className="flex items-center gap-3 p-3 rounded-xl bg-slate-800/50 border border-slate-700/60"
+              className="flex items-center gap-3 p-3 rounded-xl border border-slate-700/60"
+              style={{ backgroundColor: tema.cores.controlesFundo }}
             >
-              <div className="w-7 h-7 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-300 flex items-center justify-center font-black text-xs">
+              <div 
+                className="w-7 h-7 rounded-lg border flex items-center justify-center font-black text-xs"
+                style={{ backgroundColor: `${tema.cores.primaria}20`, borderColor: `${tema.cores.primaria}40`, color: tema.cores.primaria }}
+              >
                 {premio.posicao}º
               </div>
-              <span className="text-sm font-bold text-white">
+              <span className="text-sm font-bold">
                 {premio.descricao}
               </span>
             </div>
@@ -1226,13 +1328,14 @@ export const CampanhaPublicaView: React.FC<Props> = ({
   };
 
   // 5. Seção Cotas Premiadas (Instantâneas)
-  const SecaoCotasPremiadas = () => {
+  const CotasPremiadasSection = ({ campanha, tema }: { campanha: Campanha; tema: TemaCampanha }) => {
     if (campanha.exibirCotasPremiadas === false || !campanha.cotasPremiadas || campanha.cotasPremiadas.length === 0) return null;
+    const SectionIcon = getIcon(tema.secaoIcones?.cotasPremiadas || 'Gift');
     return (
-      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm">
+      <div className="border border-slate-800 rounded-2xl p-5 shadow-sm" style={{ backgroundColor: tema.cores.cardFundo }}>
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-            <Gift className="w-4 h-4" style={{ color: 'var(--brand)' }} />
+          <h3 className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 opacity-60">
+            <SectionIcon className="w-4 h-4" style={{ color: tema.cores.iconeCor }} />
             Cotas Premiadas (Ganhe no Pix na Hora)
           </h3>
         </div>
@@ -1243,13 +1346,13 @@ export const CampanhaPublicaView: React.FC<Props> = ({
               className={`p-3 rounded-xl border text-xs ${
                 cp.status === 'encontrada'
                   ? 'bg-slate-800/30 border-slate-800 text-slate-500 opacity-60'
-                  : 'bg-emerald-500/10 border-emerald-500/30 text-white'
+                  : 'bg-emerald-500/10 border-emerald-500/30'
               }`}
             >
               <div className="flex items-center justify-between mb-1">
                 <span
                   className="font-mono font-black text-sm"
-                  style={{ color: cp.status === 'encontrada' ? undefined : 'var(--brand)' }}
+                  style={{ color: cp.status === 'encontrada' ? undefined : tema.cores.primaria }}
                 >
                   {cp.numero}
                 </span>
@@ -1259,7 +1362,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                   {cp.status === 'encontrada' ? 'Ganha' : 'Disponível'}
                 </span>
               </div>
-              <span className="block font-medium text-slate-300 text-[11px] truncate">
+              <span className="block font-medium text-[11px] truncate opacity-80">
                 {cp.premio}
               </span>
             </div>
@@ -1270,19 +1373,21 @@ export const CampanhaPublicaView: React.FC<Props> = ({
   };
 
   // 6. Seção Top Compradores / Ranking
-  const SecaoRanking = () => {
-    if (campanha.exibirRanking === false || campanha.exibirCompradores === false || !ranking || ranking.length === 0) return null;
+  const RankingSection = ({ ranking, tema }: { ranking: RankingItem[]; tema: TemaCampanha }) => {
+    if (!ranking || ranking.length === 0) return null;
+    const SectionIcon = getIcon(tema.secaoIcones?.topCompradores || 'Users');
     return (
-      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-1.5">
-          <Users className="w-4 h-4" style={{ color: 'var(--brand)' }} />
+      <div className="border border-slate-800 rounded-2xl p-5 shadow-sm" style={{ backgroundColor: tema.cores.cardFundo }}>
+        <h3 className="text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-1.5 opacity-60">
+          <SectionIcon className="w-4 h-4" style={{ color: tema.cores.iconeCor }} />
           Top Compradores
         </h3>
         <div className="space-y-2">
           {ranking.map((item) => (
             <div
               key={item.posicao}
-              className="flex items-center justify-between p-2.5 rounded-xl bg-slate-800/40 border border-slate-700/40 text-xs"
+              className="flex items-center justify-between p-2.5 rounded-xl border border-slate-700/40 text-xs"
+              style={{ backgroundColor: tema.cores.controlesFundo }}
             >
               <div className="flex items-center gap-2.5">
                 <span className={`w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] ${
@@ -1290,13 +1395,13 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                 }`}>
                   {item.posicao}
                 </span>
-                <span className="font-semibold text-white truncate max-w-[150px]">
+                <span className="font-semibold truncate max-w-[150px]">
                   {item.nome}
                 </span>
               </div>
               <span
                 className="font-extrabold font-mono"
-                style={{ color: 'var(--brand)' }}
+                style={{ color: tema.cores.primaria }}
               >
                 {item.quantidadeCotas} cotas
               </span>
@@ -1308,23 +1413,24 @@ export const CampanhaPublicaView: React.FC<Props> = ({
   };
 
   // 7. Seção Regulamento & Informações
-  const SecaoRegulamento = () => {
+  const RegulamentoSection = ({ campanha, tema, descricaoAberta, setDescricaoAberta }: { campanha: Campanha; tema: TemaCampanha; descricaoAberta: boolean; setDescricaoAberta: any }) => {
+    const SectionIcon = getIcon(tema.secaoIcones?.regulamento || 'Info');
     return (
-      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm">
+      <div className="border border-slate-800 rounded-2xl p-5 shadow-sm" style={{ backgroundColor: tema.cores.cardFundo }}>
         <button
           onClick={() => setDescricaoAberta(!descricaoAberta)}
           className="w-full flex items-center justify-between text-left"
         >
-          <span className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-            <Info className="w-4 h-4 text-slate-400" />
+          <span className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 opacity-60">
+            <SectionIcon className="w-4 h-4" style={{ color: tema.cores.iconeCor }} />
             Regulamento & Informações
           </span>
-          {descricaoAberta ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+          {descricaoAberta ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </button>
 
         {descricaoAberta && (
           <div
-            className="mt-4 pt-4 border-t border-slate-800 text-slate-300 text-xs leading-relaxed space-y-2"
+            className="mt-4 pt-4 border-t border-slate-800 text-xs leading-relaxed space-y-2 opacity-80"
             dangerouslySetInnerHTML={{ __html: campanha.descricao }}
           />
         )}
@@ -1333,7 +1439,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
   };
 
   // 8. Seção Ganhadores da Campanha
-  const SecaoGanhadores = () => {
+  const GanhadoresSection = ({ campanha }: { campanha: Campanha }) => {
     if (campanha.exibirPaginaGanhadores === false || !campanha.ganhador) return null;
     return (
       <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-3">
@@ -1382,24 +1488,24 @@ export const CampanhaPublicaView: React.FC<Props> = ({
 
     switch (secaoId) {
       case 'banner':
-        return SecaoBanner();
+        return <BannerSection campanha={campanha} tema={tema} />;
       case 'barraProgresso':
       case 'progresso':
-        return SecaoBarraProgresso();
+        return <ProgressoSection campanha={campanha} estatisticas={estatisticas} tema={tema} />;
       case 'cotas':
-        return SecaoCotas();
+        return <CotasSection campanha={campanha} tema={tema} setQuantidade={setQuantidade} setCheckoutAberto={setCheckoutAberto} />;
       case 'premios':
-        return SecaoPremios();
+        return <PremiosSection campanha={campanha} tema={tema} />;
       case 'premiadas':
       case 'cotasPremiadas':
-        return SecaoCotasPremiadas();
+        return <CotasPremiadasSection campanha={campanha} tema={tema} />;
       case 'ranking':
-        return SecaoRanking();
+        return <RankingSection ranking={ranking} tema={tema} />;
       case 'regulamento':
       case 'descricao':
-        return SecaoRegulamento();
+        return <RegulamentoSection campanha={campanha} tema={tema} descricaoAberta={descricaoAberta} setDescricaoAberta={setDescricaoAberta} />;
       case 'ganhadores':
-        return SecaoGanhadores();
+        return <GanhadoresSection campanha={campanha} />;
       default:
         return null;
     }
@@ -1455,35 +1561,49 @@ export const CampanhaPublicaView: React.FC<Props> = ({
       <header className="sticky top-0 z-40 bg-slate-950/95 backdrop-blur-md border-b border-slate-800">
         <div className="max-w-xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <img src={marca?.logoUrl || "/logorifazone.png.jpeg"} alt="RifaZone" className="w-7 h-7 rounded-lg object-cover" />
             <button
               type="button"
               onClick={() => setOrganizadorModalAberto(true)}
               className="flex items-center gap-2.5 text-left hover:opacity-90 transition cursor-pointer group"
             >
-            {campanha.organizadorFoto ? (
-              <img
-                src={campanha.organizadorFoto}
-                alt={campanha.organizadorNome || 'Organizador'}
-                className="w-9 h-9 rounded-full object-cover border border-[var(--brand)]/50 shadow-md group-hover:scale-105 transition-transform"
-              />
-            ) : (
-              <div
-                className="w-9 h-9 rounded-full flex items-center justify-center font-black text-base shadow-md group-hover:scale-105 transition-transform"
-                style={{ backgroundColor: 'var(--brand)', color: 'var(--btn-txt)' }}
-              >
-                {(campanha.organizadorNome || 'Rifa')[0].toUpperCase()}
-              </div>
-            )}
-            <div>
-              <span className="font-extrabold text-white text-sm tracking-tight block truncate max-w-[160px] sm:max-w-[200px]">
-                {campanha.organizadorNome || 'Organizador Oficial'}
-              </span>
-              <span className="text-[10px] text-slate-400 font-medium block flex items-center gap-1 group-hover:text-emerald-400 transition-colors mt-0.5">
-                <span className="text-[9px] bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded-full border border-slate-700">Campanhas Ativas</span>
-              </span>
-            </div>
-          </button>
+              {campanha.organizadorFoto ? (
+                <img
+                  src={campanha.organizadorFoto}
+                  alt={campanha.organizadorNome || 'Organizador'}
+                  className="w-9 h-9 rounded-full object-cover border border-[var(--brand)]/50 shadow-md group-hover:scale-105 transition-transform"
+                />
+              ) : (
+                <div
+                  className="w-9 h-9 rounded-full flex items-center justify-center font-black text-base shadow-md group-hover:scale-105 transition-transform"
+                  style={{ backgroundColor: 'var(--brand)', color: 'var(--btn-txt)' }}
+                >
+                  {(campanha.organizadorNome || 'Rifa')[0].toUpperCase()}
+                </div>
+              )}
+
+              {/* Conteúdo ao lado da foto: Nome ou Logo */}
+              {campanha.exibirCabecalhoTipo === 'logo' && (campanha.cabecalhoLogoUrl || marca?.logoUrl) ? (
+                <img 
+                  src={campanha.cabecalhoLogoUrl || marca?.logoUrl || ''} 
+                  alt="Logo" 
+                  className="object-contain transition" 
+                  style={{ 
+                    width: `${campanha.cabecalhoLogoTamanho || 40}px`, 
+                    height: `${campanha.cabecalhoLogoTamanho || 40}px` 
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    window.location.href = '/campanhas';
+                  }} 
+                />
+              ) : (
+                <div>
+                  <span className="font-extrabold text-white text-sm tracking-tight block truncate max-w-[160px] sm:max-w-[200px]">
+                    {campanha.organizadorNome || 'Organizador Oficial'}
+                  </span>
+                </div>
+              )}
+            </button>
           </div>
 
           <div className="flex items-center gap-2">
@@ -1811,6 +1931,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                 : {
                     backgroundColor: 'var(--btn)',
                     color: 'var(--btn-txt)',
+                    borderRadius: `${tema.botao.raioBorda}px`
                   }
             }
             className={`flex-1 font-black flex items-center justify-center gap-2 transition active:scale-[0.98] ${getBtnRoundingClass(tema.botao.formato)} ${getBtnSizeClass(tema.botao.tamanhoAltura)} shadow-lg ${
@@ -2355,7 +2476,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                 id="btn-confirmar-gerar-pix"
                 type="submit"
                 disabled={enviandoPedido}
-                style={{ backgroundColor: 'var(--btn)', color: 'var(--btn-txt)' }}
+                style={{ backgroundColor: 'var(--btn)', color: 'var(--btn-txt)', borderRadius: `${tema.botao.raioBorda}px` }}
                 className={`w-full py-3.5 font-black rounded-xl text-sm shadow-lg flex items-center justify-center gap-2 transition active:scale-[0.98] ${getBtnRoundingClass(tema.botao.formato)} hover:opacity-90`}
               >
                 {enviandoPedido ? (
@@ -2555,7 +2676,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                     setErroCopiado(true);
                     setTimeout(() => setErroCopiado(false), 3500);
                   }}
-                  style={{ backgroundColor: 'var(--btn)', color: 'var(--btn-txt)' }}
+                  style={{ backgroundColor: 'var(--btn)', color: 'var(--btn-txt)', borderRadius: `${tema.botao.raioBorda}px` }}
                   className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition ${
                     erroCopiado ? 'opacity-80' : 'hover:opacity-90 shadow-lg'
                   }`}

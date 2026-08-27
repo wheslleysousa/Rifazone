@@ -95,6 +95,8 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
     exibirSeloOficial: true,
     exigirEmail: false,
     exigirCpf: false,
+    autoplayGaleria: false,
+    autoplayIntervaloGaleria: 5,
     status: 'publicada',
     premios: [],
     cotasPremiadas: [],

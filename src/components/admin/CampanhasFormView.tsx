@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { motion, Reorder, AnimatePresence, useDragControls } from 'motion/react';
 import { 
   Save, Sparkles, Plus, Trash2, Trophy, Gift, Zap, Image as ImageIcon, 
   Youtube, FileText, CheckCircle2, AlertCircle, ArrowLeft,
   LayoutGrid, HelpCircle, Flame, Lock, Eye, Star, Info, Rocket,
-  Upload, Camera, Link as LinkIcon, RefreshCw, ChevronRight, ChevronLeft,
+  Upload, Camera, User, Link as LinkIcon, RefreshCw, ChevronRight, ChevronLeft,
   DollarSign, Clock, MapPin, Tag, Check, Sparkle, GripVertical, Palette, Loader2, CreditCard, ShieldCheck,
   Instagram, MessageSquare, Music
 } from 'lucide-react';
@@ -29,6 +30,56 @@ interface Props {
 
 type TabType = 'basico' | 'midia' | 'premios' | 'promocoes' | 'upsell' | 'extras' | 'checkout';
 
+
+const FotoItem = ({ 
+  foto, 
+  idx, 
+  onRemover, 
+  onTornarPrincipal 
+}: any) => {
+  const controls = useDragControls();
+  
+  return (
+    <Reorder.Item 
+      value={foto}
+      dragListener={false}
+      dragControls={controls}
+      className="relative shrink-0 w-72 md:w-96 h-56 rounded-3xl overflow-hidden border border-slate-800 bg-slate-950 shadow-xl group/item"
+    >
+      <img src={foto} alt={`Foto ${idx + 1}`} className="w-full h-full object-contain bg-slate-900 opacity-80 group-hover/item:opacity-100 transition-opacity" />
+      
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onRemover(idx);
+        }}
+        className="absolute top-4 right-4 p-2 bg-red-500 text-white rounded-xl shadow-lg hover:scale-110 transition-transform z-20"
+        title="Remover"
+      >
+        <Trash2 className="w-4 h-4" />
+      </button>
+
+      <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover/item:opacity-100 transition-opacity flex items-center justify-center gap-3 backdrop-blur-[1px]">
+        <button
+          type="button"
+          onClick={() => onTornarPrincipal(idx)}
+          className="px-4 py-2 bg-emerald-500 text-slate-950 font-black rounded-xl text-[10px] uppercase tracking-wider shadow-xl hover:scale-105 transition-transform flex items-center gap-1.5"
+        >
+          <Star className="w-3 h-3" />
+          Tornar Principal
+        </button>
+        <div 
+          onPointerDown={(e) => controls.start(e)}
+          className="p-2.5 bg-white/10 text-white rounded-xl backdrop-blur-md border border-white/10 cursor-grab active:cursor-grabbing"
+        >
+          <GripVertical className="w-4 h-4" />
+        </div>
+      </div>
+    </Reorder.Item>
+  );
+};
+
 export const CampanhasFormView: React.FC<Props> = ({
   form,
   setForm,
@@ -46,6 +97,7 @@ export const CampanhasFormView: React.FC<Props> = ({
   const [carregandoBanner, setCarregandoBanner] = useState(false);
   const [carregandoCarrossel, setCarregandoCarrossel] = useState(false);
   const [carregandoOrganizadorFoto, setCarregandoOrganizadorFoto] = useState(false);
+  const [carregandoCabecalhoLogo, setCarregandoCabecalhoLogo] = useState(false);
   const [dragActiveBanner, setDragActiveBanner] = useState(false);
   const [dragActiveCarrossel, setDragActiveCarrossel] = useState(false);
   const [modoUrlBanner, setModoUrlBanner] = useState(false);
@@ -71,6 +123,7 @@ export const CampanhasFormView: React.FC<Props> = ({
   const carrosselFileInputRef = useRef<HTMLInputElement>(null);
   const organizadorFileInputRef = useRef<HTMLInputElement>(null);
   const organizadorCameraInputRef = useRef<HTMLInputElement>(null);
+  const cabecalhoLogoFileInputRef = useRef<HTMLInputElement>(null);
 
   const handleOrganizadorFotoUpload = async (file: File) => {
     try {
@@ -81,6 +134,18 @@ export const CampanhasFormView: React.FC<Props> = ({
       alert(err.message || 'Erro ao carregar foto do organizador.');
     } finally {
       setCarregandoOrganizadorFoto(false);
+    }
+  };
+
+  const handleCabecalhoLogoUpload = async (file: File) => {
+    try {
+      setCarregandoCabecalhoLogo(true);
+      const url = await uploadImageToStorage(file, 'logoscabecalho', 600, 600, 0.9);
+      setForm(prev => ({ ...prev, cabecalhoLogoUrl: url }));
+    } catch (err: any) {
+      alert(err.message || 'Erro ao carregar logo do cabeçalho.');
+    } finally {
+      setCarregandoCabecalhoLogo(false);
     }
   };
 
@@ -148,6 +213,8 @@ export const CampanhasFormView: React.FC<Props> = ({
   };
 
   // Drag & Drop
+  const [confirmExcluirIdx, setConfirmExcluirIdx] = useState<number | 'banner' | null>(null);
+
   const handleDragBanner = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -675,67 +742,39 @@ export const CampanhasFormView: React.FC<Props> = ({
                   </div>
 
                   <div className="space-y-3">
-                    <div className="flex flex-col sm:flex-row gap-3">
-                      <button
-                        type="button"
-                        onClick={() => setMostrarSeletorCotas(!mostrarSeletorCotas)}
-                        className="flex-1 px-4 py-3.5 bg-slate-950/60 border border-slate-700/50 hover:border-emerald-500/50 rounded-xl text-sm font-bold text-white flex items-center justify-between transition-all shadow-inner"
-                      >
-                        <span className="flex items-center gap-2">
-                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
-                          {form.totalCotas ? `${form.totalCotas.toLocaleString('pt-BR')} Cotas Selecionadas` : 'Selecionar Total de Cotas'}
-                        </span>
-                        <span className="text-xs text-slate-400">{mostrarSeletorCotas ? '▲ Ocultar' : '▼ Selecionar'}</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setModoPersonalizadoCotas(!modoPersonalizadoCotas)}
-                        className="px-5 py-3.5 bg-slate-800/60 hover:bg-slate-700/60 border border-slate-700/50 text-emerald-400 font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition-all shadow-sm active:scale-95"
-                      >
-                        <Plus className="w-4 h-4" />
-                        <span>{modoPersonalizadoCotas ? 'Ocultar Personalizado' : 'Digitar Personalizado'}</span>
-                      </button>
-                    </div>
-
-                    {mostrarSeletorCotas && (
-                      <div className="p-4 bg-slate-950/80 border border-slate-700/60 rounded-2xl space-y-3 animate-in fade-in">
-                        <p className="text-xs text-slate-400 font-medium">Selecione uma quantidade padrão:</p>
-                        <div className="flex flex-wrap gap-2">
-                          {[100, 200, 300, 500, 1000, 2500, 5000, 10000, 50000, 100000, 500000, 1000000, 10000000].map((val) => (
-                            <button
-                              key={val}
-                              type="button"
-                              onClick={() => {
-                                setForm(prev => ({ ...prev, totalCotas: val }));
-                                setMostrarSeletorCotas(false);
-                              }}
-                              className={`px-3 py-2 rounded-xl border text-xs font-bold transition-all duration-150 ${
-                                form.totalCotas === val
-                                  ? 'bg-emerald-500/20 border-emerald-500 text-white shadow-md'
-                                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-300'
-                              }`}
-                            >
-                              {val.toLocaleString('pt-BR')}
-                            </button>
-                          ))}
+                    <div className="flex flex-col gap-3">
+                      {!form.totalCotas ? (
+                        <button
+                          type="button"
+                          onClick={() => setMostrarModalCotas(true)}
+                          className="w-full px-4 py-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-2xl text-sm font-black flex items-center justify-center gap-2 transition-all shadow-lg active:scale-95 group"
+                        >
+                          <Zap className="w-5 h-5 animate-pulse" />
+                          <span>Selecionar Quantidade de Cotas</span>
+                        </button>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setMostrarModalCotas(true)}
+                            className="flex-1 px-4 py-4 bg-slate-950/60 border-2 border-emerald-500/50 hover:border-emerald-500 rounded-2xl text-sm font-black text-white flex items-center justify-center gap-2 transition-all shadow-inner group"
+                          >
+                            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+                            <span className="text-emerald-400 font-mono text-lg">{form.totalCotas.toLocaleString('pt-BR')}</span>
+                            <span className="text-slate-400 text-xs ml-2 font-medium">(Clique para alterar)</span>
+                          </button>
+                          
+                          <button
+                            type="button"
+                            onClick={() => setForm(prev => ({ ...prev, totalCotas: undefined }))}
+                            className="w-14 h-14 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-500 rounded-2xl flex items-center justify-center transition-all active:scale-95"
+                            title="Remover quantidade"
+                          >
+                            <Trash2 className="w-6 h-6" />
+                          </button>
                         </div>
-                      </div>
-                    )}
-
-                    {modoPersonalizadoCotas && (
-                      <div className="relative animate-in fade-in pt-1">
-                        <input
-                          type="number"
-                          min="1"
-                          max="10000000"
-                          placeholder="Digite o número exato de cotas desejado..."
-                          value={form.totalCotas !== undefined && form.totalCotas !== null ? form.totalCotas : ''}
-                          onChange={e => setForm(prev => ({ ...prev, totalCotas: e.target.value === '' ? undefined : Number(e.target.value) }))}
-                          className="w-full bg-slate-950/50 border border-emerald-500/50 rounded-xl px-4 py-3.5 text-sm font-mono font-bold text-white focus:border-emerald-500 focus:bg-slate-900/80 transition-colors focus:outline-none shadow-inner"
-                        />
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -879,6 +918,39 @@ export const CampanhasFormView: React.FC<Props> = ({
                     <option value="Sorteador Eletrônico">Sorteador Eletrônico Oficial</option>
                   </select>
                 </div>
+
+                {form.localSorteio === 'Sorteador Eletrônico' && (
+                  <div className="md:col-span-3 p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl animate-in fade-in slide-in-from-top-2 mt-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                          <Clock className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold text-white block uppercase tracking-wider">
+                            Animação do Sorteio
+                          </label>
+                          <p className="text-[10px] text-slate-400">
+                            Tempo em segundos que os números ficarão girando no sorteador.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center">
+                        <select
+                          value={form.tempoAnimacaoSorteioSegundos || 3}
+                          onChange={e => setForm(prev => ({ ...prev, tempoAnimacaoSorteioSegundos: Number(e.target.value) }))}
+                          className="bg-slate-950 border border-slate-700/50 rounded-xl px-4 py-2.5 text-xs font-mono font-bold text-emerald-400 focus:outline-none focus:border-emerald-500 transition-colors cursor-pointer"
+                        >
+                          <option value={2}>2s (Rápido)</option>
+                          <option value={3}>3s (Padrão)</option>
+                          <option value={5}>5s (Lento)</option>
+                          <option value={8}>8s (Dramático)</option>
+                          <option value={10}>10s (Épico)</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
             
@@ -1075,6 +1147,16 @@ export const CampanhasFormView: React.FC<Props> = ({
                       if (file) handleOrganizadorFotoUpload(file);
                     }}
                   />
+                  <input
+                    type="file"
+                    ref={cabecalhoLogoFileInputRef}
+                    accept="image/*"
+                    className="hidden"
+                    onChange={e => {
+                      const file = e.target.files?.[0];
+                      if (file) handleCabecalhoLogoUpload(file);
+                    }}
+                  />
 
                   <div className="space-y-3">
                     <div className="flex items-center gap-3">
@@ -1125,6 +1207,100 @@ export const CampanhasFormView: React.FC<Props> = ({
                           <Camera className="w-4 h-4 text-emerald-400" />
                         </button>
                       </div>
+                    </div>
+
+                    <div className="space-y-4 pt-2">
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-slate-300 block uppercase tracking-wider">O que exibir ao lado da foto no Topo?</label>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setForm(prev => ({ ...prev, exibirCabecalhoTipo: 'nome' }))}
+                            className={`px-4 py-3 text-xs font-bold border rounded-xl transition flex-1 flex items-center justify-center gap-2 ${
+                              form.exibirCabecalhoTipo === 'nome' || !form.exibirCabecalhoTipo
+                                ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400'
+                                : 'border-slate-800 bg-slate-950 text-slate-500 hover:border-slate-700'
+                            }`}
+                          >
+                            <User className="w-4 h-4" />
+                            Nome do Organizador
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setForm(prev => ({ ...prev, exibirCabecalhoTipo: 'logo' }))}
+                            className={`px-4 py-3 text-xs font-bold border rounded-xl transition flex-1 flex items-center justify-center gap-2 ${
+                              form.exibirCabecalhoTipo === 'logo'
+                                ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400'
+                                : 'border-slate-800 bg-slate-950 text-slate-500 hover:border-slate-700'
+                            }`}
+                          >
+                            <ImageIcon className="w-4 h-4" />
+                            Logo da Marca
+                          </button>
+                        </div>
+                      </div>
+
+                      {form.exibirCabecalhoTipo === 'logo' && (
+                        <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300 border-t border-slate-800/50 pt-4">
+                          <div className="space-y-2">
+                            <label className="text-xs font-bold text-slate-300 block uppercase tracking-wider">Logo da Marca (Topo)</label>
+                            
+                            <div className="flex items-center gap-3">
+                              {form.cabecalhoLogoUrl ? (
+                                <div className="relative group shrink-0">
+                                  <img
+                                    src={form.cabecalhoLogoUrl}
+                                    alt="Preview Logo"
+                                    className="h-10 w-auto rounded border border-slate-700 object-contain bg-slate-900"
+                                    style={{ maxHeight: '40px' }}
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setForm(prev => ({ ...prev, cabecalhoLogoUrl: '' }))}
+                                    className="absolute -top-1 -right-1 w-5 h-5 bg-red-500/90 hover:bg-red-500 text-white rounded-full text-[10px] font-bold flex items-center justify-center shadow-lg transition-transform hover:scale-110"
+                                    title="Remover logo"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="h-10 w-10 rounded bg-slate-950/80 border border-slate-700 flex items-center justify-center shrink-0 text-slate-400">
+                                  <ImageIcon className="w-4 h-4" />
+                                </div>
+                              )}
+
+                              <button
+                                type="button"
+                                onClick={() => cabecalhoLogoFileInputRef.current?.click()}
+                                disabled={carregandoCabecalhoLogo}
+                                className="flex-1 px-3 py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-sm"
+                              >
+                                {carregandoCabecalhoLogo ? (
+                                  <RefreshCw className="w-4 h-4 animate-spin text-blue-400" />
+                                ) : (
+                                  <Upload className="w-4 h-4 text-blue-400" />
+                                )}
+                                <span>{form.cabecalhoLogoUrl ? 'Trocar Logo' : 'Enviar Logo'}</span>
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
+                            <div className="flex justify-between items-center text-xs">
+                              <span className="font-bold text-slate-300 uppercase tracking-wider">Tamanho da Logo no Topo</span>
+                              <span className="font-mono text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded">{form.cabecalhoLogoTamanho || 40}px</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="28"
+                              max="120"
+                              value={form.cabecalhoLogoTamanho || 40}
+                              onChange={e => setForm(prev => ({ ...prev, cabecalhoLogoTamanho: Number(e.target.value) }))}
+                              className="w-full accent-emerald-500 bg-slate-950 cursor-pointer h-2 rounded-lg"
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1204,191 +1380,262 @@ export const CampanhasFormView: React.FC<Props> = ({
           onToggle={() => setSecaoAberta(secaoAberta === 'midia' ? null : 'midia')}
         >
           <div className="bg-slate-900/60 border border-slate-800/60 backdrop-blur-xl rounded-3xl p-6 md:p-8 shadow-2xl space-y-8 animate-in fade-in">
-            {/* BANNER PRINCIPAL */}
-            <div className="space-y-4">
+            {/* BANNER E FOTOS DA CAMPANHA */}
+            <div className="space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <h3 className="text-lg font-black text-white flex items-center gap-2">
                     <Camera className="w-5 h-5 text-emerald-400" />
-                    Capa da Campanha
+                    Banner da Campanha
                   </h3>
                   <p className="text-xs md:text-sm text-slate-400 mt-1">
-                    Esta é a imagem principal que aparecerá no topo e no link do WhatsApp.
+                    Envie as imagens do seu prêmio. A primeira será o destaque principal.
                   </p>
                 </div>
+
+                {form.bannerUrl && (
+                  <button
+                    type="button"
+                    onClick={() => carrosselFileInputRef.current?.click()}
+                    className="px-5 py-3 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold rounded-2xl text-xs flex items-center justify-center gap-2 shadow-sm transition-all active:scale-95"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Adicionar mais imagens</span>
+                  </button>
+                )}
               </div>
 
-              {/* UPLOAD DROPZONE DIRETO DO CELULAR */}
-              <div
-                onDragEnter={handleDragBanner}
-                onDragOver={handleDragBanner}
-                onDragLeave={handleDragBanner}
-                onDrop={handleDropBanner}
-                className={`mt-4 p-8 border-2 border-dashed rounded-2xl text-center transition-all duration-300 flex flex-col items-center justify-center relative overflow-hidden shadow-inner ${
-                  dragActiveBanner
-                    ? 'border-emerald-500 bg-emerald-500/10'
-                    : form.bannerUrl
-                    ? 'border-slate-700/50 bg-slate-950/50'
-                    : 'border-slate-700 hover:border-emerald-500/50 bg-slate-950/40'
-                }`}
-              >
-                {carregandoBanner ? (
-                  <div className="py-10 flex flex-col items-center gap-3">
-                    <RefreshCw className="w-8 h-8 text-emerald-400 animate-spin" />
-                    <span className="text-sm text-slate-300 font-bold">Otimizando imagem...</span>
-                  </div>
-                ) : form.bannerUrl ? (
-                  <div className="w-full max-w-md space-y-4">
-                    <div className="relative aspect-video rounded-xl overflow-hidden border border-slate-700/50 bg-slate-950 shadow-lg group">
-                      <img src={form.bannerUrl} alt="Banner da Campanha" className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-3">
-                        <button
-                          type="button"
-                          onClick={() => bannerFileInputRef.current?.click()}
-                          className="px-4 py-2 bg-emerald-500 text-slate-950 font-bold rounded-xl text-sm shadow-lg hover:scale-105 transition-transform"
-                        >
-                          Trocar
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setForm(prev => ({ ...prev, bannerUrl: '' }))}
-                          className="px-4 py-2 bg-red-500/90 text-white font-bold rounded-xl text-sm shadow-lg hover:scale-105 transition-transform"
-                        >
-                          Remover
-                        </button>
-                      </div>
+              {!form.bannerUrl ? (
+                <div
+                  onDragEnter={handleDragBanner}
+                  onDragOver={handleDragBanner}
+                  onDragLeave={handleDragBanner}
+                  onDrop={handleDropBanner}
+                  className={`p-10 border-2 border-dashed rounded-3xl text-center transition-all duration-300 shadow-inner group ${
+                    dragActiveBanner ? 'border-emerald-500 bg-emerald-500/10' : 'border-slate-800 bg-slate-950/40 hover:border-emerald-500/30'
+                  }`}
+                >
+                  {carregandoBanner ? (
+                    <div className="py-4 flex flex-col items-center justify-center gap-3">
+                      <RefreshCw className="w-8 h-8 text-emerald-400 animate-spin" />
+                      <span className="text-sm text-slate-300 font-bold uppercase tracking-widest text-emerald-400">Enviando imagem...</span>
                     </div>
-                    <div className="flex items-center justify-center gap-2">
-                      <span className="text-xs text-emerald-400 font-bold flex items-center gap-1.5 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20">
-                        <CheckCircle2 className="w-4 h-4" />
-                        Banner enviado com sucesso!
-                      </span>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="py-6 space-y-4">
-                    <div className="w-16 h-16 mx-auto rounded-2xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20 shadow-sm">
-                      <Upload className="w-8 h-8" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-white mb-1">
-                        Arraste sua imagem ou clique para selecionar
-                      </p>
-                      <p className="text-xs text-slate-400">
-                        Formatos aceitos: JPG, PNG, WEBP ou HEIC (Celular)
-                      </p>
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
-                      <button
-                        type="button"
-                        onClick={() => bannerCameraInputRef.current?.click()}
-                        className="w-full sm:w-auto px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-sm flex items-center justify-center gap-2 shadow-md shadow-emerald-500/20 transition-all active:scale-95"
-                      >
-                        <Camera className="w-4 h-4" />
-                        <span>Tirar Foto</span>
-                      </button>
-
+                  ) : (
+                    <div className="space-y-6">
                       <button
                         type="button"
                         onClick={() => bannerFileInputRef.current?.click()}
-                        className="w-full sm:w-auto px-5 py-2.5 bg-slate-800/80 hover:bg-slate-700 text-slate-200 border border-slate-700/50 font-bold rounded-xl text-sm flex items-center justify-center gap-2 transition-all active:scale-95 shadow-sm"
+                        className="w-full flex flex-col items-center justify-center gap-4"
                       >
-                        <ImageIcon className="w-4 h-4 text-emerald-400" />
-                        <span>Galeria</span>
+                        <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 group-hover:scale-110 transition-transform">
+                          <Upload className="w-8 h-8" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-black text-white uppercase tracking-wider">
+                            Banner da Campanha
+                          </p>
+                          <p className="text-xs text-slate-400 mt-1">
+                            Arraste a foto principal ou clique para selecionar
+                          </p>
+                        </div>
                       </button>
+
+                      <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => bannerCameraInputRef.current?.click()}
+                          className="w-full sm:w-auto px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-2xl text-xs flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95"
+                        >
+                          <Camera className="w-4 h-4" />
+                          <span>Tirar Foto Agora</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="relative group">
+                  <div className="overflow-x-auto pb-8 px-1 touch-pan-x">
+                    <div className="flex flex-nowrap gap-4 min-w-max items-start">
+                      {/* Banner Principal */}
+                      <div className="relative shrink-0 w-72 md:w-96 h-56 rounded-3xl overflow-hidden border-2 border-emerald-500 bg-slate-950 shadow-[0_0_20px_rgba(16,185,129,0.15)] group/item">
+                        <img src={form.bannerUrl} alt="Banner Principal" className="w-full h-full object-contain bg-slate-900" />
+                        
+                        <div className="absolute top-4 left-4 px-3 py-1.5 bg-emerald-500 text-slate-950 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 shadow-lg">
+                          <Star className="w-3 h-3 fill-slate-950" />
+                          Principal
+                        </div>
+
+                        {/* Botão de Lixeira no Topo Direito */}
+                        <button
+                          type="button"
+                          onClick={() => setConfirmExcluirIdx('banner')}
+                          className="absolute top-4 right-4 p-2 bg-red-500 text-white rounded-xl shadow-lg hover:scale-110 transition-transform z-20"
+                          title="Remover"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+
+                        <div className="absolute inset-0 bg-slate-950/60 opacity-0 group-hover/item:opacity-100 transition-opacity flex items-center justify-center gap-2 backdrop-blur-[2px]">
+                          <span className="text-xs font-bold text-white/80 uppercase tracking-widest">Capa da Campanha</span>
+                        </div>
+                      </div>
+
+                      {/* Fotos Adicionais Reordenáveis */}
+                      <Reorder.Group 
+                        axis="x" 
+                        values={form.fotosCarrossel || []} 
+                        onReorder={(newOrder) => setForm(prev => ({ ...prev, fotosCarrossel: newOrder }))}
+                        className="flex gap-4 shrink-0"
+                      >
+                        {form.fotosCarrossel?.map((foto, idx) => (
+                          <FotoItem 
+                            key={foto}
+                            foto={foto}
+                            idx={idx}
+                            onRemover={(i) => setConfirmExcluirIdx(i)}
+                            onTornarPrincipal={(i) => {
+                              const novasFotos = [...(form.fotosCarrossel || [])];
+                              const antigaPrincipal = form.bannerUrl;
+                              const novaPrincipal = novasFotos[i];
+                              novasFotos[i] = antigaPrincipal;
+                              setForm(prev => ({
+                                ...prev,
+                                bannerUrl: novaPrincipal,
+                                fotosCarrossel: novasFotos
+                              }));
+                            }}
+                          />
+                        ))}
+                      </Reorder.Group>
+
+                      {carregandoCarrossel && (
+                        <div className="relative shrink-0 w-40 h-56 rounded-3xl border-2 border-dashed border-emerald-500/30 bg-emerald-500/5 flex flex-col items-center justify-center gap-3 animate-pulse">
+                          <RefreshCw className="w-6 h-6 text-emerald-400 animate-spin" />
+                          <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">Enviando...</span>
+                        </div>
+                      )}
                     </div>
                   </div>
-                )}
-              </div>
+                  
+                  <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-4 py-1.5 bg-black/60 backdrop-blur-md rounded-full border border-white/10 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity shadow-2xl">
+                    <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
+                    <span className="text-[10px] font-black text-white uppercase tracking-widest">Arraste para organizar</span>
+                  </div>
+
+                  {/* Popup de Confirmação de Exclusão */}
+                  <AnimatePresence>
+                    {confirmExcluirIdx !== null && (
+                      <motion.div 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm"
+                      >
+                        <motion.div 
+                          initial={{ scale: 0.9, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          exit={{ scale: 0.9, opacity: 0 }}
+                          className="bg-slate-900 border border-slate-800 rounded-3xl p-6 w-full max-w-xs text-center shadow-2xl"
+                        >
+                          <div className="w-16 h-16 bg-red-500/10 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <Trash2 className="w-8 h-8" />
+                          </div>
+                          <h4 className="text-white font-black uppercase tracking-wider mb-2">Excluir Imagem?</h4>
+                          <p className="text-xs text-slate-400 mb-6 leading-relaxed">
+                            Esta ação não pode ser desfeita. Deseja realmente remover esta foto da campanha?
+                          </p>
+                          <div className="flex gap-3">
+                            <button
+                              type="button"
+                              onClick={() => setConfirmExcluirIdx(null)}
+                              className="flex-1 px-4 py-3 bg-slate-800 hover:bg-slate-750 text-white font-bold rounded-xl text-xs transition-all"
+                            >
+                              Cancelar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (confirmExcluirIdx === 'banner') {
+                                  setForm(prev => ({ ...prev, bannerUrl: '' }));
+                                } else if (typeof confirmExcluirIdx === 'number') {
+                                  handleRemoverFotoCarrossel(confirmExcluirIdx);
+                                }
+                                setConfirmExcluirIdx(null);
+                              }}
+                              className="flex-1 px-4 py-3 bg-red-500 hover:bg-red-400 text-white font-bold rounded-xl text-xs transition-all shadow-lg shadow-red-500/20"
+                            >
+                              Excluir
+                            </button>
+                          </div>
+                        </motion.div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
             </div>
 
             <hr className="border-slate-800/60" />
 
-            {/* CARROSSEL DE FOTOS ADICIONAIS */}
-            <div className="space-y-4">
+            {/* CONFIGURAÇÕES DO CARROSSEL (AUTOPLAY) */}
+            <div className="space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <h3 className="text-sm font-black text-white flex items-center gap-2 uppercase tracking-wider">
-                    <ImageIcon className="w-4 h-4 text-indigo-400" />
-                    Carrossel Adicional
-                  </h3>
-                  <p className="text-xs text-slate-400 mt-1">
-                    Mostre mais ângulos, especificações e detalhes do prêmio.
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => carrosselFileInputRef.current?.click()}
-                  className="px-4 py-2 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-sm transition-all active:scale-95"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Adicionar mais imagens</span>
-                </button>
-              </div>
-
-              {/* Upload Dropzone para Fotos Adicionais */}
-              <div
-                onDragEnter={handleDragCarrossel}
-                onDragOver={handleDragCarrossel}
-                onDragLeave={handleDragCarrossel}
-                onDrop={handleDropCarrossel}
-                className={`p-5 md:p-6 border-2 border-dashed rounded-2xl text-center transition-colors shadow-inner ${
-                  dragActiveCarrossel ? 'border-indigo-500 bg-indigo-500/10' : 'border-slate-700/50 bg-slate-950/40 hover:bg-slate-950/60'
-                }`}
-              >
-                {carregandoCarrossel ? (
-                  <div className="py-4 flex items-center justify-center gap-3">
-                    <RefreshCw className="w-5 h-5 text-indigo-400 animate-spin" />
-                    <span className="text-sm text-slate-300 font-bold">Processando imagens...</span>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center">
+                    <RefreshCw className="w-5 h-5" />
                   </div>
-                ) : (
+                  <div>
+                    <h3 className="text-sm font-black text-white uppercase tracking-wider">Troca Automática de Fotos</h3>
+                    <p className="text-[10px] text-slate-400">Configure se as fotos devem passar sozinhas e a velocidade.</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 p-1.5 bg-slate-950/50 rounded-2xl border border-slate-800/60">
                   <button
                     type="button"
-                    onClick={() => carrosselFileInputRef.current?.click()}
-                    className="w-full flex flex-col items-center justify-center py-2"
+                    onClick={() => setForm(prev => ({ ...prev, autoplayGaleria: false }))}
+                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                      !form.autoplayGaleria ? 'bg-slate-800 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'
+                    }`}
                   >
-                    <p className="text-sm font-bold text-slate-200">
-                      Arraste mais fotos ou clique para selecionar
-                    </p>
-                    <p className="text-xs text-slate-400 mt-1">
-                      Você pode selecionar múltiplos arquivos de uma vez
-                    </p>
+                    Desativado
                   </button>
-                )}
+                  <button
+                    type="button"
+                    onClick={() => setForm(prev => ({ ...prev, autoplayGaleria: true }))}
+                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                      form.autoplayGaleria ? 'bg-emerald-500 text-slate-950 shadow-lg' : 'text-slate-500 hover:text-slate-300'
+                    }`}
+                  >
+                    Ativado
+                  </button>
+                </div>
               </div>
 
-              {/* Grid de Fotos Carregadas */}
-              {form.fotosCarrossel && form.fotosCarrossel.length > 0 ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 mt-4">
-                  {form.fotosCarrossel.map((foto, idx) => (
-                    <div key={idx} className="relative group rounded-xl overflow-hidden border border-slate-700/50 aspect-video bg-slate-950 shadow-md">
-                      <img src={foto} alt={`Foto ${idx + 1}`} className="w-full h-full object-cover" />
-                      <div className="absolute top-2 left-2 px-2 py-1 bg-slate-950/80 backdrop-blur-sm rounded-lg text-[10px] font-mono text-slate-300 border border-slate-700/50">
-                        #{idx + 1}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoverFotoCarrossel(idx)}
-                        className="absolute top-2 right-2 p-1.5 bg-red-500/90 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-all hover:scale-110 shadow-lg"
-                        title="Remover foto"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+              {form.autoplayGaleria && (
+                <div className="p-5 bg-indigo-500/5 border border-indigo-500/20 rounded-2xl animate-in fade-in slide-in-from-top-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <label className="text-xs font-bold text-white block mb-1 uppercase tracking-tighter">
+                        Tempo de Exibição (Segundos)
+                      </label>
+                      <p className="text-[10px] text-slate-400">Quanto tempo cada foto fica visível antes de trocar.</p>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="p-8 bg-slate-950/30 border border-dashed border-slate-800/80 rounded-2xl text-center">
-                  <p className="text-sm text-slate-400">O carrossel está vazio.</p>
-                  <button
-                    type="button"
-                    onClick={() => carrosselFileInputRef.current?.click()}
-                    className="mt-3 text-sm text-indigo-400 font-bold hover:text-indigo-300 transition-colors"
-                  >
-                    Clique aqui para adicionar imagens
-                  </button>
+                    <div className="flex items-center gap-3">
+                      <select
+                        value={form.autoplayIntervaloGaleria || 5}
+                        onChange={e => setForm(prev => ({ ...prev, autoplayIntervaloGaleria: Number(e.target.value) }))}
+                        className="bg-slate-950 border border-slate-700/50 rounded-xl px-4 py-2.5 text-xs font-mono font-bold text-indigo-400 focus:outline-none focus:border-indigo-500 transition-colors cursor-pointer"
+                      >
+                        <option value={3}>3 segundos (Rápido)</option>
+                        <option value={5}>5 segundos (Padrão)</option>
+                        <option value={8}>8 segundos (Médio)</option>
+                        <option value={10}>10 segundos (Lento)</option>
+                        <option value={15}>15 segundos (Exposição)</option>
+                      </select>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -2253,65 +2500,11 @@ export const CampanhasFormView: React.FC<Props> = ({
                 </div>
               </div>
 
-              {/* Temporizador Padrão de Animação do Sorteio */}
-              <div className="p-5 bg-slate-950/40 border border-slate-700/50 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-inner">
-                <div>
-                  <label className="text-sm font-bold text-white block mb-1">
-                    ⏱️ Temporizador da Animação do Sorteio
-                  </label>
-                  <p className="text-xs text-slate-400">
-                    Tempo em segundos durante o qual os números rolam desacelerando até parar no vencedor.
-                  </p>
-                </div>
-                <div className="flex items-center shrink-0">
-                  <select
-                    value={form.tempoAnimacaoSorteioSegundos || 3}
-                    onChange={e => setForm(prev => ({ ...prev, tempoAnimacaoSorteioSegundos: Number(e.target.value) }))}
-                    className="bg-slate-900 border border-slate-700/50 rounded-xl px-4 py-2.5 text-sm font-mono font-bold text-emerald-400 focus:outline-none focus:border-emerald-500 transition-colors cursor-pointer"
-                  >
-                    <option value={2}>2 segundos (Rápido)</option>
-                    <option value={3}>3 segundos (Padrão)</option>
-                    <option value={5}>5 segundos (Suspenso)</option>
-                    <option value={8}>8 segundos (Longo)</option>
-                    <option value={10}>10 segundos (Ultra Suspenso)</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            <hr className="border-slate-800/60" />
-
-            {/* Exigências de Cadastro */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-black text-white uppercase tracking-wider">Campos Obrigatórios no Checkout</h3>
-              <div className="space-y-3">
-                <label className="flex items-center gap-3 p-3 bg-slate-950/30 border border-slate-800 rounded-xl cursor-pointer hover:bg-slate-900/50 transition-colors group">
-                  <input
-                    type="checkbox"
-                    checked={form.exigirCpf || false}
-                    onChange={e => setForm(prev => ({ ...prev, exigirCpf: e.target.checked }))}
-                    className="w-4 h-4 rounded text-emerald-500 bg-slate-900 border-slate-700/50 cursor-pointer focus:ring-emerald-500 focus:ring-offset-slate-950"
-                  />
-                  <span className="text-sm text-slate-300 font-medium group-hover:text-white transition-colors">
-                    Exigir CPF do comprador para participar do sorteio
-                  </span>
-                </label>
-
-                <label className="flex items-center gap-3 p-3 bg-slate-950/30 border border-slate-800 rounded-xl cursor-pointer hover:bg-slate-900/50 transition-colors group">
-                  <input
-                    type="checkbox"
-                    checked={form.exigirEmail || false}
-                    onChange={e => setForm(prev => ({ ...prev, exigirEmail: e.target.checked }))}
-                    className="w-4 h-4 rounded text-emerald-500 bg-slate-900 border-slate-700/50 cursor-pointer focus:ring-emerald-500 focus:ring-offset-slate-950"
-                  />
-                  <span className="text-sm text-slate-300 font-medium group-hover:text-white transition-colors">
-                    Exigir E-mail do comprador para confirmação
-                  </span>
-                </label>
-              </div>
+              <hr className="border-slate-800/60 my-4" />
 
               {/* Coleta de redes sociais do comprador (@usuário) */}
-              <div className="pt-2 space-y-3">
+              <div className="space-y-3">
+                <h3 className="text-sm font-black text-white uppercase tracking-wider">Redes Sociais do Comprador</h3>
                 <label className="flex items-center gap-3 p-3 bg-slate-950/30 border border-slate-800 rounded-xl cursor-pointer hover:bg-slate-900/50 transition-colors group">
                   <input
                     type="checkbox"

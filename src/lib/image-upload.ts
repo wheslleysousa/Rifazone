@@ -79,7 +79,7 @@ function compressImageToBlob(
  */
 export async function uploadImageToStorage(
   file: File,
-  pasta: 'banners' | 'carrossel' | 'organizadores' | 'geral' = 'geral',
+  pasta: 'banners' | 'carrossel' | 'organizadores' | 'geral' | 'logoscabecalho' = 'geral',
   maxWidth = 1200,
   maxHeight = 1200,
   quality = 0.82

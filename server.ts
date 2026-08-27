@@ -216,6 +216,11 @@ let globalWorkerStatus = {
   numero: undefined as string | undefined,
   atualizadoEm: undefined as string | undefined
 };
+// Último QR Code recebido do worker (para exibir na aba de Remarketing e escanear pela web)
+let globalWorkerQr = {
+  dataUrl: undefined as string | undefined,
+  atualizadoEm: undefined as string | undefined
+};
 
 // Body parsers
 app.use(express.json({
@@ -3396,6 +3401,10 @@ app.post('/api/worker/status', verificarWorkerSecret, async (req, res) => {
       numero: numero || undefined,
       atualizadoEm: new Date().toISOString()
     };
+    // Se conectou, o QR não é mais necessário.
+    if (globalWorkerStatus.conectado) {
+      globalWorkerQr = { dataUrl: undefined, atualizadoEm: undefined };
+    }
     return res.json({ success: true, status: globalWorkerStatus });
   } catch (err: any) {
     console.error('Erro ao registrar status do worker:', err);
@@ -3403,9 +3412,42 @@ app.post('/api/worker/status', verificarWorkerSecret, async (req, res) => {
   }
 });
 
+// POST /api/worker/qr -> O worker envia o QR Code atual para ser exibido na web
+app.post('/api/worker/qr', verificarWorkerSecret, async (req, res) => {
+  try {
+    const { dataUrl } = req.body;
+    globalWorkerQr = {
+      dataUrl: dataUrl || undefined,
+      atualizadoEm: new Date().toISOString()
+    };
+    return res.json({ success: true });
+  } catch (err: any) {
+    console.error('Erro ao registrar QR do worker:', err);
+    return res.status(500).json({ error: 'Erro ao registrar QR.' });
+  }
+});
+
 // GET /api/admin/worker/status -> Retorna o status atual do worker para o admin
 app.get('/api/admin/worker/status', firebaseAuthMiddleware, async (req, res) => {
-  return res.json(globalWorkerStatus);
+  // Considera o worker "online" só se deu sinal nos últimos 90s (senão o celular
+  // pode ter sido desligado). Se offline, não dá pra confiar no "conectado".
+  const agora = Date.now();
+  const ultimoSinal = globalWorkerStatus.atualizadoEm ? new Date(globalWorkerStatus.atualizadoEm).getTime() : 0;
+  const online = ultimoSinal > 0 && (agora - ultimoSinal) < 90 * 1000;
+  return res.json({
+    ...globalWorkerStatus,
+    conectado: online && globalWorkerStatus.conectado,
+    online
+  });
+});
+
+// GET /api/admin/worker/qr -> Retorna o último QR Code para o admin escanear pela web
+app.get('/api/admin/worker/qr', firebaseAuthMiddleware, async (req, res) => {
+  // QR expira em ~60s (o worker gera um novo periodicamente).
+  const agora = Date.now();
+  const ts = globalWorkerQr.atualizadoEm ? new Date(globalWorkerQr.atualizadoEm).getTime() : 0;
+  const valido = ts > 0 && (agora - ts) < 60 * 1000;
+  return res.json({ dataUrl: valido ? globalWorkerQr.dataUrl : null, atualizadoEm: globalWorkerQr.atualizadoEm });
 });
 
 // GET /api/admin/campanhas/:id/pedidos -> Lista pedidos e compradores (somente o dono)

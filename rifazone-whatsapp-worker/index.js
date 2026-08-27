@@ -188,6 +188,8 @@ client.on('qr', async (qr) => {
       console.log(ascii);
     } catch (e) {}
     console.log('[WORKER] 📱 (ou acesse http://localhost:' + PORT + '/qr para escanear pela tela).');
+    // Envia o QR pro app, pra poder escanear direto da aba de Remarketing na web.
+    enviarQrParaApp(qrCodeDataURL);
   } catch (err) {
     console.error('[WORKER] Erro ao converter QR para dataURL:', err);
   }
@@ -260,6 +262,22 @@ async function syncStatusWithApp() {
     }
   } catch (err) {
     console.error('[WORKER] Falha de conexão ao sincronizar status com RifaZone:', err.message || err);
+  }
+}
+
+// Envia o QR Code para o app, pra ser exibido/escaneado pela aba de Remarketing.
+async function enviarQrParaApp(dataUrl) {
+  try {
+    await fetch(`${RIFAZONE_URL}/api/worker/qr`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-worker-secret': WORKER_SECRET
+      },
+      body: JSON.stringify({ dataUrl })
+    });
+  } catch (err) {
+    console.error('[WORKER] Falha ao enviar QR para o app:', err.message || err);
   }
 }
 

@@ -30,6 +30,17 @@ interface Props {
 type TabType = 'basico' | 'midia' | 'premios' | 'promocoes' | 'upsell' | 'extras' | 'checkout';
 
 
+export const gerarSlugCampanha = (texto: string): string => {
+  return (texto || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40);
+};
+
 const FotoItem = ({ 
   foto, 
   idx, 
@@ -641,10 +652,73 @@ export const CampanhasFormView: React.FC<Props> = ({
                   type="text"
                   placeholder="Ex: iPhone 16 Pro Max 256GB Lacrado"
                   value={form.titulo || ''}
-                  onChange={e => setForm(prev => ({ ...prev, titulo: e.target.value }))}
+                  onChange={e => {
+                    const novoTitulo = e.target.value;
+                    setForm(prev => {
+                      const slugAntigo = gerarSlugCampanha(prev.titulo || '');
+                      const deveAtualizarSlug = !prev.codigo || prev.codigo === slugAntigo || prev.codigo === 'preview-campanha' || prev.codigo === 'campanha' || !prev.id;
+                      return {
+                        ...prev,
+                        titulo: novoTitulo,
+                        codigo: deveAtualizarSlug ? gerarSlugCampanha(novoTitulo) : prev.codigo
+                      };
+                    });
+                  }}
                   className="w-full bg-slate-950/50 border border-slate-700/50 rounded-xl px-4 py-3.5 text-sm font-semibold text-white focus:border-emerald-500 focus:bg-slate-900/80 transition-colors focus:outline-none placeholder:text-slate-600 shadow-inner"
                   required
                 />
+              </div>
+
+              {/* CAMPO DE ETIQUETA / SLUG DO LINK DA CAMPANHA */}
+              <div className="md:col-span-2 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <LinkIcon className="w-3.5 h-3.5 text-emerald-400" />
+                    Etiqueta do Link da Rifa (URL Amigável) *
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (form.titulo) {
+                        setForm(prev => ({ ...prev, codigo: gerarSlugCampanha(prev.titulo || '') }));
+                      }
+                    }}
+                    className="text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold flex items-center gap-1 transition active:scale-95"
+                    title="Recalcular link com base no título atual da rifa"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    Sincronizar com Título
+                  </button>
+                </div>
+
+                <div className="flex items-center bg-slate-950/70 border border-slate-700/60 rounded-xl overflow-hidden focus-within:border-emerald-500 transition-colors shadow-inner">
+                  <span className="px-3.5 py-3 text-xs font-mono text-slate-400 bg-slate-900/80 border-r border-slate-800 select-none shrink-0">
+                    /c/
+                  </span>
+                  <input
+                    type="text"
+                    placeholder="ex: pix-de-200 ou pixde200"
+                    value={form.codigo || ''}
+                    onChange={e => {
+                      const limpo = e.target.value
+                        .toLowerCase()
+                        .normalize('NFD')
+                        .replace(/[\u0300-\u036f]/g, '')
+                        .replace(/[^a-z0-9-_]/g, '');
+                      setForm(prev => ({ ...prev, codigo: limpo }));
+                    }}
+                    className="w-full bg-transparent px-3 py-3 text-sm font-mono font-semibold text-emerald-300 placeholder:text-slate-600 focus:outline-none"
+                    required
+                  />
+                </div>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px] text-slate-400">
+                  <span className="truncate">
+                    Link oficial: <span className="font-mono text-emerald-400 font-semibold">{typeof window !== 'undefined' ? window.location.origin : 'https://rifazone.com'}/c/{form.codigo || gerarSlugCampanha(form.titulo || 'sua-campanha')}</span>
+                  </span>
+                  <span className="text-[10px] text-slate-500 shrink-0">
+                    (Letras, números e hífens)
+                  </span>
+                </div>
               </div>
 
               <div className="md:col-span-2">

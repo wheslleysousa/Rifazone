@@ -1241,8 +1241,11 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
                           </div>
                           
                           <div className="flex flex-col items-end gap-2">
-                            <span className="text-[10px] font-mono font-bold text-slate-500 bg-slate-800/50 px-2 py-1 rounded">
-                              {c.codigo}
+                            <span 
+                              className="text-[11px] font-mono font-bold text-slate-300 bg-slate-800/80 border border-slate-700/60 px-2.5 py-1 rounded-lg"
+                              title={`Link amigável: /c/${c.codigo}`}
+                            >
+                              /{c.codigo}
                             </span>
                           </div>
                         </div>

@@ -124,8 +124,15 @@ export function sanitizarCampanha(
     exibirQtdCotas: data.exibirQtdCotas !== undefined ? Boolean(data.exibirQtdCotas) : (base?.exibirQtdCotas ?? true),
     exibirCompradores: data.exibirCompradores !== undefined ? Boolean(data.exibirCompradores) : (base?.exibirCompradores ?? true),
     exibirSelo: data.exibirSelo !== undefined ? Boolean(data.exibirSelo) : (base?.exibirSelo ?? true),
+    exibirSeloOficial: data.exibirSeloOficial !== undefined ? Boolean(data.exibirSeloOficial) : (base?.exibirSeloOficial ?? true),
     exibirPremios: data.exibirPremios !== undefined ? Boolean(data.exibirPremios) : (base?.exibirPremios ?? true),
     exibirCotasPremiadas: data.exibirCotasPremiadas !== undefined ? Boolean(data.exibirCotasPremiadas) : (base?.exibirCotasPremiadas ?? true),
+    exibirBotaoCompartilhar: data.exibirBotaoCompartilhar !== undefined ? Boolean(data.exibirBotaoCompartilhar) : (base?.exibirBotaoCompartilhar ?? true),
+    autoplayGaleria: data.autoplayGaleria !== undefined ? Boolean(data.autoplayGaleria) : (base?.autoplayGaleria ?? false),
+    autoplayIntervaloGaleria: Number(data.autoplayIntervaloGaleria ?? base?.autoplayIntervaloGaleria ?? 4),
+    exibirCabecalhoTipo: data.exibirCabecalhoTipo !== undefined ? data.exibirCabecalhoTipo : (base?.exibirCabecalhoTipo ?? 'nome'),
+    cabecalhoLogoTamanho: Number(data.cabecalhoLogoTamanho ?? base?.cabecalhoLogoTamanho ?? 40),
+    cabecalhoLogoUrl: data.cabecalhoLogoUrl !== undefined ? (data.cabecalhoLogoUrl || null) : (base?.cabecalhoLogoUrl ?? null),
     tempoAnimacaoSorteioSegundos: Number(data.tempoAnimacaoSorteioSegundos ?? base?.tempoAnimacaoSorteioSegundos ?? 3),
     exigirEmail: data.exigirEmail !== undefined ? Boolean(data.exigirEmail) : (base?.exigirEmail ?? false),
     exigirCpf: data.exigirCpf !== undefined ? Boolean(data.exigirCpf) : (base?.exigirCpf ?? false),
@@ -3066,6 +3073,32 @@ app.put('/api/admin/campanhas/:id', firebaseAuthMiddleware, async (req, res) => 
     }
 
     const data = req.body;
+
+    // Se informou ou alterou o código/etiqueta da campanha, garantir formatação e unicidade
+    let codigo = (data.codigo || '').toLowerCase().trim().replace(/[^a-z0-9-_]/g, '');
+    if (!codigo && data.titulo) {
+      codigo = data.titulo
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]/g, '-')
+        .replace(/-+/g, '-')
+        .slice(0, 40);
+    }
+
+    if (codigo && codigo !== existente.codigo) {
+      let finalCodigo = codigo;
+      let contador = 1;
+      while (true) {
+        const outraCampanha = await db.getCampanhaByCodigo(finalCodigo);
+        if (!outraCampanha || outraCampanha.id === id) {
+          break;
+        }
+        finalCodigo = `${codigo}-${contador++}`;
+      }
+      data.codigo = finalCodigo;
+    }
+
     const atualizada = sanitizarCampanha(
       data,
       existente,

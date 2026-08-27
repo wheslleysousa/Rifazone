@@ -242,9 +242,10 @@ export const PixPaymentModal: React.FC<Props> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md overflow-y-auto">
-      <div className="relative w-full max-w-md bg-slate-900 border border-slate-700/80 rounded-2xl p-6 shadow-2xl text-white my-8">
-        
+    <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md overflow-y-auto overscroll-contain">
+      <div className="flex min-h-full items-center justify-center p-4">
+      <div className="relative w-full max-w-md bg-slate-900 border border-slate-700/80 rounded-2xl p-6 shadow-2xl text-white my-4">
+
         {/* Status: PAGO COM SUCESSO */}
         {status === 'pago' ? (
           <div className="text-center py-2 animate-in zoom-in-95 duration-200 space-y-3">
@@ -567,6 +568,7 @@ export const PixPaymentModal: React.FC<Props> = ({
           </div>
         )}
 
+      </div>
       </div>
     </div>
   );

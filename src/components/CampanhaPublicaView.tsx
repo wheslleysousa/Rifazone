@@ -16,6 +16,7 @@ import { MeusNumerosModal } from './MeusNumerosModal';
 import { MeusDadosModal } from './MeusDadosModal';
 import { SocialNotifications } from './SocialNotifications';
 import { ExitPopup } from './ExitPopup';
+import { WhatsAppIcon, TikTokIcon, InstagramIcon } from './BrandIcons';
 import { formatarMoeda, toCents, toReais } from '../lib/money';
 import { 
   initMetaPixel, 
@@ -1725,7 +1726,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                     rel="noreferrer"
                     className="w-full p-3 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 rounded-xl text-xs font-bold text-emerald-300 flex items-center gap-2.5 transition"
                   >
-                    <Smartphone className="w-4 h-4" style={{ color: 'var(--brand)' }} />
+                    <WhatsAppIcon className="w-4 h-4 text-emerald-400" />
                     <span>Suporte WhatsApp</span>
                   </a>
                 )}
@@ -1737,7 +1738,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                     rel="noreferrer"
                     className="w-full p-3 bg-pink-600/20 hover:bg-pink-600/30 border border-pink-500/30 rounded-xl text-xs font-bold text-pink-300 flex items-center gap-2.5 transition"
                   >
-                    <Instagram className="w-4 h-4 text-pink-400" />
+                    <InstagramIcon className="w-4 h-4 text-pink-400" />
                     <span>Instagram do Organizador</span>
                   </a>
                 )}
@@ -1749,7 +1750,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                     rel="noreferrer"
                     className="w-full p-3 bg-slate-800 hover:bg-slate-700/80 border border-slate-700 rounded-xl text-xs font-bold text-slate-200 flex items-center gap-2.5 transition"
                   >
-                    <Share2 className="w-4 h-4 text-cyan-400" />
+                    <TikTokIcon className="w-4 h-4 text-slate-100" />
                     <span>TikTok do Organizador</span>
                   </a>
                 )}
@@ -1766,17 +1767,17 @@ export const CampanhaPublicaView: React.FC<Props> = ({
       )}
 
       {/* 3 BOTÕES FLUTUANTES NO CANTO DIREITO */}
-      <div className="fixed bottom-20 right-3 z-30 flex flex-col gap-2">
+      <div className="fixed bottom-24 right-3 z-30 flex flex-col gap-2.5">
         {campanha.organizadorWhatsapp && (
           <a
             href={`https://wa.me/55${campanha.organizadorWhatsapp.replace(/\D/g, '')}`}
             target="_blank"
             rel="noreferrer"
-            style={{ backgroundColor: 'var(--brand)', color: 'var(--btn-txt)' }}
-            className="w-11 h-11 rounded-full flex items-center justify-center shadow-lg transition hover:scale-105"
+            className="w-12 h-12 rounded-full flex items-center justify-center text-white bg-[#25D366] shadow-lg shadow-black/30 ring-1 ring-white/15 transition-transform hover:scale-110 active:scale-95"
             title="WhatsApp de Suporte"
+            aria-label="WhatsApp de Suporte"
           >
-            <Smartphone className="w-5 h-5 fill-current" />
+            <WhatsAppIcon className="w-6 h-6" />
           </a>
         )}
         {campanha.organizadorInstagram && (
@@ -1784,10 +1785,24 @@ export const CampanhaPublicaView: React.FC<Props> = ({
             href={`https://instagram.com/${campanha.organizadorInstagram.replace('@', '')}`}
             target="_blank"
             rel="noreferrer"
-            className="w-11 h-11 bg-gradient-to-tr from-amber-500 via-pink-500 to-purple-600 text-white rounded-full flex items-center justify-center shadow-lg transition hover:scale-105"
+            className="w-12 h-12 rounded-full flex items-center justify-center text-white shadow-lg shadow-black/30 ring-1 ring-white/15 transition-transform hover:scale-110 active:scale-95"
+            style={{ background: 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)' }}
             title="Instagram"
+            aria-label="Instagram do organizador"
           >
-            <Instagram className="w-5 h-5" />
+            <InstagramIcon className="w-6 h-6" />
+          </a>
+        )}
+        {campanha.organizadorTiktok && (
+          <a
+            href={`https://tiktok.com/@${campanha.organizadorTiktok.replace('@', '')}`}
+            target="_blank"
+            rel="noreferrer"
+            className="w-12 h-12 rounded-full flex items-center justify-center text-white bg-black shadow-lg shadow-black/30 ring-1 ring-white/15 transition-transform hover:scale-110 active:scale-95"
+            title="TikTok"
+            aria-label="TikTok do organizador"
+          >
+            <TikTokIcon className="w-6 h-6" />
           </a>
         )}
         <button
@@ -1799,8 +1814,9 @@ export const CampanhaPublicaView: React.FC<Props> = ({
               alert('Link da campanha copiado com sucesso!');
             }
           }}
-          className="w-11 h-11 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-full flex items-center justify-center shadow-lg transition hover:scale-105"
+          className="w-12 h-12 bg-slate-800/90 hover:bg-slate-700 text-slate-100 border border-slate-700 rounded-full flex items-center justify-center shadow-lg shadow-black/30 backdrop-blur transition-transform hover:scale-110 active:scale-95"
           title="Compartilhar Link"
+          aria-label="Compartilhar link da campanha"
         >
           <Share2 className="w-5 h-5" />
         </button>

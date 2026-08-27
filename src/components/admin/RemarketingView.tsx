@@ -98,8 +98,13 @@ export const RemarketingView: React.FC<Props> = ({
     }
   };
 
-  const iniciarConexaoWhatsapp = () => {
+  const iniciarConexaoWhatsapp = async () => {
     setMostrandoQr(true);
+    setWorkerQr(null);
+    // Pede ao worker (via app) para inicializar e gerar o QR sob demanda.
+    if (authFetch) {
+      try { await authFetch('/api/admin/worker/conectar', { method: 'POST' }); } catch (e) {}
+    }
     fetchWorkerStatus();
     fetchWorkerQr();
   };
@@ -343,14 +348,7 @@ export const RemarketingView: React.FC<Props> = ({
 
           {mostrandoQr && (
             <div className="space-y-4">
-              {workerOffline ? (
-                <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-left">
-                  <p className="text-xs font-bold text-amber-300 mb-1">⚠️ O robô do WhatsApp está desligado</p>
-                  <p className="text-[11px] text-amber-200/90 leading-relaxed">
-                    Ligue o worker no seu celular (Termux) para gerar o QR Code. Assim que ele estiver ligado, o código aparece aqui automaticamente.
-                  </p>
-                </div>
-              ) : workerQr ? (
+              {workerQr ? (
                 <>
                   <div className="bg-white rounded-2xl p-4 inline-block mx-auto shadow-inner">
                     <img src={workerQr} alt="QR Code WhatsApp" className="w-56 h-56 object-contain" />
@@ -359,6 +357,13 @@ export const RemarketingView: React.FC<Props> = ({
                     Abra o <strong className="text-white">WhatsApp</strong> → <strong className="text-white">Aparelhos conectados</strong> → <strong className="text-white">Conectar um aparelho</strong> e escaneie o código acima.
                   </p>
                 </>
+              ) : workerOffline ? (
+                <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-left">
+                  <p className="text-xs font-bold text-amber-300 mb-1">⚠️ O robô do WhatsApp está desligado</p>
+                  <p className="text-[11px] text-amber-200/90 leading-relaxed">
+                    Ligue o worker no seu celular (Termux) para gerar o QR Code. Assim que ele estiver ligado, o código aparece aqui automaticamente.
+                  </p>
+                </div>
               ) : (
                 <div className="py-8 flex flex-col items-center gap-3 text-slate-400">
                   <RefreshCw className={`w-6 h-6 ${buscandoQr ? 'animate-spin' : ''}`} />

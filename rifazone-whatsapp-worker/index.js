@@ -1,4 +1,5 @@
 import 'dotenv/config'; // carrega variáveis do arquivo .env (útil no Termux/VM)
+import fs from 'fs';
 import express from 'express';
 import qrcodeLib from 'qrcode';
 import pkg from 'whatsapp-web.js';
@@ -190,6 +191,8 @@ client.on('qr', async (qr) => {
     console.log('[WORKER] 📱 (ou acesse http://localhost:' + PORT + '/qr para escanear pela tela).');
     // Envia o QR pro app, pra poder escanear direto da aba de Remarketing na web.
     enviarQrParaApp(qrCodeDataURL);
+    // Avisa o app que o worker está VIVO (online) mesmo sem ter conectado ainda.
+    syncStatusWithApp();
   } catch (err) {
     console.error('[WORKER] Erro ao converter QR para dataURL:', err);
   }
@@ -233,10 +236,55 @@ client.on('disconnected', (reason) => {
   client.initialize().catch(err => console.error('[WORKER] Erro ao reiniciar:', err));
 });
 
-// Inicialização
-client.initialize().catch(err => {
-  console.error('[WORKER] Erro crítico ao inicializar whatsapp-web.js:', err);
-});
+// ----------------------------------------------------------------------------
+// INICIALIZAÇÃO SOB DEMANDA
+// O cliente WhatsApp (e o QR Code) só é inicializado quando:
+//  a) já existe uma sessão salva (reconecta sozinho após reiniciar), ou
+//  b) o admin clica em "Conectar" no painel (o app marca o comando e o worker
+//     detecta via polling). Assim o QR não fica sendo gerado à toa.
+// ----------------------------------------------------------------------------
+let clienteInicializado = false;
+
+function sessaoWhatsappExiste() {
+  try {
+    if (!fs.existsSync(DATA_PATH)) return false;
+    return fs.readdirSync(DATA_PATH).length > 0;
+  } catch (e) {
+    return false;
+  }
+}
+
+function inicializarCliente(motivo) {
+  if (clienteInicializado) return;
+  clienteInicializado = true;
+  console.log(`[WORKER] Inicializando cliente WhatsApp (${motivo})...`);
+  client.initialize().catch(err => {
+    console.error('[WORKER] Erro crítico ao inicializar whatsapp-web.js:', err);
+    clienteInicializado = false;
+  });
+}
+
+if (sessaoWhatsappExiste()) {
+  inicializarCliente('sessão existente — reconectando');
+} else {
+  console.log('[WORKER] ⏳ Aguardando o comando "Conectar" na aba de Remarketing para gerar o QR Code...');
+}
+
+// Enquanto não inicializado, verifica a cada 5s se o admin pediu pra conectar.
+setInterval(async () => {
+  if (clienteInicializado) return;
+  try {
+    const res = await fetch(`${RIFAZONE_URL}/api/worker/comando`, {
+      headers: { 'x-worker-secret': WORKER_SECRET }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.conectar) {
+        inicializarCliente('solicitado pelo painel');
+      }
+    }
+  } catch (e) { /* app pode estar offline; tenta de novo depois */ }
+}, 5000);
 
 // ----------------------------------------------------------------------------
 // 5. SINCRONIZAÇÃO DE STATUS COM O APP RIFAZONE
@@ -381,12 +429,11 @@ async function processQueue() {
 // Loop de fila a cada 15s
 setInterval(processQueue, 15000);
 
-// Sincroniza status a cada 60s como liveness check
+// Sincroniza status a cada 30s como liveness check (SEMPRE, mesmo desconectado,
+// pra que o app saiba que o worker está ligado e mostre o QR).
 setInterval(() => {
-  if (isConnected) {
-    syncStatusWithApp();
-  }
-}, 60000);
+  syncStatusWithApp();
+}, 30000);
 
 // ----------------------------------------------------------------------------
 // 8. ESCUTA DO EXPRESS

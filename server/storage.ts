@@ -264,11 +264,15 @@ export class FileStorage implements Storage {
   }
 
   public async deleteCampanha(id: string): Promise<boolean> {
-    const deleted = this.campanhas.delete(id);
-    if (deleted) {
-      this.saveCampanhas();
-    }
-    return deleted;
+    // Exclusão LÓGICA (soft-delete): preserva o registro da campanha e TODOS os
+    // pedidos/cotas para que o faturamento e o saldo do organizador não sumam.
+    // A campanha é ocultada da lista/venda, mas continua contando na carteira.
+    const existente = this.campanhas.get(id);
+    if (!existente) return false;
+    existente.excluidaEm = new Date().toISOString();
+    this.campanhas.set(id, existente);
+    this.saveCampanhas();
+    return true;
   }
 
   // --- Cotas & Estatísticas ---

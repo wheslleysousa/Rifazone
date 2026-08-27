@@ -2309,6 +2309,62 @@ export const CampanhasFormView: React.FC<Props> = ({
                   </span>
                 </label>
               </div>
+
+              {/* Coleta de redes sociais do comprador (@usuário) */}
+              <div className="pt-2 space-y-3">
+                <label className="flex items-center gap-3 p-3 bg-slate-950/30 border border-slate-800 rounded-xl cursor-pointer hover:bg-slate-900/50 transition-colors group">
+                  <input
+                    type="checkbox"
+                    checked={form.coletarRedesSociais?.ativo || false}
+                    onChange={e => setForm(prev => ({ ...prev, coletarRedesSociais: { ...(prev.coletarRedesSociais || {}), ativo: e.target.checked } }))}
+                    className="w-4 h-4 rounded text-pink-500 bg-slate-900 border-slate-700/50 cursor-pointer focus:ring-pink-500 focus:ring-offset-slate-950"
+                  />
+                  <span className="text-sm text-slate-300 font-medium group-hover:text-white transition-colors">
+                    Coletar redes sociais do comprador no cadastro (@usuário)
+                  </span>
+                </label>
+
+                {form.coletarRedesSociais?.ativo && (
+                  <div className="ml-3 pl-4 border-l border-slate-800 space-y-2.5">
+                    <label className="flex items-center gap-2.5 text-sm text-slate-400 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={form.coletarRedesSociais?.instagram !== false}
+                        onChange={e => setForm(prev => ({ ...prev, coletarRedesSociais: { ...(prev.coletarRedesSociais || {}), instagram: e.target.checked } }))}
+                        className="w-4 h-4 rounded text-pink-500 bg-slate-900 border-slate-700/50 cursor-pointer"
+                      />
+                      Instagram
+                    </label>
+                    <label className="flex items-center gap-2.5 text-sm text-slate-400 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={form.coletarRedesSociais?.tiktok !== false}
+                        onChange={e => setForm(prev => ({ ...prev, coletarRedesSociais: { ...(prev.coletarRedesSociais || {}), tiktok: e.target.checked } }))}
+                        className="w-4 h-4 rounded text-slate-300 bg-slate-900 border-slate-700/50 cursor-pointer"
+                      />
+                      TikTok
+                    </label>
+                    <label className="flex items-center gap-2.5 text-sm text-slate-400 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={!!form.coletarRedesSociais?.whatsapp}
+                        onChange={e => setForm(prev => ({ ...prev, coletarRedesSociais: { ...(prev.coletarRedesSociais || {}), whatsapp: e.target.checked } }))}
+                        className="w-4 h-4 rounded text-emerald-500 bg-slate-900 border-slate-700/50 cursor-pointer"
+                      />
+                      Reforçar WhatsApp (já é coletado por padrão)
+                    </label>
+                    <label className="flex items-center gap-2.5 text-sm text-slate-400 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={!!form.coletarRedesSociais?.obrigatorio}
+                        onChange={e => setForm(prev => ({ ...prev, coletarRedesSociais: { ...(prev.coletarRedesSociais || {}), obrigatorio: e.target.checked } }))}
+                        className="w-4 h-4 rounded text-amber-500 bg-slate-900 border-slate-700/50 cursor-pointer"
+                      />
+                      Tornar o preenchimento obrigatório
+                    </label>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </AcordeaoSecao>

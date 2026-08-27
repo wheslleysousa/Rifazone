@@ -402,6 +402,15 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
                   />
                   <span className="text-xs text-slate-200 font-medium">Exigir E-mail do comprador para confirmação</span>
                 </label>
+                <label className="flex items-center gap-3 p-3 bg-slate-950/60 border border-slate-800 rounded-xl cursor-pointer hover:bg-slate-950 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={checkoutConfig.exibirCupom !== false}
+                    onChange={e => upd({ exibirCupom: e.target.checked })}
+                    className="w-4 h-4 rounded text-emerald-500 bg-slate-900 border-slate-700 cursor-pointer"
+                  />
+                  <span className="text-xs text-slate-200 font-medium">Exibir campo de cupom de desconto no checkout</span>
+                </label>
               </div>
             </div>
             {/* 5. Temporizador */}

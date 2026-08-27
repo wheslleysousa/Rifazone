@@ -35,6 +35,14 @@ const PRESETS = [
   {
     nome: 'Roxo Escuro',
     tema: { ...TEMA_PADRAO, cores: { primaria: '#a855f7', destaque: '#9333ea', fundo: '#2e1065', texto: '#f3e8ff', titulos: '#ffffff', descricoes: '#d8b4fe', botao: '#a855f7', textoBotao: '#ffffff', cardFundo: '#3b0764', cardBorda: '#581c87', faviconFundo: '#a855f7', iconeCor: '#a855f7' } }
+  },
+  {
+    nome: 'Pôr do Sol',
+    tema: { ...TEMA_PADRAO, cores: { primaria: '#f97316', destaque: '#ea580c', fundo: '#1c1917', texto: '#fff7ed', titulos: '#ffffff', descricoes: '#fdba74', botao: '#f97316', textoBotao: '#ffffff', cardFundo: '#292524', cardBorda: '#44403c', faviconFundo: '#f97316', iconeCor: '#fb923c' } }
+  },
+  {
+    nome: 'Verde Escuro',
+    tema: { ...TEMA_PADRAO, cores: { primaria: '#10b981', destaque: '#059669', fundo: '#022c22', texto: '#d1fae5', titulos: '#ffffff', descricoes: '#6ee7b7', botao: '#10b981', textoBotao: '#022c22', cardFundo: '#064e3b', cardBorda: '#065f46', faviconFundo: '#10b981', iconeCor: '#34d399' } }
   }
 ];
 

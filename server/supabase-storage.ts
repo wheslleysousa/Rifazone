@@ -107,12 +107,25 @@ export class SupabaseStorage implements Storage {
   }
 
   async deleteCampanha(id: string): Promise<boolean> {
-    // 1. Remove cotas
-    await this.client.from('cotas').delete().eq('campanha_id', id);
-    // 2. Remove campanha
-    const { error } = await this.client.from('campanhas').delete().eq('id', id);
+    // Exclusão LÓGICA (soft-delete): preserva cotas, pedidos e o registro da
+    // campanha para que o faturamento/saldo do organizador não desapareça.
+    const { data, error: errGet } = await this.client
+      .from('campanhas')
+      .select('dados')
+      .eq('id', id)
+      .maybeSingle();
+    if (errGet || !data?.dados) {
+      if (errGet) console.error('Erro ao buscar campanha para exclusão no Supabase:', errGet);
+      return false;
+    }
+    const campanha = data.dados as Campanha;
+    campanha.excluidaEm = new Date().toISOString();
+    const { error } = await this.client
+      .from('campanhas')
+      .update({ dados: campanha })
+      .eq('id', id);
     if (error) {
-      console.error('Erro ao excluir campanha no Supabase:', error);
+      console.error('Erro ao excluir (soft) campanha no Supabase:', error);
       return false;
     }
     return true;

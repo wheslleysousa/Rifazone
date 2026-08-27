@@ -117,11 +117,15 @@ export class FirestoreStorage implements Storage {
   }
 
   public async deleteCampanha(id: string): Promise<boolean> {
+    // Exclusão LÓGICA (soft-delete): NÃO apaga o documento nem as cotas/pedidos,
+    // apenas marca a campanha como excluída para preservar o faturamento/saldo.
     const ref = this.campanhasCol().doc(id);
     const doc = await ref.get();
     if (!doc.exists) return false;
-    // Apaga subcoleção de cotas em lotes
-    await this.db.recursiveDelete(ref);
+    const campanha = doc.data() as Campanha;
+    campanha.excluidaEm = new Date().toISOString();
+    const limpo = JSON.parse(JSON.stringify(campanha));
+    await ref.set(limpo, { merge: false });
     return true;
   }
 

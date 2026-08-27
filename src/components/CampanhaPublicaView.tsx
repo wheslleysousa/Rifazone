@@ -4,7 +4,7 @@ import {
   Trophy, Flame, Sparkles, ShieldCheck, Ticket, Users,
   ChevronDown, ChevronUp, Plus, Minus, Gift, Info,
   Smartphone, Share2, Instagram, AlertTriangle, AlertCircle, Copy, CheckCircle2,
-  User, CreditCard, QrCode, FileText, Lock, Shield, X
+  User, CreditCard, QrCode, FileText, Lock, Shield, X, Music2, MessageCircle
 } from 'lucide-react';
 import { UpsellModal } from './UpsellModal';
 import { PixPaymentModal } from './PixPaymentModal';
@@ -60,6 +60,8 @@ export const CampanhaPublicaView: React.FC<Props> = ({
   const [whatsapp, setWhatsapp] = useState('');
   const [cpf, setCpf] = useState('');
   const [email, setEmail] = useState('');
+  const [instagramInput, setInstagramInput] = useState('');
+  const [tiktokInput, setTiktokInput] = useState('');
   const [dataNascimento, setDataNascimento] = useState('');
   const [maiorIdade, setMaiorIdade] = useState(true);
   const [compradorSalvo, setCompradorSalvo] = useState<{ nome: string; whatsapp: string } | null>(null);
@@ -778,7 +780,9 @@ export const CampanhaPublicaView: React.FC<Props> = ({
             nome: nome.trim(),
             whatsapp: cleanWhatsapp,
             cpf: cpf.trim() || cartaoCpf.trim() || undefined,
-            email: email.trim() || undefined
+            email: email.trim() || undefined,
+            instagram: instagramInput.trim() || undefined,
+            tiktok: tiktokInput.trim() || undefined
           },
           ofertaRelampagoId: ofertaSelecionada ? (ofertaSelecionada.id || 'oferta-1') : undefined,
           metodoPagamento,
@@ -1418,6 +1422,30 @@ export const CampanhaPublicaView: React.FC<Props> = ({
     ordemEfetiva.push('ganhadores');
   }
 
+  // Layout do checkout (padrao | limpo | passos | rapido): controla foco/densidade da página.
+  // A ordem/visibilidade dos blocos no Tema é preservada; o layout apenas curadoria em cima dela.
+  const layoutCheckout = (campanha.checkout?.layout as string) || 'padrao';
+  const ordemPorLayout = (() => {
+    if (layoutCheckout === 'rapido') {
+      // Compra rápida: apenas o essencial para converter (produto + seleção de cotas).
+      const permitido = ['banner', 'barraProgresso', 'progresso', 'cotas'];
+      return ordemEfetiva.filter((s) => permitido.includes(s));
+    }
+    if (layoutCheckout === 'limpo') {
+      // Limpo: remove blocos sociais/secundários para reduzir distrações no fluxo de compra.
+      const ocultar = ['ranking', 'ganhadores', 'premiadas', 'cotasPremiadas'];
+      return ordemEfetiva.filter((s) => !ocultar.includes(s));
+    }
+    if (layoutCheckout === 'passos') {
+      // Passos: reordena em um fluxo guiado (produto → cotas → prêmios/regras → prova social).
+      const guia = ['banner', 'barraProgresso', 'progresso', 'cotas', 'premios', 'premiadas', 'cotasPremiadas', 'regulamento', 'descricao', 'ranking', 'ganhadores'];
+      const rank = (s: string) => { const i = guia.indexOf(s); return i === -1 ? 99 : i; };
+      return [...ordemEfetiva].sort((a, b) => rank(a) - rank(b));
+    }
+    return ordemEfetiva; // padrao
+  })();
+  const mainSpacing = layoutCheckout === 'rapido' ? 'space-y-3' : layoutCheckout === 'limpo' ? 'space-y-3.5' : 'space-y-4';
+
   return (
     <div
       style={rootCssVariables}
@@ -1652,7 +1680,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
       </div>
 
       {/* Main Container com Renderização das Seções na Ordem do Tema */}
-      <main className="max-w-xl mx-auto px-4 pb-28 pt-3 space-y-4">
+      <main className={`max-w-xl mx-auto px-4 pb-28 pt-3 ${mainSpacing}`}>
         
         {/* BANNER CAMPANHA PAUSADA / DESATIVADA */}
         {((campanha.status as string) === 'pausada' || campanha.status === 'rascunho') && (
@@ -2010,6 +2038,50 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                   </div>
                 )}
 
+                {/* REDES SOCIAIS DO COMPRADOR (@usuário) */}
+                {campanha.coletarRedesSociais?.ativo && (
+                  <div className="space-y-3 p-3 bg-slate-950/60 border border-slate-800 rounded-xl">
+                    <p className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
+                      <Share2 className="w-3.5 h-3.5" style={{ color: 'var(--brand)' }} />
+                      Suas redes sociais {campanha.coletarRedesSociais?.obrigatorio ? '*' : <span className="text-slate-500 font-normal">(opcional)</span>}
+                    </p>
+                    {campanha.coletarRedesSociais?.instagram !== false && (
+                      <div className="flex items-center gap-2 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 focus-within:border-[var(--brand)]">
+                        <Instagram className="w-4 h-4 text-pink-500 shrink-0" />
+                        <span className="text-slate-500 text-sm">@</span>
+                        <input
+                          type="text"
+                          placeholder="seu_usuario"
+                          value={instagramInput}
+                          onChange={e => setInstagramInput(e.target.value.replace(/^@+/, '').trim())}
+                          className="flex-1 bg-transparent text-sm text-white focus:outline-none"
+                          required={!!campanha.coletarRedesSociais?.obrigatorio}
+                        />
+                      </div>
+                    )}
+                    {campanha.coletarRedesSociais?.tiktok !== false && (
+                      <div className="flex items-center gap-2 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 focus-within:border-[var(--brand)]">
+                        <Music2 className="w-4 h-4 text-slate-200 shrink-0" />
+                        <span className="text-slate-500 text-sm">@</span>
+                        <input
+                          type="text"
+                          placeholder="seu_usuario"
+                          value={tiktokInput}
+                          onChange={e => setTiktokInput(e.target.value.replace(/^@+/, '').trim())}
+                          className="flex-1 bg-transparent text-sm text-white focus:outline-none"
+                          required={!!campanha.coletarRedesSociais?.obrigatorio}
+                        />
+                      </div>
+                    )}
+                    {campanha.coletarRedesSociais?.whatsapp && (
+                      <div className="flex items-center gap-2 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-[11px] text-slate-400">
+                        <MessageCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                        <span>Seu WhatsApp já foi informado acima ✓</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Data de Nascimento para Cálculo Automático de Idade (Sem calendário nativo, digitação direta 01062004) */}
                 <div>
                   <div className="flex items-center justify-between mb-1">
@@ -2193,7 +2265,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
               </div>
 
               {/* CAMPO DE CUPOM DE DESCONTO */}
-              {campanha.modalidade !== 'gratis' && (
+              {campanha.modalidade !== 'gratis' && campanha.checkout?.exibirCupom !== false && (
                 <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
                   <label className="text-[11px] font-bold text-slate-300 flex items-center justify-between">
                     <span>Tem um cupom de desconto?</span>

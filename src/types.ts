@@ -219,6 +219,8 @@ export interface CheckoutConfig {
   cartaoConfig?: {
     exibirValorParcelado?: boolean;
   };
+  // Exibir (ou ocultar) o campo de cupom de desconto no checkout
+  exibirCupom?: boolean;
   coletaDados?: {
     exigirEmail?: boolean;
     confirmarEmail?: boolean;
@@ -297,6 +299,7 @@ export const DEFAULT_CHECKOUT_CONFIG: CheckoutConfig = {
   cartaoConfig: {
     exibirValorParcelado: true
   },
+  exibirCupom: true,
   coletaDados: {
     exigirEmail: false,
     confirmarEmail: false,
@@ -426,12 +429,23 @@ export interface Campanha {
   tempoAnimacaoSorteioSegundos?: number;
   exigirEmail: boolean;
   exigirCpf: boolean;
+  // Coleta de @ das redes sociais do comprador no cadastro (Instagram/TikTok/WhatsApp)
+  coletarRedesSociais?: {
+    ativo?: boolean;
+    instagram?: boolean;
+    tiktok?: boolean;
+    whatsapp?: boolean;
+    obrigatorio?: boolean;
+  };
   tema?: TemaCampanha;
   checkoutId?: string;
   checkout?: CheckoutConfig;
   remarketing?: RemarketingConfig;
   cupons?: CupomDesconto[];
   status: 'rascunho' | 'publicada' | 'pausada' | 'encerrada';
+  // Exclusão lógica: a campanha some da lista/venda, mas o registro e todo o
+  // faturamento (pedidos pagos, saldo, histórico) são preservados para saque.
+  excluidaEm?: string | null;
   numeroSorteado: string | null;
   ganhador?: {
     nome: string;
@@ -714,6 +728,8 @@ export interface Comprador {
   whatsapp: string;
   cpf: string | null;
   email: string | null;
+  instagram?: string | null;
+  tiktok?: string | null;
   criadoEm: string;
 }
 
@@ -727,6 +743,8 @@ export interface Pedido {
     whatsapp: string;
     cpf?: string | null;
     email?: string | null;
+    instagram?: string | null;
+    tiktok?: string | null;
   };
   numeros: string[];
   quantidade: number;

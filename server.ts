@@ -127,6 +127,7 @@ export function sanitizarCampanha(
     tempoAnimacaoSorteioSegundos: Number(data.tempoAnimacaoSorteioSegundos ?? base?.tempoAnimacaoSorteioSegundos ?? 3),
     exigirEmail: data.exigirEmail !== undefined ? Boolean(data.exigirEmail) : (base?.exigirEmail ?? false),
     exigirCpf: data.exigirCpf !== undefined ? Boolean(data.exigirCpf) : (base?.exigirCpf ?? false),
+    coletarRedesSociais: data.coletarRedesSociais !== undefined ? data.coletarRedesSociais : (base?.coletarRedesSociais ?? undefined),
     tema: data.tema || base?.tema || TEMA_PADRAO,
     checkoutId: data.checkoutId !== undefined ? (data.checkoutId || undefined) : (base?.checkoutId ?? undefined),
     checkout: data.checkout || base?.checkout || DEFAULT_CHECKOUT_CONFIG,
@@ -149,6 +150,8 @@ export function sanitizarCampanha(
     numeroSorteado: base?.numeroSorteado ?? data.numeroSorteado ?? null,
     ganhador: base?.ganhador ?? data.ganhador ?? null,
     ganhadoresHistorico: base?.ganhadoresHistorico || data.ganhadoresHistorico || [],
+    // Preserva o marcador de exclusão lógica em edições/salvamentos.
+    excluidaEm: base?.excluidaEm ?? data.excluidaEm ?? null,
     criadaEm: base?.criadaEm || agora,
     atualizadaEm: agora
   };
@@ -276,7 +279,7 @@ app.get('/api/campanhas/:codigo', async (req, res) => {
     const { codigo } = req.params;
     const campanha = await db.getCampanhaByCodigo(codigo);
 
-    if (!campanha) {
+    if (!campanha || campanha.excluidaEm) {
       return res.status(404).json({ error: 'Campanha não encontrada.' });
     }
 
@@ -357,6 +360,8 @@ app.post('/api/pedidos', async (req, res) => {
       whatsapp: comprador.whatsapp.trim(),
       cpf: comprador.cpf ? comprador.cpf.trim() : null,
       email: comprador.email ? comprador.email.trim() : null,
+      instagram: comprador.instagram ? String(comprador.instagram).replace(/^@+/, '').trim() : null,
+      tiktok: comprador.tiktok ? String(comprador.tiktok).replace(/^@+/, '').trim() : null,
       criadoEm: new Date().toISOString()
     });
 
@@ -486,7 +491,9 @@ app.post('/api/pedidos', async (req, res) => {
           nome: compradorSalvo.nome,
           whatsapp: compradorSalvo.whatsapp,
           cpf: compradorSalvo.cpf,
-          email: compradorSalvo.email
+          email: compradorSalvo.email,
+          instagram: compradorSalvo.instagram,
+          tiktok: compradorSalvo.tiktok
         },
         numeros: cotasAReservar,
         quantidade: 1,
@@ -535,7 +542,9 @@ app.post('/api/pedidos', async (req, res) => {
           nome: compradorSalvo.nome,
           whatsapp: compradorSalvo.whatsapp,
           cpf: compradorSalvo.cpf,
-          email: compradorSalvo.email
+          email: compradorSalvo.email,
+          instagram: compradorSalvo.instagram,
+          tiktok: compradorSalvo.tiktok
         },
         numeros: cotasAReservar,
         quantidade: totalQtd,
@@ -580,7 +589,9 @@ app.post('/api/pedidos', async (req, res) => {
           nome: compradorSalvo.nome,
           whatsapp: compradorSalvo.whatsapp,
           cpf: compradorSalvo.cpf,
-          email: compradorSalvo.email
+          email: compradorSalvo.email,
+          instagram: compradorSalvo.instagram,
+          tiktok: compradorSalvo.tiktok
         },
         numeros: cotasAReservar,
         quantidade: totalQtd,
@@ -2829,7 +2840,8 @@ app.post('/api/admin/ia/gerar-campanha', firebaseAuthMiddleware, async (req, res
 
 // GET /api/admin/campanhas -> Apenas as campanhas do organizador logado
 app.get('/api/admin/campanhas', firebaseAuthMiddleware, async (req, res) => {
-  const campanhas = await db.getCampanhas((req as any).userId);
+  // Oculta campanhas excluídas (soft-delete) da lista de gerenciamento.
+  const campanhas = (await db.getCampanhas((req as any).userId)).filter(c => !c.excluidaEm);
   const comEstatisticas = await Promise.all(campanhas.map(async c => {
     const stats = await db.getEstatisticasCampanha(c.id, c.totalCotas);
     return {

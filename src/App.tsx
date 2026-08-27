@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { CampanhaPublicaView } from './components/CampanhaPublicaView';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { AlertTriangle, Copy, X, Check } from 'lucide-react';
+import { lazyWithRetry } from './lib/lazy-retry';
 
-const AdminPanel = React.lazy(() => import('./components/AdminPanel').then(m => ({ default: m.AdminPanel })));
+const AdminPanel = lazyWithRetry(() => import('./components/AdminPanel').then(m => ({ default: m.AdminPanel })));
 
 export default function App() {
   const [currentRoute, setCurrentRoute] = useState<string>('admin');

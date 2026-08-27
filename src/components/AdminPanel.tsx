@@ -14,21 +14,22 @@ import {
   traduzErroAuth, type User
 } from '../lib/firebase';
 import { toReais } from '../lib/money';
+import { lazyWithRetry } from '../lib/lazy-retry';
 
 // Sub-components lazy loaded
-const DashboardView = React.lazy(() => import('./admin/DashboardView').then(m => ({ default: m.DashboardView })));
-const AnalyticsView = React.lazy(() => import('./admin/AnalyticsView').then(m => ({ default: m.AnalyticsView })));
-const RemarketingView = React.lazy(() => import('./admin/RemarketingView').then(m => ({ default: m.RemarketingView })));
-const HistoricoView = React.lazy(() => import('./admin/HistoricoView').then(m => ({ default: m.HistoricoView })));
-const ClientesView = React.lazy(() => import('./admin/ClientesView').then(m => ({ default: m.ClientesView })));
-const SorteadorView = React.lazy(() => import('./admin/SorteadorView').then(m => ({ default: m.SorteadorView })));
-const BuscarGanhadorView = React.lazy(() => import('./admin/BuscarGanhadorView').then(m => ({ default: m.BuscarGanhadorView })));
-const CampanhasFormView = React.lazy(() => import('./admin/CampanhasFormView').then(m => ({ default: m.CampanhasFormView })));
-const TemaBuilderView = React.lazy(() => import('./admin/TemaBuilderView').then(m => ({ default: m.TemaBuilderView })));
-const CheckoutBuilderView = React.lazy(() => import('./admin/CheckoutBuilderView').then(m => ({ default: m.CheckoutBuilderView })));
-const CarteiraView = React.lazy(() => import('./admin/CarteiraView').then(m => ({ default: m.CarteiraView })));
-const CarteiraAdminView = React.lazy(() => import('./admin/CarteiraAdminView').then(m => ({ default: m.CarteiraAdminView })));
-const MetodosPagamentoView = React.lazy(() => import('./admin/MetodosPagamentoView').then(m => ({ default: m.MetodosPagamentoView })));
+const DashboardView = lazyWithRetry(() => import('./admin/DashboardView').then(m => ({ default: m.DashboardView })));
+const AnalyticsView = lazyWithRetry(() => import('./admin/AnalyticsView').then(m => ({ default: m.AnalyticsView })));
+const RemarketingView = lazyWithRetry(() => import('./admin/RemarketingView').then(m => ({ default: m.RemarketingView })));
+const HistoricoView = lazyWithRetry(() => import('./admin/HistoricoView').then(m => ({ default: m.HistoricoView })));
+const ClientesView = lazyWithRetry(() => import('./admin/ClientesView').then(m => ({ default: m.ClientesView })));
+const SorteadorView = lazyWithRetry(() => import('./admin/SorteadorView').then(m => ({ default: m.SorteadorView })));
+const BuscarGanhadorView = lazyWithRetry(() => import('./admin/BuscarGanhadorView').then(m => ({ default: m.BuscarGanhadorView })));
+const CampanhasFormView = lazyWithRetry(() => import('./admin/CampanhasFormView').then(m => ({ default: m.CampanhasFormView })));
+const TemaBuilderView = lazyWithRetry(() => import('./admin/TemaBuilderView').then(m => ({ default: m.TemaBuilderView })));
+const CheckoutBuilderView = lazyWithRetry(() => import('./admin/CheckoutBuilderView').then(m => ({ default: m.CheckoutBuilderView })));
+const CarteiraView = lazyWithRetry(() => import('./admin/CarteiraView').then(m => ({ default: m.CarteiraView })));
+const CarteiraAdminView = lazyWithRetry(() => import('./admin/CarteiraAdminView').then(m => ({ default: m.CarteiraAdminView })));
+const MetodosPagamentoView = lazyWithRetry(() => import('./admin/MetodosPagamentoView').then(m => ({ default: m.MetodosPagamentoView })));
 import { TEMA_PADRAO } from '../types';
 
 interface Props {

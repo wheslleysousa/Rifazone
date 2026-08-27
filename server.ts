@@ -125,8 +125,15 @@ export function sanitizarCampanha(
     exibirQtdCotas: data.exibirQtdCotas !== undefined ? Boolean(data.exibirQtdCotas) : (base?.exibirQtdCotas ?? true),
     exibirCompradores: data.exibirCompradores !== undefined ? Boolean(data.exibirCompradores) : (base?.exibirCompradores ?? true),
     exibirSelo: data.exibirSelo !== undefined ? Boolean(data.exibirSelo) : (base?.exibirSelo ?? true),
+    exibirSeloOficial: data.exibirSeloOficial !== undefined ? Boolean(data.exibirSeloOficial) : (base?.exibirSeloOficial ?? true),
     exibirPremios: data.exibirPremios !== undefined ? Boolean(data.exibirPremios) : (base?.exibirPremios ?? true),
     exibirCotasPremiadas: data.exibirCotasPremiadas !== undefined ? Boolean(data.exibirCotasPremiadas) : (base?.exibirCotasPremiadas ?? true),
+    exibirBotaoCompartilhar: data.exibirBotaoCompartilhar !== undefined ? Boolean(data.exibirBotaoCompartilhar) : (base?.exibirBotaoCompartilhar ?? true),
+    autoplayGaleria: data.autoplayGaleria !== undefined ? Boolean(data.autoplayGaleria) : (base?.autoplayGaleria ?? false),
+    autoplayIntervaloGaleria: Number(data.autoplayIntervaloGaleria ?? base?.autoplayIntervaloGaleria ?? 4),
+    exibirCabecalhoTipo: data.exibirCabecalhoTipo !== undefined ? data.exibirCabecalhoTipo : (base?.exibirCabecalhoTipo ?? 'nome'),
+    cabecalhoLogoTamanho: Number(data.cabecalhoLogoTamanho ?? base?.cabecalhoLogoTamanho ?? 40),
+    cabecalhoLogoUrl: data.cabecalhoLogoUrl !== undefined ? (data.cabecalhoLogoUrl || null) : (base?.cabecalhoLogoUrl ?? null),
     tempoAnimacaoSorteioSegundos: Number(data.tempoAnimacaoSorteioSegundos ?? base?.tempoAnimacaoSorteioSegundos ?? 3),
     exigirEmail: data.exigirEmail !== undefined ? Boolean(data.exigirEmail) : (base?.exigirEmail ?? false),
     exigirCpf: data.exigirCpf !== undefined ? Boolean(data.exigirCpf) : (base?.exigirCpf ?? false),
@@ -2006,7 +2013,8 @@ app.post('/api/admin/configuracoes/gerais', firebaseAuthMiddleware, async (req, 
 app.get('/api/auth/mercadopago/url', firebaseAuthMiddleware, async (req, res) => {
   const clientId = (process.env.MP_CLIENT_ID || '').trim();
   const clientSecret = (process.env.MP_CLIENT_SECRET || '').trim();
-  const baseUrl = (process.env.BASE_URL || process.env.APP_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+  const originParam = req.query.origin ? String(req.query.origin).replace(/\/$/, '') : '';
+  const baseUrl = (originParam || process.env.BASE_URL || process.env.APP_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
   const redirectUri = `${baseUrl}/api/auth/mercadopago/callback`;
 
   if (!clientId || !clientSecret) {
@@ -2017,10 +2025,11 @@ app.get('/api/auth/mercadopago/url', firebaseAuthMiddleware, async (req, res) =>
     });
   }
 
-  // Gera o state seguro codificando o userId do organizador
+  // Gera o state seguro codificando o userId do organizador e o redirectUri
   const statePayload = {
     uid: (req as any).userId,
     email: (req as any).userEmail,
+    redirectUri,
     ts: Date.now()
   };
   const state = Buffer.from(JSON.stringify(statePayload)).toString('base64url');
@@ -2035,16 +2044,114 @@ app.get('/api/auth/mercadopago/url', firebaseAuthMiddleware, async (req, res) =>
 });
 
 // GET /api/auth/mercadopago/callback -> Recebe a autorização do Mercado Pago após o organizador aprovar
-app.get('/api/auth/mercadopago/callback', async (req, res) => {
+app.get(['/api/auth/mercadopago/callback', '/api/auth/mercadopago/callback/'], async (req, res) => {
   const { code, state, error: mpError, error_description } = req.query;
+
+  const renderCallbackHtml = (sucesso: boolean, mensagem: string, mpUserId?: string | number) => {
+    return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${sucesso ? 'Mercado Pago Conectado' : 'Erro de Conexão'}</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: #0b1329;
+      color: #f8fafc;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      padding: 1rem;
+      box-sizing: border-box;
+      text-align: center;
+    }
+    .card {
+      background-color: #131e3d;
+      padding: 2.5rem;
+      border-radius: 1.25rem;
+      border: 1px solid ${sucesso ? '#10b98140' : '#ef444440'};
+      max-width: 420px;
+      width: 100%;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+    }
+    .icon {
+      width: 60px;
+      height: 60px;
+      background-color: ${sucesso ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)'};
+      border: 1px solid ${sucesso ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.4)'};
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 1.25rem;
+      color: ${sucesso ? '#10b981' : '#ef4444'};
+      font-size: 28px;
+      font-weight: bold;
+    }
+    .title {
+      color: ${sucesso ? '#10b981' : '#ef4444'};
+      font-weight: 800;
+      font-size: 1.3rem;
+      margin-bottom: 0.5rem;
+    }
+    p {
+      color: #94a3b8;
+      font-size: 0.9rem;
+      line-height: 1.5;
+      margin: 0 0 1rem;
+    }
+    .badge {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      background: #1e293b;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      color: #cbd5e1;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">${sucesso ? '✓' : '✕'}</div>
+    <div class="title">${sucesso ? 'Mercado Pago Conectado!' : 'Falha na Conexão'}</div>
+    <p>${mensagem}</p>
+    <div class="badge">Esta janela será fechada automaticamente...</div>
+  </div>
+  <script>
+    try {
+      if (window.opener) {
+        window.opener.postMessage({
+          type: ${sucesso ? "'OAUTH_AUTH_SUCCESS'" : "'OAUTH_AUTH_ERROR'"},
+          provider: 'mercadopago',
+          mpUserId: ${JSON.stringify(mpUserId || '')},
+          error: ${JSON.stringify(sucesso ? '' : mensagem)}
+        }, '*');
+        setTimeout(() => window.close(), 1500);
+      } else {
+        setTimeout(() => {
+          window.location.href = '/?mp_oauth=' + ${sucesso ? "'sucesso'" : "'erro&msg=' + encodeURIComponent(" + JSON.stringify(mensagem) + ")"};
+        }, 1500);
+      }
+    } catch (e) {
+      console.error(e);
+      window.location.href = '/';
+    }
+  </script>
+</body>
+</html>`;
+  };
 
   if (mpError) {
     console.error('Erro retornado pelo Mercado Pago OAuth:', mpError, error_description);
-    return res.redirect(`/?mp_oauth=erro&msg=${encodeURIComponent(String(error_description || mpError))}`);
+    return res.send(renderCallbackHtml(false, String(error_description || mpError || 'Autorização cancelada ou recusada.')));
   }
 
   if (!code || !state) {
-    return res.redirect('/?mp_oauth=erro&msg=Codigo+ou+state+ausente');
+    return res.send(renderCallbackHtml(false, 'Código de autorização ou identificador ausente.'));
   }
 
   try {
@@ -2059,7 +2166,7 @@ app.get('/api/auth/mercadopago/callback', async (req, res) => {
     const clientId = (process.env.MP_CLIENT_ID || '').trim();
     const clientSecret = (process.env.MP_CLIENT_SECRET || '').trim();
     const baseUrl = (process.env.BASE_URL || process.env.APP_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
-    const redirectUri = `${baseUrl}/api/auth/mercadopago/callback`;
+    const redirectUri = decoded.redirectUri || `${baseUrl}/api/auth/mercadopago/callback`;
 
     // Troca o authorization code pelo access token permanente
     const tokenRes = await fetch('https://api.mercadopago.com/oauth/token', {
@@ -2082,23 +2189,24 @@ app.get('/api/auth/mercadopago/callback', async (req, res) => {
     if (!tokenRes.ok || !tokenData.access_token) {
       console.error('Erro na resposta do token OAuth Mercado Pago:', tokenData);
       const errMsg = tokenData.message || tokenData.error || 'Falha ao trocar código pelo token do Mercado Pago';
-      return res.redirect(`/?mp_oauth=erro&msg=${encodeURIComponent(errMsg)}`);
+      return res.send(renderCallbackHtml(false, errMsg));
     }
 
-    // Salva as credenciais do organizador
+    // Salva as credenciais do organizador e define Mercado Pago como ativo
     await db.saveConfig(userId, {
       mpAccessToken: tokenData.access_token,
       mpPublicKey: tokenData.public_key || null,
       mpUserId: tokenData.user_id || null,
       mpConexaoTipo: 'oauth',
-      mpConectadoEm: new Date().toISOString()
+      mpConectadoEm: new Date().toISOString(),
+      metodoAtivo: 'mercadopago'
     });
 
     console.log(`Organizador ${userId} conectou Mercado Pago com sucesso via OAuth! MP User ID: ${tokenData.user_id}`);
-    return res.redirect('/?mp_oauth=sucesso');
+    return res.send(renderCallbackHtml(true, 'Sua conta Mercado Pago foi conectada com sucesso! Os pagamentos Pix serão creditados diretamente na sua conta.', tokenData.user_id));
   } catch (err: any) {
     console.error('Erro no callback OAuth Mercado Pago:', err);
-    return res.redirect(`/?mp_oauth=erro&msg=${encodeURIComponent(err.message || 'Erro inesperado')}`);
+    return res.send(renderCallbackHtml(false, err.message || 'Erro inesperado ao processar autorização.'));
   }
 });
 
@@ -2966,6 +3074,32 @@ app.put('/api/admin/campanhas/:id', firebaseAuthMiddleware, async (req, res) => 
     }
 
     const data = req.body;
+
+    // Se informou ou alterou o código/etiqueta da campanha, garantir formatação e unicidade
+    let codigo = (data.codigo || '').toLowerCase().trim().replace(/[^a-z0-9-_]/g, '');
+    if (!codigo && data.titulo) {
+      codigo = data.titulo
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]/g, '-')
+        .replace(/-+/g, '-')
+        .slice(0, 40);
+    }
+
+    if (codigo && codigo !== existente.codigo) {
+      let finalCodigo = codigo;
+      let contador = 1;
+      while (true) {
+        const outraCampanha = await db.getCampanhaByCodigo(finalCodigo);
+        if (!outraCampanha || outraCampanha.id === id) {
+          break;
+        }
+        finalCodigo = `${codigo}-${contador++}`;
+      }
+      data.codigo = finalCodigo;
+    }
+
     const atualizada = sanitizarCampanha(
       data,
       existente,
@@ -3354,8 +3488,11 @@ app.post('/api/pedidos/validar-cupom', strictLimiter, async (req, res) => {
       return res.status(404).json({ valido: false, error: 'Campanha não encontrada.' });
     }
 
-    // O campo de cupom precisa estar ativo na campanha
-    if (campanha.cupomAtivo !== true) {
+    const checkoutConfig = campanha.checkout;
+    const isCupomAtivo = campanha.cupomAtivo === true || checkoutConfig?.cupomAtivo === true || checkoutConfig?.exibirCupom === true;
+
+    // O campo de cupom precisa estar ativo na campanha ou no checkout
+    if (!isCupomAtivo) {
       return res.status(400).json({ valido: false, error: 'Cupom de desconto indisponível para esta campanha.' });
     }
 
@@ -3363,14 +3500,25 @@ app.post('/api/pedidos/validar-cupom', strictLimiter, async (req, res) => {
     let descontoPct = 0;
     let valorFixo = 0;
 
-    if (Array.isArray(campanha.cupons)) {
-      const cMatch = campanha.cupons.find(c => c.codigo.toUpperCase() === cupomUpper && c.ativo !== false);
+    // 1. Procura no Checkout Config
+    if (Array.isArray(checkoutConfig?.cupons)) {
+      const cMatch = checkoutConfig.cupons.find((c: any) => c.codigo && c.codigo.toUpperCase() === cupomUpper && c.ativo !== false);
       if (cMatch) {
         if (cMatch.tipo === 'fixo') valorFixo = Number(cMatch.valorFixo) || 0;
-        else descontoPct = cMatch.descontoPct;
+        else descontoPct = cMatch.descontoPct || 0;
       }
     }
 
+    // 2. Procura na Campanha
+    if (!descontoPct && !valorFixo && Array.isArray(campanha.cupons)) {
+      const cMatch = campanha.cupons.find(c => c.codigo && c.codigo.toUpperCase() === cupomUpper && c.ativo !== false);
+      if (cMatch) {
+        if (cMatch.tipo === 'fixo') valorFixo = Number(cMatch.valorFixo) || 0;
+        else descontoPct = cMatch.descontoPct || 0;
+      }
+    }
+
+    // 3. Procura no Remarketing Expirado
     if (!descontoPct && !valorFixo && campanha.remarketing?.expirado) {
       const rMatch = campanha.remarketing.expirado.find(r => r.cupom && r.cupom.toUpperCase() === cupomUpper);
       if (rMatch && rMatch.descontoPct) descontoPct = rMatch.descontoPct;

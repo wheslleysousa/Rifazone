@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { CheckoutConfig, CheckoutSalvo, DEFAULT_CHECKOUT_CONFIG, ConfirmacaoCompraConfig } from '../../types';
+import { CheckoutConfig, CheckoutSalvo, DEFAULT_CHECKOUT_CONFIG, ConfirmacaoCompraConfig, CupomDesconto } from '../../types';
 import {
   CreditCard, QrCode, FileText, ShieldCheck, CheckCircle2,
   Trash2, Edit3, Plus, Save, RefreshCw, Smartphone,
   Monitor, AlertTriangle, Clock, Zap, MessageSquare,
   Palette, Type, X, PartyPopper, Users, Sparkles, Copy,
-  Share2, Ticket, MessageCircle, ExternalLink, HelpCircle
+  Share2, Ticket, MessageCircle, ExternalLink, HelpCircle, Tag
 } from 'lucide-react';
 
 interface Props {
@@ -26,6 +26,9 @@ interface CheckoutConfigExtended extends CheckoutConfig {
   confirmacao?: ConfirmacaoCompraConfig;
   exigirCpf?: boolean;
   exigirEmail?: boolean;
+  cupomAtivo?: boolean;
+  exibirCupom?: boolean;
+  cupons?: CupomDesconto[];
 }
 
 const SELOS_DISPONIVEIS = [
@@ -236,6 +239,7 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
                     {cfg.metodos?.pix !== false && <span className="px-2 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-bold rounded-lg flex items-center gap-1"><QrCode className="w-3 h-3" /> Pix</span>}
                     {cfg.metodos?.cartao && <span className="px-2 py-1 bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] font-bold rounded-lg flex items-center gap-1"><CreditCard className="w-3 h-3" /> Cartão {cfg.parcelasMax}x</span>}
                     {cfg.metodos?.boleto && <span className="px-2 py-1 bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] font-bold rounded-lg flex items-center gap-1"><FileText className="w-3 h-3" /> Boleto</span>}
+                    {cfg.cupomAtivo && <span className="px-2 py-1 bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[10px] font-bold rounded-lg flex items-center gap-1"><Tag className="w-3 h-3" /> Cupons {(cfg.cupons || []).length > 0 ? `(${(cfg.cupons || []).length})` : ''}</span>}
                     {cfg.confirmacao?.botaoGrupoVipAtivo && <span className="px-2 py-1 bg-teal-500/10 border border-teal-500/20 text-teal-400 text-[10px] font-bold rounded-lg flex items-center gap-1"><Users className="w-3 h-3" /> Grupo VIP</span>}
                   </div>
                   {selosBadges.length > 0 && (
@@ -428,10 +432,10 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
               )}
             </div>
 
-            {/* 5. Selos */}
+            {/* 6. Selos */}
             <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4">
               <h2 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-emerald-400" /> 5. Selos de Segurança
+                <ShieldCheck className="w-4 h-4 text-emerald-400" /> 6. Selos de Segurança
               </h2>
               <label className="flex items-center justify-between p-3 bg-slate-950/60 border border-slate-800 rounded-xl cursor-pointer">
                 <div>
@@ -458,11 +462,152 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
               )}
             </div>
 
-            {/* 6. NOVA SEÇÃO: Tela de Confirmação de Compra (Sucesso & Pós-Venda) */}
+            {/* 7. Cupom de Desconto */}
+            <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4">
+              <h2 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
+                <Tag className="w-4 h-4 text-emerald-400" /> 7. Cupom de Desconto
+              </h2>
+              <label className="flex items-center justify-between p-3 bg-slate-950/60 border border-slate-800 rounded-xl cursor-pointer hover:bg-slate-950 transition-colors">
+                <div>
+                  <p className="text-xs font-bold text-white">Ativar Campo de Cupom no Checkout</p>
+                  <p className="text-[11px] text-slate-400">Permite que o comprador insira códigos promocionais</p>
+                </div>
+                <div
+                  onClick={() => upd({ cupomAtivo: !checkoutConfig.cupomAtivo, exibirCupom: !checkoutConfig.cupomAtivo })}
+                  className={`relative w-11 h-6 rounded-full cursor-pointer transition-colors ${checkoutConfig.cupomAtivo ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                >
+                  <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${checkoutConfig.cupomAtivo ? 'translate-x-6' : 'translate-x-1'}`} />
+                </div>
+              </label>
+
+              {checkoutConfig.cupomAtivo && (
+                <div className="space-y-3 pt-1">
+                  {(!checkoutConfig.cupons || checkoutConfig.cupons.length === 0) && (
+                    <p className="text-[11px] text-amber-400/90 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+                      ⚠️ Adicione pelo menos um cupom abaixo para que os compradores possam utilizá-lo.
+                    </p>
+                  )}
+
+                  {(checkoutConfig.cupons || []).map((cup, i) => (
+                    <div key={cup.id || i} className="p-3 bg-slate-950/80 border border-slate-800 rounded-xl space-y-2.5">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={cup.codigo}
+                          onChange={e => {
+                            const arr = [...(checkoutConfig.cupons || [])];
+                            arr[i] = { ...arr[i], codigo: e.target.value.toUpperCase().replace(/\s/g, '') };
+                            upd({ cupons: arr });
+                          }}
+                          placeholder="CÓDIGO (ex: VOLTA10)"
+                          className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white uppercase font-mono font-bold focus:border-emerald-500 focus:outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const arr = (checkoutConfig.cupons || []).filter((_, idx) => idx !== i);
+                            upd({ cupons: arr });
+                          }}
+                          className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition"
+                          title="Remover cupom"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <select
+                          value={cup.tipo || 'percentual'}
+                          onChange={e => {
+                            const arr = [...(checkoutConfig.cupons || [])];
+                            arr[i] = { ...arr[i], tipo: e.target.value as 'percentual' | 'fixo' };
+                            upd({ cupons: arr });
+                          }}
+                          className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                        >
+                          <option value="percentual">Desconto em %</option>
+                          <option value="fixo">Valor fixo (R$)</option>
+                        </select>
+                        {(cup.tipo || 'percentual') === 'fixo' ? (
+                          <div className="flex items-center bg-slate-900 border border-slate-700 rounded-lg px-3 focus-within:border-emerald-500">
+                            <span className="text-slate-500 text-xs mr-1">R$</span>
+                            <input
+                              type="number"
+                              min={0}
+                              step="0.01"
+                              value={cup.valorFixo ?? ''}
+                              onChange={e => {
+                                const arr = [...(checkoutConfig.cupons || [])];
+                                arr[i] = { ...arr[i], valorFixo: Number(e.target.value) };
+                                upd({ cupons: arr });
+                              }}
+                              placeholder="5,00"
+                              className="w-full bg-transparent py-2 text-xs text-white focus:outline-none"
+                            />
+                          </div>
+                        ) : (
+                          <div className="flex items-center bg-slate-900 border border-slate-700 rounded-lg px-3 focus-within:border-emerald-500">
+                            <input
+                              type="number"
+                              min={0}
+                              max={100}
+                              value={cup.descontoPct ?? ''}
+                              onChange={e => {
+                                const arr = [...(checkoutConfig.cupons || [])];
+                                arr[i] = { ...arr[i], descontoPct: Number(e.target.value) };
+                                upd({ cupons: arr });
+                              }}
+                              placeholder="10"
+                              className="w-full bg-transparent py-2 text-xs text-white focus:outline-none"
+                            />
+                            <span className="text-slate-500 text-xs ml-1">%</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <label className="flex items-center gap-2 text-[11px] text-slate-400 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={cup.ativo !== false}
+                          onChange={e => {
+                            const arr = [...(checkoutConfig.cupons || [])];
+                            arr[i] = { ...arr[i], ativo: e.target.checked };
+                            upd({ cupons: arr });
+                          }}
+                          className="w-3.5 h-3.5 rounded text-emerald-500 bg-slate-900 border-slate-700/50 cursor-pointer"
+                        />
+                        Cupom ativo para uso
+                      </label>
+                    </div>
+                  ))}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const novo: CupomDesconto = {
+                        id: `cup-${Date.now()}`,
+                        codigo: '',
+                        tipo: 'percentual',
+                        descontoPct: 10,
+                        valorFixo: 0,
+                        ativo: true,
+                        criadoEm: new Date().toISOString()
+                      };
+                      upd({ cupons: [...(checkoutConfig.cupons || []), novo] });
+                    }}
+                    className="w-full flex items-center justify-center gap-2 p-2.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-bold rounded-xl border border-emerald-500/30 transition"
+                  >
+                    <Plus className="w-4 h-4" /> Adicionar cupom
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* 8. NOVA SEÇÃO: Tela de Confirmação de Compra (Sucesso & Pós-Venda) */}
             <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
-                  <PartyPopper className="w-4 h-4 text-emerald-400" /> 6. Tela de Compra Concluída (Pós-Pagamento)
+                  <PartyPopper className="w-4 h-4 text-emerald-400" /> 8. Tela de Compra Concluída (Pós-Pagamento)
                 </h2>
                 <button
                   type="button"
@@ -801,7 +946,38 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
                         {['Nome completo', 'WhatsApp', 'Data de Nascimento'].map(f => (
                           <div key={f} className="h-9 bg-slate-900/80 border border-slate-700/50 rounded-xl px-3 flex items-center text-xs text-slate-500">{f}</div>
                         ))}
+                        {checkoutConfig.exigirCpf && <div className="h-9 bg-slate-900/80 border border-slate-700/50 rounded-xl px-3 flex items-center text-xs text-slate-500">CPF (Obrigatório)</div>}
+                        {checkoutConfig.exigirEmail && <div className="h-9 bg-slate-900/80 border border-slate-700/50 rounded-xl px-3 flex items-center text-xs text-slate-500">E-mail (Obrigatório)</div>}
                       </div>
+
+                      {(checkoutConfig.cupomAtivo || checkoutConfig.exibirCupom) && (
+                        <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                          <div className="flex items-center justify-between text-[11px] text-slate-300 font-bold">
+                            <span className="flex items-center gap-1.5"><Tag className="w-3.5 h-3.5 text-emerald-400" /> Tem um cupom?</span>
+                            {(checkoutConfig.cupons || []).length > 0 && (
+                              <span className="text-[10px] text-emerald-400 font-mono font-bold">
+                                {(checkoutConfig.cupons || []).filter(c => c.ativo !== false && c.codigo).length} cupom(ns) ativo(s)
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              disabled
+                              placeholder="Digite seu cupom"
+                              className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-400 uppercase font-mono"
+                            />
+                            <button
+                              type="button"
+                              disabled
+                              className="px-3 py-1.5 bg-slate-800 text-slate-300 text-xs font-bold rounded-lg border border-slate-700"
+                            >
+                              Aplicar
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
                       <button className="w-full py-3.5 rounded-xl text-sm font-black text-slate-950 shadow-lg transition" style={{ backgroundColor: primary, boxShadow: `0 8px 20px ${primary}40` }}>
                         {checkoutConfig.textoBotao || 'Garantir Minha Cota Agora'} →
                       </button>

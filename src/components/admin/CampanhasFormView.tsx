@@ -6,14 +6,13 @@ import {
   LayoutGrid, HelpCircle, Flame, Lock, Eye, Star, Info, Rocket,
   Upload, Camera, User, Link as LinkIcon, RefreshCw, ChevronRight, ChevronLeft,
   DollarSign, Clock, MapPin, Tag, Check, Sparkle, GripVertical, Palette, Loader2, CreditCard, ShieldCheck,
-  Instagram, MessageSquare, Music
+  Instagram, MessageSquare, Music, Share2
 } from 'lucide-react';
+import { WhatsAppIcon, TikTokIcon, InstagramIcon } from '../BrandIcons';
 import { Campanha, Premio, CotaPremiada, Promocao, OfertaRelampago, TEMA_PADRAO, CheckoutSalvo } from '../../types';
 import { uploadImageToStorage, compressAndReadImage } from '../../lib/image-upload';
 import { AcordeaoSecao } from './AcordeaoSecao';
 import { CampanhaPublicaView } from '../CampanhaPublicaView';
-
-const TemaBuilderView = React.lazy(() => import('./TemaBuilderView').then(m => ({ default: m.TemaBuilderView })));
 
 interface Props {
   form: Partial<Campanha>;
@@ -30,6 +29,17 @@ interface Props {
 
 type TabType = 'basico' | 'midia' | 'premios' | 'promocoes' | 'upsell' | 'extras' | 'checkout';
 
+
+export const gerarSlugCampanha = (texto: string): string => {
+  return (texto || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40);
+};
 
 const FotoItem = ({ 
   foto, 
@@ -642,10 +652,73 @@ export const CampanhasFormView: React.FC<Props> = ({
                   type="text"
                   placeholder="Ex: iPhone 16 Pro Max 256GB Lacrado"
                   value={form.titulo || ''}
-                  onChange={e => setForm(prev => ({ ...prev, titulo: e.target.value }))}
+                  onChange={e => {
+                    const novoTitulo = e.target.value;
+                    setForm(prev => {
+                      const slugAntigo = gerarSlugCampanha(prev.titulo || '');
+                      const deveAtualizarSlug = !prev.codigo || prev.codigo === slugAntigo || prev.codigo === 'preview-campanha' || prev.codigo === 'campanha' || !prev.id;
+                      return {
+                        ...prev,
+                        titulo: novoTitulo,
+                        codigo: deveAtualizarSlug ? gerarSlugCampanha(novoTitulo) : prev.codigo
+                      };
+                    });
+                  }}
                   className="w-full bg-slate-950/50 border border-slate-700/50 rounded-xl px-4 py-3.5 text-sm font-semibold text-white focus:border-emerald-500 focus:bg-slate-900/80 transition-colors focus:outline-none placeholder:text-slate-600 shadow-inner"
                   required
                 />
+              </div>
+
+              {/* CAMPO DE ETIQUETA / SLUG DO LINK DA CAMPANHA */}
+              <div className="md:col-span-2 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <LinkIcon className="w-3.5 h-3.5 text-emerald-400" />
+                    Etiqueta do Link da Rifa (URL Amigável) *
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (form.titulo) {
+                        setForm(prev => ({ ...prev, codigo: gerarSlugCampanha(prev.titulo || '') }));
+                      }
+                    }}
+                    className="text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold flex items-center gap-1 transition active:scale-95"
+                    title="Recalcular link com base no título atual da rifa"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    Sincronizar com Título
+                  </button>
+                </div>
+
+                <div className="flex items-center bg-slate-950/70 border border-slate-700/60 rounded-xl overflow-hidden focus-within:border-emerald-500 transition-colors shadow-inner">
+                  <span className="px-3.5 py-3 text-xs font-mono text-slate-400 bg-slate-900/80 border-r border-slate-800 select-none shrink-0">
+                    /c/
+                  </span>
+                  <input
+                    type="text"
+                    placeholder="ex: pix-de-200 ou pixde200"
+                    value={form.codigo || ''}
+                    onChange={e => {
+                      const limpo = e.target.value
+                        .toLowerCase()
+                        .normalize('NFD')
+                        .replace(/[\u0300-\u036f]/g, '')
+                        .replace(/[^a-z0-9-_]/g, '');
+                      setForm(prev => ({ ...prev, codigo: limpo }));
+                    }}
+                    className="w-full bg-transparent px-3 py-3 text-sm font-mono font-semibold text-emerald-300 placeholder:text-slate-600 focus:outline-none"
+                    required
+                  />
+                </div>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px] text-slate-400">
+                  <span className="truncate">
+                    Link oficial: <span className="font-mono text-emerald-400 font-semibold">{typeof window !== 'undefined' ? window.location.origin : 'https://rifazone.com'}/c/{form.codigo || gerarSlugCampanha(form.titulo || 'sua-campanha')}</span>
+                  </span>
+                  <span className="text-[10px] text-slate-500 shrink-0">
+                    (Letras, números e hífens)
+                  </span>
+                </div>
               </div>
 
               <div className="md:col-span-2">
@@ -1307,8 +1380,8 @@ export const CampanhasFormView: React.FC<Props> = ({
 
                 <div className="md:col-span-1 lg:col-span-1">
                   <label className="text-xs font-bold text-slate-300 mb-2 uppercase tracking-wider flex items-center gap-2">
-                    <span className="w-5 h-5 rounded bg-emerald-500 flex items-center justify-center text-slate-950">
-                      <MessageSquare className="w-3.5 h-3.5" />
+                    <span className="w-5 h-5 rounded-full bg-[#25D366] flex items-center justify-center text-white shadow-sm ring-1 ring-white/10 shrink-0">
+                      <WhatsAppIcon className="w-3 h-3" />
                     </span>
                     Suporte WhatsApp
                   </label>
@@ -1323,8 +1396,11 @@ export const CampanhasFormView: React.FC<Props> = ({
 
                 <div className="md:col-span-1 lg:col-span-1">
                   <label className="text-xs font-bold text-slate-300 mb-2 uppercase tracking-wider flex items-center gap-2">
-                    <span className="w-5 h-5 rounded bg-gradient-to-tr from-yellow-500 via-pink-500 to-purple-600 flex items-center justify-center text-white">
-                      <Instagram className="w-3.5 h-3.5" />
+                    <span 
+                      className="w-5 h-5 rounded-full flex items-center justify-center text-white shadow-sm ring-1 ring-white/10 shrink-0"
+                      style={{ background: 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)' }}
+                    >
+                      <InstagramIcon className="w-3 h-3" />
                     </span>
                     Instagram (@)
                   </label>
@@ -1339,8 +1415,8 @@ export const CampanhasFormView: React.FC<Props> = ({
                 
                 <div className="md:col-span-1 lg:col-span-1">
                   <label className="text-xs font-bold text-slate-300 mb-2 uppercase tracking-wider flex items-center gap-2">
-                    <span className="w-5 h-5 rounded bg-slate-100 flex items-center justify-center text-slate-950">
-                      <Music className="w-3.5 h-3.5" />
+                    <span className="w-5 h-5 rounded-full bg-black ring-1 ring-white/20 flex items-center justify-center text-white shadow-sm shrink-0">
+                      <TikTokIcon className="w-3 h-3" />
                     </span>
                     TikTok (@)
                   </label>
@@ -1353,6 +1429,37 @@ export const CampanhasFormView: React.FC<Props> = ({
                   />
                 </div>
               </div>
+
+              {/* OPÇÃO DO BOTÃO DE COMPARTILHAR FLUTUANTE */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-slate-950/60 border border-slate-800/80 rounded-2xl">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 bg-slate-800/90 hover:bg-slate-700 text-slate-100 border border-slate-700 rounded-full flex items-center justify-center shadow-md shrink-0">
+                    <Share2 className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <label htmlFor="chk-exibir-compartilhar" className="text-xs font-bold text-white uppercase tracking-wider block cursor-pointer">
+                      Botão Compartilhar na Página da Rifa
+                    </label>
+                    <span className="text-[11px] text-slate-400 block">
+                      Exibir o botão flutuante de compartilhamento junto aos links de redes sociais no canto da página.
+                    </span>
+                  </div>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                  <input
+                    type="checkbox"
+                    id="chk-exibir-compartilhar"
+                    checked={form.exibirBotaoCompartilhar !== false}
+                    onChange={e => setForm(prev => ({ ...prev, exibirBotaoCompartilhar: e.target.checked }))}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                </label>
+              </div>
+
+              <p className="text-[11px] text-slate-500 italic">
+                * As redes sociais acima são opcionais. Se preenchidas, os botões flutuantes e links de contato aparecerão na página da rifa; se deixadas em branco, não serão exibidas.
+              </p>
             </div>
 
             <hr className="border-slate-800/60" />
@@ -2482,7 +2589,7 @@ export const CampanhasFormView: React.FC<Props> = ({
                     className="w-4 h-4 rounded text-emerald-500 bg-slate-900 border-slate-600 cursor-pointer accent-emerald-500 focus:ring-emerald-500 focus:ring-offset-slate-950"
                   />
                   <label htmlFor="chk-exibir-premios" className="text-sm text-slate-200 font-medium cursor-pointer select-none">
-                    Lista da Premiação Oficial
+                    Lista da Premiação
                   </label>
                 </div>
 
@@ -2498,169 +2605,6 @@ export const CampanhasFormView: React.FC<Props> = ({
                     Cotas Premiadas Instantâneas
                   </label>
                 </div>
-              </div>
-
-              <hr className="border-slate-800/60 my-4" />
-
-              {/* Coleta de redes sociais do comprador (@usuário) */}
-              <div className="space-y-3">
-                <h3 className="text-sm font-black text-white uppercase tracking-wider">Redes Sociais do Comprador</h3>
-                <label className="flex items-center gap-3 p-3 bg-slate-950/30 border border-slate-800 rounded-xl cursor-pointer hover:bg-slate-900/50 transition-colors group">
-                  <input
-                    type="checkbox"
-                    checked={form.coletarRedesSociais?.ativo || false}
-                    onChange={e => setForm(prev => ({ ...prev, coletarRedesSociais: { ...(prev.coletarRedesSociais || {}), ativo: e.target.checked } }))}
-                    className="w-4 h-4 rounded text-pink-500 bg-slate-900 border-slate-700/50 cursor-pointer focus:ring-pink-500 focus:ring-offset-slate-950"
-                  />
-                  <span className="text-sm text-slate-300 font-medium group-hover:text-white transition-colors">
-                    Coletar redes sociais do comprador no cadastro (@usuário)
-                  </span>
-                </label>
-
-                {form.coletarRedesSociais?.ativo && (
-                  <div className="ml-3 pl-4 border-l border-slate-800 space-y-2.5">
-                    <label className="flex items-center gap-2.5 text-sm text-slate-400 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={form.coletarRedesSociais?.instagram !== false}
-                        onChange={e => setForm(prev => ({ ...prev, coletarRedesSociais: { ...(prev.coletarRedesSociais || {}), instagram: e.target.checked } }))}
-                        className="w-4 h-4 rounded text-pink-500 bg-slate-900 border-slate-700/50 cursor-pointer"
-                      />
-                      Instagram
-                    </label>
-                    <label className="flex items-center gap-2.5 text-sm text-slate-400 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={form.coletarRedesSociais?.tiktok !== false}
-                        onChange={e => setForm(prev => ({ ...prev, coletarRedesSociais: { ...(prev.coletarRedesSociais || {}), tiktok: e.target.checked } }))}
-                        className="w-4 h-4 rounded text-slate-300 bg-slate-900 border-slate-700/50 cursor-pointer"
-                      />
-                      TikTok
-                    </label>
-                    <label className="flex items-center gap-2.5 text-sm text-slate-400 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={!!form.coletarRedesSociais?.whatsapp}
-                        onChange={e => setForm(prev => ({ ...prev, coletarRedesSociais: { ...(prev.coletarRedesSociais || {}), whatsapp: e.target.checked } }))}
-                        className="w-4 h-4 rounded text-emerald-500 bg-slate-900 border-slate-700/50 cursor-pointer"
-                      />
-                      Reforçar WhatsApp (já é coletado por padrão)
-                    </label>
-                    <label className="flex items-center gap-2.5 text-sm text-slate-400 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={!!form.coletarRedesSociais?.obrigatorio}
-                        onChange={e => setForm(prev => ({ ...prev, coletarRedesSociais: { ...(prev.coletarRedesSociais || {}), obrigatorio: e.target.checked } }))}
-                        className="w-4 h-4 rounded text-amber-500 bg-slate-900 border-slate-700/50 cursor-pointer"
-                      />
-                      Tornar o preenchimento obrigatório
-                    </label>
-                  </div>
-                )}
-              </div>
-
-              <hr className="border-slate-800/60 my-4" />
-
-              {/* Cupom de Desconto */}
-              <div className="space-y-3">
-                <h3 className="text-sm font-black text-white uppercase tracking-wider">Cupom de Desconto</h3>
-                <label className="flex items-center gap-3 p-3 bg-slate-950/30 border border-slate-800 rounded-xl cursor-pointer hover:bg-slate-900/50 transition-colors group">
-                  <input
-                    type="checkbox"
-                    checked={form.cupomAtivo || false}
-                    onChange={e => setForm(prev => ({ ...prev, cupomAtivo: e.target.checked }))}
-                    className="w-4 h-4 rounded text-emerald-500 bg-slate-900 border-slate-700/50 cursor-pointer focus:ring-emerald-500 focus:ring-offset-slate-950"
-                  />
-                  <span className="text-sm text-slate-300 font-medium group-hover:text-white transition-colors">
-                    Ativar campo de cupom no checkout
-                  </span>
-                </label>
-
-                {form.cupomAtivo && (
-                  <div className="space-y-3">
-                    {(!form.cupons || form.cupons.length === 0) && (
-                      <p className="text-[11px] text-amber-400/90 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
-                        ⚠️ Cadastre pelo menos um cupom abaixo, senão o campo ficará inútil no checkout.
-                      </p>
-                    )}
-
-                    {(form.cupons || []).map((cup, i) => (
-                      <div key={cup.id || i} className="p-3 bg-slate-950/40 border border-slate-800 rounded-xl space-y-2.5">
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="text"
-                            value={cup.codigo}
-                            onChange={e => setForm(prev => { const arr = [...(prev.cupons || [])]; arr[i] = { ...arr[i], codigo: e.target.value.toUpperCase().replace(/\s/g, '') }; return { ...prev, cupons: arr }; })}
-                            placeholder="CÓDIGO (ex: VOLTA10)"
-                            className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white uppercase font-mono font-bold focus:border-emerald-500 focus:outline-none"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setForm(prev => ({ ...prev, cupons: (prev.cupons || []).filter((_, idx) => idx !== i) }))}
-                            className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition"
-                            title="Remover cupom"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          <select
-                            value={cup.tipo || 'percentual'}
-                            onChange={e => setForm(prev => { const arr = [...(prev.cupons || [])]; arr[i] = { ...arr[i], tipo: e.target.value as 'percentual' | 'fixo' }; return { ...prev, cupons: arr }; })}
-                            className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
-                          >
-                            <option value="percentual">Desconto em %</option>
-                            <option value="fixo">Valor fixo (R$)</option>
-                          </select>
-                          {(cup.tipo || 'percentual') === 'fixo' ? (
-                            <div className="flex items-center bg-slate-900 border border-slate-700 rounded-lg px-3 focus-within:border-emerald-500">
-                              <span className="text-slate-500 text-xs mr-1">R$</span>
-                              <input
-                                type="number"
-                                min={0}
-                                step="0.01"
-                                value={cup.valorFixo ?? ''}
-                                onChange={e => setForm(prev => { const arr = [...(prev.cupons || [])]; arr[i] = { ...arr[i], valorFixo: Number(e.target.value) }; return { ...prev, cupons: arr }; })}
-                                placeholder="5,00"
-                                className="w-full bg-transparent py-2 text-xs text-white focus:outline-none"
-                              />
-                            </div>
-                          ) : (
-                            <div className="flex items-center bg-slate-900 border border-slate-700 rounded-lg px-3 focus-within:border-emerald-500">
-                              <input
-                                type="number"
-                                min={0}
-                                max={100}
-                                value={cup.descontoPct ?? ''}
-                                onChange={e => setForm(prev => { const arr = [...(prev.cupons || [])]; arr[i] = { ...arr[i], descontoPct: Number(e.target.value) }; return { ...prev, cupons: arr }; })}
-                                placeholder="10"
-                                className="w-full bg-transparent py-2 text-xs text-white focus:outline-none"
-                              />
-                              <span className="text-slate-500 text-xs ml-1">%</span>
-                            </div>
-                          )}
-                        </div>
-                        <label className="flex items-center gap-2 text-[11px] text-slate-400 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={cup.ativo !== false}
-                            onChange={e => setForm(prev => { const arr = [...(prev.cupons || [])]; arr[i] = { ...arr[i], ativo: e.target.checked }; return { ...prev, cupons: arr }; })}
-                            className="w-3.5 h-3.5 rounded text-emerald-500 bg-slate-900 border-slate-700/50 cursor-pointer"
-                          />
-                          Cupom ativo
-                        </label>
-                      </div>
-                    ))}
-
-                    <button
-                      type="button"
-                      onClick={() => setForm(prev => ({ ...prev, cupons: [...(prev.cupons || []), { id: `cup-${Date.now()}`, codigo: '', tipo: 'percentual', descontoPct: 10, valorFixo: 0, ativo: true, criadoEm: new Date().toISOString() }] }))}
-                      className="w-full flex items-center justify-center gap-2 p-2.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-bold rounded-xl border border-emerald-500/30 transition"
-                    >
-                      <Plus className="w-4 h-4" /> Adicionar cupom
-                    </button>
-                  </div>
-                )}
               </div>
             </div>
           </div>

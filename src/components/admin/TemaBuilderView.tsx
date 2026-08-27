@@ -1322,3 +1322,5 @@ export const TemaBuilderView: React.FC<Props> = ({
     </div>
   );
 };
+
+export default TemaBuilderView;

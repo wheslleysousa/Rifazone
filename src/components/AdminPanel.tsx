@@ -991,7 +991,12 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
 
           {/* MÉTODOS DE PAGAMENTO (MULTI-GATEWAY) */}
           {abaAtiva === 'metodos-pagamento' && (
-            <MetodosPagamentoView authFetch={authFetch} onAbrirCarteira={() => setAbaAtiva('carteira')} />
+            <MetodosPagamentoView 
+              authFetch={authFetch} 
+              onAbrirCarteira={() => setAbaAtiva('carteira')}
+              isAdmin={user?.email === 'wheslleyaviz@gmail.com'}
+              userEmail={user?.email || ''}
+            />
           )}
 
           {/* ANALYTICS & META ADS */}
@@ -1236,8 +1241,11 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
                           </div>
                           
                           <div className="flex flex-col items-end gap-2">
-                            <span className="text-[10px] font-mono font-bold text-slate-500 bg-slate-800/50 px-2 py-1 rounded">
-                              {c.codigo}
+                            <span 
+                              className="text-[11px] font-mono font-bold text-slate-300 bg-slate-800/80 border border-slate-700/60 px-2.5 py-1 rounded-lg"
+                              title={`Link amigável: /c/${c.codigo}`}
+                            >
+                              /{c.codigo}
                             </span>
                           </div>
                         </div>
@@ -1414,15 +1422,6 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
                 </table>
               </div>
             </div>
-          )}
-
-          {/* MÉTODOS DE PAGAMENTO */}
-          {abaAtiva === 'metodos-pagamento' && (
-            <MetodosPagamentoView
-              authFetch={authFetch}
-              isAdmin={user?.email === 'wheslleyaviz@gmail.com'}
-              userEmail={user?.email || ''}
-            />
           )}
 
           {/* 11. CONFIGURAÇÕES */}

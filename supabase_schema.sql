@@ -116,7 +116,20 @@ CREATE TABLE IF NOT EXISTS fila (
 CREATE INDEX IF NOT EXISTS idx_fila_status ON fila(status);
 CREATE INDEX IF NOT EXISTS idx_fila_campanha ON fila(campanha_id);
 
--- Desativar RLS ou permitir acesso para que a Service Role ou Anon Key da API funcione sem bloqueios:
+-- =====================================================================
+-- SEGURANÇA (RLS) — MODELO TRAVADO
+-- ---------------------------------------------------------------------
+-- Todo o acesso ao banco passa PELO SERVIDOR, que usa a chave
+-- SUPABASE_SERVICE_ROLE_KEY. A service_role IGNORA o RLS por padrão.
+--
+-- Portanto: mantemos o RLS LIGADO e SEM políticas permissivas. Assim os
+-- papéis públicos (anon / authenticated), cuja chave é semi-pública, ficam
+-- BLOQUEADOS de ler/gravar/apagar qualquer dado direto no banco.
+--
+-- ⚠️ PRÉ-REQUISITO: configure SUPABASE_SERVICE_ROLE_KEY no servidor (Render)
+-- ANTES de aplicar isto. Se o servidor estiver usando a ANON key, ele será
+-- bloqueado junto e o app para de funcionar.
+-- =====================================================================
 ALTER TABLE configs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE campanhas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE pedidos ENABLE ROW LEVEL SECURITY;
@@ -128,36 +141,19 @@ ALTER TABLE transacoes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE saques ENABLE ROW LEVEL SECURITY;
 ALTER TABLE fila ENABLE ROW LEVEL SECURITY;
 
--- Políticas de acesso irrestrito para as requisições autenticadas da aplicação:
+-- Remove QUALQUER política permissiva antiga (o "USING (true)" que abria tudo).
+-- Com RLS ligado e sem política, o padrão é NEGAR para anon/authenticated,
+-- enquanto a service_role (usada só no servidor) continua funcionando.
 DO $$
+DECLARE
+    pol RECORD;
 BEGIN
-    DROP POLICY IF EXISTS "Permitir tudo no configs" ON configs;
-    CREATE POLICY "Permitir tudo no configs" ON configs FOR ALL USING (true) WITH CHECK (true);
-
-    DROP POLICY IF EXISTS "Permitir tudo no campanhas" ON campanhas;
-    CREATE POLICY "Permitir tudo no campanhas" ON campanhas FOR ALL USING (true) WITH CHECK (true);
-
-    DROP POLICY IF EXISTS "Permitir tudo no pedidos" ON pedidos;
-    CREATE POLICY "Permitir tudo no pedidos" ON pedidos FOR ALL USING (true) WITH CHECK (true);
-
-    DROP POLICY IF EXISTS "Permitir tudo no cotas" ON cotas;
-    CREATE POLICY "Permitir tudo no cotas" ON cotas FOR ALL USING (true) WITH CHECK (true);
-
-    DROP POLICY IF EXISTS "Permitir tudo no compradores" ON compradores;
-    CREATE POLICY "Permitir tudo no compradores" ON compradores FOR ALL USING (true) WITH CHECK (true);
-
-    DROP POLICY IF EXISTS "Permitir tudo no estilos" ON estilos;
-    CREATE POLICY "Permitir tudo no estilos" ON estilos FOR ALL USING (true) WITH CHECK (true);
-
-    DROP POLICY IF EXISTS "Permitir tudo no checkouts" ON checkouts;
-    CREATE POLICY "Permitir tudo no checkouts" ON checkouts FOR ALL USING (true) WITH CHECK (true);
-
-    DROP POLICY IF EXISTS "Permitir tudo no transacoes" ON transacoes;
-    CREATE POLICY "Permitir tudo no transacoes" ON transacoes FOR ALL USING (true) WITH CHECK (true);
-
-    DROP POLICY IF EXISTS "Permitir tudo no saques" ON saques;
-    CREATE POLICY "Permitir tudo no saques" ON saques FOR ALL USING (true) WITH CHECK (true);
-
-    DROP POLICY IF EXISTS "Permitir tudo no fila" ON fila;
-    CREATE POLICY "Permitir tudo no fila" ON fila FOR ALL USING (true) WITH CHECK (true);
+    FOR pol IN
+        SELECT policyname, tablename
+        FROM pg_policies
+        WHERE schemaname = 'public'
+          AND tablename IN ('configs','campanhas','pedidos','cotas','compradores','estilos','checkouts','transacoes','saques','fila')
+    LOOP
+        EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I;', pol.policyname, pol.tablename);
+    END LOOP;
 END $$;

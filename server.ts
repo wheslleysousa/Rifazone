@@ -1,4 +1,6 @@
 import express, { Request, Response, NextFunction } from 'express';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import path from 'path';
 import crypto from 'crypto';
 
@@ -146,6 +148,7 @@ export function sanitizarCampanha(
       somenteSeCampanhaAtiva: true
     }),
     cupons: Array.isArray(data.cupons) ? data.cupons : (base?.cupons || []),
+    cupomAtivo: data.cupomAtivo !== undefined ? Boolean(data.cupomAtivo) : (base?.cupomAtivo ?? false),
     status: (data.status || base?.status || 'publicada') as any,
     numeroSorteado: base?.numeroSorteado ?? data.numeroSorteado ?? null,
     ganhador: base?.ganhador ?? data.ganhador ?? null,
@@ -159,6 +162,45 @@ export function sanitizarCampanha(
 
 const app = express();
 const PORT = 3000;
+
+// Atrás do proxy do Render (1 hop): necessário para HTTPS e IP real no rate-limit.
+app.set('trust proxy', 1);
+
+// --- Security headers (item 18/19: helmet + HSTS) ---
+// CSP e COEP desativados para não quebrar o SPA (Vite), SDK do Mercado Pago,
+// Meta Pixel e imagens de terceiros. Mantém HSTS, X-Frame-Options (anti-clickjacking),
+// X-Content-Type-Options (anti MIME-sniffing), Referrer-Policy, etc.
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' }
+}));
+
+// --- Rate limiting (item 11) ---
+// Limite global generoso para /api (não atrapalha polling de status de pagamento).
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 300,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: 'Muitas requisições. Aguarde um instante e tente novamente.' }
+});
+// Limite estrito para ações sensíveis: criar pedido/Pix, validar cupom, solicitar saque.
+const strictLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 20,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: 'Muitas tentativas em pouco tempo. Aguarde um minuto e tente novamente.' }
+});
+const saqueLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 10,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: 'Muitas solicitações de saque. Aguarde um minuto.' }
+});
+app.use('/api', apiLimiter);
 
 // Estado em memória do worker do WhatsApp Web
 let globalWorkerStatus = {
@@ -320,7 +362,7 @@ app.get('/api/campanhas/:codigo', async (req, res) => {
 });
 
 // POST /api/pedidos -> Cria pedido, reserva as cotas atomicamente e prepara o método de pagamento
-app.post('/api/pedidos', async (req, res) => {
+app.post('/api/pedidos', strictLimiter, async (req, res) => {
   try {
     const {
       campanhaId,
@@ -404,24 +446,33 @@ app.post('/api/pedidos', async (req, res) => {
       }
     }
 
-    // Cupom de Desconto (se informado)
+    // Cupom de Desconto (se informado) — só vale se o campo de cupom estiver ativo na campanha
     let cupomAplicado: { codigo: string; descontoPct: number; valorDesconto: number } | null = null;
-    if (cupom && typeof cupom === 'string' && cupom.trim()) {
+    if (campanha.cupomAtivo === true && cupom && typeof cupom === 'string' && cupom.trim()) {
       const cupomUpper = cupom.trim().toUpperCase();
       let descPct = 0;
+      let descFixoCents = 0;
 
       if (Array.isArray(campanha.cupons)) {
         const cMatch = campanha.cupons.find(c => c.codigo.toUpperCase() === cupomUpper && c.ativo !== false);
-        if (cMatch) descPct = cMatch.descontoPct;
+        if (cMatch) {
+          if (cMatch.tipo === 'fixo') descFixoCents = Math.round((Number(cMatch.valorFixo) || 0) * 100);
+          else descPct = cMatch.descontoPct;
+        }
       }
 
-      if (!descPct && campanha.remarketing?.expirado) {
+      if (!descPct && !descFixoCents && campanha.remarketing?.expirado) {
         const rMatch = campanha.remarketing.expirado.find(r => r.cupom && r.cupom.toUpperCase() === cupomUpper);
         if (rMatch && rMatch.descontoPct) descPct = rMatch.descontoPct;
       }
 
-      if (descPct > 0) {
-        const valDescCents = Math.round((valorTotalCents * descPct) / 100);
+      // Calcula o desconto em centavos, limitado ao valor total
+      let valDescCents = descFixoCents > 0
+        ? descFixoCents
+        : (descPct > 0 ? Math.round((valorTotalCents * descPct) / 100) : 0);
+      valDescCents = Math.min(valDescCents, valorTotalCents);
+
+      if (valDescCents > 0) {
         valorTotalCents = Math.max(0, valorTotalCents - valDescCents);
         cupomAplicado = {
           codigo: cupomUpper,
@@ -694,7 +745,7 @@ app.post('/api/pedidos', async (req, res) => {
 });
 
 // POST /api/pedidos/:id/pagar-cartao -> Processa cartão de crédito transparente via token gerado no cliente
-app.post('/api/pedidos/:id/pagar-cartao', async (req, res) => {
+app.post('/api/pedidos/:id/pagar-cartao', strictLimiter, async (req, res) => {
   try {
     const { id } = req.params;
     const { token, installments, payment_method_id, issuer_id, email, cpf } = req.body;
@@ -2500,7 +2551,7 @@ app.get('/api/admin/warmup', firebaseAuthMiddleware, async (req, res) => {
 });
 
 // POST /api/admin/carteira/solicitar-saque -> Solicita saque de saldo disponível
-app.post('/api/admin/carteira/solicitar-saque', firebaseAuthMiddleware, async (req, res) => {
+app.post('/api/admin/carteira/solicitar-saque', saqueLimiter, firebaseAuthMiddleware, async (req, res) => {
   try {
     const userId = (req as any).userId;
     const { valorSolicitado, modalidade, tipoChavePix, chavePix, bancoInfo } = req.body;
@@ -3290,7 +3341,7 @@ app.post('/api/tarefas/expirar-pedidos', verificarCronSecret, async (req, res) =
 });
 
 // POST /api/pedidos/validar-cupom -> Valida um código de cupom de desconto para uma campanha
-app.post('/api/pedidos/validar-cupom', async (req, res) => {
+app.post('/api/pedidos/validar-cupom', strictLimiter, async (req, res) => {
   try {
     const { campanhaId, cupom } = req.body;
     if (!campanhaId || !cupom) {
@@ -3302,23 +3353,44 @@ app.post('/api/pedidos/validar-cupom', async (req, res) => {
       return res.status(404).json({ valido: false, error: 'Campanha não encontrada.' });
     }
 
+    // O campo de cupom precisa estar ativo na campanha
+    if (campanha.cupomAtivo !== true) {
+      return res.status(400).json({ valido: false, error: 'Cupom de desconto indisponível para esta campanha.' });
+    }
+
     const cupomUpper = String(cupom).trim().toUpperCase();
     let descontoPct = 0;
+    let valorFixo = 0;
 
     if (Array.isArray(campanha.cupons)) {
       const cMatch = campanha.cupons.find(c => c.codigo.toUpperCase() === cupomUpper && c.ativo !== false);
-      if (cMatch) descontoPct = cMatch.descontoPct;
+      if (cMatch) {
+        if (cMatch.tipo === 'fixo') valorFixo = Number(cMatch.valorFixo) || 0;
+        else descontoPct = cMatch.descontoPct;
+      }
     }
 
-    if (!descontoPct && campanha.remarketing?.expirado) {
+    if (!descontoPct && !valorFixo && campanha.remarketing?.expirado) {
       const rMatch = campanha.remarketing.expirado.find(r => r.cupom && r.cupom.toUpperCase() === cupomUpper);
       if (rMatch && rMatch.descontoPct) descontoPct = rMatch.descontoPct;
+    }
+
+    if (valorFixo > 0) {
+      return res.json({
+        valido: true,
+        codigo: cupomUpper,
+        tipo: 'fixo',
+        descontoPct: 0,
+        valorFixo,
+        mensagem: `Cupom ${cupomUpper} ativado! R$ ${valorFixo.toFixed(2)} de desconto aplicado.`
+      });
     }
 
     if (descontoPct > 0) {
       return res.json({
         valido: true,
         codigo: cupomUpper,
+        tipo: 'percentual',
         descontoPct,
         mensagem: `Cupom ${cupomUpper} ativado! ${descontoPct}% de desconto aplicado.`
       });

@@ -366,7 +366,9 @@ export const DEFAULT_CHECKOUT_CONFIG: CheckoutConfig = {
 export interface CupomDesconto {
   id?: string;
   codigo: string; // ex: 'VOLTA10' ou 'QUERO20'
-  descontoPct: number; // ex: 10 para 10%
+  tipo?: 'percentual' | 'fixo'; // default 'percentual' (compatibilidade)
+  descontoPct: number; // usado quando tipo = 'percentual' (ex: 10 = 10%)
+  valorFixo?: number;  // em REAIS, usado quando tipo = 'fixo' (ex: 5 = R$ 5,00)
   ativo?: boolean;
   criadoEm?: string;
 }
@@ -488,6 +490,8 @@ export interface Campanha {
   checkout?: CheckoutConfig;
   remarketing?: RemarketingConfig;
   cupons?: CupomDesconto[];
+  // Master switch do campo de cupom no checkout: só aparece se o organizador ativar.
+  cupomAtivo?: boolean;
   status: 'rascunho' | 'publicada' | 'pausada' | 'encerrada';
   // Exclusão lógica: a campanha some da lista/venda, mas o registro e todo o
   // faturamento (pedidos pagos, saldo, histórico) são preservados para saque.

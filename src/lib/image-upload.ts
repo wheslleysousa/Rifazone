@@ -9,9 +9,17 @@ function compressImageToBlob(
   maxHeight = 1200,
   quality = 0.82
 ): Promise<{ blob: Blob; dataUrl: string }> {
+  // Item 16 (restringir uploads): só imagens, tipos permitidos e tamanho máximo.
+  const TIPOS_PERMITIDOS = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+  const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
+
   return new Promise((resolve, reject) => {
-    if (!file || !file.type.startsWith('image/')) {
-      reject(new Error('Selecione um arquivo de imagem válido (JPG, PNG, WEBP).'));
+    if (!file || !file.type.startsWith('image/') || !TIPOS_PERMITIDOS.includes(file.type)) {
+      reject(new Error('Selecione um arquivo de imagem válido (JPG, PNG, WEBP ou GIF).'));
+      return;
+    }
+    if (file.size > MAX_BYTES) {
+      reject(new Error('Imagem muito grande. O tamanho máximo é 10 MB.'));
       return;
     }
 

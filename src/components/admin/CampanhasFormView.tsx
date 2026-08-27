@@ -2558,6 +2558,110 @@ export const CampanhasFormView: React.FC<Props> = ({
                   </div>
                 )}
               </div>
+
+              <hr className="border-slate-800/60 my-4" />
+
+              {/* Cupom de Desconto */}
+              <div className="space-y-3">
+                <h3 className="text-sm font-black text-white uppercase tracking-wider">Cupom de Desconto</h3>
+                <label className="flex items-center gap-3 p-3 bg-slate-950/30 border border-slate-800 rounded-xl cursor-pointer hover:bg-slate-900/50 transition-colors group">
+                  <input
+                    type="checkbox"
+                    checked={form.cupomAtivo || false}
+                    onChange={e => setForm(prev => ({ ...prev, cupomAtivo: e.target.checked }))}
+                    className="w-4 h-4 rounded text-emerald-500 bg-slate-900 border-slate-700/50 cursor-pointer focus:ring-emerald-500 focus:ring-offset-slate-950"
+                  />
+                  <span className="text-sm text-slate-300 font-medium group-hover:text-white transition-colors">
+                    Ativar campo de cupom no checkout
+                  </span>
+                </label>
+
+                {form.cupomAtivo && (
+                  <div className="space-y-3">
+                    {(!form.cupons || form.cupons.length === 0) && (
+                      <p className="text-[11px] text-amber-400/90 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+                        ⚠️ Cadastre pelo menos um cupom abaixo, senão o campo ficará inútil no checkout.
+                      </p>
+                    )}
+
+                    {(form.cupons || []).map((cup, i) => (
+                      <div key={cup.id || i} className="p-3 bg-slate-950/40 border border-slate-800 rounded-xl space-y-2.5">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={cup.codigo}
+                            onChange={e => setForm(prev => { const arr = [...(prev.cupons || [])]; arr[i] = { ...arr[i], codigo: e.target.value.toUpperCase().replace(/\s/g, '') }; return { ...prev, cupons: arr }; })}
+                            placeholder="CÓDIGO (ex: VOLTA10)"
+                            className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white uppercase font-mono font-bold focus:border-emerald-500 focus:outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setForm(prev => ({ ...prev, cupons: (prev.cupons || []).filter((_, idx) => idx !== i) }))}
+                            className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition"
+                            title="Remover cupom"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <select
+                            value={cup.tipo || 'percentual'}
+                            onChange={e => setForm(prev => { const arr = [...(prev.cupons || [])]; arr[i] = { ...arr[i], tipo: e.target.value as 'percentual' | 'fixo' }; return { ...prev, cupons: arr }; })}
+                            className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                          >
+                            <option value="percentual">Desconto em %</option>
+                            <option value="fixo">Valor fixo (R$)</option>
+                          </select>
+                          {(cup.tipo || 'percentual') === 'fixo' ? (
+                            <div className="flex items-center bg-slate-900 border border-slate-700 rounded-lg px-3 focus-within:border-emerald-500">
+                              <span className="text-slate-500 text-xs mr-1">R$</span>
+                              <input
+                                type="number"
+                                min={0}
+                                step="0.01"
+                                value={cup.valorFixo ?? ''}
+                                onChange={e => setForm(prev => { const arr = [...(prev.cupons || [])]; arr[i] = { ...arr[i], valorFixo: Number(e.target.value) }; return { ...prev, cupons: arr }; })}
+                                placeholder="5,00"
+                                className="w-full bg-transparent py-2 text-xs text-white focus:outline-none"
+                              />
+                            </div>
+                          ) : (
+                            <div className="flex items-center bg-slate-900 border border-slate-700 rounded-lg px-3 focus-within:border-emerald-500">
+                              <input
+                                type="number"
+                                min={0}
+                                max={100}
+                                value={cup.descontoPct ?? ''}
+                                onChange={e => setForm(prev => { const arr = [...(prev.cupons || [])]; arr[i] = { ...arr[i], descontoPct: Number(e.target.value) }; return { ...prev, cupons: arr }; })}
+                                placeholder="10"
+                                className="w-full bg-transparent py-2 text-xs text-white focus:outline-none"
+                              />
+                              <span className="text-slate-500 text-xs ml-1">%</span>
+                            </div>
+                          )}
+                        </div>
+                        <label className="flex items-center gap-2 text-[11px] text-slate-400 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={cup.ativo !== false}
+                            onChange={e => setForm(prev => { const arr = [...(prev.cupons || [])]; arr[i] = { ...arr[i], ativo: e.target.checked }; return { ...prev, cupons: arr }; })}
+                            className="w-3.5 h-3.5 rounded text-emerald-500 bg-slate-900 border-slate-700/50 cursor-pointer"
+                          />
+                          Cupom ativo
+                        </label>
+                      </div>
+                    ))}
+
+                    <button
+                      type="button"
+                      onClick={() => setForm(prev => ({ ...prev, cupons: [...(prev.cupons || []), { id: `cup-${Date.now()}`, codigo: '', tipo: 'percentual', descontoPct: 10, valorFixo: 0, ativo: true, criadoEm: new Date().toISOString() }] }))}
+                      className="w-full flex items-center justify-center gap-2 p-2.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-bold rounded-xl border border-emerald-500/30 transition"
+                    >
+                      <Plus className="w-4 h-4" /> Adicionar cupom
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </AcordeaoSecao>

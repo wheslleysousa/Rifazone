@@ -201,7 +201,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
 
   // Cupom de Desconto
   const [cupomInput, setCupomInput] = useState('');
-  const [cupomAplicado, setCupomAplicado] = useState<{ codigo: string; descontoPct: number; mensagem?: string } | null>(null);
+  const [cupomAplicado, setCupomAplicado] = useState<{ codigo: string; tipo?: 'percentual' | 'fixo'; descontoPct: number; valorFixo?: number; mensagem?: string } | null>(null);
   const [validandoCupom, setValidandoCupom] = useState(false);
   const [cupomErro, setCupomErro] = useState('');
 
@@ -245,7 +245,9 @@ export const CampanhaPublicaView: React.FC<Props> = ({
       if (res.ok && json.valido) {
         setCupomAplicado({
           codigo: json.codigo,
+          tipo: json.tipo || 'percentual',
           descontoPct: json.descontoPct,
+          valorFixo: json.valorFixo,
           mensagem: json.mensagem
         });
         setCupomInput(json.codigo);
@@ -636,9 +638,14 @@ export const CampanhaPublicaView: React.FC<Props> = ({
   };
 
   const valorSemCupom = calcularValorTotal(quantidade);
-  let valorBase = cupomAplicado
-    ? Number((valorSemCupom * (1 - cupomAplicado.descontoPct / 100)).toFixed(2))
-    : valorSemCupom;
+  let valorBase = valorSemCupom;
+  if (cupomAplicado) {
+    if (cupomAplicado.tipo === 'fixo') {
+      valorBase = Number(Math.max(0, valorSemCupom - (cupomAplicado.valorFixo || 0)).toFixed(2));
+    } else {
+      valorBase = Number((valorSemCupom * (1 - cupomAplicado.descontoPct / 100)).toFixed(2));
+    }
+  }
     
   if (metodoPagamento === 'pix' && data?.campanha?.checkout?.pixConfig?.descontoPct) {
     valorBase = Number((valorBase * (1 - data.campanha.checkout.pixConfig.descontoPct / 100)).toFixed(2));
@@ -2385,14 +2392,16 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                 </label>
               </div>
 
-              {/* CAMPO DE CUPOM DE DESCONTO */}
-              {campanha.modalidade !== 'gratis' && campanha.checkout?.exibirCupom !== false && (
+              {/* CAMPO DE CUPOM DE DESCONTO — só aparece se o organizador ativar */}
+              {campanha.modalidade !== 'gratis' && campanha.cupomAtivo === true && (
                 <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
                   <label className="text-[11px] font-bold text-slate-300 flex items-center justify-between">
                     <span>Tem um cupom de desconto?</span>
                     {cupomAplicado && (
                       <span className="text-emerald-400 text-[10px] uppercase font-mono font-bold">
-                        {cupomAplicado.descontoPct}% OFF APLICADO
+                        {cupomAplicado.tipo === 'fixo'
+                          ? `${formatarMoeda(cupomAplicado.valorFixo || 0)} OFF APLICADO`
+                          : `${cupomAplicado.descontoPct}% OFF APLICADO`}
                       </span>
                     )}
                   </label>
@@ -2420,7 +2429,9 @@ export const CampanhaPublicaView: React.FC<Props> = ({
 
                   {cupomAplicado && (
                     <p className="text-[11px] text-emerald-400 font-bold flex items-center gap-1">
-                      ✓ Cupom {cupomAplicado.codigo} ativado ({cupomAplicado.descontoPct}% de desconto)!
+                      ✓ Cupom {cupomAplicado.codigo} ativado ({cupomAplicado.tipo === 'fixo'
+                        ? `${formatarMoeda(cupomAplicado.valorFixo || 0)} de desconto`
+                        : `${cupomAplicado.descontoPct}% de desconto`})!
                     </p>
                   )}
 

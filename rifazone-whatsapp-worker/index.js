@@ -220,6 +220,8 @@ client.on('ready', () => {
   connectedNumber = client.info?.wid?.user || 'Desconhecido';
   connectionStatusMessage = 'Pronto para uso';
   console.log(`[WORKER] 🚀 WhatsApp pronto e ativo! Número: ${connectedNumber}`);
+  // Grava o marcador de sessão conectada (pra reconectar sozinho após reiniciar).
+  try { fs.writeFileSync(SESSION_MARKER, new Date().toISOString()); } catch (e) {}
   syncStatusWithApp();
 });
 
@@ -230,10 +232,18 @@ client.on('disconnected', (reason) => {
   connectedNumber = '';
   connectionStatusMessage = `Desconectado: ${reason}`;
   syncStatusWithApp();
-  
-  // Tenta reinicializar o cliente
-  console.log('[WORKER] Reiniciando cliente...');
-  client.initialize().catch(err => console.error('[WORKER] Erro ao reiniciar:', err));
+
+  if (String(reason).toUpperCase().includes('LOGOUT')) {
+    // Deslogou pelo celular: apaga o marcador e volta a ESPERAR o comando
+    // "Conectar" (não fica gerando QR sozinho).
+    try { if (fs.existsSync(SESSION_MARKER)) fs.unlinkSync(SESSION_MARKER); } catch (e) {}
+    clienteInicializado = false;
+    console.log('[WORKER] Deslogado. Aguardando o comando "Conectar" na aba de Remarketing.');
+  } else {
+    // Queda de rede temporária: tenta reconectar.
+    console.log('[WORKER] Reiniciando cliente...');
+    client.initialize().catch(err => console.error('[WORKER] Erro ao reiniciar:', err));
+  }
 });
 
 // ----------------------------------------------------------------------------
@@ -245,10 +255,16 @@ client.on('disconnected', (reason) => {
 // ----------------------------------------------------------------------------
 let clienteInicializado = false;
 
+// Marcador de sessão REALMENTE conectada. A pasta session_data é criada logo na
+// inicialização (mesmo sem escanear), então não serve pra detectar conexão real.
+// Este arquivo só é escrito quando o WhatsApp fica pronto ('ready') e é apagado
+// no logout. Assim, se o worker reiniciar já conectado, ele reconecta sozinho;
+// se nunca conectou, ele ESPERA o comando "Conectar" (não gera QR à toa).
+const SESSION_MARKER = './.rz_session_ok';
+
 function sessaoWhatsappExiste() {
   try {
-    if (!fs.existsSync(DATA_PATH)) return false;
-    return fs.readdirSync(DATA_PATH).length > 0;
+    return fs.existsSync(SESSION_MARKER);
   } catch (e) {
     return false;
   }

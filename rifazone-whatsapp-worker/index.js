@@ -1,3 +1,4 @@
+import 'dotenv/config'; // carrega variáveis do arquivo .env (útil no Termux/VM)
 import express from 'express';
 import qrcodeLib from 'qrcode';
 import pkg from 'whatsapp-web.js';
@@ -180,7 +181,13 @@ client.on('qr', async (qr) => {
   connectionStatusMessage = 'QR Code gerado. Aguardando escaneamento...';
   try {
     qrCodeDataURL = await qrcodeLib.toDataURL(qr);
-    console.log('[WORKER] 📱 Novo QR Code gerado! Acesse http://localhost:' + PORT + '/qr para escanear.');
+    // Também imprime o QR direto no terminal (útil no Termux, sem precisar de outra tela).
+    try {
+      const ascii = await qrcodeLib.toString(qr, { type: 'terminal', small: true });
+      console.log('\n[WORKER] 📱 Escaneie o QR Code abaixo com o WhatsApp (Aparelhos conectados):\n');
+      console.log(ascii);
+    } catch (e) {}
+    console.log('[WORKER] 📱 (ou acesse http://localhost:' + PORT + '/qr para escanear pela tela).');
   } catch (err) {
     console.error('[WORKER] Erro ao converter QR para dataURL:', err);
   }

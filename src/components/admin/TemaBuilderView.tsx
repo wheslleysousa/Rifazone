@@ -608,22 +608,64 @@ export const TemaBuilderView: React.FC<Props> = ({
                   />
                 </div>
               </div>
+            </div>
+          )}
 
           {/* 2. SEÇÃO BOTÃO CTA */}
           {secaoEditor === 'botao' && (
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-5 animate-in fade-in">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-6 animate-in fade-in">
               <div className="border-b border-slate-800 pb-3">
                 <h3 className="text-sm font-black text-white flex items-center gap-2">
                   <MousePointer className="w-4 h-4 text-emerald-400" />
-                  Estilo e Formato dos Botões
+                  Botões e Cores de Ação
                 </h3>
                 <p className="text-xs text-slate-400">
-                  Configure cantos, tamanhos, estilos Linktree (transparente, 3D, vidro) e o texto de compra.
+                  Configure o formato, estilos e cores de todos os botões da página.
                 </p>
               </div>
 
+              {/* Cores dos Botões */}
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Cores dos Botões</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  {[
+                    { key: 'botao', label: 'Fundo do Botão Principal', desc: 'CTA de Compra' },
+                    { key: 'textoBotao', label: 'Texto do Botão Principal', desc: 'Cor do texto no CTA' },
+                    { key: 'botaoCotasFundo', label: 'Fundo Botões de Cotas', desc: 'Pacotes (+10, +50)' },
+                    { key: 'botaoCotasTexto', label: 'Texto Botões de Cotas', desc: 'Valor em R$' },
+                    { key: 'botaoCotasNumero', label: 'Número Botões de Cotas', desc: 'Quantidade (+10)' },
+                    { key: 'controlesFundo', label: 'Fundo Botões + e -', desc: 'Ajuste manual' },
+                    { key: 'controlesTexto', label: 'Texto Botões + e -', desc: 'Ícones de mais e menos' },
+                  ].map(item => {
+                    const val = (temaSeguro.cores as any)[item.key];
+                    return (
+                      <div key={item.key} className="p-3 bg-slate-950/80 border border-slate-800 rounded-xl space-y-2">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider">{item.label}</label>
+                          <span className="text-[10px] text-slate-500 font-mono uppercase">{val}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={val}
+                            onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [item.key]: e.target.value } })}
+                            className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                          />
+                          <input
+                            type="text"
+                            value={val}
+                            onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [item.key]: e.target.value } })}
+                            className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
               {/* Texto do Botão de Compra */}
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 pt-4 border-t border-slate-800">
                 <label className="text-xs font-bold text-slate-300 block">
                   Texto do Botão de Compra
                 </label>
@@ -636,7 +678,7 @@ export const TemaBuilderView: React.FC<Props> = ({
                 />
               </div>
 
-                {/* Formato do Botão */}
+              {/* Formato do Botão */}
               <div className="space-y-2">
                 <label className="text-xs font-bold text-slate-300 block">
                   Bordas do Botão
@@ -645,8 +687,12 @@ export const TemaBuilderView: React.FC<Props> = ({
                 {/* Prévia visual */}
                 <div className="flex items-center justify-center gap-4 py-4 bg-slate-950 rounded-xl border border-slate-800">
                   <div
-                    className="bg-emerald-500 text-white text-xs font-bold px-4 py-2"
-                    style={{ borderRadius: `${temaSeguro.botao.raioBorda}px` }}
+                    className="text-xs font-bold px-4 py-2 shadow-sm"
+                    style={{ 
+                      backgroundColor: temaSeguro.cores.botao,
+                      color: temaSeguro.cores.textoBotao,
+                      borderRadius: `${temaSeguro.botao.raioBorda}px` 
+                    }}
                   >
                     {temaSeguro.botao.textoCompra || 'Botão'}
                   </div>
@@ -667,26 +713,26 @@ export const TemaBuilderView: React.FC<Props> = ({
                 </div>
               </div>
 
-              {/* Estilo Visual do Botão (Sólido, Vidro, Transparente, Sombra) */}
+              {/* Estilo Visual do Botão */}
               <div className="space-y-2">
                 <label className="text-xs font-bold text-slate-300 block">
                   Estilo do Botão
                 </label>
                 <div className="grid grid-cols-2 gap-2">
                   {[
-                    { id: 'solido', label: 'Sólido', class: 'bg-emerald-500 text-white' },
-                    { id: 'vidro', label: 'Vidro', class: 'bg-white/10 backdrop-blur-md border border-white/20 text-white' },
-                    { id: 'transparente', label: 'Transparente', class: 'bg-transparent border border-emerald-500 text-emerald-400' },
-                    { id: '3d', label: 'Sombra', class: 'bg-emerald-600 text-white shadow-[0_4px_0_0_rgb(6,78,59)]' },
+                    { id: 'solido', label: 'Sólido' },
+                    { id: 'vidro', label: 'Vidro' },
+                    { id: 'transparente', label: 'Transparente' },
+                    { id: '3d', label: 'Sombra 3D' },
                   ].map(st => (
                     <button
                       key={st.id}
                       type="button"
                       onClick={() => atualizarTema({ botao: { ...temaSeguro.botao, estilo: st.id as any } })}
-                      className={`py-3 px-2 border text-center text-xs font-bold rounded-xl transition flex flex-col items-center justify-center gap-2 ${st.class} ${
+                      className={`py-3 px-2 border text-center text-xs font-bold rounded-xl transition ${
                         temaSeguro.botao.estilo === st.id
-                          ? 'ring-2 ring-emerald-400 ring-offset-2 ring-offset-slate-900'
-                          : 'opacity-70 hover:opacity-100 border-slate-700'
+                          ? 'border-emerald-500 bg-emerald-500/15 text-white ring-1 ring-emerald-500'
+                          : 'border-slate-800 bg-slate-950 text-slate-400 hover:text-white'
                       }`}
                     >
                       {st.label}
@@ -694,62 +740,6 @@ export const TemaBuilderView: React.FC<Props> = ({
                   ))}
                 </div>
               </div>
-
-              {/* Configurações Avançadas de Sombra quando 3D */}
-              {temaSeguro.botao.estilo === '3d' && (
-                <div className="p-4 bg-slate-950/90 border border-emerald-500/30 rounded-xl space-y-3 animate-in fade-in">
-                  <h4 className="text-xs font-black text-emerald-400 flex items-center gap-1.5">
-                    ⚙️ Configuração do Efeito 3D (Sombra & Altura)
-                  </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <div className="flex justify-between items-center text-xs">
-                        <span className="text-slate-300 font-bold">Altura da Sombra (Elevado)</span>
-                        <span className="font-mono text-emerald-400">{temaSeguro.botao.sombraAltura ?? 4}px</span>
-                      </div>
-                      <input
-                        type="range"
-                        min="1"
-                        max="12"
-                        value={temaSeguro.botao.sombraAltura ?? 4}
-                        onChange={e => atualizarTema({ botao: { ...temaSeguro.botao, sombraAltura: Number(e.target.value) } })}
-                        className="w-full accent-emerald-500 bg-slate-900 cursor-pointer"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex justify-between items-center text-xs">
-                        <span className="text-slate-300 font-bold">Largura / Offset da Sombra</span>
-                        <span className="font-mono text-emerald-400">{temaSeguro.botao.sombraLargura ?? 4}px</span>
-                      </div>
-                      <input
-                        type="range"
-                        min="0"
-                        max="10"
-                        value={temaSeguro.botao.sombraLargura ?? 4}
-                        onChange={e => atualizarTema({ botao: { ...temaSeguro.botao, sombraLargura: Number(e.target.value) } })}
-                        className="w-full accent-emerald-500 bg-slate-900 cursor-pointer"
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-300 block">Cor da Sombra 3D</label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="color"
-                        value={temaSeguro.botao.corSombra || '#047857'}
-                        onChange={e => atualizarTema({ botao: { ...temaSeguro.botao, corSombra: e.target.value } })}
-                        className="w-8 h-8 rounded cursor-pointer bg-transparent border-0"
-                      />
-                      <input
-                        type="text"
-                        value={temaSeguro.botao.corSombra || '#047857'}
-                        onChange={e => atualizarTema({ botao: { ...temaSeguro.botao, corSombra: e.target.value } })}
-                        className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white font-mono uppercase"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
 
               {/* Sliders de Altura e Tamanho de Texto */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-800">
@@ -783,108 +773,121 @@ export const TemaBuilderView: React.FC<Props> = ({
                   />
                 </div>
               </div>
-
-              {/* Estilos específicos para Pacotes e Cotas */}
-              <div className="space-y-4 pt-4 border-t border-slate-800">
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-300 block">Estilo dos Botões de Pacotes Promocionais</label>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {[
-                      { id: 'solido', label: 'Sólido' },
-                      { id: 'gradiente', label: 'Gradiente' },
-                      { id: 'vidro', label: 'Vidro' },
-                      { id: 'transparente', label: 'Transp.' },
-                      { id: '3d', label: '3D' },
-                      { id: 'neon', label: 'Neon' },
-                      { id: 'outline', label: 'Outline' },
-                      { id: 'soft', label: 'Soft' },
-                    ].map(st => (
-                      <button
-                        key={st.id}
-                        type="button"
-                        onClick={() => atualizarTema({ botao: { ...temaSeguro.botao, estiloPacotes: st.id as any } })}
-                        className={`py-2 px-1 border text-center text-[10px] font-bold rounded-lg transition ${
-                          temaSeguro.botao.estiloPacotes === st.id
-                            ? 'border-emerald-500 bg-emerald-500/15 text-emerald-300'
-                            : 'border-slate-800 bg-slate-950/60 text-slate-400 hover:border-slate-700'
-                        }`}
-                      >
-                        {st.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-300 block">Estilo da Grade de Cotas</label>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {[
-                      { id: 'solido', label: 'Sólido' },
-                      { id: 'vidro', label: 'Vidro' },
-                      { id: 'outline', label: 'Outline' },
-                      { id: 'soft', label: 'Soft' },
-                    ].map(st => (
-                      <button
-                        key={st.id}
-                        type="button"
-                        onClick={() => atualizarTema({ botao: { ...temaSeguro.botao, estiloCotas: st.id as any } })}
-                        className={`py-2 px-1 border text-center text-[10px] font-bold rounded-lg transition ${
-                          temaSeguro.botao.estiloCotas === st.id
-                            ? 'border-emerald-500 bg-emerald-500/15 text-emerald-300'
-                            : 'border-slate-800 bg-slate-950/60 text-slate-400 hover:border-slate-700'
-                        }`}
-                      >
-                        {st.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
             </div>
           )}
 
           {/* 3. SEÇÃO TIPOGRAFIA */}
           {secaoEditor === 'tipografia' && (
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-5 animate-in fade-in">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-6 animate-in fade-in">
               <div className="border-b border-slate-800 pb-3">
                 <h3 className="text-sm font-black text-white flex items-center gap-2">
                   <Type className="w-4 h-4 text-emerald-400" />
-                  Tipografia & 20 Fontes do Google
+                  Fontes e Cores de Texto
                 </h3>
                 <p className="text-xs text-slate-400">
-                  Escolha fontes distintas para títulos e textos, com controles de escala.
+                  Clique nas fontes para visualizar o estilo real e selecione as cores dos textos.
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-300 block">Fonte dos Títulos (20 opções)</label>
-                  <select
-                    value={temaSeguro.tipografia.fonteTitulo}
-                    onChange={e => atualizarTema({ tipografia: { ...temaSeguro.tipografia, fonteTitulo: e.target.value } })}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white focus:border-emerald-500 focus:outline-none"
-                  >
-                    {GOOGLE_FONTS_LIST.map(f => (
-                      <option key={f} value={f}>{f}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-300 block">Fonte dos Textos (20 opções)</label>
-                  <select
-                    value={temaSeguro.tipografia.fonteTexto}
-                    onChange={e => atualizarTema({ tipografia: { ...temaSeguro.tipografia, fonteTexto: e.target.value } })}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white focus:border-emerald-500 focus:outline-none"
-                  >
-                    {GOOGLE_FONTS_LIST.map(f => (
-                      <option key={f} value={f}>{f}</option>
-                    ))}
-                  </select>
+              {/* Cores de Texto */}
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Cores dos Textos</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  {[
+                    { key: 'titulos', label: 'Cor dos Títulos', desc: 'Cabeçalhos e títulos' },
+                    { key: 'texto', label: 'Cor do Texto Geral', desc: 'Parágrafos principais' },
+                    { key: 'descricoes', label: 'Cor das Descrições', desc: 'Textos secundários' },
+                    { key: 'subtituloCor', label: 'Cor do Subtítulo', desc: 'Abaixo do título' },
+                  ].map(item => {
+                    const val = (temaSeguro.cores as any)[item.key];
+                    return (
+                      <div key={item.key} className="p-3 bg-slate-950/80 border border-slate-800 rounded-xl space-y-2">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider">{item.label}</label>
+                          <span className="text-[10px] text-slate-500 font-mono uppercase">{val}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={val}
+                            onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [item.key]: e.target.value } })}
+                            className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                          />
+                          <input
+                            type="text"
+                            value={val}
+                            onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [item.key]: e.target.value } })}
+                            className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-800">
+              {/* Seletor Visual de Fonte de Títulos (2 Colunas) */}
+              <div className="space-y-3 pt-4 border-t border-slate-800">
+                <div className="flex justify-between items-center">
+                  <label className="text-xs font-bold text-slate-300 block">Fonte dos Títulos</label>
+                  <span className="text-[10px] text-emerald-400 font-mono">Selecionada: {temaSeguro.tipografia.fonteTitulo}</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto pr-1 custom-scrollbar">
+                  {GOOGLE_FONTS_LIST.map(f => {
+                    const selecionada = temaSeguro.tipografia.fonteTitulo === f;
+                    return (
+                      <button
+                        key={f}
+                        type="button"
+                        onClick={() => atualizarTema({ tipografia: { ...temaSeguro.tipografia, fonteTitulo: f } })}
+                        className={`p-3 text-left border rounded-xl transition flex flex-col justify-between ${
+                          selecionada
+                            ? 'bg-emerald-500/15 border-emerald-500 text-white shadow-sm ring-1 ring-emerald-500'
+                            : 'bg-slate-950/60 border-slate-800 text-slate-300 hover:border-slate-700 hover:bg-slate-950'
+                        }`}
+                      >
+                        <span className="text-[10px] font-mono text-slate-400 mb-1">{f}</span>
+                        <span className="text-sm font-bold tracking-wide truncate" style={{ fontFamily: f }}>
+                          RifaZone 123
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Seletor Visual de Fonte de Textos (2 Colunas) */}
+              <div className="space-y-3 pt-4 border-t border-slate-800">
+                <div className="flex justify-between items-center">
+                  <label className="text-xs font-bold text-slate-300 block">Fonte dos Textos</label>
+                  <span className="text-[10px] text-emerald-400 font-mono">Selecionada: {temaSeguro.tipografia.fonteTexto}</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto pr-1 custom-scrollbar">
+                  {GOOGLE_FONTS_LIST.map(f => {
+                    const selecionada = temaSeguro.tipografia.fonteTexto === f;
+                    return (
+                      <button
+                        key={f}
+                        type="button"
+                        onClick={() => atualizarTema({ tipografia: { ...temaSeguro.tipografia, fonteTexto: f } })}
+                        className={`p-3 text-left border rounded-xl transition flex flex-col justify-between ${
+                          selecionada
+                            ? 'bg-emerald-500/15 border-emerald-500 text-white shadow-sm ring-1 ring-emerald-500'
+                            : 'bg-slate-950/60 border-slate-800 text-slate-300 hover:border-slate-700 hover:bg-slate-950'
+                        }`}
+                      >
+                        <span className="text-[10px] font-mono text-slate-400 mb-1">{f}</span>
+                        <span className="text-xs tracking-wide truncate" style={{ fontFamily: f }}>
+                          Garanta já seus números e concorra aos prêmios.
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Tamanhos de Fonte */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-slate-800">
                 <div className="space-y-1.5">
                   <div className="flex justify-between items-center text-xs">
                     <span className="font-bold text-slate-300">Tamanho Base Títulos</span>

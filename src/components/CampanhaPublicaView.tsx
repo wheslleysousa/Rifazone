@@ -66,7 +66,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
   const [instagramInput, setInstagramInput] = useState('');
   const [tiktokInput, setTiktokInput] = useState('');
   const [dataNascimento, setDataNascimento] = useState('');
-  const [maiorIdade, setMaiorIdade] = useState(true);
+  const [maiorIdade, setMaiorIdade] = useState(false);
   const [compradorSalvo, setCompradorSalvo] = useState<{ nome: string; whatsapp: string } | null>(null);
   const [formErro, setFormErro] = useState('');
   const [enviandoPedido, setEnviandoPedido] = useState(false);
@@ -2502,9 +2502,10 @@ export const CampanhaPublicaView: React.FC<Props> = ({
               <button
                 id="btn-confirmar-gerar-pix"
                 type="submit"
-                disabled={enviandoPedido}
+                disabled={enviandoPedido || !maiorIdade}
+                title={!maiorIdade ? 'Marque a confirmação de idade e regulamento para continuar' : undefined}
                 style={{ backgroundColor: 'var(--btn)', color: 'var(--btn-txt)', borderRadius: `${tema.botao.raioBorda}px` }}
-                className={`w-full py-3.5 font-black rounded-xl text-sm shadow-lg flex items-center justify-center gap-2 transition active:scale-[0.98] ${getBtnRoundingClass(tema.botao.formato)} hover:opacity-90`}
+                className={`w-full py-3.5 font-black rounded-xl text-sm shadow-lg flex items-center justify-center gap-2 transition active:scale-[0.98] ${getBtnRoundingClass(tema.botao.formato)} ${(!maiorIdade || enviandoPedido) ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90'}`}
               >
                 {enviandoPedido ? (
                   <span className="flex items-center gap-2">

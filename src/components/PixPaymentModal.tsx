@@ -46,40 +46,8 @@ export const PixPaymentModal: React.FC<Props> = ({
   const [status, setStatus] = useState<'pendente' | 'pago' | 'expirado'>('pendente');
   const [tempoRestante, setTempoRestante] = useState<number>(600); // 10 min default
   const [simulando, setSimulando] = useState(false);
-  const [checandoManual, setChecandoManual] = useState(false);
-  const [mensagemStatus, setMensagemStatus] = useState<string | null>(null);
   const [numerosLiberados, setNumerosLiberados] = useState<string[]>([]);
   const [generatedQrDataUrl, setGeneratedQrDataUrl] = useState<string>('');
-
-  const handleVerificarStatusManual = async () => {
-    setChecandoManual(true);
-    setMensagemStatus(null);
-    try {
-      const res = await fetch(`/api/pedidos/${pedidoId}/status?t=${Date.now()}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.status === 'pago') {
-          setStatus('pago');
-          const nums = data.numeros || [];
-          setNumerosLiberados(nums);
-          triggerConfettiOnce();
-          if (!sucessoNotificadoRef.current) {
-            sucessoNotificadoRef.current = true;
-            onSuccessRef.current(nums);
-          }
-        } else if (data.status === 'expirado') {
-          setStatus('expirado');
-        } else {
-          setMensagemStatus('Pagamento ainda em processamento no banco. Aguarde alguns instantes ou tente novamente.');
-          setTimeout(() => setMensagemStatus(null), 5000);
-        }
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setChecandoManual(false);
-    }
-  };
 
   const confettiDisparadoRef = useRef(false);
   const sucessoNotificadoRef = useRef(false);
@@ -534,23 +502,6 @@ export const PixPaymentModal: React.FC<Props> = ({
                   {simulando ? 'Aprovando...' : 'Simular Pagamento Aprovado'}
                 </button>
               </div>
-            )}
-
-            {/* Botão de Verificação Manual */}
-            <button
-              type="button"
-              onClick={handleVerificarStatusManual}
-              disabled={checandoManual}
-              className="w-full mb-3 py-3 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 font-bold rounded-xl text-xs border border-emerald-500/30 transition flex items-center justify-center gap-2"
-            >
-              <CheckCircle2 className="w-4 h-4" />
-              {checandoManual ? 'Verificando com o banco...' : 'Já fiz o pagamento (Verificar Status)'}
-            </button>
-
-            {mensagemStatus && (
-              <p className="text-[11px] text-amber-400 text-center mb-3 animate-fade-in">
-                {mensagemStatus}
-              </p>
             )}
 
             {/* Aviso de Aguardando */}

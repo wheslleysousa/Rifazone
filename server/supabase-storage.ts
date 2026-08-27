@@ -12,13 +12,35 @@ export function getSupabaseUrl(): string | undefined {
 
 export function getSupabaseKey(): string | undefined {
   return (
+    // Prioriza a service_role (ignora RLS). Aceita variações comuns de nome
+    // para evitar cair na anon key por engano de digitação da variável.
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_SERVICE_ROLE ||
+    process.env.SUPABASE_SERVICE_KEY ||
     process.env.SUPABASE_ANON_KEY ||
     process.env.SUPABASE_KEY ||
     process.env.VITE_SUPABASE_ANON_KEY ||
     process.env.VITE_SUPABASE_KEY ||
     ''
   ).trim() || undefined;
+}
+
+/**
+ * Lê o claim "role" do JWT do Supabase (sem validar assinatura — só para log).
+ * Retorna 'service_role', 'anon' ou undefined. Serve para avisar, no boot, se
+ * o servidor está usando a chave certa antes de travar o RLS.
+ */
+export function detectarRoleChaveSupabase(key?: string): string | undefined {
+  try {
+    const k = key || getSupabaseKey();
+    if (!k) return undefined;
+    const payload = k.split('.')[1];
+    if (!payload) return undefined;
+    const json = JSON.parse(Buffer.from(payload, 'base64').toString('utf8'));
+    return json?.role;
+  } catch {
+    return undefined;
+  }
 }
 
 export function supabaseDisponivel(): boolean {
@@ -40,7 +62,15 @@ export class SupabaseStorage implements Storage {
         autoRefreshToken: false
       }
     });
+    const role = detectarRoleChaveSupabase(supabaseKey);
     console.log(`Supabase conectado com sucesso em: ${supabaseUrl}`);
+    if (role === 'service_role') {
+      console.log('🔒 Supabase usando SERVICE_ROLE key (ignora RLS) — seguro para travar o RLS.');
+    } else if (role === 'anon') {
+      console.warn('⚠️ ATENÇÃO: Supabase usando ANON key. NÃO trave o RLS ainda — configure SUPABASE_SERVICE_ROLE_KEY primeiro, senão o servidor será bloqueado.');
+    } else {
+      console.warn('⚠️ Não foi possível identificar o tipo da chave Supabase (role desconhecido).');
+    }
   }
 
   // --- Campanhas ---

@@ -81,7 +81,10 @@ export async function verifyFirebaseToken(token: string): Promise<DecodedToken> 
   if (!token) throw new Error('Token ausente');
 
   // --- Dev bypass (inseguro, apenas para testes locais) ---
-  if (process.env.AUTH_DEV_BYPASS === 'true') {
+  // BLINDAGEM: só funciona FORA de produção. Em produção (NODE_ENV=production)
+  // é ignorado mesmo que AUTH_DEV_BYPASS=true, para não permitir tokens forjados.
+  if (process.env.AUTH_DEV_BYPASS === 'true' && process.env.NODE_ENV !== 'production') {
+    console.warn('⚠️ AUTH_DEV_BYPASS ativo — verificação de assinatura DESLIGADA (modo dev). NUNCA use isto em produção.');
     const payload = decodePayload(token);
     if (!payload.sub && !payload.user_id) throw new Error('Token sem identificador');
     return {

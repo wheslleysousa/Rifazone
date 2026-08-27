@@ -5,6 +5,15 @@ import qrcodeLib from 'qrcode';
 import pkg from 'whatsapp-web.js';
 const { Client, LocalAuth } = pkg;
 
+// Evita que erros internos do Puppeteer/whatsapp-web.js (ex: "Execution context
+// was destroyed" durante logout/navegação) derrubem o processo inteiro.
+process.on('uncaughtException', (err) => {
+  console.error('[WORKER] ⚠️ Erro ignorado (uncaughtException):', (err && err.message) || err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[WORKER] ⚠️ Erro ignorado (unhandledRejection):', (reason && reason.message) || reason);
+});
+
 const app = express();
 app.use(express.json());
 
@@ -253,11 +262,14 @@ client.on('disconnected', (reason) => {
   syncStatusWithApp();
 
   if (String(reason).toUpperCase().includes('LOGOUT')) {
-    // Deslogou pelo celular: apaga o marcador e volta a ESPERAR o comando
-    // "Conectar" (não fica gerando QR sozinho).
+    // Deslogou pelo celular: apaga marcador + sessão e ENCERRA o processo para
+    // reiniciar limpo (o client fica inutilizável após logout). Com pm2/systemd
+    // ele sobe de novo sozinho já esperando o comando "Conectar".
     try { if (fs.existsSync(SESSION_MARKER)) fs.unlinkSync(SESSION_MARKER); } catch (e) {}
-    clienteInicializado = false;
-    console.log('[WORKER] Deslogado. Aguardando o comando "Conectar" na aba de Remarketing.');
+    try { fs.rmSync(DATA_PATH, { recursive: true, force: true }); } catch (e) {}
+    console.log('[WORKER] 🔒 Deslogado. Encerrando para reiniciar limpo (pm2/systemd reinicia sozinho).');
+    setTimeout(() => process.exit(0), 1500);
+    return;
   } else {
     // Queda de rede temporária: tenta reconectar.
     console.log('[WORKER] Reiniciando cliente...');

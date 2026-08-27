@@ -53,9 +53,31 @@ export interface TemaCampanha {
     cardBorda: string;
     faviconFundo: string;
     iconeCor: string;
+    // Cores específicas solicitadas
+    barraProgressoFundo: string;
+    barraProgressoPreenchimento: string;
+    barraProgressoTexto: string;
+    cardBarraProgressoFundo: string;
+    botaoCotasFundo: string;
+    botaoCotasTexto: string;
+    botaoCotasNumero: string;
+    controlesFundo: string;
+    controlesTexto: string;
+    textoPrecoBarra: string;
+    subtituloCor: string;
+    localSorteioCor: string;
+  };
+  secaoIcones: {
+    premios: string;
+    cotasPremiadas: string;
+    topCompradores: string;
+    ganhadores: string;
+    regulamento: string;
+    descricao: string;
   };
   botao: {
     formato: 'reto' | 'arredondado' | 'pill' | 'super' | 'cortado' | 'inclinado' | 'square' | 'rounded' | 'pilled' | 'round';
+    raioBorda: number; // 0 a 50
     tamanhoAltura: number; // slider px (ex: 12 a 24)
     tamanhoTexto: number; // slider px (ex: 12 a 20)
     estilo: 'solido' | 'gradiente' | 'vidro' | 'transparente' | '3d' | 'neon' | 'outline' | 'soft';
@@ -77,7 +99,6 @@ export interface TemaCampanha {
     url?: string;
   };
   organizadorCabecalho?: {
-    logoTamanho: number; // ex: 32 a 64
     logoAlinhamento: 'esquerda' | 'centro' | 'direita';
   };
   ganhadorCelebracaoEstilo?: 'confetes' | 'estrela' | 'fogo' | 'coracao' | 'moeda' | 'trofeu' | 'diamante' | 'raio' | 'coroa' | 'foguete';
@@ -139,10 +160,31 @@ export const TEMA_PADRAO: TemaCampanha = {
     cardFundo: '#1e293b',
     cardBorda: '#334155',
     faviconFundo: '#334155',
-    iconeCor: '#10b981'
+    iconeCor: '#10b981',
+    barraProgressoFundo: '#1e293b',
+    barraProgressoPreenchimento: '#10b981',
+    barraProgressoTexto: '#ffffff',
+    cardBarraProgressoFundo: '#1e293b',
+    botaoCotasFundo: '#1e293b',
+    botaoCotasTexto: '#94a3b8',
+    botaoCotasNumero: '#ffffff',
+    controlesFundo: '#1e293b',
+    controlesTexto: '#ffffff',
+    textoPrecoBarra: '#10b981',
+    subtituloCor: '#94a3b8',
+    localSorteioCor: '#10b981'
+  },
+  secaoIcones: {
+    premios: 'Trophy',
+    cotasPremiadas: 'Ticket',
+    topCompradores: 'TrendingUp',
+    ganhadores: 'Users',
+    regulamento: 'FileText',
+    descricao: 'Info'
   },
   botao: {
     formato: 'arredondado',
+    raioBorda: 12,
     tamanhoAltura: 16,
     tamanhoTexto: 15,
     estilo: 'solido',
@@ -164,8 +206,7 @@ export const TEMA_PADRAO: TemaCampanha = {
     url: ''
   },
   organizadorCabecalho: {
-    logoTamanho: 40,
-    logoAlinhamento: 'centro'
+    logoAlinhamento: 'centro',
   },
   ganhadorCelebracaoEstilo: 'confetes',
   layout: {
@@ -424,8 +465,13 @@ export interface Campanha {
   exibirPremios?: boolean;
   exibirCotasPremiadas?: boolean;
   tempoAnimacaoSorteioSegundos?: number;
+  autoplayGaleria?: boolean;
+  autoplayIntervaloGaleria?: number;
   exigirEmail: boolean;
   exigirCpf: boolean;
+  exibirCabecalhoTipo?: 'nome' | 'logo';
+  cabecalhoLogoTamanho?: number;
+  cabecalhoLogoUrl?: string;
   tema?: TemaCampanha;
   checkoutId?: string;
   checkout?: CheckoutConfig;

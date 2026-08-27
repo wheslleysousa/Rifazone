@@ -163,14 +163,15 @@ const client = new Client({
   puppeteer: {
     headless: true,
     executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+    // OBS: '--single-process' e '--no-zygote' foram REMOVIDOS de propósito.
+    // Eles fazem o Chromium travar logo após autenticar (fica em 'authenticated'
+    // e nunca chega em 'ready'), causando loop de reconexão. Sem eles fica estável.
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
       '--disable-dev-shm-usage',
       '--disable-accelerated-2d-canvas',
       '--no-first-run',
-      '--no-zygote',
-      '--single-process',
       '--disable-gpu'
     ]
   }

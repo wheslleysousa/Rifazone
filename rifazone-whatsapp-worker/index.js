@@ -188,7 +188,8 @@ const client = new Client({
 
 // Evento de geração do QR Code
 client.on('qr', async (qr) => {
-  // Modo "conectar por número": pede o código de pareamento em vez do QR.
+  // Modo "conectar por número": pede o código de pareamento (uma vez só).
+  // NÃO retorna — o QR também é exibido, então dá pra escanear OU digitar o código.
   if (modoPareamento && !codigoJaSolicitado) {
     codigoJaSolicitado = true;
     try {
@@ -201,7 +202,6 @@ client.on('qr', async (qr) => {
       console.error('[WORKER] Erro ao gerar código de pareamento:', e.message || e);
       codigoJaSolicitado = false; // permite tentar de novo no próximo evento
     }
-    return; // nesse modo não exibimos o QR
   }
 
   qrCodeRaw = qr;
@@ -328,7 +328,7 @@ if (sessaoWhatsappExiste()) {
   console.log('[WORKER] ⏳ Aguardando o comando "Conectar" na aba de Remarketing para gerar o QR Code...');
 }
 
-// Enquanto não inicializado, verifica a cada 5s se o admin pediu pra conectar.
+// Enquanto não inicializado, verifica a cada 2s se o admin pediu pra conectar.
 setInterval(async () => {
   if (clienteInicializado) return;
   try {
@@ -342,7 +342,7 @@ setInterval(async () => {
       }
     }
   } catch (e) { /* app pode estar offline; tenta de novo depois */ }
-}, 5000);
+}, 2000);
 
 // ----------------------------------------------------------------------------
 // 5. SINCRONIZAÇÃO DE STATUS COM O APP RIFAZONE

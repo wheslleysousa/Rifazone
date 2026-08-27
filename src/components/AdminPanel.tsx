@@ -991,7 +991,12 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
 
           {/* MÉTODOS DE PAGAMENTO (MULTI-GATEWAY) */}
           {abaAtiva === 'metodos-pagamento' && (
-            <MetodosPagamentoView authFetch={authFetch} onAbrirCarteira={() => setAbaAtiva('carteira')} />
+            <MetodosPagamentoView 
+              authFetch={authFetch} 
+              onAbrirCarteira={() => setAbaAtiva('carteira')}
+              isAdmin={user?.email === 'wheslleyaviz@gmail.com'}
+              userEmail={user?.email || ''}
+            />
           )}
 
           {/* ANALYTICS & META ADS */}
@@ -1414,15 +1419,6 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
                 </table>
               </div>
             </div>
-          )}
-
-          {/* MÉTODOS DE PAGAMENTO */}
-          {abaAtiva === 'metodos-pagamento' && (
-            <MetodosPagamentoView
-              authFetch={authFetch}
-              isAdmin={user?.email === 'wheslleyaviz@gmail.com'}
-              userEmail={user?.email || ''}
-            />
           )}
 
           {/* 11. CONFIGURAÇÕES */}

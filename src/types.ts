@@ -262,6 +262,8 @@ export interface CheckoutConfig {
   };
   // Exibir (ou ocultar) o campo de cupom de desconto no checkout
   exibirCupom?: boolean;
+  cupomAtivo?: boolean;
+  cupons?: CupomDesconto[];
   coletaDados?: {
     exigirEmail?: boolean;
     confirmarEmail?: boolean;
@@ -444,6 +446,7 @@ export interface Campanha {
   organizadorWhatsapp?: string;
   organizadorInstagram?: string;
   organizadorTiktok?: string;
+  exibirBotaoCompartilhar?: boolean;
   premios: Premio[];
   cotasPremiadas: CotaPremiada[];
   promocoes: Promocao[];
@@ -553,6 +556,12 @@ export interface ConfigOrganizador {
   mpUserId?: string | number | null;
   mpConexaoTipo?: 'oauth' | 'manual' | null;
   mpConectadoEm?: string | null;
+  mpConfigurado?: boolean;
+  mpTokenMascara?: string | null;
+  oauthConfiguradoNoServidor?: boolean;
+  oauthRedirectUri?: string;
+  mpClientIdConfigurado?: boolean;
+  isAdmin?: boolean;
   // Marca / personalização
   marca?: MarcaConfig;
   redes?: RedesSociais;

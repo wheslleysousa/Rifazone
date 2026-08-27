@@ -1310,7 +1310,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
       <div className="border border-slate-800 rounded-2xl p-5 shadow-sm" style={{ backgroundColor: tema.cores.cardFundo }}>
         <h3 className="text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-1.5 opacity-60">
           <SectionIcon className="w-4 h-4" style={{ color: tema.cores.iconeCor }} />
-          Premiação Oficial
+          Premiação
         </h3>
         <div className="space-y-2">
           {campanha.premios.map((premio, idx) => (
@@ -1766,61 +1766,65 @@ export const CampanhaPublicaView: React.FC<Props> = ({
         </div>
       )}
 
-      {/* 3 BOTÕES FLUTUANTES NO CANTO DIREITO */}
-      <div className="fixed bottom-24 right-3 z-30 flex flex-col gap-2.5">
-        {campanha.organizadorWhatsapp && (
-          <a
-            href={`https://wa.me/55${campanha.organizadorWhatsapp.replace(/\D/g, '')}`}
-            target="_blank"
-            rel="noreferrer"
-            className="w-12 h-12 rounded-full flex items-center justify-center text-white bg-[#25D366] shadow-lg shadow-black/30 ring-1 ring-white/15 transition-transform hover:scale-110 active:scale-95"
-            title="WhatsApp de Suporte"
-            aria-label="WhatsApp de Suporte"
-          >
-            <WhatsAppIcon className="w-6 h-6" />
-          </a>
-        )}
-        {campanha.organizadorInstagram && (
-          <a
-            href={`https://instagram.com/${campanha.organizadorInstagram.replace('@', '')}`}
-            target="_blank"
-            rel="noreferrer"
-            className="w-12 h-12 rounded-full flex items-center justify-center text-white shadow-lg shadow-black/30 ring-1 ring-white/15 transition-transform hover:scale-110 active:scale-95"
-            style={{ background: 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)' }}
-            title="Instagram"
-            aria-label="Instagram do organizador"
-          >
-            <InstagramIcon className="w-6 h-6" />
-          </a>
-        )}
-        {campanha.organizadorTiktok && (
-          <a
-            href={`https://tiktok.com/@${campanha.organizadorTiktok.replace('@', '')}`}
-            target="_blank"
-            rel="noreferrer"
-            className="w-12 h-12 rounded-full flex items-center justify-center text-white bg-black shadow-lg shadow-black/30 ring-1 ring-white/15 transition-transform hover:scale-110 active:scale-95"
-            title="TikTok"
-            aria-label="TikTok do organizador"
-          >
-            <TikTokIcon className="w-6 h-6" />
-          </a>
-        )}
-        <button
-          onClick={() => {
-            if (navigator.share) {
-              navigator.share({ title: campanha.titulo, url: window.location.href });
-            } else {
-              navigator.clipboard.writeText(window.location.href);
-              alert('Link da campanha copiado com sucesso!');
-            }
-          }}
-          className="w-12 h-12 bg-slate-800/90 hover:bg-slate-700 text-slate-100 border border-slate-700 rounded-full flex items-center justify-center shadow-lg shadow-black/30 backdrop-blur transition-transform hover:scale-110 active:scale-95"
-          title="Compartilhar Link"
-          aria-label="Compartilhar link da campanha"
-        >
-          <Share2 className="w-5 h-5" />
-        </button>
-      </div>
+      {/* BOTÕES FLUTUANTES NO CANTO DIREITO (WHATSAPP, INSTAGRAM, TIKTOK, COMPARTILHAR) */}
+      {(campanha.organizadorWhatsapp || campanha.organizadorInstagram || campanha.organizadorTiktok || campanha.exibirBotaoCompartilhar !== false) && (
+        <div className="fixed bottom-24 right-3 z-30 flex flex-col gap-2.5">
+          {campanha.organizadorWhatsapp && (
+            <a
+              href={`https://wa.me/55${campanha.organizadorWhatsapp.replace(/\D/g, '')}`}
+              target="_blank"
+              rel="noreferrer"
+              className="w-12 h-12 rounded-full flex items-center justify-center text-white bg-[#25D366] shadow-lg shadow-black/30 ring-1 ring-white/15 transition-transform hover:scale-110 active:scale-95"
+              title="WhatsApp de Suporte"
+              aria-label="WhatsApp de Suporte"
+            >
+              <WhatsAppIcon className="w-6 h-6" />
+            </a>
+          )}
+          {campanha.organizadorInstagram && (
+            <a
+              href={`https://instagram.com/${campanha.organizadorInstagram.replace('@', '')}`}
+              target="_blank"
+              rel="noreferrer"
+              className="w-12 h-12 rounded-full flex items-center justify-center text-white shadow-lg shadow-black/30 ring-1 ring-white/15 transition-transform hover:scale-110 active:scale-95"
+              style={{ background: 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)' }}
+              title="Instagram"
+              aria-label="Instagram do organizador"
+            >
+              <InstagramIcon className="w-6 h-6" />
+            </a>
+          )}
+          {campanha.organizadorTiktok && (
+            <a
+              href={`https://tiktok.com/@${campanha.organizadorTiktok.replace('@', '')}`}
+              target="_blank"
+              rel="noreferrer"
+              className="w-12 h-12 rounded-full flex items-center justify-center text-white bg-black shadow-lg shadow-black/30 ring-1 ring-white/15 transition-transform hover:scale-110 active:scale-95"
+              title="TikTok"
+              aria-label="TikTok do organizador"
+            >
+              <TikTokIcon className="w-6 h-6" />
+            </a>
+          )}
+          {campanha.exibirBotaoCompartilhar !== false && (
+            <button
+              onClick={() => {
+                if (navigator.share) {
+                  navigator.share({ title: campanha.titulo, url: window.location.href });
+                } else {
+                  navigator.clipboard.writeText(window.location.href);
+                  alert('Link da campanha copiado com sucesso!');
+                }
+              }}
+              className="w-12 h-12 bg-slate-800/90 hover:bg-slate-700 text-slate-100 border border-slate-700 rounded-full flex items-center justify-center shadow-lg shadow-black/30 backdrop-blur transition-transform hover:scale-110 active:scale-95"
+              title="Compartilhar Link"
+              aria-label="Compartilhar link da campanha"
+            >
+              <Share2 className="w-5 h-5" />
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Main Container com Renderização das Seções na Ordem do Tema */}
       <main className={`max-w-xl mx-auto px-4 pb-28 pt-3 ${mainSpacing}`}>
@@ -2409,7 +2413,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
               </div>
 
               {/* CAMPO DE CUPOM DE DESCONTO — só aparece se o organizador ativar */}
-              {campanha.modalidade !== 'gratis' && campanha.cupomAtivo === true && (
+              {campanha.modalidade !== 'gratis' && (campanha.cupomAtivo === true || campanha.checkout?.cupomAtivo === true || campanha.checkout?.exibirCupom === true) && (
                 <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
                   <label className="text-[11px] font-bold text-slate-300 flex items-center justify-between">
                     <span>Tem um cupom de desconto?</span>

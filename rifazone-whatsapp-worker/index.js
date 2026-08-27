@@ -178,6 +178,22 @@ const client = new Client({
 
 // Evento de geração do QR Code
 client.on('qr', async (qr) => {
+  // Modo "conectar por número": pede o código de pareamento em vez do QR.
+  if (modoPareamento && !codigoJaSolicitado) {
+    codigoJaSolicitado = true;
+    try {
+      const codigo = await client.requestPairingCode(numeroPareamento);
+      console.log(`\n[WORKER] 🔢 Código de conexão para o número ${numeroPareamento}: ${codigo}`);
+      console.log('[WORKER] No WhatsApp: Aparelhos conectados > Conectar um aparelho > Conectar com número de telefone.\n');
+      enviarCodigoParaApp(codigo);
+      syncStatusWithApp();
+    } catch (e) {
+      console.error('[WORKER] Erro ao gerar código de pareamento:', e.message || e);
+      codigoJaSolicitado = false; // permite tentar de novo no próximo evento
+    }
+    return; // nesse modo não exibimos o QR
+  }
+
   qrCodeRaw = qr;
   connectionStatusMessage = 'QR Code gerado. Aguardando escaneamento...';
   try {
@@ -220,6 +236,8 @@ client.on('ready', () => {
   connectedNumber = client.info?.wid?.user || 'Desconhecido';
   connectionStatusMessage = 'Pronto para uso';
   console.log(`[WORKER] 🚀 WhatsApp pronto e ativo! Número: ${connectedNumber}`);
+  modoPareamento = false;
+  codigoJaSolicitado = false;
   // Grava o marcador de sessão conectada (pra reconectar sozinho após reiniciar).
   try { fs.writeFileSync(SESSION_MARKER, new Date().toISOString()); } catch (e) {}
   syncStatusWithApp();
@@ -254,6 +272,10 @@ client.on('disconnected', (reason) => {
 //     detecta via polling). Assim o QR não fica sendo gerado à toa.
 // ----------------------------------------------------------------------------
 let clienteInicializado = false;
+// Modo de conexão por número (pairing code) em vez de QR.
+let modoPareamento = false;
+let numeroPareamento = '';
+let codigoJaSolicitado = false;
 
 // Marcador de sessão REALMENTE conectada. A pasta session_data é criada logo na
 // inicialização (mesmo sem escanear), então não serve pra detectar conexão real.
@@ -270,9 +292,16 @@ function sessaoWhatsappExiste() {
   }
 }
 
-function inicializarCliente(motivo) {
+function inicializarCliente(motivo, metodo, numero) {
   if (clienteInicializado) return;
   clienteInicializado = true;
+  if (metodo === 'code' && numero) {
+    modoPareamento = true;
+    numeroPareamento = String(numero).replace(/\D/g, '');
+    codigoJaSolicitado = false;
+  } else {
+    modoPareamento = false;
+  }
   console.log(`[WORKER] Inicializando cliente WhatsApp (${motivo})...`);
   client.initialize().catch(err => {
     console.error('[WORKER] Erro crítico ao inicializar whatsapp-web.js:', err);
@@ -296,7 +325,7 @@ setInterval(async () => {
     if (res.ok) {
       const data = await res.json();
       if (data && data.conectar) {
-        inicializarCliente('solicitado pelo painel');
+        inicializarCliente('solicitado pelo painel', data.metodo, data.numero);
       }
     }
   } catch (e) { /* app pode estar offline; tenta de novo depois */ }
@@ -342,6 +371,22 @@ async function enviarQrParaApp(dataUrl) {
     });
   } catch (err) {
     console.error('[WORKER] Falha ao enviar QR para o app:', err.message || err);
+  }
+}
+
+// Envia o código de pareamento (conexão por número) para o app exibir.
+async function enviarCodigoParaApp(codigo) {
+  try {
+    await fetch(`${RIFAZONE_URL}/api/worker/paircode`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-worker-secret': WORKER_SECRET
+      },
+      body: JSON.stringify({ codigo })
+    });
+  } catch (err) {
+    console.error('[WORKER] Falha ao enviar código para o app:', err.message || err);
   }
 }
 

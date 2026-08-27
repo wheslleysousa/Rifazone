@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
   MessageSquare, Clock, Copy, Check, Send, AlertCircle, 
-  Search, RefreshCw, Plus, Trash2, Tag, Settings2, Play, 
-  CheckCircle2, Mail, PhoneCall, Ban, Eye, X, ArrowRight, HelpCircle
+  Search, RefreshCw, Plus, Trash2, Tag, Settings2, Play,
+  CheckCircle2, Mail, PhoneCall, Ban, Eye, X, ArrowRight, HelpCircle, QrCode
 } from 'lucide-react';
 import { Pedido, Campanha, CupomDesconto, MensagemFila } from '../../types';
 
@@ -35,6 +35,11 @@ export const RemarketingView: React.FC<Props> = ({
   const [workerQr, setWorkerQr] = useState<string | null>(null);
   const [mostrandoQr, setMostrandoQr] = useState(false);
   const [buscandoQr, setBuscandoQr] = useState(false);
+  // Conexão por número (pairing code) — alternativa ao QR
+  const [metodoConexao, setMetodoConexao] = useState<'qr' | 'code'>('qr');
+  const [etapaNumero, setEtapaNumero] = useState(false);
+  const [numeroInput, setNumeroInput] = useState('');
+  const [pairCode, setPairCode] = useState<string | null>(null);
 
   // Detalhe de Mensagem para Visualização Completa
   const [msgDetalhe, setMsgDetalhe] = useState<MensagemFila | null>(null);
@@ -98,15 +103,38 @@ export const RemarketingView: React.FC<Props> = ({
     }
   };
 
-  const iniciarConexaoWhatsapp = async () => {
+  // Busca o código de pareamento (conexão por número)
+  const fetchPairCode = async () => {
+    if (!authFetch) return;
+    try {
+      const res = await authFetch('/api/admin/worker/paircode');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.codigo) setPairCode(data.codigo);
+      }
+    } catch (err) {
+      console.error('Erro ao buscar código do worker:', err);
+    }
+  };
+
+  // Inicia a conexão: metodo 'qr' (padrão) ou 'code' (por número)
+  const iniciarConexaoWhatsapp = async (metodo: 'qr' | 'code' = 'qr') => {
+    setMetodoConexao(metodo);
     setMostrandoQr(true);
     setWorkerQr(null);
-    // Pede ao worker (via app) para inicializar e gerar o QR sob demanda.
+    setPairCode(null);
+    const numeroLimpo = numeroInput.replace(/\D/g, '');
     if (authFetch) {
-      try { await authFetch('/api/admin/worker/conectar', { method: 'POST' }); } catch (e) {}
+      try {
+        await authFetch('/api/admin/worker/conectar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ metodo, numero: metodo === 'code' ? numeroLimpo : undefined })
+        });
+      } catch (e) {}
     }
     fetchWorkerStatus();
-    fetchWorkerQr();
+    if (metodo === 'code') fetchPairCode(); else fetchWorkerQr();
   };
 
   // Carrega o status do worker no mount e periodicamente a cada 15s
@@ -116,15 +144,17 @@ export const RemarketingView: React.FC<Props> = ({
     return () => clearInterval(interval);
   }, []);
 
-  // Enquanto não estiver conectado, verifica status + QR mais rápido (a cada 4s)
+  // Enquanto não estiver conectado, verifica status + QR/código mais rápido (a cada 4s)
   useEffect(() => {
     if (workerStatus?.conectado) return;
     const interval = setInterval(() => {
       fetchWorkerStatus();
-      if (mostrandoQr) fetchWorkerQr();
+      if (mostrandoQr) {
+        if (metodoConexao === 'code') fetchPairCode(); else fetchWorkerQr();
+      }
     }, 4000);
     return () => clearInterval(interval);
-  }, [workerStatus?.conectado, mostrandoQr]);
+  }, [workerStatus?.conectado, mostrandoQr, metodoConexao]);
 
   // Carrega a fila de mensagens do outbox
   const fetchFila = async () => {
@@ -335,20 +365,75 @@ export const RemarketingView: React.FC<Props> = ({
             Para usar o Remarketing você precisa conectar um número de WhatsApp. Ele será usado para enviar as mensagens automáticas aos participantes.
           </p>
 
+          {/* Escolha do método de conexão */}
           {!mostrandoQr && (
-            <button
-              type="button"
-              onClick={iniciarConexaoWhatsapp}
-              className="w-full py-3.5 bg-[#25D366] hover:brightness-110 text-white font-black rounded-xl text-sm transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/30"
-            >
-              <PhoneCall className="w-4 h-4" />
-              Conectar número do WhatsApp
-            </button>
+            <div className="space-y-2.5">
+              <button
+                type="button"
+                onClick={() => iniciarConexaoWhatsapp('qr')}
+                className="w-full py-3.5 bg-[#25D366] hover:brightness-110 text-white font-black rounded-xl text-sm transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/30"
+              >
+                <QrCode className="w-4 h-4" />
+                Ler QR Code
+              </button>
+
+              {!etapaNumero ? (
+                <button
+                  type="button"
+                  onClick={() => setEtapaNumero(true)}
+                  className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl text-sm transition flex items-center justify-center gap-2 border border-slate-700"
+                >
+                  <PhoneCall className="w-4 h-4" />
+                  Conectar com número de telefone
+                </button>
+              ) : (
+                <div className="p-3 bg-slate-950/60 border border-slate-800 rounded-2xl space-y-2.5 text-left">
+                  <label className="text-[11px] font-bold text-slate-300">Número do WhatsApp (com DDD e código do país)</label>
+                  <input
+                    type="tel"
+                    inputMode="numeric"
+                    placeholder="Ex: 5511999998888"
+                    value={numeroInput}
+                    onChange={e => setNumeroInput(e.target.value.replace(/[^\d]/g, ''))}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white font-mono focus:border-emerald-500 focus:outline-none"
+                  />
+                  <p className="text-[10px] text-slate-500">Comece com <strong className="text-slate-300">55</strong> (Brasil) + DDD + número. Ex: 5511999998888</p>
+                  <button
+                    type="button"
+                    onClick={() => iniciarConexaoWhatsapp('code')}
+                    disabled={numeroInput.replace(/\D/g, '').length < 12}
+                    className="w-full py-3 bg-[#25D366] hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black rounded-xl text-sm transition flex items-center justify-center gap-2"
+                  >
+                    Gerar código de conexão
+                  </button>
+                </div>
+              )}
+            </div>
           )}
 
+          {/* Fluxo de conexão em andamento */}
           {mostrandoQr && (
             <div className="space-y-4">
-              {workerQr ? (
+              {metodoConexao === 'code' ? (
+                pairCode ? (
+                  <>
+                    <div className="bg-slate-950 border border-emerald-500/30 rounded-2xl py-5 px-4">
+                      <p className="text-[11px] text-slate-400 mb-2">Seu código de conexão:</p>
+                      <p className="text-3xl font-black tracking-[0.3em] text-emerald-400 font-mono">
+                        {pairCode.length === 8 ? `${pairCode.slice(0, 4)}-${pairCode.slice(4)}` : pairCode}
+                      </p>
+                    </div>
+                    <p className="text-xs text-slate-400 leading-relaxed text-left">
+                      No WhatsApp do número informado: <strong className="text-white">Configurações → Aparelhos conectados → Conectar um aparelho → Conectar com número de telefone</strong> e digite o código acima.
+                    </p>
+                  </>
+                ) : (
+                  <div className="py-8 flex flex-col items-center gap-3 text-slate-400">
+                    <RefreshCw className="w-6 h-6 animate-spin" />
+                    <p className="text-xs">Gerando código de conexão... aguarde alguns segundos.</p>
+                  </div>
+                )
+              ) : workerQr ? (
                 <>
                   <div className="bg-white rounded-2xl p-4 inline-block mx-auto shadow-inner">
                     <img src={workerQr} alt="QR Code WhatsApp" className="w-56 h-56 object-contain" />
@@ -361,7 +446,7 @@ export const RemarketingView: React.FC<Props> = ({
                 <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-left">
                   <p className="text-xs font-bold text-amber-300 mb-1">⚠️ O robô do WhatsApp está desligado</p>
                   <p className="text-[11px] text-amber-200/90 leading-relaxed">
-                    Ligue o worker no seu celular (Termux) para gerar o QR Code. Assim que ele estiver ligado, o código aparece aqui automaticamente.
+                    Ligue o worker no seu celular (Termux). Assim que ele estiver ligado, o código aparece aqui automaticamente.
                   </p>
                 </div>
               ) : (
@@ -372,8 +457,15 @@ export const RemarketingView: React.FC<Props> = ({
               )}
               <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-500">
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                Aguardando você escanear...
+                Aguardando a conexão...
               </div>
+              <button
+                type="button"
+                onClick={() => { setMostrandoQr(false); setEtapaNumero(false); setWorkerQr(null); setPairCode(null); }}
+                className="text-[11px] text-slate-500 hover:text-slate-300 underline"
+              >
+                ← Voltar / trocar método
+              </button>
             </div>
           )}
         </div>

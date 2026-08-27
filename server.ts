@@ -221,10 +221,18 @@ let globalWorkerQr = {
   dataUrl: undefined as string | undefined,
   atualizadoEm: undefined as string | undefined
 };
-// Comando de conexão: o admin pede para conectar e o worker (que faz polling) inicia o QR.
+// Comando de conexão: o admin pede para conectar e o worker (que faz polling) inicia.
+// metodo 'qr' (padrão) ou 'code' (conectar por número de telefone / pairing code).
 let globalWorkerComando = {
   conectar: false,
+  metodo: 'qr' as 'qr' | 'code',
+  numero: '' as string,
   solicitadoEm: undefined as string | undefined
+};
+// Código de pareamento (conexão por número) enviado pelo worker.
+let globalWorkerPairCode = {
+  codigo: undefined as string | undefined,
+  atualizadoEm: undefined as string | undefined
 };
 
 // Body parsers
@@ -3406,10 +3414,11 @@ app.post('/api/worker/status', verificarWorkerSecret, async (req, res) => {
       numero: numero || undefined,
       atualizadoEm: new Date().toISOString()
     };
-    // Se conectou, o QR e o comando de conexão não são mais necessários.
+    // Se conectou, o QR/código e o comando de conexão não são mais necessários.
     if (globalWorkerStatus.conectado) {
       globalWorkerQr = { dataUrl: undefined, atualizadoEm: undefined };
-      globalWorkerComando = { conectar: false, solicitadoEm: undefined };
+      globalWorkerPairCode = { codigo: undefined, atualizadoEm: undefined };
+      globalWorkerComando = { conectar: false, metodo: 'qr', numero: '', solicitadoEm: undefined };
     }
     return res.json({ success: true, status: globalWorkerStatus });
   } catch (err: any) {
@@ -3447,16 +3456,53 @@ app.get('/api/admin/worker/status', firebaseAuthMiddleware, async (req, res) => 
   });
 });
 
-// POST /api/admin/worker/conectar -> O admin pede para conectar; o worker vai gerar o QR
+// POST /api/admin/worker/conectar -> O admin pede para conectar (QR ou por número)
 app.post('/api/admin/worker/conectar', firebaseAuthMiddleware, async (req, res) => {
-  globalWorkerComando = { conectar: true, solicitadoEm: new Date().toISOString() };
-  globalWorkerQr = { dataUrl: undefined, atualizadoEm: undefined }; // limpa QR antigo
+  const { metodo, numero } = req.body || {};
+  globalWorkerComando = {
+    conectar: true,
+    metodo: metodo === 'code' ? 'code' : 'qr',
+    numero: numero ? String(numero).replace(/\D/g, '') : '',
+    solicitadoEm: new Date().toISOString()
+  };
+  // limpa QR/código antigos
+  globalWorkerQr = { dataUrl: undefined, atualizadoEm: undefined };
+  globalWorkerPairCode = { codigo: undefined, atualizadoEm: undefined };
   return res.json({ success: true });
 });
 
-// GET /api/worker/comando -> O worker consulta se há pedido de conexão pendente
+// GET /api/worker/comando -> O worker consulta se há pedido de conexão pendente.
+// O comando é CONSUMIDO ao ser entregue e expira em 5 min, pra um clique antigo
+// não ficar reiniciando o worker sozinho a cada reinício.
 app.get('/api/worker/comando', verificarWorkerSecret, async (req, res) => {
-  return res.json({ conectar: globalWorkerComando.conectar });
+  const agora = Date.now();
+  const ts = globalWorkerComando.solicitadoEm ? new Date(globalWorkerComando.solicitadoEm).getTime() : 0;
+  const valido = globalWorkerComando.conectar && ts > 0 && (agora - ts) < 5 * 60 * 1000;
+  const resposta = {
+    conectar: valido,
+    metodo: globalWorkerComando.metodo,
+    numero: globalWorkerComando.numero
+  };
+  if (valido) {
+    // Consome o comando após entregá-lo uma vez.
+    globalWorkerComando = { conectar: false, metodo: 'qr', numero: '', solicitadoEm: undefined };
+  }
+  return res.json(resposta);
+});
+
+// POST /api/worker/paircode -> O worker envia o código de pareamento (conexão por número)
+app.post('/api/worker/paircode', verificarWorkerSecret, async (req, res) => {
+  const { codigo } = req.body || {};
+  globalWorkerPairCode = { codigo: codigo || undefined, atualizadoEm: new Date().toISOString() };
+  return res.json({ success: true });
+});
+
+// GET /api/admin/worker/paircode -> Retorna o código de pareamento para o admin
+app.get('/api/admin/worker/paircode', firebaseAuthMiddleware, async (req, res) => {
+  const agora = Date.now();
+  const ts = globalWorkerPairCode.atualizadoEm ? new Date(globalWorkerPairCode.atualizadoEm).getTime() : 0;
+  const valido = ts > 0 && (agora - ts) < 5 * 60 * 1000; // código vale ~5 min
+  return res.json({ codigo: valido ? globalWorkerPairCode.codigo : null });
 });
 
 // GET /api/admin/worker/qr -> Retorna o último QR Code para o admin escanear pela web

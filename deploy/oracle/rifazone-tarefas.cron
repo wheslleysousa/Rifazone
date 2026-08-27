@@ -1,0 +1,9 @@
+# Tarefas agendadas do RifaZone (rodando localmente na própria VM).
+# Instale com:  crontab -e   e cole as linhas abaixo (troque SEU_CRON_SECRET).
+# Como o app roda na mesma VM, batemos em localhost:3000 (rápido e sem passar pelo Caddy).
+
+# A cada 2 min: expira pedidos Pix não pagos e libera as cotas.
+*/2 * * * * curl -s -X POST -H "x-cron-secret: SEU_CRON_SECRET" http://localhost:3000/api/tarefas/expirar-pedidos > /dev/null 2>&1
+
+# A cada 5 min: enfileira as mensagens de remarketing (o worker do WhatsApp envia depois).
+*/5 * * * * curl -s -X POST -H "x-cron-secret: SEU_CRON_SECRET" http://localhost:3000/api/tarefas/remarketing > /dev/null 2>&1

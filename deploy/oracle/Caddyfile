@@ -1,0 +1,13 @@
+# Caddy — HTTPS automático (Let's Encrypt) + proxy reverso para o app RifaZone.
+# Troque "rifazone.duckdns.org" pelo SEU domínio (DuckDNS grátis ou domínio próprio),
+# apontando para o IP público da sua VM Oracle.
+#
+# O Caddy cuida do certificado HTTPS sozinho — não precisa configurar nada de SSL à mão.
+
+rifazone.duckdns.org {
+    encode gzip
+    reverse_proxy 127.0.0.1:3000
+}
+
+# OBS: o worker do WhatsApp (porta 3001) NÃO é exposto na internet de propósito.
+# Para escanear o QR Code você usa um túnel SSH (veja o DEPLOY_ORACLE.md).

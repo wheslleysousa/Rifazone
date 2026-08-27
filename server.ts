@@ -1,3 +1,4 @@
+import 'dotenv/config'; // carrega variáveis do arquivo .env (VM/Oracle). No Render as vars vêm do painel.
 import express, { Request, Response, NextFunction } from 'express';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';

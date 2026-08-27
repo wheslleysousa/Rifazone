@@ -1,0 +1,18 @@
+[Unit]
+Description=RifaZone App (Express + Vite build)
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/rifazone
+# Carrega o .env via dotenv (import 'dotenv/config' no server). O arquivo fica em /opt/rifazone/.env
+ExecStart=/usr/bin/node dist/server.cjs
+Restart=always
+RestartSec=5
+# Porta interna do app (o Caddy faz o proxy do 443 para cá)
+Environment=PORT=3000
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target

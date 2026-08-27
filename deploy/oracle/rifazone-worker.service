@@ -1,0 +1,16 @@
+[Unit]
+Description=RifaZone WhatsApp Worker (whatsapp-web.js + Puppeteer)
+After=network.target rifazone-app.service
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/rifazone/rifazone-whatsapp-worker
+# O worker lê o próprio .env desta pasta (RIFAZONE_URL, CRON_SECRET, WORKER_SECRET, DATA_PATH, PORT)
+EnvironmentFile=/opt/rifazone/rifazone-whatsapp-worker/.env
+ExecStart=/usr/bin/node index.js
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

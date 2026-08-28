@@ -234,7 +234,8 @@ export const CampanhaPublicaView: React.FC<Props> = ({
   useEffect(() => {
     if (organizadorModalAberto) {
       setCarregandoOrganizador(true);
-      fetch('/api/campanhas')
+      const ref = codigo || data?.campanha?.codigo || '';
+      fetch(`/api/campanhas?ref=${encodeURIComponent(ref)}`)
         .then(res => res.json())
         .then(resData => {
           if (Array.isArray(resData)) {
@@ -263,7 +264,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
         .catch(err => console.error('Erro ao buscar campanhas do organizador:', err))
         .finally(() => setCarregandoOrganizador(false));
     }
-  }, [organizadorModalAberto]);
+  }, [organizadorModalAberto, codigo, data?.campanha?.codigo]);
 
   // Cupom de Desconto
   const [cupomInput, setCupomInput] = useState('');
@@ -3602,13 +3603,13 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                 <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-3 text-center">
                   <span className="text-[11px] text-slate-400 block font-medium">Números Vendidos</span>
                   <span className="text-base font-mono font-black text-emerald-400">
-                    {((campanhaResultadoModal as any).estatisticas?.vendidas ?? campanhaResultadoModal.totalCotas).toLocaleString()} / {campanhaResultadoModal.totalCotas.toLocaleString()}
+                    {((campanhaResultadoModal as any).estatisticas?.vendidas ?? 0).toLocaleString('pt-BR')} / {campanhaResultadoModal.totalCotas.toLocaleString('pt-BR')}
                   </span>
                 </div>
                 <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-3 text-center">
                   <span className="text-[11px] text-slate-400 block font-medium">Total Arrecadado</span>
                   <span className="text-base font-mono font-black text-amber-400">
-                    R$ {(((campanhaResultadoModal as any).estatisticas?.vendidas ?? campanhaResultadoModal.totalCotas) * (campanhaResultadoModal.valorCota || 0)).toFixed(2).replace('.', ',')}
+                    R$ {(((campanhaResultadoModal as any).estatisticas?.arrecadado ?? 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                 </div>
               </div>

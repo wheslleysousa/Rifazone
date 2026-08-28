@@ -728,6 +728,9 @@ export interface Campanha {
   cabecalhoLogoUrl?: string;
   cabecalhoLogoLarguraTotal?: boolean;
   tituloSelecaoCotas?: string;
+  // Aviso de segurança exibido na consulta "Meus Números" (anti-golpe).
+  avisoSegurancaAtivo?: boolean;
+  avisoSegurancaTexto?: string;
   tema?: TemaCampanha;
   checkoutId?: string;
   checkout?: CheckoutConfig;

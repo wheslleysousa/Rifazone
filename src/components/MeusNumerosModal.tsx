@@ -1,6 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Campanha } from '../types';
-import { Search, Ticket, ArrowLeft, CheckCircle2, User, Phone, Calendar, AlertCircle, Copy, Check, MessageCircle } from 'lucide-react';
+import { Search, Ticket, ArrowLeft, CheckCircle2, User, Phone, Calendar, AlertCircle, Copy, Check, MessageCircle, ShieldCheck } from 'lucide-react';
+
+const AVISO_SEGURANCA_PADRAO = `Para a sua segurança:
+❌ Não fazemos chamada de vídeo
+❌ Não pedimos para compartilhar sua tela
+❌ Não cobramos nenhuma taxa para liberar prêmios
+❌ Nunca pedimos senhas ou códigos de confirmação
+✅ O contato oficial é sempre pelo organizador da campanha`;
 
 interface Props {
   campanha: Campanha;
@@ -60,7 +67,7 @@ export const MeusNumerosModal: React.FC<Props> = ({ campanha, onBack }) => {
 
   useEffect(() => {
     try {
-      const savedPhone = localStorage.getItem('rifapix_comprador_whatsapp');
+      const savedPhone = localStorage.getItem('rifazone_comprador_whatsapp') || localStorage.getItem('rifapix_comprador_whatsapp');
       if (savedPhone) {
         setWhatsapp(formatWhatsapp(savedPhone));
         executarBusca(savedPhone);
@@ -105,6 +112,23 @@ export const MeusNumerosModal: React.FC<Props> = ({ campanha, onBack }) => {
           </h3>
           <div className="w-12" /> {/* Spacer */}
         </div>
+
+        {/* Aviso de segurança (anti-golpe) */}
+        {(campanha.avisoSegurancaAtivo ?? true) && (
+          <div className="mb-6 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4">
+            <div className="flex items-center gap-2 mb-1.5">
+              <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0" />
+              <span className="text-xs font-black uppercase tracking-wider text-amber-400">
+                Para a sua segurança
+              </span>
+            </div>
+            <p className="text-[11px] leading-relaxed text-amber-100/90 whitespace-pre-line">
+              {(campanha.avisoSegurancaTexto || AVISO_SEGURANCA_PADRAO)
+                .replace(/^Para a sua segurança:?\s*/i, '')
+                .trim()}
+            </p>
+          </div>
+        )}
 
         {/* Form */}
         <form onSubmit={handleBuscar} className="space-y-4 mb-6">

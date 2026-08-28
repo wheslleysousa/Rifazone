@@ -136,6 +136,10 @@ export function sanitizarCampanha(
     exibirCabecalhoTipo: data.exibirCabecalhoTipo !== undefined ? data.exibirCabecalhoTipo : (base?.exibirCabecalhoTipo ?? 'nome'),
     cabecalhoLogoTamanho: Number(data.cabecalhoLogoTamanho ?? base?.cabecalhoLogoTamanho ?? 40),
     cabecalhoLogoUrl: data.cabecalhoLogoUrl !== undefined ? (data.cabecalhoLogoUrl || null) : (base?.cabecalhoLogoUrl ?? null),
+    cabecalhoLogoLarguraTotal: data.cabecalhoLogoLarguraTotal !== undefined ? Boolean(data.cabecalhoLogoLarguraTotal) : (base?.cabecalhoLogoLarguraTotal ?? false),
+    tituloSelecaoCotas: data.tituloSelecaoCotas !== undefined ? (data.tituloSelecaoCotas ? String(data.tituloSelecaoCotas).trim() : undefined) : (base?.tituloSelecaoCotas ?? undefined),
+    avisoSegurancaAtivo: data.avisoSegurancaAtivo !== undefined ? Boolean(data.avisoSegurancaAtivo) : (base?.avisoSegurancaAtivo ?? true),
+    avisoSegurancaTexto: data.avisoSegurancaTexto !== undefined ? (data.avisoSegurancaTexto ? String(data.avisoSegurancaTexto).trim() : undefined) : (base?.avisoSegurancaTexto ?? undefined),
     tempoAnimacaoSorteioSegundos: Number(data.tempoAnimacaoSorteioSegundos ?? base?.tempoAnimacaoSorteioSegundos ?? 3),
     exigirEmail: data.exigirEmail !== undefined ? Boolean(data.exigirEmail) : (base?.exigirEmail ?? false),
     exigirCpf: data.exigirCpf !== undefined ? Boolean(data.exigirCpf) : (base?.exigirCpf ?? false),
@@ -166,6 +170,13 @@ export function sanitizarCampanha(
     ganhadoresHistorico: base?.ganhadoresHistorico || data.ganhadoresHistorico || [],
     // Preserva o marcador de exclusão lógica em edições/salvamentos.
     excluidaEm: base?.excluidaEm ?? data.excluidaEm ?? null,
+    // Carimba a data de encerramento na 1ª vez que a campanha vira "encerrada";
+    // depois preserva a data original.
+    encerradaEm: base?.encerradaEm
+      ? base.encerradaEm
+      : ((data.status || base?.status) === 'encerrada'
+          ? (data.encerradaEm || agora)
+          : (data.encerradaEm ?? null)),
     criadaEm: base?.criadaEm || agora,
     atualizadaEm: agora
   };
@@ -341,6 +352,45 @@ app.post('/api/admin/migrar-firebase-para-supabase', async (req, res) => {
       success: false,
       error: error?.message || 'Erro inesperado durante a migração.'
     });
+  }
+});
+
+// GET /api/campanhas?ref=<codigo> -> Lista pública das campanhas do MESMO organizador
+// da campanha de referência (usada no modal "campanhas do organizador").
+// Retorna publicadas/pausadas/encerradas (não excluídas), com estatística real.
+app.get('/api/campanhas', async (req, res) => {
+  try {
+    const ref = String(req.query.ref || '').toLowerCase().trim();
+    if (!ref) return res.json([]);
+
+    const campanhaRef = await db.getCampanhaByCodigo(ref);
+    if (!campanhaRef || campanhaRef.excluidaEm || !campanhaRef.ownerId) {
+      return res.json([]);
+    }
+
+    const todas = await db.getCampanhas(campanhaRef.ownerId);
+    const publicas = todas.filter(c =>
+      !c.excluidaEm &&
+      (c.status === 'publicada' || c.status === 'pausada' || c.status === 'encerrada')
+    );
+
+    const resultado = await Promise.all(publicas.map(async c => {
+      const stats = await db.getEstatisticasCampanha(c.id, c.totalCotas);
+      // Não expor uid/email do organizador na resposta pública.
+      const { ownerId, ownerEmail, ...campanhaPublica } = c;
+      return {
+        ...formatarCampanhaParaEnvio(campanhaPublica as Campanha),
+        estatisticas: {
+          ...stats,
+          arrecadado: toReais(stats.vendidas * (c.valorCota || 0))
+        }
+      };
+    }));
+
+    return res.json(resultado);
+  } catch (err: any) {
+    console.error('Erro ao listar campanhas do organizador:', err);
+    return res.json([]);
   }
 });
 

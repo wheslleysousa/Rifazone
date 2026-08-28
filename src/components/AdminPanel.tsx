@@ -12,7 +12,7 @@ import {
 import {
   auth, observarAuth, cadastrarComEmail, entrarComEmail, entrarComGoogle, sair,
   atualizarPerfilUsuario, atualizarEmailUsuario, atualizarSenhaUsuario, reautenticarEAlterarSenha,
-  traduzErroAuth, type User
+  enviarResetSenha, traduzErroAuth, type User
 } from '../lib/firebase';
 import { toReais } from '../lib/money';
 import { lazyWithRetry } from '../lib/lazy-retry';
@@ -50,6 +50,9 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
   const [aceitouTermos, setAceitouTermos] = useState(false);
   const [modalTermosAberto, setModalTermosAberto] = useState(false);
   const [modalPrivacidadeAberto, setModalPrivacidadeAberto] = useState(false);
+  // Recuperação de senha
+  const [resetMsg, setResetMsg] = useState('');
+  const [enviandoReset, setEnviandoReset] = useState(false);
 
   // Authenticated fetch with Firebase token
   const authFetch = async (url: string, options: RequestInit = {}) => {
@@ -451,6 +454,24 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
     }
   };
 
+  const handleResetSenha = async () => {
+    setLoginErro('');
+    setResetMsg('');
+    if (!email.trim()) {
+      setLoginErro('Digite seu e-mail no campo acima para receber o link de redefinição de senha.');
+      return;
+    }
+    setEnviandoReset(true);
+    try {
+      await enviarResetSenha(email.trim());
+      setResetMsg('Enviamos um link de redefinição de senha para o seu e-mail. Confira a caixa de entrada e o spam.');
+    } catch (err: any) {
+      setLoginErro(traduzErroAuth(err?.code || '') || 'Não foi possível enviar o e-mail de redefinição. Verifique o endereço e tente novamente.');
+    } finally {
+      setEnviandoReset(false);
+    }
+  };
+
   // Salvar Campanha
   const handleSalvarCampanha = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -730,7 +751,19 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
             </div>
 
             <div>
-              <label className="text-xs font-semibold text-slate-300 block mb-1.5">Senha</label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-semibold text-slate-300 block">Senha</label>
+                {!modoCadastro && (
+                  <button
+                    type="button"
+                    onClick={handleResetSenha}
+                    disabled={enviandoReset}
+                    className="text-[11px] text-emerald-400 font-semibold hover:text-emerald-300 hover:underline disabled:opacity-60"
+                  >
+                    {enviandoReset ? 'Enviando...' : 'Esqueci minha senha'}
+                  </button>
+                )}
+              </div>
               <div className="relative">
                 <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
@@ -779,6 +812,13 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
               <p className="text-xs text-red-400 font-medium flex items-center gap-1">
                 <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                 {loginErro}
+              </p>
+            )}
+
+            {resetMsg && (
+              <p className="text-xs text-emerald-400 font-medium flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-3 py-2">
+                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                {resetMsg}
               </p>
             )}
 

@@ -337,10 +337,13 @@ export const CampanhasFormView: React.FC<Props> = ({
 
   const handleGerarCotasPremiadasAleatorias = (qtd: number = 5) => {
     const total = form.totalCotas || 10000;
+    // Nunca pedir mais números do que existem no total — senão o Set nunca
+    // atinge o tamanho e o while trava o navegador (loop infinito).
+    const alvo = Math.min(Math.max(0, qtd), total);
     const digitos = Math.max(2, (total - 1).toString().length);
     const numerosSorteados = new Set<string>();
 
-    while (numerosSorteados.size < qtd) {
+    while (numerosSorteados.size < alvo) {
       const rand = Math.floor(Math.random() * total);
       numerosSorteados.add(rand.toString().padStart(digitos, '0'));
     }

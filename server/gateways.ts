@@ -202,14 +202,21 @@ export async function gerarPixMultiGateway(input: GatewayPixInput): Promise<PixG
       if (efiResult) return efiResult;
     }
 
-    // Fallback se não for possível gerar via API
+    // Sem credenciais válidas OU a API da Efí falhou. NUNCA devolver um Pix
+    // "placeholder" (não pagável) em produção — melhor um erro claro do que um
+    // copia-e-cola que o comprador tenta pagar e falha.
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('Pagamento via Pix indisponível no momento (Efí Pay não configurada corretamente). Tente novamente em instantes ou contate o organizador.');
+    }
+    // Fora de produção, mantém um mock para permitir testes locais.
     const payId = `efi_${Date.now()}_${pedidoId}`;
     const payloadPix = `00020126580014BR.GOV.BCB.PIX0136${config?.efipayConfig?.chavePix || process.env.EFI_CHAVE_PIX || 'chave-pix-efipay'}520400005303986540${valorReais.toFixed(2)}5802BR5913${comprador.nome.slice(0, 13)}6009SAO PAULO62070503***6304`;
     return {
       paymentId: payId,
       pixCopiaCola: payloadPix,
       pixQrCodeBase64: '',
-      gateway: 'efipay'
+      gateway: 'efipay',
+      isMock: true
     };
   }
 
@@ -227,7 +234,13 @@ export async function gerarPixMultiGateway(input: GatewayPixInput): Promise<PixG
     }
   }
 
-  // Fallback para QR Code Pix do sistema com cópia e cola padronizado
+  // Sem Efí Pay do sistema configurada. Em produção NÃO devolvemos um Pix
+  // "mock" (com CRC inválido) que o comprador não consegue pagar — retornamos
+  // erro claro para o painel exibir. O mock fica restrito a ambiente de teste.
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Pagamento via Pix indisponível no momento (carteira do sistema sem gateway configurado). Tente novamente em instantes ou contate o organizador.');
+  }
+
   const chavePixSistema = process.env.PIX_SISTEMA_CHAVE || 'carteira@rifazone.com.br';
   const mockPixPayload = `00020101021226580014br.gov.bcb.pix0136${chavePixSistema}520400005303986540${valorReais.toFixed(2)}5802BR5920CARTEIRA SISTEMA6009SAO PAULO62070503${pedidoId.slice(0, 7)}6304BEEF`;
 
@@ -236,7 +249,7 @@ export async function gerarPixMultiGateway(input: GatewayPixInput): Promise<PixG
     pixCopiaCola: mockPixPayload,
     pixQrCodeBase64: '',
     gateway: 'carteira',
-    isMock: process.env.NODE_ENV !== 'production'
+    isMock: true
   };
 }
 

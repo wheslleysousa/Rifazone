@@ -12,6 +12,7 @@ import {
   onAuthStateChanged,
   EmailAuthProvider,
   reauthenticateWithCredential,
+  sendPasswordResetEmail,
   type User
 } from 'firebase/auth';
 import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
@@ -48,6 +49,11 @@ export async function cadastrarComEmail(nome: string, email: string, senha: stri
 export async function entrarComEmail(email: string, senha: string): Promise<User> {
   const cred = await signInWithEmailAndPassword(auth, email, senha);
   return cred.user;
+}
+
+// Envia e-mail de redefinição de senha (recuperação de acesso do organizador).
+export async function enviarResetSenha(email: string): Promise<void> {
+  await sendPasswordResetEmail(auth, email);
 }
 
 export async function entrarComGoogle(): Promise<User> {

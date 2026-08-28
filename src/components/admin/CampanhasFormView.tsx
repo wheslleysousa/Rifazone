@@ -118,6 +118,7 @@ export const CampanhasFormView: React.FC<Props> = ({
   const [draggedPromoIdx, setDraggedPromoIdx] = useState<number | null>(null);
   const [visualizacaoMobile, setVisualizacaoMobile] = useState<'controles' | 'preview'>('controles');
   const [checkoutsSalvos, setCheckoutsSalvos] = useState<CheckoutSalvo[]>([]);
+  const [abertoCorPremioIdx, setAbertoCorPremioIdx] = useState<number | null>(null);
 
   useEffect(() => {
     if (authFetch) {
@@ -1841,32 +1842,174 @@ export const CampanhasFormView: React.FC<Props> = ({
               </div>
 
               <div className="space-y-3">
-                {(form.premios || []).map((p, idx) => (
-                  <div key={idx} className="flex items-center gap-3 p-3 bg-slate-950/50 border border-slate-700/50 rounded-2xl shadow-inner group transition-all hover:border-amber-500/30">
-                    <span className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-400 flex items-center justify-center font-black text-sm shrink-0 shadow-sm">
-                      {p.posicao}º
-                    </span>
-                    <input
-                      type="text"
-                      placeholder="Descrição do prêmio... (ex: iPhone 15 Pro Max)"
-                      value={p.descricao}
-                      onChange={e => {
-                        const arr = [...(form.premios || [])];
-                        arr[idx].descricao = e.target.value;
-                        setForm(prev => ({ ...prev, premios: arr }));
-                      }}
-                      className="flex-1 bg-transparent border-none text-sm text-white focus:ring-0 focus:outline-none placeholder:text-slate-600"
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleRemovePremio(idx)}
-                      className="p-2.5 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-colors shrink-0"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
+                {(form.premios || []).map((p, idx) => {
+                  const isCorAberta = abertoCorPremioIdx === idx;
+                  const numPosicao = p.posicao || (idx + 1);
+                  const badgeBg = p.corBadgeFundo || '#10b981';
+                  const badgeTexto = p.corBadgeTexto || '#022c22';
+
+                  const presets = [
+                    { nome: '🥇 Ouro', bg: '#f59e0b', txt: '#000000' },
+                    { nome: '🥈 Prata', bg: '#94a3b8', txt: '#000000' },
+                    { nome: '🥉 Bronze', bg: '#d97706', txt: '#ffffff' },
+                    { nome: '💚 Verde', bg: '#10b981', txt: '#022c22' },
+                    { nome: '💙 Azul', bg: '#3b82f6', txt: '#ffffff' },
+                    { nome: '💜 Roxo', bg: '#a855f7', txt: '#ffffff' },
+                    { nome: '❤️ Vermelho', bg: '#ef4444', txt: '#ffffff' },
+                  ];
+
+                  return (
+                    <div key={idx} className="bg-slate-950/60 border border-slate-800 rounded-2xl p-3 space-y-2 transition-all hover:border-amber-500/30">
+                      <div className="flex items-center gap-3">
+                        <span 
+                          className="w-10 h-10 rounded-xl font-black text-sm shrink-0 shadow-sm flex items-center justify-center border transition-all"
+                          style={{
+                            backgroundColor: badgeBg,
+                            borderColor: `${badgeBg}cc`,
+                            color: badgeTexto
+                          }}
+                        >
+                          {numPosicao}º
+                        </span>
+                        <input
+                          type="text"
+                          placeholder="Descrição do prêmio... (ex: iPhone 16 Pro Max)"
+                          value={p.descricao}
+                          onChange={e => {
+                            const arr = [...(form.premios || [])];
+                            arr[idx].descricao = e.target.value;
+                            setForm(prev => ({ ...prev, premios: arr }));
+                          }}
+                          className="flex-1 bg-transparent border-none text-sm text-white focus:ring-0 focus:outline-none placeholder:text-slate-600 font-bold"
+                          required
+                        />
+
+                        {/* Botão para personalizar cor do prêmio */}
+                        <button
+                          type="button"
+                          onClick={() => setAbertoCorPremioIdx(isCorAberta ? null : idx)}
+                          title="Personalizar cores do prêmio"
+                          className={`p-2.5 rounded-xl border transition-colors flex items-center gap-1.5 text-xs font-bold shrink-0 ${
+                            isCorAberta || p.corBadgeFundo
+                              ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
+                              : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
+                          }`}
+                        >
+                          <Palette className="w-4 h-4" />
+                          <span className="hidden sm:inline">Cores</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleRemovePremio(idx)}
+                          className="p-2.5 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-colors shrink-0"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      {/* Painel de Cores do Prêmio */}
+                      {isCorAberta && (
+                        <div className="pt-2 border-t border-slate-800/80 space-y-3 animate-in fade-in">
+                          <div>
+                            <span className="text-[10px] font-black uppercase text-slate-400 block mb-1.5">Presets de Selo (Posição)</span>
+                            <div className="flex flex-wrap gap-1.5">
+                              {presets.map((pr, pIdx) => (
+                                <button
+                                  key={pIdx}
+                                  type="button"
+                                  onClick={() => {
+                                    const arr = [...(form.premios || [])];
+                                    arr[idx] = {
+                                      ...arr[idx],
+                                      corBadgeFundo: pr.bg,
+                                      corBadgeTexto: pr.txt,
+                                    };
+                                    setForm(prev => ({ ...prev, premios: arr }));
+                                  }}
+                                  className="px-2.5 py-1 rounded-lg border text-xs font-bold transition-transform active:scale-95 flex items-center gap-1"
+                                  style={{ backgroundColor: pr.bg, color: pr.txt, borderColor: `${pr.bg}aa` }}
+                                >
+                                  {pr.nome}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                            <div className="p-2 bg-slate-900 border border-slate-800 rounded-xl space-y-1">
+                              <label className="text-[10px] font-bold text-slate-400 block">Fundo da Tag</label>
+                              <div className="flex items-center gap-1.5">
+                                <input
+                                  type="color"
+                                  value={p.corBadgeFundo || '#10b981'}
+                                  onChange={e => {
+                                    const arr = [...(form.premios || [])];
+                                    arr[idx].corBadgeFundo = e.target.value;
+                                    setForm(prev => ({ ...prev, premios: arr }));
+                                  }}
+                                  className="w-6 h-6 rounded cursor-pointer bg-transparent border-0 p-0"
+                                />
+                                <span className="text-[10px] font-mono text-slate-300 uppercase">{p.corBadgeFundo || '#10b981'}</span>
+                              </div>
+                            </div>
+
+                            <div className="p-2 bg-slate-900 border border-slate-800 rounded-xl space-y-1">
+                              <label className="text-[10px] font-bold text-slate-400 block">Texto da Tag</label>
+                              <div className="flex items-center gap-1.5">
+                                <input
+                                  type="color"
+                                  value={p.corBadgeTexto || '#022c22'}
+                                  onChange={e => {
+                                    const arr = [...(form.premios || [])];
+                                    arr[idx].corBadgeTexto = e.target.value;
+                                    setForm(prev => ({ ...prev, premios: arr }));
+                                  }}
+                                  className="w-6 h-6 rounded cursor-pointer bg-transparent border-0 p-0"
+                                />
+                                <span className="text-[10px] font-mono text-slate-300 uppercase">{p.corBadgeTexto || '#022c22'}</span>
+                              </div>
+                            </div>
+
+                            <div className="p-2 bg-slate-900 border border-slate-800 rounded-xl space-y-1">
+                              <label className="text-[10px] font-bold text-slate-400 block">Fundo do Card</label>
+                              <div className="flex items-center gap-1.5">
+                                <input
+                                  type="color"
+                                  value={p.corFundo || '#0f172a'}
+                                  onChange={e => {
+                                    const arr = [...(form.premios || [])];
+                                    arr[idx].corFundo = e.target.value;
+                                    setForm(prev => ({ ...prev, premios: arr }));
+                                  }}
+                                  className="w-6 h-6 rounded cursor-pointer bg-transparent border-0 p-0"
+                                />
+                                <span className="text-[10px] font-mono text-slate-300 uppercase">{p.corFundo || 'Padrão'}</span>
+                              </div>
+                            </div>
+
+                            <div className="p-2 bg-slate-900 border border-slate-800 rounded-xl space-y-1">
+                              <label className="text-[10px] font-bold text-slate-400 block">Texto do Card</label>
+                              <div className="flex items-center gap-1.5">
+                                <input
+                                  type="color"
+                                  value={p.corTexto || '#ffffff'}
+                                  onChange={e => {
+                                    const arr = [...(form.premios || [])];
+                                    arr[idx].corTexto = e.target.value;
+                                    setForm(prev => ({ ...prev, premios: arr }));
+                                  }}
+                                  className="w-6 h-6 rounded cursor-pointer bg-transparent border-0 p-0"
+                                />
+                                <span className="text-[10px] font-mono text-slate-300 uppercase">{p.corTexto || '#ffffff'}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
 

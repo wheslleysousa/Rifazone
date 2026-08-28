@@ -4,13 +4,22 @@ import { CampanhaPublicaView } from '../CampanhaPublicaView';
 import { ErrorBoundary } from '../ErrorBoundary';
 import { 
   Palette, Sparkles, Smartphone, Eye, GripVertical, Check, 
-  RotateCcw, Save, Trash2, ArrowUp, ArrowDown, Layers, 
+  RotateCcw, Save, Trash2, ArrowUp, ArrowDown, ArrowLeft, Layers, 
   Type, MousePointer, ShieldCheck, ChevronRight, Layout, 
   Sliders, X, RefreshCw, Bookmark, FolderHeart, CheckCircle2,
   CreditCard, QrCode, FileText, CheckCheck, AlertCircle, Shield, Image as ImageIcon, Video, User, ShoppingCart,
-  Trophy, Gift, Ticket, Zap, TrendingUp, Users, Info
+  Trophy, Gift, Ticket, Zap, TrendingUp, Users, Info, Plus, Minus, Package, Box, SlidersHorizontal, Maximize2, Slash,
+  ChevronUp, ChevronDown
 } from 'lucide-react';
 import { auth } from '../../lib/firebase';
+import { 
+  ICON_SETS, 
+  getSectionIcon, 
+  calcularEstiloBotao, 
+  calcularEstiloCard,
+  TipoEstiloBotao,
+  hexToRgba
+} from '../../lib/temaHelpers';
 
 const PRESETS = [
   {
@@ -86,7 +95,11 @@ export const TemaBuilderView: React.FC<Props> = ({
   mostrarPreview = true
 }) => {
   const [visualizacaoMobile, setVisualizacaoMobile] = useState<'controles' | 'preview'>('controles');
-  const [secaoEditor, setSecaoEditor] = useState<'geral' | 'botao' | 'tipografia' | 'blocos' | 'organizador' | 'estilos' | 'icones' | 'progresso'>('geral');
+  const [secaoEditor, setSecaoEditor] = useState<'menu' | 'geral' | 'tipografia' | 'blocos' | 'estilos'>('menu');
+  const [subAbaGeral, setSubAbaGeral] = useState<'cores' | 'botoes' | 'icones' | 'logo' | 'vendas' | null>(null);
+  const [subAbaBotao, setSubAbaBotao] = useState<'compra' | 'pacotes' | 'controles' | 'cotas' | 'cards' | null>(null);
+  const [secaoIconeAberta, setSecaoIconeAberta] = useState<string>('premios');
+  const [secaoCardAberta, setSecaoCardAberta] = useState<string | null>('premios');
 
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
 
@@ -112,6 +125,13 @@ export const TemaBuilderView: React.FC<Props> = ({
       cardBorda: tema?.cores?.cardBorda || TEMA_PADRAO.cores.cardBorda,
       faviconFundo: tema?.cores?.faviconFundo || TEMA_PADRAO.cores.faviconFundo,
       iconeCor: tema?.cores?.iconeCor || TEMA_PADRAO.cores.iconeCor,
+      iconePremios: tema?.cores?.iconePremios || tema?.cores?.iconeCor || TEMA_PADRAO.cores.iconePremios || '#10b981',
+      iconeRegulamento: tema?.cores?.iconeRegulamento || tema?.cores?.iconeCor || TEMA_PADRAO.cores.iconeRegulamento || '#10b981',
+      iconeCotasPremiadas: tema?.cores?.iconeCotasPremiadas || tema?.cores?.iconeCor || TEMA_PADRAO.cores.iconeCotasPremiadas || '#10b981',
+      iconeTopCompradores: tema?.cores?.iconeTopCompradores || tema?.cores?.iconeCor || TEMA_PADRAO.cores.iconeTopCompradores || '#10b981',
+      iconeGanhadores: tema?.cores?.iconeGanhadores || tema?.cores?.iconeCor || TEMA_PADRAO.cores.iconeGanhadores || '#10b981',
+      iconeMeusNumeros: tema?.cores?.iconeMeusNumeros || tema?.cores?.iconeCor || TEMA_PADRAO.cores.iconeMeusNumeros || '#10b981',
+      iconeSorteio: tema?.cores?.iconeSorteio || tema?.cores?.iconeCor || TEMA_PADRAO.cores.iconeSorteio || '#10b981',
       barraProgressoFundo: tema?.cores?.barraProgressoFundo || TEMA_PADRAO.cores.barraProgressoFundo,
       barraProgressoPreenchimento: tema?.cores?.barraProgressoPreenchimento || TEMA_PADRAO.cores.barraProgressoPreenchimento,
       barraProgressoTexto: tema?.cores?.barraProgressoTexto || TEMA_PADRAO.cores.barraProgressoTexto,
@@ -119,11 +139,44 @@ export const TemaBuilderView: React.FC<Props> = ({
       botaoCotasFundo: tema?.cores?.botaoCotasFundo || TEMA_PADRAO.cores.botaoCotasFundo,
       botaoCotasTexto: tema?.cores?.botaoCotasTexto || TEMA_PADRAO.cores.botaoCotasTexto,
       botaoCotasNumero: tema?.cores?.botaoCotasNumero || TEMA_PADRAO.cores.botaoCotasNumero,
+      botaoCotasBorda: tema?.cores?.botaoCotasBorda || tema?.cores?.cardBorda || TEMA_PADRAO.cores.botaoCotasBorda || '#334155',
       controlesFundo: tema?.cores?.controlesFundo || TEMA_PADRAO.cores.controlesFundo,
       controlesTexto: tema?.cores?.controlesTexto || TEMA_PADRAO.cores.controlesTexto,
+      controlesInputFundo: tema?.cores?.controlesInputFundo || TEMA_PADRAO.cores.controlesInputFundo || '#0f172a',
+      controlesInputTexto: tema?.cores?.controlesInputTexto || TEMA_PADRAO.cores.controlesInputTexto || '#ffffff',
+      controlesBorda: tema?.cores?.controlesBorda || tema?.cores?.cardBorda || TEMA_PADRAO.cores.controlesBorda || '#334155',
       textoPrecoBarra: tema?.cores?.textoPrecoBarra || TEMA_PADRAO.cores.textoPrecoBarra,
       subtituloCor: tema?.cores?.subtituloCor || TEMA_PADRAO.cores.subtituloCor,
       localSorteioCor: tema?.cores?.localSorteioCor || TEMA_PADRAO.cores.localSorteioCor,
+      seloBannerFundo: tema?.cores?.seloBannerFundo || TEMA_PADRAO.cores.seloBannerFundo || '#f59e0b',
+      seloBannerTexto: tema?.cores?.seloBannerTexto || TEMA_PADRAO.cores.seloBannerTexto || '#022c22',
+      seloPopularFundo: tema?.cores?.seloPopularFundo || TEMA_PADRAO.cores.seloPopularFundo || '#f59e0b',
+      seloPopularTexto: tema?.cores?.seloPopularTexto || TEMA_PADRAO.cores.seloPopularTexto || '#022c22',
+      botaoDestaqueFundo: tema?.cores?.botaoDestaqueFundo || tema?.cores?.primaria || TEMA_PADRAO.cores.botaoDestaqueFundo || '#10b981',
+      botaoDestaqueTexto: tema?.cores?.botaoDestaqueTexto || TEMA_PADRAO.cores.botaoDestaqueTexto || '#022c22',
+      premioFundo: tema?.cores?.premioFundo || tema?.cores?.controlesFundo || TEMA_PADRAO.cores.premioFundo || '#0f172a',
+      premioTexto: tema?.cores?.premioTexto || tema?.cores?.texto || TEMA_PADRAO.cores.premioTexto || '#ffffff',
+      premioBadgeFundo: tema?.cores?.premioBadgeFundo || tema?.cores?.primaria || TEMA_PADRAO.cores.premioBadgeFundo || '#10b981',
+      premioBadgeTexto: tema?.cores?.premioBadgeTexto || TEMA_PADRAO.cores.premioBadgeTexto || '#022c22',
+      premioBorda: tema?.cores?.premioBorda || tema?.cores?.cardBorda || TEMA_PADRAO.cores.premioBorda || '#1e293b',
+      cardBannerFundo: tema?.cores?.cardBannerFundo || tema?.cores?.cardFundo || TEMA_PADRAO.cores.cardBannerFundo || '#0f172a',
+      cardBannerBorda: tema?.cores?.cardBannerBorda || tema?.cores?.cardBorda || TEMA_PADRAO.cores.cardBannerBorda || '#1e293b',
+      cardProgressoFundo: tema?.cores?.cardProgressoFundo || tema?.cores?.cardBarraProgressoFundo || tema?.cores?.cardFundo || TEMA_PADRAO.cores.cardProgressoFundo || '#0f172a',
+      cardProgressoBorda: tema?.cores?.cardProgressoBorda || tema?.cores?.cardBorda || TEMA_PADRAO.cores.cardProgressoBorda || '#1e293b',
+      cardCotasFundo: tema?.cores?.cardCotasFundo || tema?.cores?.cardFundo || TEMA_PADRAO.cores.cardCotasFundo || '#0f172a',
+      cardCotasBorda: tema?.cores?.cardCotasBorda || tema?.cores?.cardBorda || TEMA_PADRAO.cores.cardCotasBorda || '#1e293b',
+      cardCotasTexto: tema?.cores?.cardCotasTexto || tema?.cores?.texto || TEMA_PADRAO.cores.cardCotasTexto || '#ffffff',
+      cardPremiosFundo: tema?.cores?.cardPremiosFundo || tema?.cores?.cardFundo || TEMA_PADRAO.cores.cardPremiosFundo || '#0f172a',
+      cardPremiosBorda: tema?.cores?.cardPremiosBorda || tema?.cores?.cardBorda || TEMA_PADRAO.cores.cardPremiosBorda || '#1e293b',
+      cardCotasPremiadasFundo: tema?.cores?.cardCotasPremiadasFundo || tema?.cores?.cardFundo || TEMA_PADRAO.cores.cardCotasPremiadasFundo || '#0f172a',
+      cardCotasPremiadasBorda: tema?.cores?.cardCotasPremiadasBorda || tema?.cores?.cardBorda || TEMA_PADRAO.cores.cardCotasPremiadasBorda || '#1e293b',
+      cardRankingFundo: tema?.cores?.cardRankingFundo || tema?.cores?.cardFundo || TEMA_PADRAO.cores.cardRankingFundo || '#0f172a',
+      cardRankingBorda: tema?.cores?.cardRankingBorda || tema?.cores?.cardBorda || TEMA_PADRAO.cores.cardRankingBorda || '#1e293b',
+      cardRegulamentoFundo: tema?.cores?.cardRegulamentoFundo || tema?.cores?.cardFundo || TEMA_PADRAO.cores.cardRegulamentoFundo || '#0f172a',
+      cardRegulamentoBorda: tema?.cores?.cardRegulamentoBorda || tema?.cores?.cardBorda || TEMA_PADRAO.cores.cardRegulamentoBorda || '#1e293b',
+      cardRegulamentoTexto: tema?.cores?.cardRegulamentoTexto || tema?.cores?.descricoes || TEMA_PADRAO.cores.cardRegulamentoTexto || '#cbd5e1',
+      cardGanhadoresFundo: tema?.cores?.cardGanhadoresFundo || tema?.cores?.cardFundo || TEMA_PADRAO.cores.cardGanhadoresFundo || '#0f172a',
+      cardGanhadoresBorda: tema?.cores?.cardGanhadoresBorda || tema?.cores?.cardBorda || TEMA_PADRAO.cores.cardGanhadoresBorda || '#1e293b',
     },
     secaoIcones: {
       premios: tema?.secaoIcones?.premios || TEMA_PADRAO.secaoIcones.premios,
@@ -132,6 +185,9 @@ export const TemaBuilderView: React.FC<Props> = ({
       ganhadores: tema?.secaoIcones?.ganhadores || TEMA_PADRAO.secaoIcones.ganhadores,
       regulamento: tema?.secaoIcones?.regulamento || TEMA_PADRAO.secaoIcones.regulamento,
       descricao: tema?.secaoIcones?.descricao || TEMA_PADRAO.secaoIcones.descricao,
+      meusNumeros: tema?.secaoIcones?.meusNumeros || TEMA_PADRAO.secaoIcones.meusNumeros || 'Ticket',
+      sorteio: tema?.secaoIcones?.sorteio || TEMA_PADRAO.secaoIcones.sorteio || 'Calendar',
+      botaoCompra: tema?.secaoIcones?.botaoCompra || tema?.botao?.iconeCompra || TEMA_PADRAO.secaoIcones?.botaoCompra || 'Sparkles',
     },
     botao: {
       formato: tema?.botao?.formato || TEMA_PADRAO.botao.formato,
@@ -139,9 +195,33 @@ export const TemaBuilderView: React.FC<Props> = ({
       tamanhoAltura: tema?.botao?.tamanhoAltura ?? TEMA_PADRAO.botao.tamanhoAltura,
       tamanhoTexto: tema?.botao?.tamanhoTexto ?? TEMA_PADRAO.botao.tamanhoTexto,
       estilo: tema?.botao?.estilo || TEMA_PADRAO.botao.estilo,
-      estiloPacotes: tema?.botao?.estiloPacotes || TEMA_PADRAO.botao.estiloPacotes,
-      estiloCotas: tema?.botao?.estiloCotas || TEMA_PADRAO.botao.estiloCotas,
+      sombraAltura: tema?.botao?.sombraAltura ?? TEMA_PADRAO.botao.sombraAltura ?? 4,
+      sombraLargura: tema?.botao?.sombraLargura ?? TEMA_PADRAO.botao.sombraLargura ?? 4,
+      corSombra: tema?.botao?.corSombra || TEMA_PADRAO.botao.corSombra || '#047857',
       textoCompra: tema?.botao?.textoCompra || TEMA_PADRAO.botao.textoCompra,
+      iconeCompra: tema?.botao?.iconeCompra || tema?.secaoIcones?.botaoCompra || TEMA_PADRAO.botao?.iconeCompra || 'Sparkles',
+      // Pacotes
+      estiloPacotes: tema?.botao?.estiloPacotes || TEMA_PADRAO.botao.estiloPacotes || 'solido',
+      raioBordaPacotes: tema?.botao?.raioBordaPacotes ?? TEMA_PADRAO.botao.raioBordaPacotes ?? 12,
+      tamanhoAlturaPacotes: tema?.botao?.tamanhoAlturaPacotes ?? TEMA_PADRAO.botao.tamanhoAlturaPacotes ?? 12,
+      sombraAlturaPacotes: tema?.botao?.sombraAlturaPacotes ?? TEMA_PADRAO.botao.sombraAlturaPacotes ?? 3,
+      corSombraPacotes: tema?.botao?.corSombraPacotes || TEMA_PADRAO.botao.corSombraPacotes || '#047857',
+      // Controles
+      estiloControles: tema?.botao?.estiloControles || TEMA_PADRAO.botao.estiloControles || 'solido',
+      raioBordaControles: tema?.botao?.raioBordaControles ?? TEMA_PADRAO.botao.raioBordaControles ?? 12,
+      tamanhoControles: tema?.botao?.tamanhoControles ?? TEMA_PADRAO.botao.tamanhoControles ?? 44,
+      sombraAlturaControles: tema?.botao?.sombraAlturaControles ?? TEMA_PADRAO.botao.sombraAlturaControles ?? 3,
+      corSombraControles: tema?.botao?.corSombraControles || TEMA_PADRAO.botao.corSombraControles || '#047857',
+      // Cotas
+      estiloCotas: tema?.botao?.estiloCotas || TEMA_PADRAO.botao.estiloCotas || 'solido',
+      raioBordaCotas: tema?.botao?.raioBordaCotas ?? TEMA_PADRAO.botao.raioBordaCotas ?? 8,
+      sombraAlturaCotas: tema?.botao?.sombraAlturaCotas ?? TEMA_PADRAO.botao.sombraAlturaCotas ?? 2,
+      corSombraCotas: tema?.botao?.corSombraCotas || TEMA_PADRAO.botao.corSombraCotas || '#047857',
+      // Cards
+      estiloCards: tema?.botao?.estiloCards || TEMA_PADRAO.botao.estiloCards || 'solido',
+      raioBordaCards: tema?.botao?.raioBordaCards ?? TEMA_PADRAO.botao.raioBordaCards ?? 16,
+      sombraAlturaCards: tema?.botao?.sombraAlturaCards ?? TEMA_PADRAO.botao.sombraAlturaCards ?? 4,
+      corSombraCards: tema?.botao?.corSombraCards || TEMA_PADRAO.botao.corSombraCards || '#0f172a',
     },
     tipografia: {
       fonteTitulo: tema?.tipografia?.fonteTitulo || TEMA_PADRAO.tipografia.fonteTitulo,
@@ -357,11 +437,14 @@ export const TemaBuilderView: React.FC<Props> = ({
             <Palette className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-base font-black text-white">
-              Personalizador Visual de Tema & Layout
-            </h2>
-            <p className="text-xs text-slate-400">
-              Personalize cores, fontes, botões e ordem dos blocos com prévia em tempo real.
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-black text-white">Editor de tema</h2>
+              <span className="text-xs text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20 truncate max-w-[200px]">
+                {campanha.titulo}
+              </span>
+            </div>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Personalize a aparência, botões, cores e layout em tempo real.
             </p>
           </div>
         </div>
@@ -387,7 +470,7 @@ export const TemaBuilderView: React.FC<Props> = ({
                 className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 text-slate-950 text-xs font-black rounded-xl transition flex items-center gap-1.5 shadow-lg shadow-emerald-500/20"
               >
                 <Save className="w-4 h-4" />
-                <span>{salvando ? 'Salvando...' : 'Salvar Alterações'}</span>
+                <span>{salvando ? 'Salvando...' : 'Atualizar / Salvar Alterações'}</span>
               </button>
             )}
           </div>
@@ -438,347 +521,2085 @@ export const TemaBuilderView: React.FC<Props> = ({
         {/* COLUNA DA ESQUERDA: CONTROLES DO TEMA */}
         <div className={`${mostrarPreview ? 'lg:col-span-7' : 'w-full'} space-y-4 ${visualizacaoMobile === 'preview' ? 'hidden lg:block' : 'block'}`}>
           
-          {/* Navegação entre seções */}
-          <div className="grid grid-cols-4 sm:grid-cols-8 gap-1 p-1 bg-slate-900 border border-slate-800 rounded-xl overflow-x-auto custom-scrollbar">
-            {[
-              { id: 'geral', label: 'Geral', icon: Palette },
-              { id: 'botao', label: 'Botões', icon: MousePointer },
-              { id: 'tipografia', label: 'Fontes', icon: Type },
-              { id: 'progresso', label: 'Vendas', icon: Sliders },
-              { id: 'icones', label: 'Ícones', icon: Sparkles },
-              { id: 'blocos', label: 'Layout', icon: Layout },
-              { id: 'organizador', label: 'Logo', icon: User },
-              { id: 'estilos', label: 'Estilos', icon: FolderHeart },
-            ].map(tab => {
-              const Icon = tab.icon;
-              return (
-                <button
-                  key={tab.id}
+          {/* BARRA DE NAVEGAÇÃO SUPERIOR & BREADCRUMBS DO EDITOR */}
+          {secaoEditor !== 'menu' && (
+            <div className="flex items-center justify-between p-3 bg-slate-900 border border-slate-800 rounded-2xl animate-in fade-in">
+              <button
+                type="button"
+                onClick={() => {
+                  if (subAbaBotao !== null) {
+                    setSubAbaBotao(null);
+                  } else if (subAbaGeral !== null) {
+                    setSubAbaGeral(null);
+                  } else {
+                    setSecaoEditor('menu');
+                  }
+                }}
+                className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl transition cursor-pointer"
+              >
+                <ArrowLeft className="w-4 h-4 text-emerald-400" />
+                <span>
+                  {subAbaBotao !== null
+                    ? 'Voltar para Botões & Elementos'
+                    : subAbaGeral !== null
+                    ? 'Voltar para Geral'
+                    : 'Voltar ao Menu Principal'}
+                </span>
+              </button>
+
+              {/* Breadcrumb Trail */}
+              <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 overflow-x-auto custom-scrollbar">
+                <button 
                   type="button"
-                  onClick={() => setSecaoEditor(tab.id as any)}
-                  className={`py-2 px-1 rounded-lg text-xs font-bold flex flex-col items-center justify-center gap-1 transition ${
-                    secaoEditor === tab.id
-                      ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                      : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                  }`}
+                  onClick={() => { setSecaoEditor('menu'); setSubAbaGeral(null); setSubAbaBotao(null); }} 
+                  className="hover:text-emerald-400 transition cursor-pointer"
                 >
-                  <Icon className="w-4 h-4" />
-                  <span className="truncate text-[10px]">{tab.label}</span>
+                  Editor
                 </button>
-              );
-            })}
-          </div>
-
-          {/* 1. SEÇÃO GERAL (CORES E FUNDO) */}
-          {secaoEditor === 'geral' && (
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-5 animate-in fade-in">
-              <div className="border-b border-slate-800 pb-3">
-                <h3 className="text-sm font-black text-white flex items-center gap-2">
-                  <Palette className="w-4 h-4 text-emerald-400" />
-                  Configurações Gerais
-                </h3>
-                <p className="text-xs text-slate-400">
-                  Cores principais da página, fundo e cards.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                {[
-                  { key: 'primaria', label: 'Cor Primária', desc: 'Destaques e badges' },
-                  { key: 'fundo', label: 'Fundo da Página', desc: 'Cor principal da tela' },
-                  { key: 'cardFundo', label: 'Fundo dos Cards', desc: 'Blocos de pacotes e prêmios' },
-                  { key: 'cardBorda', label: 'Borda dos Cards', desc: 'Delimitação de caixas' },
-                ].map(item => {
-                  const val = (temaSeguro.cores as any)[item.key];
-                  return (
-                    <div key={item.key} className="p-3 bg-slate-950/80 border border-slate-800 rounded-xl space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider">{item.label}</label>
-                        <span className="text-[10px] text-slate-500 font-mono uppercase">{val}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="color"
-                          value={val}
-                          onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [item.key]: e.target.value } })}
-                          className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
-                        />
-                        <input
-                          type="text"
-                          value={val}
-                          onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [item.key]: e.target.value } })}
-                          className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Fundo Multimídia */}
-              <div className="pt-4 border-t border-slate-800 space-y-4">
-                <label className="text-xs font-bold text-slate-300 block">Fundo Multimídia (Imagem ou Vídeo)</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {['cor', 'imagem', 'video'].map(tipo => (
-                    <button
-                      key={tipo}
-                      onClick={() => atualizarTema({ fundoMidia: { ...temaSeguro.fundoMidia, tipo: tipo as any } })}
-                      className={`py-2 text-[10px] font-bold rounded-lg border transition ${
-                        temaSeguro.fundoMidia.tipo === tipo 
-                          ? 'bg-emerald-500 border-emerald-500 text-slate-950' 
-                          : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
-                      }`}
+                <ChevronRight className="w-3 h-3 text-slate-600 shrink-0" />
+                {secaoEditor === 'geral' && (
+                  <>
+                    <button 
+                      type="button"
+                      onClick={() => { setSubAbaGeral(null); setSubAbaBotao(null); }} 
+                      className={`transition cursor-pointer ${subAbaGeral === null ? 'text-emerald-400 font-black' : 'hover:text-emerald-400'}`}
                     >
-                      {tipo === 'cor' ? 'Apenas Cor' : tipo === 'imagem' ? 'Imagem URL' : 'Vídeo URL'}
+                      Geral
                     </button>
-                  ))}
-                </div>
-                {temaSeguro.fundoMidia.tipo !== 'cor' && (
-                  <input
-                    type="text"
-                    value={temaSeguro.fundoMidia.url || ''}
-                    onChange={e => atualizarTema({ fundoMidia: { ...temaSeguro.fundoMidia, url: e.target.value } })}
-                    placeholder={temaSeguro.fundoMidia.tipo === 'imagem' ? 'URL da imagem...' : 'URL do vídeo (YouTube/MP4)...'}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-xs text-white focus:border-emerald-500 focus:outline-none"
-                  />
+                    {subAbaGeral && (
+                      <>
+                        <ChevronRight className="w-3 h-3 text-slate-600 shrink-0" />
+                        <button
+                          type="button"
+                          onClick={() => setSubAbaBotao(null)}
+                          className={`transition cursor-pointer ${subAbaBotao === null ? 'text-emerald-400 font-black' : 'hover:text-emerald-400'}`}
+                        >
+                          {subAbaGeral === 'cores' && 'Cores & Fundo'}
+                          {subAbaGeral === 'botoes' && 'Botões & Elementos'}
+                          {subAbaGeral === 'icones' && 'Ícones'}
+                          {subAbaGeral === 'logo' && 'Logo & Cabeçalho'}
+                          {subAbaGeral === 'vendas' && 'Vendas & Progresso'}
+                        </button>
+                      </>
+                    )}
+                    {subAbaBotao && (
+                      <>
+                        <ChevronRight className="w-3 h-3 text-slate-600 shrink-0" />
+                        <span className="text-emerald-400 font-black">
+                          {subAbaBotao === 'compra' && 'Botão de Compra'}
+                          {subAbaBotao === 'pacotes' && 'Pacotes Promocionais'}
+                          {subAbaBotao === 'controles' && 'Controles (+ / -)'}
+                          {subAbaBotao === 'cotas' && 'Grade de Cotas'}
+                          {subAbaBotao === 'cards' && 'Cards das Seções'}
+                        </span>
+                      </>
+                    )}
+                  </>
                 )}
+                {secaoEditor === 'tipografia' && <span className="text-emerald-400 font-black">Fontes & Tipografia</span>}
+                {secaoEditor === 'blocos' && <span className="text-emerald-400 font-black">Layout & Blocos</span>}
+                {secaoEditor === 'estilos' && <span className="text-emerald-400 font-black">Estilos & Presets</span>}
               </div>
             </div>
           )}
 
-          {/* SEÇÃO BARRA DE PROGRESSO */}
-          {secaoEditor === 'progresso' && (
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-5 animate-in fade-in">
-              <div className="border-b border-slate-800 pb-3">
-                <h3 className="text-sm font-black text-white flex items-center gap-2">
-                  <Sliders className="w-4 h-4 text-emerald-400" />
-                  Barra de Vendas & Progresso
-                </h3>
+          {/* 1. MENU PRINCIPAL DO EDITOR DE ESTILOS (4 BOTÕES EM CARD) */}
+          {secaoEditor === 'menu' && (
+            <div className="space-y-3 animate-in fade-in">
+              <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl">
+                <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 mb-1">Editor de Tema & Visual</h3>
+                <p className="text-xs text-slate-300">Escolha uma categoria abaixo para editar as configurações da sua campanha:</p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <div className="grid grid-cols-1 gap-3">
                 {[
-                  { key: 'barraProgressoFundo', label: 'Fundo da Barra', desc: 'Track vazio' },
-                  { key: 'barraProgressoPreenchimento', label: 'Cor de Preenchimento', desc: 'Vendas realizadas' },
-                  { key: 'barraProgressoTexto', label: 'Texto do Progresso', desc: 'Ex: 45% vendido' },
-                  { key: 'cardBarraProgressoFundo', label: 'Fundo do Card', desc: 'Caixa externa' },
-                  { key: 'textoPrecoBarra', label: 'Preço no Card', desc: 'Valor unitário' },
+                  {
+                    id: 'geral',
+                    label: 'Geral',
+                    desc: 'Cores primárias, fundo da página, botões e elementos, ícones, logo e cabeçalho, vendas e progresso.',
+                    icon: Palette,
+                    color: 'from-emerald-500/20 to-teal-500/10 border-emerald-500/30 text-emerald-400',
+                    badges: ['Cores & Fundo', 'Botões & Elementos', 'Ícones', 'Logo & Cabeçalho', 'Vendas & Progresso']
+                  },
+                  {
+                    id: 'tipografia',
+                    label: 'Fontes',
+                    desc: 'Tipografia, seleção de fontes do Google Fonts para títulos e textos, cores e tamanhos de letra.',
+                    icon: Type,
+                    color: 'from-blue-500/20 to-indigo-500/10 border-blue-500/30 text-blue-400',
+                    badges: ['Google Fonts', 'Títulos', 'Textos', 'Tamanhos']
+                  },
+                  {
+                    id: 'blocos',
+                    label: 'Layout',
+                    desc: 'Reordenação visual dos blocos da página, visibilidade das seções e mídia de fundo (vídeo ou imagem).',
+                    icon: Layout,
+                    color: 'from-purple-500/20 to-pink-500/10 border-purple-500/30 text-purple-400',
+                    badges: ['Reordenação de Blocos', 'Visibilidade', 'Vídeo / Imagem de Fundo']
+                  },
+                  {
+                    id: 'estilos',
+                    label: 'Estilos',
+                    desc: 'Escolha temas prontos (presets) ou salve modelos personalizados na nuvem para reutilizar.',
+                    icon: FolderHeart,
+                    color: 'from-amber-500/20 to-orange-500/10 border-amber-500/30 text-amber-400',
+                    badges: ['Temas Prontos', 'Salvar Novo Estilo', 'Estilos da Nuvem']
+                  },
                 ].map(item => {
-                  const val = (temaSeguro.cores as any)[item.key];
+                  const Icon = item.icon;
                   return (
-                    <div key={item.key} className="p-3 bg-slate-950/80 border border-slate-800 rounded-xl space-y-2">
-                      <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">{item.label}</label>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="color"
-                          value={val}
-                          onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [item.key]: e.target.value } })}
-                          className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
-                        />
-                        <input
-                          type="text"
-                          value={val}
-                          onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [item.key]: e.target.value } })}
-                          className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
-                        />
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => {
+                        setSecaoEditor(item.id as any);
+                        if (item.id === 'geral') {
+                          setSubAbaGeral(null);
+                          setSubAbaBotao(null);
+                        }
+                      }}
+                      className="p-4 bg-slate-900 hover:bg-slate-850 border border-slate-800 hover:border-emerald-500/50 rounded-2xl text-left transition duration-200 group flex items-start justify-between gap-4 shadow-sm cursor-pointer"
+                    >
+                      <div className="flex items-start gap-4">
+                        <div className={`p-3.5 rounded-2xl bg-gradient-to-br ${item.color} border flex items-center justify-center shrink-0 group-hover:scale-105 transition duration-200`}>
+                          <Icon className="w-6 h-6" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <h4 className="text-base font-black text-white group-hover:text-emerald-400 transition flex items-center gap-2">
+                            {item.label}
+                          </h4>
+                          <p className="text-xs text-slate-400 leading-relaxed">
+                            {item.desc}
+                          </p>
+                          <div className="flex flex-wrap gap-1.5 pt-1">
+                            {item.badges.map((b, idx) => (
+                              <span key={idx} className="px-2 py-0.5 rounded-md bg-slate-950 border border-slate-800 text-[10px] font-bold text-slate-400">
+                                {b}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
                       </div>
-                    </div>
+                      <ChevronRight className="w-5 h-5 text-slate-600 group-hover:text-emerald-400 group-hover:translate-x-1 transition shrink-0 mt-2" />
+                    </button>
                   );
                 })}
               </div>
             </div>
           )}
 
-          {/* 7. SEÇÃO ÍCONES DAS SEÇÕES */}
-          {secaoEditor === 'icones' && (
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-5 animate-in fade-in">
-              <div className="border-b border-slate-800 pb-3">
-                <h3 className="text-sm font-black text-white flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-emerald-400" />
-                  Ícones & Símbolos
-                </h3>
+          {/* 2. MENU DA ABA GERAL (5 OPÇÕES PRINCIPAIS) */}
+          {secaoEditor === 'geral' && subAbaGeral === null && (
+            <div className="space-y-3 animate-in fade-in">
+              <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl">
+                <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 mb-1">Configurações Gerais</h3>
+                <p className="text-xs text-slate-300">Escolha qual área geral você deseja configurar:</p>
               </div>
 
-              <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2 mb-4">
-                <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Cor dos Ícones</label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    value={temaSeguro.cores.iconeCor}
-                    onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, iconeCor: e.target.value } })}
-                    className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
-                  />
-                  <input
-                    type="text"
-                    value={temaSeguro.cores.iconeCor}
-                    onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, iconeCor: e.target.value } })}
-                    className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
-                  />
-                </div>
+              <div className="grid grid-cols-1 gap-3">
+                {[
+                  {
+                    id: 'cores',
+                    label: 'Cores & Fundo',
+                    desc: 'Cor primária, cor de destaque, fundo da página (sólido, imagem ou vídeo), textos e títulos.',
+                    icon: Palette,
+                    color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
+                  },
+                  {
+                    id: 'botoes',
+                    label: 'Botões & Elementos',
+                    desc: 'Edite individualmente o Botão de Compra (CTA), Pacotes Promocionais, Controles (+/-), Cotas e Cards.',
+                    icon: MousePointer,
+                    color: 'text-blue-400 bg-blue-500/10 border-blue-500/20'
+                  },
+                  {
+                    id: 'icones',
+                    label: 'Ícones',
+                    desc: 'Personalize os 20 ícones por seção da rifa e suas cores exclusivas.',
+                    icon: Sparkles,
+                    color: 'text-amber-400 bg-amber-500/10 border-amber-500/20'
+                  },
+                  {
+                    id: 'logo',
+                    label: 'Logo & Cabeçalho',
+                    desc: 'Alinhamento da logo no topo da página e link para a página do organizador.',
+                    icon: User,
+                    color: 'text-purple-400 bg-purple-500/10 border-purple-500/20'
+                  },
+                  {
+                    id: 'vendas',
+                    label: 'Vendas & Progresso',
+                    desc: 'Cores da barra de porcentagem vendida, preço unitário das cotas e selos informativos.',
+                    icon: Sliders,
+                    color: 'text-rose-400 bg-rose-500/10 border-rose-500/20'
+                  },
+                ].map(item => {
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => {
+                        setSubAbaGeral(item.id as any);
+                        if (item.id === 'botoes') {
+                          setSubAbaBotao(null);
+                        }
+                      }}
+                      className="p-4 bg-slate-900 hover:bg-slate-850 border border-slate-800 hover:border-emerald-500/50 rounded-2xl text-left transition duration-200 group flex items-center justify-between gap-4 shadow-sm cursor-pointer"
+                    >
+                      <div className="flex items-center gap-3.5">
+                        <div className={`p-3 rounded-xl border ${item.color} flex items-center justify-center shrink-0`}>
+                          <Icon className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-bold text-white group-hover:text-emerald-400 transition">
+                            {item.label}
+                          </h4>
+                          <p className="text-xs text-slate-400">
+                            {item.desc}
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-5 h-5 text-slate-600 group-hover:text-emerald-400 group-hover:translate-x-1 transition shrink-0" />
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
 
-          {/* 2. SEÇÃO BOTÃO CTA */}
-          {secaoEditor === 'botao' && (
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-6 animate-in fade-in">
-              <div className="border-b border-slate-800 pb-3">
-                <h3 className="text-sm font-black text-white flex items-center gap-2">
-                  <MousePointer className="w-4 h-4 text-emerald-400" />
-                  Botões e Cores de Ação
-                </h3>
-                <p className="text-xs text-slate-400">
-                  Configure o formato, estilos e cores de todos os botões da página.
-                </p>
+          {/* 3. MENU DA ABA BOTÕES & ELEMENTOS (5 SUB-ELEMENTOS) */}
+          {secaoEditor === 'geral' && subAbaGeral === 'botoes' && subAbaBotao === null && (
+            <div className="space-y-3 animate-in fade-in">
+              <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl">
+                <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 mb-1">Editor de Botões & Elementos</h3>
+                <p className="text-xs text-slate-300">Escolha qual tipo de elemento deseja personalizar:</p>
               </div>
 
-              {/* Cores dos Botões */}
-              <div className="space-y-3">
-                <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Cores dos Botões</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                  {[
-                    { key: 'botao', label: 'Fundo do Botão Principal', desc: 'CTA de Compra' },
-                    { key: 'textoBotao', label: 'Texto do Botão Principal', desc: 'Cor do texto no CTA' },
-                    { key: 'botaoCotasFundo', label: 'Fundo Botões de Cotas', desc: 'Pacotes (+10, +50)' },
-                    { key: 'botaoCotasTexto', label: 'Texto Botões de Cotas', desc: 'Valor em R$' },
-                    { key: 'botaoCotasNumero', label: 'Número Botões de Cotas', desc: 'Quantidade (+10)' },
-                    { key: 'controlesFundo', label: 'Fundo Botões + e -', desc: 'Ajuste manual' },
-                    { key: 'controlesTexto', label: 'Texto Botões + e -', desc: 'Ícones de mais e menos' },
-                  ].map(item => {
-                    const val = (temaSeguro.cores as any)[item.key];
-                    return (
-                      <div key={item.key} className="p-3 bg-slate-950/80 border border-slate-800 rounded-xl space-y-2">
-                        <div className="flex items-center justify-between">
-                          <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider">{item.label}</label>
-                          <span className="text-[10px] text-slate-500 font-mono uppercase">{val}</span>
+              <div className="grid grid-cols-1 gap-3">
+                {[
+                  {
+                    id: 'compra',
+                    label: 'Botão de Compra Principal (CTA)',
+                    desc: 'Texto, ícones, estilo (Sólido, Vidro, 3D), cores, bordas, dimensões e sombras.',
+                    icon: ShoppingCart,
+                    color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
+                  },
+                  {
+                    id: 'pacotes',
+                    label: 'Botões dos Pacotes Promocionais',
+                    desc: 'Estilo visual dos combos de cotas, cores padrão, pacote em destaque e selos.',
+                    icon: Package,
+                    color: 'text-amber-400 bg-amber-500/10 border-amber-500/20'
+                  },
+                  {
+                    id: 'controles',
+                    label: 'Controles de Quantidade (+ e -)',
+                    desc: 'Cores dos botões de adicionar/remover cotas, campo de quantidade e bordas.',
+                    icon: Plus,
+                    color: 'text-blue-400 bg-blue-500/10 border-blue-500/20'
+                  },
+                  {
+                    id: 'cotas',
+                    label: 'Grade de Cotas Manuais',
+                    desc: 'Cores das cotas livres, selecionadas, pagas/reservadas e números.',
+                    icon: Ticket,
+                    color: 'text-purple-400 bg-purple-500/10 border-purple-500/20'
+                  },
+                  {
+                    id: 'cards',
+                    label: 'Cards das Seções & Conteúdos',
+                    desc: 'Estilo visual dos quadros de Premiação, Banner, Progresso, Ranking e Regulamento.',
+                    icon: Layers,
+                    color: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20'
+                  },
+                ].map(item => {
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setSubAbaBotao(item.id as any)}
+                      className="p-4 bg-slate-900 hover:bg-slate-850 border border-slate-800 hover:border-emerald-500/50 rounded-2xl text-left transition duration-200 group flex items-center justify-between gap-4 shadow-sm cursor-pointer"
+                    >
+                      <div className="flex items-center gap-3.5">
+                        <div className={`p-3 rounded-xl border ${item.color} flex items-center justify-center shrink-0`}>
+                          <Icon className="w-5 h-5" />
                         </div>
+                        <div>
+                          <h4 className="text-sm font-bold text-white group-hover:text-emerald-400 transition">
+                            {item.label}
+                          </h4>
+                          <p className="text-xs text-slate-400">
+                            {item.desc}
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-5 h-5 text-slate-600 group-hover:text-emerald-400 group-hover:translate-x-1 transition shrink-0" />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* 1. SEÇÃO GERAL (CORES, BOTÕES, ÍCONES, LOGO E VENDAS) */}
+          {secaoEditor === 'geral' && subAbaGeral !== null && (
+            <div className="space-y-4 animate-in fade-in">
+
+              {/* SUB-ABA 1: CORES & FUNDO */}
+              {subAbaGeral === 'cores' && (
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-5 animate-in fade-in">
+                  <div className="border-b border-slate-800 pb-3">
+                    <h3 className="text-sm font-black text-white flex items-center gap-2">
+                      <Palette className="w-4 h-4 text-emerald-400" />
+                      Cores Principais & Fundo
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      Defina a paleta de cores primária, fundo da página e tons de texto.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    {[
+                      { key: 'primaria', label: 'Cor Primária', desc: 'Destaques e badges' },
+                      { key: 'destaque', label: 'Cor de Destaque', desc: 'Alertas e brilhos' },
+                      { key: 'fundo', label: 'Fundo da Página', desc: 'Cor principal da tela' },
+                      { key: 'texto', label: 'Texto Geral', desc: 'Cor dos parágrafos' },
+                      { key: 'titulos', label: 'Títulos', desc: 'Cor dos cabeçalhos' },
+                      { key: 'descricoes', label: 'Descrições', desc: 'Textos secundários' },
+                    ].map(item => {
+                      const val = (temaSeguro.cores as any)[item.key];
+                      return (
+                        <div key={item.key} className="p-3 bg-slate-950/80 border border-slate-800 rounded-xl space-y-2">
+                          <div className="flex items-center justify-between">
+                            <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider">{item.label}</label>
+                            <span className="text-[10px] text-slate-500 font-mono uppercase">{val}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="color"
+                              value={val}
+                              onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [item.key]: e.target.value } })}
+                              className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                            />
+                            <input
+                              type="text"
+                              value={val}
+                              onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [item.key]: e.target.value } })}
+                              className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* SUB-ABA 2: VENDAS & PROGRESSO */}
+              {subAbaGeral === 'vendas' && (
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-5 animate-in fade-in">
+                  <div className="border-b border-slate-800 pb-3">
+                    <h3 className="text-sm font-black text-white flex items-center gap-2">
+                      <Sliders className="w-4 h-4 text-emerald-400" />
+                      Barra de Vendas & Progresso
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      Cores da barra de porcentagem vendida, preço unitário e selos informativos.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    {[
+                      { key: 'barraProgressoFundo', label: 'Fundo da Barra', desc: 'Track vazio' },
+                      { key: 'barraProgressoPreenchimento', label: 'Cor de Preenchimento', desc: 'Vendas realizadas' },
+                      { key: 'barraProgressoTexto', label: 'Texto do Progresso', desc: 'Ex: 45% vendido' },
+                      { key: 'cardBarraProgressoFundo', label: 'Fundo do Card', desc: 'Caixa externa' },
+                      { key: 'textoPrecoBarra', label: 'Preço no Card', desc: 'Valor unitário' },
+                      { key: 'seloBannerFundo', label: 'Fundo Selo Banner', desc: 'Tag sobre o banner' },
+                      { key: 'seloBannerTexto', label: 'Texto Selo Banner', desc: 'Cor do texto da tag' },
+                    ].map(item => {
+                      const val = (temaSeguro.cores as any)[item.key];
+                      return (
+                        <div key={item.key} className="p-3 bg-slate-950/80 border border-slate-800 rounded-xl space-y-2">
+                          <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">{item.label}</label>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="color"
+                              value={val}
+                              onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [item.key]: e.target.value } })}
+                              className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                            />
+                            <input
+                              type="text"
+                              value={val}
+                              onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [item.key]: e.target.value } })}
+                              className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* SUB-ABA 3: ÍCONES DAS SEÇÕES */}
+              {subAbaGeral === 'icones' && (
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-6 animate-in fade-in">
+                  <div className="border-b border-slate-800 pb-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-black text-white flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-emerald-400" />
+                        Ícones & Símbolos do Sistema
+                      </h3>
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-bold border border-emerald-500/20">
+                        20 Opções por Seção
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Personalize o ícone e a cor exclusiva de cada seção da sua campanha.
+                    </p>
+                  </div>
+
+                  {/* Seletor de Seções de Ícones */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {[
+                      { id: 'premios', label: 'Premiação', iconKey: temaSeguro.secaoIcones.premios, corKey: 'iconePremios' },
+                      { id: 'regulamento', label: 'Regulamento', iconKey: temaSeguro.secaoIcones.regulamento, corKey: 'iconeRegulamento' },
+                      { id: 'cotasPremiadas', label: 'Cotas Premiadas', iconKey: temaSeguro.secaoIcones.cotasPremiadas, corKey: 'iconeCotasPremiadas' },
+                      { id: 'topCompradores', label: 'Top Ranking', iconKey: temaSeguro.secaoIcones.topCompradores, corKey: 'iconeTopCompradores' },
+                      { id: 'ganhadores', label: 'Ganhadores', iconKey: temaSeguro.secaoIcones.ganhadores, corKey: 'iconeGanhadores' },
+                      { id: 'meusNumeros', label: 'Meus Números', iconKey: temaSeguro.secaoIcones.meusNumeros, corKey: 'iconeMeusNumeros' },
+                      { id: 'sorteio', label: 'Data do Sorteio', iconKey: temaSeguro.secaoIcones.sorteio, corKey: 'iconeSorteio' },
+                      { id: 'botaoCompra', label: 'Botão de Compra', iconKey: temaSeguro.botao.iconeCompra || temaSeguro.secaoIcones.botaoCompra || 'Sparkles', corKey: 'textoBotao' },
+                    ].map(secao => {
+                      const IconComp = getSectionIcon(secao.iconKey, Slash) || Slash;
+                      const isAtiva = secaoIconeAberta === secao.id;
+                      const corAtual = (temaSeguro.cores as any)[secao.corKey] || temaSeguro.cores.iconeCor || '#10b981';
+
+                      return (
+                        <button
+                          key={secao.id}
+                          type="button"
+                          onClick={() => setSecaoIconeAberta(secao.id)}
+                          className={`p-3 rounded-xl border text-left transition flex flex-col justify-between gap-2 ${
+                            isAtiva
+                              ? 'bg-slate-800 border-emerald-500 ring-1 ring-emerald-500/50 shadow-md shadow-emerald-500/10'
+                              : 'bg-slate-950/70 border-slate-800 hover:border-slate-700 hover:bg-slate-950'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div 
+                              className="w-8 h-8 rounded-lg flex items-center justify-center border border-white/10"
+                              style={{ backgroundColor: `${corAtual}20`, color: corAtual }}
+                            >
+                              <IconComp className="w-4 h-4" />
+                            </div>
+                            {isAtiva && (
+                              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                            )}
+                          </div>
+                          <div>
+                            <span className="text-[11px] font-bold text-white block truncate">{secao.label}</span>
+                            <span className="text-[9px] text-slate-400 font-mono block truncate">{secao.iconKey}</span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Editor Detalhado da Seção Selecionada */}
+                  {(() => {
+                    const configMap: Record<string, { label: string; desc: string; iconKey: string; corKey: string; iconListKey: keyof typeof ICON_SETS }> = {
+                      premios: { label: 'Seção de Premiação', desc: 'Exibido no card de prêmios principais da rifa', iconKey: 'premios', corKey: 'iconePremios', iconListKey: 'premios' },
+                      regulamento: { label: 'Seção Regulamento & Informações', desc: 'Exibido no cabeçalho do regulamento e regras', iconKey: 'regulamento', corKey: 'iconeRegulamento', iconListKey: 'regulamento' },
+                      cotasPremiadas: { label: 'Cotas Premiadas (Instantâneas)', desc: 'Exibido nas cotas com prêmio instantâneo no Pix', iconKey: 'cotasPremiadas', corKey: 'iconeCotasPremiadas', iconListKey: 'cotasPremiadas' },
+                      topCompradores: { label: 'Top Compradores / Ranking', desc: 'Exibido no pódio dos maiores compradores', iconKey: 'topCompradores', corKey: 'iconeTopCompradores', iconListKey: 'topCompradores' },
+                      ganhadores: { label: 'Ganhadores & Apuração', desc: 'Exibido na área de apuração e comemoração', iconKey: 'ganhadores', corKey: 'iconeGanhadores', iconListKey: 'ganhadores' },
+                      meusNumeros: { label: 'Meus Números / Consulta', desc: 'Exibido nos botões e modais de busca de cotas', iconKey: 'meusNumeros', corKey: 'iconeMeusNumeros', iconListKey: 'meusNumeros' },
+                      sorteio: { label: 'Data & Local do Sorteio', desc: 'Exibido no bloco de data e extração da Loteria Federal', iconKey: 'sorteio', corKey: 'iconeSorteio', iconListKey: 'sorteio' },
+                      botaoCompra: { label: 'Botão de Compra (CTA Principal)', desc: 'Exibido no botão principal de compra ("Participar do Sorteio"). Selecione "Nenhum" para ocultar o ícone.', iconKey: 'botaoCompra', corKey: 'textoBotao', iconListKey: 'botaoCompra' },
+                    };
+
+                    const cfg = configMap[secaoIconeAberta] || configMap.premios;
+                    const iconeSelecionado = cfg.iconKey === 'botaoCompra' 
+                      ? (temaSeguro.botao.iconeCompra || temaSeguro.secaoIcones.botaoCompra || 'Sparkles') 
+                      : ((temaSeguro.secaoIcones as any)[cfg.iconKey] || 'Trophy');
+                    const corAtual = (temaSeguro.cores as any)[cfg.corKey] || temaSeguro.cores.iconeCor || '#10b981';
+                    const listaIcones = ICON_SETS[cfg.iconListKey] || ICON_SETS.premios;
+                    const IconeAtivoComp = getSectionIcon(iconeSelecionado, Slash) || Slash;
+
+                    return (
+                      <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-4">
+                        {/* Header do Editor de Ícone */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800/80">
+                          <div className="flex items-center gap-3">
+                            <div 
+                              className="w-12 h-12 rounded-xl flex items-center justify-center border shadow-inner transition-all"
+                              style={{ backgroundColor: `${corAtual}25`, borderColor: `${corAtual}50`, color: corAtual }}
+                            >
+                              <IconeAtivoComp className="w-6 h-6" />
+                            </div>
+                            <div>
+                              <h4 className="text-xs font-black text-white">{cfg.label}</h4>
+                              <p className="text-[11px] text-slate-400">{cfg.desc}</p>
+                            </div>
+                          </div>
+
+                          {/* Seletor de Cor Individual deste Ícone */}
+                          <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 p-1.5 rounded-xl">
+                            <span className="text-[10px] font-bold text-slate-400 pl-2">Cor:</span>
+                            <input
+                              type="color"
+                              value={corAtual}
+                              onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [cfg.corKey]: e.target.value } })}
+                              className="w-7 h-7 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                              title="Escolha a cor do ícone"
+                            />
+                            <input
+                              type="text"
+                              value={corAtual}
+                              onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [cfg.corKey]: e.target.value } })}
+                              className="w-20 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-[10px] font-mono text-white uppercase focus:outline-none"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Grade das 20 Opções de Ícones */}
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="text-[11px] font-black text-slate-300 uppercase tracking-wider">
+                              Selecione um dos 20 Ícones para esta Seção:
+                            </label>
+                            <span className="text-[10px] text-emerald-400 font-mono font-bold">
+                              {iconeSelecionado}
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-2 max-h-[320px] overflow-y-auto custom-scrollbar p-1">
+                            {listaIcones.map(op => {
+                              const IconComp = op.icon;
+                              const isSelected = iconeSelecionado === op.id;
+
+                              return (
+                                <button
+                                  key={op.id}
+                                  type="button"
+                                  onClick={() => {
+                                    if (cfg.iconKey === 'botaoCompra') {
+                                      atualizarTema({
+                                        botao: { ...temaSeguro.botao, iconeCompra: op.id },
+                                        secaoIcones: { ...temaSeguro.secaoIcones, botaoCompra: op.id }
+                                      });
+                                    } else {
+                                      atualizarTema({ secaoIcones: { ...temaSeguro.secaoIcones, [cfg.iconKey]: op.id } });
+                                    }
+                                  }}
+                                  className={`p-2.5 rounded-xl border text-left transition flex flex-col items-center justify-center gap-1.5 group ${
+                                    isSelected
+                                      ? 'bg-emerald-500/15 border-emerald-500 shadow-md ring-1 ring-emerald-500'
+                                      : 'bg-slate-900 border-slate-800 hover:border-slate-700 hover:bg-slate-850'
+                                  }`}
+                                >
+                                  <div 
+                                    className="w-9 h-9 rounded-lg flex items-center justify-center transition-transform group-hover:scale-110"
+                                    style={{ 
+                                      backgroundColor: isSelected ? `${corAtual}30` : 'rgba(255,255,255,0.04)',
+                                      color: isSelected ? corAtual : '#94a3b8' 
+                                    }}
+                                  >
+                                    <IconComp className="w-5 h-5" />
+                                  </div>
+                                  <span className={`text-[10px] text-center font-bold truncate max-w-full ${isSelected ? 'text-emerald-400 font-black' : 'text-slate-400 group-hover:text-white'}`}>
+                                    {op.nome}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+
+              {/* SUB-ABA 4: LOGO & CABEÇALHO */}
+              {subAbaGeral === 'logo' && (
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-5 animate-in fade-in">
+                  <div className="border-b border-slate-800 pb-3">
+                    <h3 className="text-sm font-black text-white flex items-center gap-2">
+                      <User className="w-4 h-4 text-emerald-400" />
+                      Configuração da Logo e Cabeçalho
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      Defina o tamanho, alinhamento e o comportamento do clique na logo do organizador.
+                    </p>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-300 block">Alinhamento da Logo no Topo</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {[
+                          { id: 'esquerda', label: 'Esquerda' },
+                          { id: 'centro', label: 'Centro' },
+                          { id: 'direita', label: 'Direita' },
+                        ].map(al => (
+                          <button
+                            key={al.id}
+                            type="button"
+                            onClick={() => atualizarTema({ organizadorCabecalho: { ...temaSeguro.organizadorCabecalho, logoAlinhamento: al.id as any } })}
+                            className={`py-2 px-2 text-xs font-bold border rounded-xl transition ${
+                              temaSeguro.organizadorCabecalho?.logoAlinhamento === al.id
+                                ? 'border-emerald-500 bg-emerald-500/15 text-emerald-300'
+                                : 'border-slate-800 bg-slate-950 text-slate-400'
+                            }`}
+                          >
+                            {al.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-xl space-y-2">
+                      <h4 className="text-xs font-bold text-white">Página de Campanhas do Organizador</h4>
+                      <p className="text-[11px] text-slate-400">
+                        Quando o usuário clica na logo do organizador no topo da página, abre-se automaticamente uma página dedicada listando todas as campanhas ativas e redes sociais da conta.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* SUB-ABA 5: BOTÕES & ELEMENTOS */}
+              {subAbaGeral === 'botoes' && (
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-6 animate-in fade-in">
+                  <div className="border-b border-slate-800 pb-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-black text-white flex items-center gap-2">
+                        <MousePointer className="w-4 h-4 text-emerald-400" />
+                        Personalizador Completo de Botões & Elementos
+                      </h3>
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-bold border border-emerald-500/20">
+                        Sólido • Vidro • Transparente • 3D
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Configure individualmente cada botão e card do aplicativo com estilo visual, cores, bordas e sombras.
+                    </p>
+                  </div>
+
+              {/* Lista Vertical de Menus Expansíveis (Acordeão) dos Botões & Elementos */}
+              <div className="space-y-3">
+                {/* 1. BOTÃO DE COMPRA PRINCIPAL (CTA) */}
+                <div className={`rounded-2xl border transition-all duration-200 overflow-hidden ${
+                  subAbaBotao === 'compra'
+                    ? 'bg-slate-950 border-emerald-500/50 ring-1 ring-emerald-500/20 shadow-lg'
+                    : 'bg-slate-950 border-slate-800 hover:border-slate-700'
+                }`}>
+                  <button
+                    type="button"
+                    onClick={() => setSubAbaBotao(subAbaBotao === 'compra' ? null : 'compra')}
+                    className="w-full p-4 flex items-center justify-between text-left gap-3 focus:outline-none cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2.5 rounded-xl transition-colors ${subAbaBotao === 'compra' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-900 text-slate-400'}`}>
+                        <ShoppingCart className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-black text-white flex items-center gap-2">
+                          Botão de Compra Principal (CTA)
+                        </h4>
+                        <p className="text-[11px] text-slate-400 mt-0.5">Texto, ícones, estilo (Sólido, Vidro, 3D), cores e dimensões</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {subAbaBotao === 'compra' ? (
+                        <ChevronUp className="w-5 h-5 text-emerald-400" />
+                      ) : (
+                        <ChevronDown className="w-5 h-5 text-slate-400" />
+                      )}
+                    </div>
+                  </button>
+
+                  {subAbaBotao === 'compra' && (
+                    <div className="p-4 pt-2 border-t border-slate-800/80 bg-slate-900/40 space-y-5 animate-in fade-in">
+                  {/* Seletor de Estilo Visual com Exemplo Real */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-300 block">
+                      Escolha o Efeito Visual do Botão de Compra:
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                      {[
+                        { id: 'solido', label: 'Sólido', desc: 'Preenchimento vibrante' },
+                        { id: 'vidro', label: 'Vidro (Glass)', desc: 'Translúcido com Blur' },
+                        { id: 'transparente', label: 'Transparente', desc: 'Borda nítida 2px' },
+                        { id: '3d', label: 'Sombra 3D', desc: 'Relevo físico pulsante' },
+                      ].map(st => {
+                        const isSelected = (temaSeguro.botao.estilo || 'solido') === st.id;
+                        const previewBtn = calcularEstiloBotao({
+                          estilo: st.id as TipoEstiloBotao,
+                          corFundo: temaSeguro.cores.botao,
+                          corTexto: temaSeguro.cores.textoBotao,
+                          raioBorda: temaSeguro.botao.raioBorda,
+                          tamanhoAltura: 10,
+                          tamanhoTexto: 12,
+                          sombraAltura: temaSeguro.botao.sombraAltura,
+                          corSombra: temaSeguro.botao.corSombra,
+                        });
+
+                        return (
+                          <button
+                            key={st.id}
+                            type="button"
+                            onClick={() => atualizarTema({ botao: { ...temaSeguro.botao, estilo: st.id as any } })}
+                            className={`p-3 rounded-xl border text-left transition flex flex-col justify-between gap-2.5 ${
+                              isSelected
+                                ? 'bg-emerald-500/10 border-emerald-500 ring-2 ring-emerald-500/40 shadow-lg shadow-emerald-500/10'
+                                : 'bg-slate-950 border-slate-800 hover:border-slate-700'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between w-full">
+                              <span className={`text-xs font-black ${isSelected ? 'text-emerald-400' : 'text-white'}`}>
+                                {st.label}
+                              </span>
+                              {isSelected && <Check className="w-3.5 h-3.5 text-emerald-400" />}
+                            </div>
+
+                            {/* Mini Prévia Real */}
+                            <div className="w-full py-1.5 flex items-center justify-center">
+                              <div style={previewBtn.style} className={`${previewBtn.className} px-3 py-1 text-[10px] w-full max-w-[120px]`}>
+                                Comprar
+                              </div>
+                            </div>
+                            <span className="text-[10px] text-slate-500 block truncate">{st.desc}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Prévia Interativa do Botão de Compra no Editor */}
+                  <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                      Prévia Interativa do Botão de Compra (Clique para testar):
+                    </label>
+                    <div className="py-4 px-2 flex items-center justify-center bg-slate-900/50 rounded-xl border border-slate-800/80">
+                      {(() => {
+                        const btnStyle = calcularEstiloBotao({
+                          estilo: temaSeguro.botao.estilo,
+                          corFundo: temaSeguro.cores.botao,
+                          corTexto: temaSeguro.cores.textoBotao,
+                          raioBorda: temaSeguro.botao.raioBorda,
+                          tamanhoAltura: temaSeguro.botao.tamanhoAltura,
+                          tamanhoTexto: temaSeguro.botao.tamanhoTexto,
+                          sombraAltura: temaSeguro.botao.sombraAltura,
+                          sombraLargura: temaSeguro.botao.sombraLargura,
+                          corSombra: temaSeguro.botao.corSombra,
+                        });
+                        const iconeBtnName = temaSeguro.botao?.iconeCompra || temaSeguro.secaoIcones?.botaoCompra || 'Sparkles';
+                        const IconeBtn = getSectionIcon(iconeBtnName, null);
+
+                        return (
+                          <button
+                            type="button"
+                            style={btnStyle.style}
+                            className={`${btnStyle.className} w-full max-w-sm px-6 py-3 cursor-pointer shadow-lg`}
+                          >
+                            {IconeBtn && <IconeBtn className="w-4 h-4 mr-2 shrink-0" />}
+                            <span>{temaSeguro.botao.textoCompra || 'PARTICIPAR DO SORTEIO'}</span>
+                          </button>
+                        );
+                      })()}
+                    </div>
+                  </div>
+
+                  {/* Texto, Ícone e Cores do Botão de Compra */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="sm:col-span-3 space-y-1.5">
+                      <label className="text-xs font-bold text-slate-300 block">Texto do Botão de Compra</label>
+                      <input
+                        type="text"
+                        value={temaSeguro.botao.textoCompra}
+                        onChange={e => atualizarTema({ botao: { ...temaSeguro.botao, textoCompra: e.target.value } })}
+                        placeholder="Ex: QUERO PARTICIPAR"
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-xs text-white focus:border-emerald-500 focus:outline-none font-bold"
+                      />
+                    </div>
+
+                    {/* Seleção de Ícone do Botão de Compra */}
+                    <div className="sm:col-span-3 space-y-2 pt-1">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-slate-300 block">Ícone do Botão de Compra</label>
+                        <span className="text-[10px] text-emerald-400 font-mono font-bold uppercase">
+                          {temaSeguro.botao?.iconeCompra === 'none' || temaSeguro.secaoIcones?.botaoCompra === 'none' ? 'Nenhum' : (temaSeguro.botao?.iconeCompra || temaSeguro.secaoIcones?.botaoCompra || 'Sparkles')}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-2 max-h-[160px] overflow-y-auto custom-scrollbar p-1.5 bg-slate-950 rounded-xl border border-slate-800">
+                        {ICON_SETS.botaoCompra.map(op => {
+                          const IconComp = op.icon;
+                          const iconeAtual = temaSeguro.botao?.iconeCompra || temaSeguro.secaoIcones?.botaoCompra || 'Sparkles';
+                          const isSelected = iconeAtual === op.id;
+
+                          return (
+                            <button
+                              key={op.id}
+                              type="button"
+                              onClick={() => atualizarTema({ 
+                                botao: { ...temaSeguro.botao, iconeCompra: op.id },
+                                secaoIcones: { ...temaSeguro.secaoIcones, botaoCompra: op.id }
+                              })}
+                              className={`p-2 rounded-lg border text-left transition flex items-center gap-2 group cursor-pointer ${
+                                isSelected
+                                  ? 'bg-emerald-500/15 border-emerald-500 ring-1 ring-emerald-500'
+                                  : 'bg-slate-900 border-slate-800 hover:border-slate-700'
+                              }`}
+                            >
+                              <div 
+                                className="w-6 h-6 rounded flex items-center justify-center shrink-0"
+                                style={{ 
+                                  backgroundColor: isSelected ? `${temaSeguro.cores.primaria}30` : 'rgba(255,255,255,0.04)',
+                                  color: isSelected ? temaSeguro.cores.primaria : '#94a3b8' 
+                                }}
+                              >
+                                <IconComp className="w-3.5 h-3.5" />
+                              </div>
+                              <span className={`text-[10px] font-bold truncate ${isSelected ? 'text-emerald-400 font-black' : 'text-slate-400 group-hover:text-white'}`}>
+                                {op.nome}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                      <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Cor de Fundo</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={temaSeguro.cores.botao}
+                          onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, botao: e.target.value } })}
+                          className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                        />
+                        <input
+                          type="text"
+                          value={temaSeguro.cores.botao}
+                          onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, botao: e.target.value } })}
+                          className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                      <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Cor do Texto</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={temaSeguro.cores.textoBotao}
+                          onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, textoBotao: e.target.value } })}
+                          className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                        />
+                        <input
+                          type="text"
+                          value={temaSeguro.cores.textoBotao}
+                          onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, textoBotao: e.target.value } })}
+                          className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    {temaSeguro.botao.estilo === '3d' && (
+                      <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                        <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Cor da Sombra 3D</label>
                         <div className="flex items-center gap-2">
                           <input
                             type="color"
-                            value={val}
-                            onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [item.key]: e.target.value } })}
+                            value={temaSeguro.botao.corSombra || '#047857'}
+                            onChange={e => atualizarTema({ botao: { ...temaSeguro.botao, corSombra: e.target.value } })}
                             className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
                           />
                           <input
                             type="text"
-                            value={val}
-                            onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [item.key]: e.target.value } })}
+                            value={temaSeguro.botao.corSombra || '#047857'}
+                            onChange={e => atualizarTema({ botao: { ...temaSeguro.botao, corSombra: e.target.value } })}
                             className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
                           />
                         </div>
                       </div>
-                    );
-                  })}
+                    )}
+                  </div>
+
+                  {/* Sliders de Ajuste Geométrico */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-slate-800">
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="font-bold text-slate-300">Arredondamento (Borda)</span>
+                        <span className="font-mono text-emerald-400 font-bold">{temaSeguro.botao.raioBorda}px</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="32"
+                        value={temaSeguro.botao.raioBorda}
+                        onChange={e => atualizarTema({ botao: { ...temaSeguro.botao, raioBorda: Number(e.target.value) } })}
+                        className="w-full accent-emerald-500 bg-slate-950 cursor-pointer"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="font-bold text-slate-300">Altura / Padding</span>
+                        <span className="font-mono text-emerald-400 font-bold">{temaSeguro.botao.tamanhoAltura}px</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="10"
+                        max="28"
+                        value={temaSeguro.botao.tamanhoAltura}
+                        onChange={e => atualizarTema({ botao: { ...temaSeguro.botao, tamanhoAltura: Number(e.target.value) } })}
+                        className="w-full accent-emerald-500 bg-slate-950 cursor-pointer"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="font-bold text-slate-300">Tamanho da Fonte</span>
+                        <span className="font-mono text-emerald-400 font-bold">{temaSeguro.botao.tamanhoTexto}px</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="12"
+                        max="24"
+                        value={temaSeguro.botao.tamanhoTexto}
+                        onChange={e => atualizarTema({ botao: { ...temaSeguro.botao, tamanhoTexto: Number(e.target.value) } })}
+                        className="w-full accent-emerald-500 bg-slate-950 cursor-pointer"
+                      />
+                    </div>
+
+                    {temaSeguro.botao.estilo === '3d' && (
+                      <>
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="font-bold text-slate-300">Altura da Sombra 3D</span>
+                            <span className="font-mono text-emerald-400 font-bold">{temaSeguro.botao.sombraAltura}px</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="2"
+                            max="10"
+                            value={temaSeguro.botao.sombraAltura}
+                            onChange={e => atualizarTema({ botao: { ...temaSeguro.botao, sombraAltura: Number(e.target.value) } })}
+                            className="w-full accent-emerald-500 bg-slate-950 cursor-pointer"
+                          />
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="font-bold text-slate-300">Largura da Sombra 3D</span>
+                            <span className="font-mono text-emerald-400 font-bold">{temaSeguro.botao.sombraLargura}px</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="2"
+                            max="12"
+                            value={temaSeguro.botao.sombraLargura}
+                            onChange={e => atualizarTema({ botao: { ...temaSeguro.botao, sombraLargura: Number(e.target.value) } })}
+                            className="w-full accent-emerald-500 bg-slate-950 cursor-pointer"
+                          />
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
+            </div>
 
-              {/* Texto do Botão de Compra */}
-              <div className="space-y-1.5 pt-4 border-t border-slate-800">
-                <label className="text-xs font-bold text-slate-300 block">
-                  Texto do Botão de Compra
-                </label>
-                <input
-                  type="text"
-                  value={temaSeguro.botao.textoCompra}
-                  onChange={e => atualizarTema({ botao: { ...temaSeguro.botao, textoCompra: e.target.value } })}
-                  placeholder="Ex: GARANTIR MEUS NÚMEROS"
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-xs text-white focus:border-emerald-500 focus:outline-none font-bold"
-                />
-              </div>
-
-              {/* Formato do Botão */}
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-300 block">
-                  Bordas do Botão
-                </label>
-                
-                {/* Prévia visual */}
-                <div className="flex items-center justify-center gap-4 py-4 bg-slate-950 rounded-xl border border-slate-800">
-                  <div
-                    className="text-xs font-bold px-4 py-2 shadow-sm"
-                    style={{ 
-                      backgroundColor: temaSeguro.cores.botao,
-                      color: temaSeguro.cores.textoBotao,
-                      borderRadius: `${temaSeguro.botao.raioBorda}px` 
-                    }}
+                {/* 2. BOTÕES DE PACOTES PROMOCIONAIS */}
+                <div className={`rounded-2xl border transition-all duration-200 overflow-hidden ${
+                  subAbaBotao === 'pacotes'
+                    ? 'bg-slate-950 border-emerald-500/50 ring-1 ring-emerald-500/20 shadow-lg'
+                    : 'bg-slate-950 border-slate-800 hover:border-slate-700'
+                }`}>
+                  <button
+                    type="button"
+                    onClick={() => setSubAbaBotao(subAbaBotao === 'pacotes' ? null : 'pacotes')}
+                    className="w-full p-4 flex items-center justify-between text-left gap-3 focus:outline-none cursor-pointer"
                   >
-                    {temaSeguro.botao.textoCompra || 'Botão'}
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2.5 rounded-xl transition-colors ${subAbaBotao === 'pacotes' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-900 text-slate-400'}`}>
+                        <Package className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-black text-white flex items-center gap-2">
+                          Botões de Pacotes Promocionais
+                        </h4>
+                        <p className="text-[11px] text-slate-400 mt-0.5">Estilo visual, cores dos pacotes e selo "Mais Popular"</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {subAbaBotao === 'pacotes' ? (
+                        <ChevronUp className="w-5 h-5 text-emerald-400" />
+                      ) : (
+                        <ChevronDown className="w-5 h-5 text-slate-400" />
+                      )}
+                    </div>
+                  </button>
+
+                  {subAbaBotao === 'pacotes' && (
+                    <div className="p-4 pt-2 border-t border-slate-800/80 bg-slate-900/40 space-y-5 animate-in fade-in">
+                  {/* Seletor de Estilo Visual para Pacotes */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-300 block">
+                      Efeito Visual dos Botões de Pacotes:
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                      {[
+                        { id: 'solido', label: 'Sólido', desc: 'Caixas opacas' },
+                        { id: 'vidro', label: 'Vidro (Glass)', desc: 'Translúcido com Blur' },
+                        { id: 'transparente', label: 'Transparente', desc: 'Bordas finas' },
+                        { id: '3d', label: 'Sombra 3D', desc: 'Botões em bloco 3D' },
+                      ].map(st => {
+                        const isSelected = (temaSeguro.botao.estiloPacotes || 'solido') === st.id;
+                        const previewBtn = calcularEstiloBotao({
+                          estilo: st.id as TipoEstiloBotao,
+                          corFundo: temaSeguro.cores.botaoCotasFundo,
+                          corTexto: temaSeguro.cores.botaoCotasTexto,
+                          raioBorda: temaSeguro.botao.raioBordaPacotes ?? 12,
+                          tamanhoAltura: 8,
+                          tamanhoTexto: 11,
+                          sombraAltura: temaSeguro.botao.sombraAlturaPacotes ?? 3,
+                          corSombra: temaSeguro.botao.corSombraPacotes,
+                        });
+
+                        return (
+                          <button
+                            key={st.id}
+                            type="button"
+                            onClick={() => atualizarTema({ botao: { ...temaSeguro.botao, estiloPacotes: st.id as any } })}
+                            className={`p-3 rounded-xl border text-left transition flex flex-col justify-between gap-2 ${
+                              isSelected
+                                ? 'bg-emerald-500/10 border-emerald-500 ring-2 ring-emerald-500/40 shadow-lg shadow-emerald-500/10'
+                                : 'bg-slate-950 border-slate-800 hover:border-slate-700'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between w-full">
+                              <span className={`text-xs font-black ${isSelected ? 'text-emerald-400' : 'text-white'}`}>
+                                {st.label}
+                              </span>
+                              {isSelected && <Check className="w-3.5 h-3.5 text-emerald-400" />}
+                            </div>
+
+                            <div className="w-full py-1 flex items-center justify-center">
+                              <div style={previewBtn.style} className={`${previewBtn.className} px-3 py-1 text-[10px] w-full text-center flex-col`}>
+                                <span className="font-mono font-black" style={{ color: temaSeguro.cores.botaoCotasNumero }}>+50</span>
+                                <span className="text-[9px]" style={{ color: temaSeguro.cores.botaoCotasTexto }}>R$ 10,00</span>
+                              </div>
+                            </div>
+                            <span className="text-[10px] text-slate-500 block truncate">{st.desc}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Prévia Interativa de Pacotes */}
+                  <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                      Prévia dos Botões de Pacotes Promocionais:
+                    </label>
+                    <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 p-3 bg-slate-900/60 rounded-xl border border-slate-800">
+                      {[
+                        { qtd: 10, preco: 'R$ 5,00', destaque: false },
+                        { qtd: 25, preco: 'R$ 10,00', destaque: false },
+                        { qtd: 50, preco: 'R$ 20,00', destaque: true },
+                        { qtd: 100, preco: 'R$ 35,00', destaque: false },
+                        { qtd: 250, preco: 'R$ 80,00', destaque: false },
+                        { qtd: 500, preco: 'R$ 150,00', destaque: false },
+                      ].map((pkg, idx) => {
+                        const isDestaque = pkg.destaque;
+                        const styleObj = calcularEstiloBotao({
+                          estilo: temaSeguro.botao.estiloPacotes || 'solido',
+                          corFundo: isDestaque ? temaSeguro.cores.botaoDestaqueFundo : temaSeguro.cores.botaoCotasFundo,
+                          corTexto: isDestaque ? temaSeguro.cores.botaoDestaqueTexto : temaSeguro.cores.botaoCotasTexto,
+                          corBorda: temaSeguro.cores.botaoCotasBorda || temaSeguro.cores.cardBorda,
+                          raioBorda: temaSeguro.botao.raioBordaPacotes ?? 12,
+                          tamanhoAltura: temaSeguro.botao.tamanhoAlturaPacotes ?? 12,
+                          sombraAltura: temaSeguro.botao.sombraAlturaPacotes ?? 3,
+                          corSombra: temaSeguro.botao.corSombraPacotes,
+                        });
+
+                        return (
+                          <div
+                            key={idx}
+                            style={styleObj.style}
+                            className={`${styleObj.className} flex-col py-2.5 px-1 relative cursor-pointer active:scale-95`}
+                          >
+                            {isDestaque && (
+                              <span 
+                                style={{
+                                  backgroundColor: temaSeguro.cores.seloPopularFundo,
+                                  color: temaSeguro.cores.seloPopularTexto
+                                }}
+                                className="absolute -top-2 left-1/2 -translate-x-1/2 px-1.5 py-0.2 font-black text-[7px] uppercase rounded shadow whitespace-nowrap"
+                              >
+                                Popular
+                              </span>
+                            )}
+                            <span className="text-xs font-black" style={{ color: isDestaque ? temaSeguro.cores.botaoDestaqueTexto : temaSeguro.cores.botaoCotasNumero }}>
+                              +{pkg.qtd}
+                            </span>
+                            <span className="text-[10px] font-bold" style={{ color: isDestaque ? temaSeguro.cores.botaoDestaqueTexto : temaSeguro.cores.botaoCotasTexto }}>
+                              {pkg.preco}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Cores Específicas dos Botões de Pacotes Padrão */}
+                  <div className="space-y-3">
+                    <label className="text-xs font-bold text-slate-300 block">Cres dos Pacotes Padrão:</label>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                        <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Fundo do Pacote</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={temaSeguro.cores.botaoCotasFundo}
+                            onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, botaoCotasFundo: e.target.value } })}
+                            className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                          />
+                          <input
+                            type="text"
+                            value={temaSeguro.cores.botaoCotasFundo}
+                            onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, botaoCotasFundo: e.target.value } })}
+                            className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                        <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Número (+10, +50)</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={temaSeguro.cores.botaoCotasNumero}
+                            onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, botaoCotasNumero: e.target.value } })}
+                            className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                          />
+                          <input
+                            type="text"
+                            value={temaSeguro.cores.botaoCotasNumero}
+                            onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, botaoCotasNumero: e.target.value } })}
+                            className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                        <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Texto do Valor (R$)</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={temaSeguro.cores.botaoCotasTexto}
+                            onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, botaoCotasTexto: e.target.value } })}
+                            className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                          />
+                          <input
+                            type="text"
+                            value={temaSeguro.cores.botaoCotasTexto}
+                            onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, botaoCotasTexto: e.target.value } })}
+                            className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Cores do Pacote Destaque / Mais Popular */}
+                  <div className="p-4 bg-slate-950/90 border border-amber-500/30 rounded-xl space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-black text-amber-400 uppercase tracking-wider block">
+                        Cores do Pacote "Mais Popular" (Destaque):
+                      </label>
+                      <span className="text-[10px] text-amber-500/80 bg-amber-500/10 px-2 py-0.5 rounded font-mono font-bold">
+                        Personalizado
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                      <div className="p-2.5 bg-slate-900 border border-slate-800 rounded-lg space-y-1.5">
+                        <label className="text-[10px] font-bold text-slate-400 block">Fundo do Botão Destaque</label>
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="color"
+                            value={temaSeguro.cores.botaoDestaqueFundo}
+                            onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, botaoDestaqueFundo: e.target.value } })}
+                            className="w-7 h-7 rounded cursor-pointer bg-transparent border-0 p-0"
+                          />
+                          <input
+                            type="text"
+                            value={temaSeguro.cores.botaoDestaqueFundo}
+                            onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, botaoDestaqueFundo: e.target.value } })}
+                            className="flex-1 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-[10px] font-mono text-white uppercase focus:outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="p-2.5 bg-slate-900 border border-slate-800 rounded-lg space-y-1.5">
+                        <label className="text-[10px] font-bold text-slate-400 block">Texto do Botão Destaque</label>
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="color"
+                            value={temaSeguro.cores.botaoDestaqueTexto}
+                            onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, botaoDestaqueTexto: e.target.value } })}
+                            className="w-7 h-7 rounded cursor-pointer bg-transparent border-0 p-0"
+                          />
+                          <input
+                            type="text"
+                            value={temaSeguro.cores.botaoDestaqueTexto}
+                            onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, botaoDestaqueTexto: e.target.value } })}
+                            className="flex-1 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-[10px] font-mono text-white uppercase focus:outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="p-2.5 bg-slate-900 border border-slate-800 rounded-lg space-y-1.5">
+                        <label className="text-[10px] font-bold text-slate-400 block">Fundo do Selo "Mais Popular"</label>
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="color"
+                            value={temaSeguro.cores.seloPopularFundo}
+                            onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, seloPopularFundo: e.target.value } })}
+                            className="w-7 h-7 rounded cursor-pointer bg-transparent border-0 p-0"
+                          />
+                          <input
+                            type="text"
+                            value={temaSeguro.cores.seloPopularFundo}
+                            onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, seloPopularFundo: e.target.value } })}
+                            className="flex-1 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-[10px] font-mono text-white uppercase focus:outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="p-2.5 bg-slate-900 border border-slate-800 rounded-lg space-y-1.5">
+                        <label className="text-[10px] font-bold text-slate-400 block">Texto do Selo "Mais Popular"</label>
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="color"
+                            value={temaSeguro.cores.seloPopularTexto}
+                            onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, seloPopularTexto: e.target.value } })}
+                            className="w-7 h-7 rounded cursor-pointer bg-transparent border-0 p-0"
+                          />
+                          <input
+                            type="text"
+                            value={temaSeguro.cores.seloPopularTexto}
+                            onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, seloPopularTexto: e.target.value } })}
+                            className="flex-1 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-[10px] font-mono text-white uppercase focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Arredondamento e Sombras dos Pacotes */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-800">
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="font-bold text-slate-300">Arredondamento dos Pacotes</span>
+                        <span className="font-mono text-emerald-400 font-bold">{temaSeguro.botao.raioBordaPacotes ?? 12}px</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="24"
+                        value={temaSeguro.botao.raioBordaPacotes ?? 12}
+                        onChange={e => atualizarTema({ botao: { ...temaSeguro.botao, raioBordaPacotes: Number(e.target.value) } })}
+                        className="w-full accent-emerald-500 bg-slate-950 cursor-pointer"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="font-bold text-slate-300">Altura / Espaçamento dos Pacotes</span>
+                        <span className="font-mono text-emerald-400 font-bold">{temaSeguro.botao.tamanhoAlturaPacotes ?? 12}px</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="8"
+                        max="20"
+                        value={temaSeguro.botao.tamanhoAlturaPacotes ?? 12}
+                        onChange={e => atualizarTema({ botao: { ...temaSeguro.botao, tamanhoAlturaPacotes: Number(e.target.value) } })}
+                        className="w-full accent-emerald-500 bg-slate-950 cursor-pointer"
+                      />
+                    </div>
                   </div>
                 </div>
+              )}
+            </div>
 
-                <div className="flex items-center gap-4">
-                  <input
-                    type="range"
-                    min="0"
-                    max="20"
-                    value={temaSeguro.botao.raioBorda}
-                    onChange={e => atualizarTema({ botao: { ...temaSeguro.botao, raioBorda: Number(e.target.value) } })}
-                    className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500"
-                  />
-                  <div className="text-xs font-mono text-slate-400 w-12 text-right">
-                    {temaSeguro.botao.raioBorda}
+                {/* 3. CONTROLES DE QUANTIDADE (+ / -) */}
+                <div className={`rounded-2xl border transition-all duration-200 overflow-hidden ${
+                  subAbaBotao === 'controles'
+                    ? 'bg-slate-950 border-emerald-500/50 ring-1 ring-emerald-500/20 shadow-lg'
+                    : 'bg-slate-950 border-slate-800 hover:border-slate-700'
+                }`}>
+                  <button
+                    type="button"
+                    onClick={() => setSubAbaBotao(subAbaBotao === 'controles' ? null : 'controles')}
+                    className="w-full p-4 flex items-center justify-between text-left gap-3 focus:outline-none cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2.5 rounded-xl transition-colors ${subAbaBotao === 'controles' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-900 text-slate-400'}`}>
+                        <SlidersHorizontal className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-black text-white flex items-center gap-2">
+                          Controles de Quantidade (+ / -)
+                        </h4>
+                        <p className="text-[11px] text-slate-400 mt-0.5">Estilo e cores dos botões de diminuir (-) e aumentar (+)</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {subAbaBotao === 'controles' ? (
+                        <ChevronUp className="w-5 h-5 text-emerald-400" />
+                      ) : (
+                        <ChevronDown className="w-5 h-5 text-slate-400" />
+                      )}
+                    </div>
+                  </button>
+
+                  {subAbaBotao === 'controles' && (
+                    <div className="p-4 pt-2 border-t border-slate-800/80 bg-slate-900/40 space-y-5 animate-in fade-in">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-300 block">
+                      Efeito Visual dos Botões de Diminuir (-) e Aumentar (+):
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                      {[
+                        { id: 'solido', label: 'Sólido', desc: 'Preenchimento sólido' },
+                        { id: 'vidro', label: 'Vidro (Glass)', desc: 'Translúcido' },
+                        { id: 'transparente', label: 'Transparente', desc: 'Borda nítida' },
+                        { id: '3d', label: 'Sombra 3D', desc: 'Botão pulsante' },
+                      ].map(st => {
+                        const isSelected = (temaSeguro.botao.estiloControles || 'solido') === st.id;
+                        const previewBtn = calcularEstiloBotao({
+                          estilo: st.id as TipoEstiloBotao,
+                          corFundo: temaSeguro.cores.controlesFundo,
+                          corTexto: temaSeguro.cores.controlesTexto,
+                          raioBorda: temaSeguro.botao.raioBordaControles ?? 12,
+                          tamanhoAltura: 8,
+                          tamanhoTexto: 14,
+                          sombraAltura: temaSeguro.botao.sombraAlturaControles ?? 3,
+                          corSombra: temaSeguro.botao.corSombraControles,
+                        });
+
+                        return (
+                          <button
+                            key={st.id}
+                            type="button"
+                            onClick={() => atualizarTema({ botao: { ...temaSeguro.botao, estiloControles: st.id as any } })}
+                            className={`p-3 rounded-xl border text-left transition flex flex-col justify-between gap-2 ${
+                              isSelected
+                                ? 'bg-emerald-500/10 border-emerald-500 ring-2 ring-emerald-500/40 shadow-lg shadow-emerald-500/10'
+                                : 'bg-slate-950 border-slate-800 hover:border-slate-700'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between w-full">
+                              <span className={`text-xs font-black ${isSelected ? 'text-emerald-400' : 'text-white'}`}>
+                                {st.label}
+                              </span>
+                              {isSelected && <Check className="w-3.5 h-3.5 text-emerald-400" />}
+                            </div>
+
+                            <div className="w-full py-1 flex items-center justify-center gap-2">
+                              <div style={previewBtn.style} className={`${previewBtn.className} w-7 h-7 p-0`}>-</div>
+                              <div style={previewBtn.style} className={`${previewBtn.className} w-7 h-7 p-0`}>+</div>
+                            </div>
+                            <span className="text-[10px] text-slate-500 block truncate">{st.desc}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Prévia dos Controles */}
+                  <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                      Prévia dos Controles Manuais:
+                    </label>
+                    <div className="p-4 bg-slate-900/60 rounded-xl border border-slate-800 flex items-center justify-between gap-3 max-w-md mx-auto">
+                      {(() => {
+                        const styleBtn = calcularEstiloBotao({
+                          estilo: temaSeguro.botao.estiloControles || 'solido',
+                          corFundo: temaSeguro.cores.controlesFundo,
+                          corTexto: temaSeguro.cores.controlesTexto,
+                          raioBorda: temaSeguro.botao.raioBordaControles ?? 12,
+                          tamanhoAltura: 10,
+                          sombraAltura: temaSeguro.botao.sombraAlturaControles ?? 3,
+                          corSombra: temaSeguro.botao.corSombraControles,
+                        });
+                        return (
+                          <>
+                            <button type="button" style={styleBtn.style} className={`${styleBtn.className} w-11 h-11 p-0 cursor-pointer`}>
+                              <Minus className="w-4 h-4" />
+                            </button>
+                            <div className="flex-1 text-center py-2 px-4 bg-slate-950 border border-slate-800 rounded-xl">
+                              <span className="text-base font-mono font-black text-white">50 cotas</span>
+                            </div>
+                            <button type="button" style={styleBtn.style} className={`${styleBtn.className} w-11 h-11 p-0 cursor-pointer`}>
+                              <Plus className="w-4 h-4" />
+                            </button>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  </div>
+
+                  {/* Cores dos Controles */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                      <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Fundo dos Botões + e -</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={temaSeguro.cores.controlesFundo}
+                          onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, controlesFundo: e.target.value } })}
+                          className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                        />
+                        <input
+                          type="text"
+                          value={temaSeguro.cores.controlesFundo}
+                          onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, controlesFundo: e.target.value } })}
+                          className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                      <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Ícones dos Botões + e -</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={temaSeguro.cores.controlesTexto}
+                          onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, controlesTexto: e.target.value } })}
+                          className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                        />
+                        <input
+                          type="text"
+                          value={temaSeguro.cores.controlesTexto}
+                          onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, controlesTexto: e.target.value } })}
+                          className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
+            </div>
 
-              {/* Estilo Visual do Botão */}
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-300 block">
-                  Estilo do Botão
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { id: 'solido', label: 'Sólido' },
-                    { id: 'vidro', label: 'Vidro' },
-                    { id: 'transparente', label: 'Transparente' },
-                    { id: '3d', label: 'Sombra 3D' },
-                  ].map(st => (
-                    <button
-                      key={st.id}
-                      type="button"
-                      onClick={() => atualizarTema({ botao: { ...temaSeguro.botao, estilo: st.id as any } })}
-                      className={`py-3 px-2 border text-center text-xs font-bold rounded-xl transition ${
-                        temaSeguro.botao.estilo === st.id
-                          ? 'border-emerald-500 bg-emerald-500/15 text-white ring-1 ring-emerald-500'
-                          : 'border-slate-800 bg-slate-950 text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      {st.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
+                {/* 4. GRADE DE COTAS MANUAIS */}
+                <div className={`rounded-2xl border transition-all duration-200 overflow-hidden ${
+                  subAbaBotao === 'cotas'
+                    ? 'bg-slate-950 border-emerald-500/50 ring-1 ring-emerald-500/20 shadow-lg'
+                    : 'bg-slate-950 border-slate-800 hover:border-slate-700'
+                }`}>
+                  <button
+                    type="button"
+                    onClick={() => setSubAbaBotao(subAbaBotao === 'cotas' ? null : 'cotas')}
+                    className="w-full p-4 flex items-center justify-between text-left gap-3 focus:outline-none cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2.5 rounded-xl transition-colors ${subAbaBotao === 'cotas' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-900 text-slate-400'}`}>
+                        <Ticket className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-black text-white flex items-center gap-2">
+                          Grade de Cotas Manuais
+                        </h4>
+                        <p className="text-[11px] text-slate-400 mt-0.5">Efeito visual (Sólido, Vidro, 3D) e arredondamento dos bloquinhos</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {subAbaBotao === 'cotas' ? (
+                        <ChevronUp className="w-5 h-5 text-emerald-400" />
+                      ) : (
+                        <ChevronDown className="w-5 h-5 text-slate-400" />
+                      )}
+                    </div>
+                  </button>
 
-              {/* Sliders de Altura e Tamanho de Texto */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-800">
-                <div className="space-y-1.5">
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="font-bold text-slate-300">Altura / Padding do Botão</span>
-                    <span className="font-mono text-emerald-400">{temaSeguro.botao.tamanhoAltura}px</span>
+                  {subAbaBotao === 'cotas' && (
+                    <div className="p-4 pt-2 border-t border-slate-800/80 bg-slate-900/40 space-y-5 animate-in fade-in">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-300 block">
+                      Efeito Visual das Cotas na Grade de Seleção:
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                      {[
+                        { id: 'solido', label: 'Sólido', desc: 'Quadrados nítidos' },
+                        { id: 'vidro', label: 'Vidro (Glass)', desc: 'Translúcido' },
+                        { id: 'transparente', label: 'Transparente', desc: 'Apenas borda' },
+                        { id: '3d', label: 'Sombra 3D', desc: 'Bloquinhos 3D' },
+                      ].map(st => {
+                        const isSelected = (temaSeguro.botao.estiloCotas || 'solido') === st.id;
+                        return (
+                          <button
+                            key={st.id}
+                            type="button"
+                            onClick={() => atualizarTema({ botao: { ...temaSeguro.botao, estiloCotas: st.id as any } })}
+                            className={`p-3 rounded-xl border text-left transition flex flex-col justify-between gap-2 ${
+                              isSelected
+                                ? 'bg-emerald-500/10 border-emerald-500 ring-2 ring-emerald-500/40 shadow-lg shadow-emerald-500/10'
+                                : 'bg-slate-950 border-slate-800 hover:border-slate-700'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between w-full">
+                              <span className={`text-xs font-black ${isSelected ? 'text-emerald-400' : 'text-white'}`}>
+                                {st.label}
+                              </span>
+                              {isSelected && <Check className="w-3.5 h-3.5 text-emerald-400" />}
+                            </div>
+                            <span className="text-[10px] text-slate-500 block truncate">{st.desc}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                  <input
-                    type="range"
-                    min="10"
-                    max="28"
-                    value={temaSeguro.botao.tamanhoAltura}
-                    onChange={e => atualizarTema({ botao: { ...temaSeguro.botao, tamanhoAltura: Number(e.target.value) } })}
-                    className="w-full accent-emerald-500 bg-slate-950 cursor-pointer"
-                  />
-                </div>
 
-                <div className="space-y-1.5">
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="font-bold text-slate-300">Tamanho da Fonte do Botão</span>
-                    <span className="font-mono text-emerald-400">{temaSeguro.botao.tamanhoTexto}px</span>
+                  <div className="space-y-1.5 pt-2 border-t border-slate-800">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="font-bold text-slate-300">Arredondamento das Cotas</span>
+                      <span className="font-mono text-emerald-400 font-bold">{temaSeguro.botao.raioBordaCotas ?? 8}px</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="16"
+                      value={temaSeguro.botao.raioBordaCotas ?? 8}
+                      onChange={e => atualizarTema({ botao: { ...temaSeguro.botao, raioBordaCotas: Number(e.target.value) } })}
+                      className="w-full accent-emerald-500 bg-slate-950 cursor-pointer"
+                    />
                   </div>
-                  <input
-                    type="range"
-                    min="12"
-                    max="22"
-                    value={temaSeguro.botao.tamanhoTexto}
-                    onChange={e => atualizarTema({ botao: { ...temaSeguro.botao, tamanhoTexto: Number(e.target.value) } })}
-                    className="w-full accent-emerald-500 bg-slate-950 cursor-pointer"
-                  />
+                </div>
+              )}
+            </div>
+
+                {/* 5. CARDS DAS SEÇÕES (PREMIAÇÃO, REGULAMENTO, ETC) */}
+                <div className={`rounded-2xl border transition-all duration-200 overflow-hidden ${
+                  subAbaBotao === 'cards'
+                    ? 'bg-slate-950 border-emerald-500/50 ring-1 ring-emerald-500/20 shadow-lg'
+                    : 'bg-slate-950 border-slate-800 hover:border-slate-700'
+                }`}>
+                  <button
+                    type="button"
+                    onClick={() => setSubAbaBotao(subAbaBotao === 'cards' ? null : 'cards')}
+                    className="w-full p-4 flex items-center justify-between text-left gap-3 focus:outline-none cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2.5 rounded-xl transition-colors ${subAbaBotao === 'cards' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-900 text-slate-400'}`}>
+                        <Box className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-black text-white flex items-center gap-2">
+                          Cards das Seções & Conteúdos
+                        </h4>
+                        <p className="text-[11px] text-slate-400 mt-0.5">Cores de fundo e borda para cada card da campanha</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {subAbaBotao === 'cards' ? (
+                        <ChevronUp className="w-5 h-5 text-emerald-400" />
+                      ) : (
+                        <ChevronDown className="w-5 h-5 text-slate-400" />
+                      )}
+                    </div>
+                  </button>
+
+                  {subAbaBotao === 'cards' && (
+                    <div className="p-4 pt-2 border-t border-slate-800/80 bg-slate-900/40 space-y-6 animate-in fade-in">
+                  {/* Estilo Global dos Cards */}
+                  <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-4">
+                    <h4 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
+                      <Box className="w-4 h-4 text-emerald-400" />
+                      Configurações Globais dos Cards
+                    </h4>
+
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-slate-300 block">
+                        Estilo Visual Padrão:
+                      </label>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                        {[
+                          { id: 'solido', label: 'Sólido Elegante', desc: 'Fundo opaco clássico' },
+                          { id: 'vidro', label: 'Vidro (Glass)', desc: 'Translúcido com blur' },
+                          { id: 'transparente', label: 'Transparente', desc: 'Apenas contorno suave' },
+                          { id: '3d', label: 'Sombra 3D Relevo', desc: 'Card elevado com profundidade' },
+                        ].map(st => {
+                          const isSelected = (temaSeguro.botao.estiloCards || 'solido') === st.id;
+                          return (
+                            <button
+                              key={st.id}
+                              type="button"
+                              onClick={() => atualizarTema({ botao: { ...temaSeguro.botao, estiloCards: st.id as any } })}
+                              className={`p-3 rounded-xl border text-left transition flex flex-col justify-between gap-2 ${
+                                isSelected
+                                  ? 'bg-emerald-500/10 border-emerald-500 ring-2 ring-emerald-500/40 shadow-lg shadow-emerald-500/10'
+                                  : 'bg-slate-900 border-slate-800 hover:border-slate-700'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between w-full">
+                                <span className={`text-xs font-black ${isSelected ? 'text-emerald-400' : 'text-white'}`}>
+                                  {st.label}
+                                </span>
+                                {isSelected && <Check className="w-3.5 h-3.5 text-emerald-400" />}
+                              </div>
+                              <span className="text-[10px] text-slate-500 block truncate">{st.desc}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
+                        <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Fundo Global dos Cards</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={temaSeguro.cores.cardFundo}
+                            onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cardFundo: e.target.value } })}
+                            className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                          />
+                          <input
+                            type="text"
+                            value={temaSeguro.cores.cardFundo}
+                            onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cardFundo: e.target.value } })}
+                            className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
+                        <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Borda Global dos Cards</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={temaSeguro.cores.cardBorda}
+                            onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cardBorda: e.target.value } })}
+                            className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                          />
+                          <input
+                            type="text"
+                            value={temaSeguro.cores.cardBorda}
+                            onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cardBorda: e.target.value } })}
+                            className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5 pt-2 border-t border-slate-800">
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="font-bold text-slate-300">Arredondamento dos Cards</span>
+                        <span className="font-mono text-emerald-400 font-bold">{temaSeguro.botao.raioBordaCards ?? 16}px</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="32"
+                        value={temaSeguro.botao.raioBordaCards ?? 16}
+                        onChange={e => atualizarTema({ botao: { ...temaSeguro.botao, raioBordaCards: Number(e.target.value) } })}
+                        className="w-full accent-emerald-500 bg-slate-950 cursor-pointer"
+                      />
+                    </div>
+                  </div>
+
+                  {/* ACORDEÃO DE PERSONALIZAÇÃO INDIVIDUAL DOS CARDS */}
+                  <div className="space-y-3 pt-2 border-t border-slate-800">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="text-xs font-black text-white uppercase tracking-wider">
+                          Personalização de Cada Card Específico
+                        </h4>
+                        <p className="text-[11px] text-slate-400">
+                          Clique em uma seção abaixo para editar a cor do card, borda e elementos exclusivos.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2.5">
+                      {[
+                        {
+                          id: 'banner',
+                          titulo: 'Card do Banner & Carrossel',
+                          desc: 'Cores do container da galeria principal e selos',
+                          icone: '🖼️',
+                          corFundoKey: 'cardBannerFundo',
+                          corBordaKey: 'cardBannerBorda',
+                          extras: (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                              <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                                <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Fundo do Selo no Banner</label>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="color"
+                                    value={temaSeguro.cores.seloBannerFundo || '#f59e0b'}
+                                    onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, seloBannerFundo: e.target.value } })}
+                                    className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                                  />
+                                  <input
+                                    type="text"
+                                    value={temaSeguro.cores.seloBannerFundo || '#f59e0b'}
+                                    onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, seloBannerFundo: e.target.value } })}
+                                    className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                                  />
+                                </div>
+                              </div>
+                              <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                                <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Texto do Selo no Banner</label>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="color"
+                                    value={temaSeguro.cores.seloBannerTexto || '#022c22'}
+                                    onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, seloBannerTexto: e.target.value } })}
+                                    className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                                  />
+                                  <input
+                                    type="text"
+                                    value={temaSeguro.cores.seloBannerTexto || '#022c22'}
+                                    onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, seloBannerTexto: e.target.value } })}
+                                    className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        },
+                        {
+                          id: 'progresso',
+                          titulo: 'Card de Progresso de Vendas',
+                          desc: 'Cores da caixa de porcentagem vendida e barra de progresso',
+                          icone: '📊',
+                          corFundoKey: 'cardProgressoFundo',
+                          corBordaKey: 'cardProgressoBorda',
+                          extras: (
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                              <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                                <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Fundo do Trilho</label>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="color"
+                                    value={temaSeguro.cores.barraProgressoFundo}
+                                    onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, barraProgressoFundo: e.target.value } })}
+                                    className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                                  />
+                                  <input
+                                    type="text"
+                                    value={temaSeguro.cores.barraProgressoFundo}
+                                    onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, barraProgressoFundo: e.target.value } })}
+                                    className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                                  />
+                                </div>
+                              </div>
+                              <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                                <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Preenchimento Barra</label>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="color"
+                                    value={temaSeguro.cores.barraProgressoPreenchimento}
+                                    onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, barraProgressoPreenchimento: e.target.value } })}
+                                    className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                                  />
+                                  <input
+                                    type="text"
+                                    value={temaSeguro.cores.barraProgressoPreenchimento}
+                                    onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, barraProgressoPreenchimento: e.target.value } })}
+                                    className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                                  />
+                                </div>
+                              </div>
+                              <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                                <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Texto do Progresso</label>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="color"
+                                    value={temaSeguro.cores.barraProgressoTexto}
+                                    onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, barraProgressoTexto: e.target.value } })}
+                                    className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                                  />
+                                  <input
+                                    type="text"
+                                    value={temaSeguro.cores.barraProgressoTexto}
+                                    onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, barraProgressoTexto: e.target.value } })}
+                                    className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        },
+                        {
+                          id: 'cotas',
+                          titulo: 'Card Seletor de Cotas (Quantidade)',
+                          desc: 'Caixa de escolha de quantidade de títulos e pacotes',
+                          icone: '🎯',
+                          corFundoKey: 'cardCotasFundo',
+                          corBordaKey: 'cardCotasBorda',
+                          extras: (
+                            <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2 pt-2">
+                              <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Cor do Texto Principal das Cotas</label>
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="color"
+                                  value={(temaSeguro.cores as any).cardCotasTexto || '#ffffff'}
+                                  onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cardCotasTexto: e.target.value } })}
+                                  className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                                />
+                                <input
+                                  type="text"
+                                  value={(temaSeguro.cores as any).cardCotasTexto || '#ffffff'}
+                                  onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cardCotasTexto: e.target.value } })}
+                                  className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                                />
+                              </div>
+                            </div>
+                          )
+                        },
+                        {
+                          id: 'premios',
+                          titulo: 'Card de Premiação (1º, 2º, 3º...)',
+                          desc: 'Personalize a caixa de prêmios e a cor de cada colocação',
+                          icone: '🏆',
+                          corFundoKey: 'cardPremiosFundo',
+                          corBordaKey: 'cardPremiosBorda',
+                          extras: (
+                            <div className="space-y-3 pt-2">
+                              <h5 className="text-[11px] font-black text-amber-400 uppercase tracking-wider block">Cores da Lista de Prêmios (Itens e Ordem)</h5>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Fundo da Tag da Ordem (1º, 2º...)</label>
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="color"
+                                      value={(temaSeguro.cores as any).premioBadgeFundo || '#10b981'}
+                                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, premioBadgeFundo: e.target.value } })}
+                                      className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                                    />
+                                    <input
+                                      type="text"
+                                      value={(temaSeguro.cores as any).premioBadgeFundo || '#10b981'}
+                                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, premioBadgeFundo: e.target.value } })}
+                                      className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Texto da Tag de Ordem</label>
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="color"
+                                      value={(temaSeguro.cores as any).premioBadgeTexto || '#022c22'}
+                                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, premioBadgeTexto: e.target.value } })}
+                                      className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                                    />
+                                    <input
+                                      type="text"
+                                      value={(temaSeguro.cores as any).premioBadgeTexto || '#022c22'}
+                                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, premioBadgeTexto: e.target.value } })}
+                                      className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Fundo dos Cards de Prêmios</label>
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="color"
+                                      value={(temaSeguro.cores as any).premioFundo || '#0f172a'}
+                                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, premioFundo: e.target.value } })}
+                                      className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                                    />
+                                    <input
+                                      type="text"
+                                      value={(temaSeguro.cores as any).premioFundo || '#0f172a'}
+                                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, premioFundo: e.target.value } })}
+                                      className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Texto dos Prêmios</label>
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="color"
+                                      value={(temaSeguro.cores as any).premioTexto || '#ffffff'}
+                                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, premioTexto: e.target.value } })}
+                                      className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                                    />
+                                    <input
+                                      type="text"
+                                      value={(temaSeguro.cores as any).premioTexto || '#ffffff'}
+                                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, premioTexto: e.target.value } })}
+                                      className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        },
+                        {
+                          id: 'premiadas',
+                          titulo: 'Card de Cotas Premiadas Instantâneas',
+                          desc: 'Container dos bilhetes contemplados na hora',
+                          icone: '⚡',
+                          corFundoKey: 'cardCotasPremiadasFundo',
+                          corBordaKey: 'cardCotasPremiadasBorda'
+                        },
+                        {
+                          id: 'ranking',
+                          titulo: 'Card de Top Compradores / Ranking',
+                          desc: 'Container dos líderes de compra da campanha',
+                          icone: '👑',
+                          corFundoKey: 'cardRankingFundo',
+                          corBordaKey: 'cardRankingBorda'
+                        },
+                        {
+                          id: 'regulamento',
+                          titulo: 'Card de Regulamento & Informações',
+                          desc: 'Caixa de texto expansível com descrição e regras',
+                          icone: '📜',
+                          corFundoKey: 'cardRegulamentoFundo',
+                          corBordaKey: 'cardRegulamentoBorda',
+                          extras: (
+                            <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2 pt-2">
+                              <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Cor do Texto do Regulamento</label>
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="color"
+                                  value={(temaSeguro.cores as any).cardRegulamentoTexto || '#cbd5e1'}
+                                  onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cardRegulamentoTexto: e.target.value } })}
+                                  className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                                />
+                                <input
+                                  type="text"
+                                  value={(temaSeguro.cores as any).cardRegulamentoTexto || '#cbd5e1'}
+                                  onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cardRegulamentoTexto: e.target.value } })}
+                                  className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                                />
+                              </div>
+                            </div>
+                          )
+                        },
+                        {
+                          id: 'ganhadores',
+                          titulo: 'Card de Ganhadores Recentes',
+                          desc: 'Exibição do ganhador contemplado',
+                          icone: '🎉',
+                          corFundoKey: 'cardGanhadoresFundo',
+                          corBordaKey: 'cardGanhadoresBorda'
+                        }
+                      ].map(sec => {
+                        const isExpanded = secaoCardAberta === sec.id;
+                        const fundoVal = (temaSeguro.cores as any)[sec.corFundoKey] || temaSeguro.cores.cardFundo;
+                        const bordaVal = (temaSeguro.cores as any)[sec.corBordaKey] || temaSeguro.cores.cardBorda;
+
+                        return (
+                          <div
+                            key={sec.id}
+                            className={`rounded-xl border transition-all duration-200 overflow-hidden ${
+                              isExpanded
+                                ? 'bg-slate-950 border-emerald-500/50 ring-1 ring-emerald-500/20 shadow-lg'
+                                : 'bg-slate-950 border-slate-800 hover:border-slate-700'
+                            }`}
+                          >
+                            {/* Cabeçalho do Card (Clicável para expandir) */}
+                            <button
+                              type="button"
+                              onClick={() => setSecaoCardAberta(isExpanded ? null : sec.id)}
+                              className="w-full p-3.5 flex items-center justify-between text-left gap-3 focus:outline-none"
+                            >
+                              <div className="flex items-center gap-3">
+                                <span className="text-lg">{sec.icone}</span>
+                                <div>
+                                  <h5 className="text-xs font-black text-white flex items-center gap-2">
+                                    {sec.titulo}
+                                  </h5>
+                                  <p className="text-[10px] text-slate-400">{sec.desc}</p>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2 shrink-0">
+                                {/* Pequeno indicador visual de cor */}
+                                <div className="flex items-center gap-1.5 px-2 py-1 bg-slate-900 rounded-lg border border-slate-800 text-[10px] font-mono">
+                                  <span className="w-2.5 h-2.5 rounded-full border border-white/20" style={{ backgroundColor: fundoVal }} />
+                                  <span className="text-slate-400 font-semibold">{fundoVal}</span>
+                                </div>
+                                {isExpanded ? (
+                                  <ChevronUp className="w-4 h-4 text-emerald-400" />
+                                ) : (
+                                  <ChevronDown className="w-4 h-4 text-slate-400" />
+                                )}
+                              </div>
+                            </button>
+
+                            {/* Conteúdo Expandido */}
+                            {isExpanded && (
+                              <div className="p-4 pt-2 border-t border-slate-800/80 bg-slate-900/40 space-y-3 animate-in fade-in">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                  <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Fundo deste Card</label>
+                                    <div className="flex items-center gap-2">
+                                      <input
+                                        type="color"
+                                        value={fundoVal}
+                                        onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [sec.corFundoKey]: e.target.value } })}
+                                        className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                                      />
+                                      <input
+                                        type="text"
+                                        value={fundoVal}
+                                        onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [sec.corFundoKey]: e.target.value } })}
+                                        className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                                      />
+                                    </div>
+                                  </div>
+
+                                  <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Borda deste Card</label>
+                                    <div className="flex items-center gap-2">
+                                      <input
+                                        type="color"
+                                        value={bordaVal}
+                                        onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [sec.corBordaKey]: e.target.value } })}
+                                        className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                                      />
+                                      <input
+                                        type="text"
+                                        value={bordaVal}
+                                        onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [sec.corBordaKey]: e.target.value } })}
+                                        className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {sec.extras}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -833,13 +2654,30 @@ export const TemaBuilderView: React.FC<Props> = ({
                   })}
                 </div>
               </div>
+            </div>
+          )}
+        </div>
+      )}
 
-              {/* Seletor Visual de Fonte de Títulos (2 Colunas) */}
-              <div className="space-y-3 pt-4 border-t border-slate-800">
-                <div className="flex justify-between items-center">
-                  <label className="text-xs font-bold text-slate-300 block">Fonte dos Títulos</label>
-                  <span className="text-[10px] text-emerald-400 font-mono">Selecionada: {temaSeguro.tipografia.fonteTitulo}</span>
-                </div>
+      {/* 2. SEÇÃO FONTES (TIPOGRAFIA) */}
+      {secaoEditor === 'tipografia' && (
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-5 animate-in fade-in">
+          <div className="border-b border-slate-800 pb-3">
+            <h3 className="text-sm font-black text-white flex items-center gap-2">
+              <Type className="w-4 h-4 text-emerald-400" />
+              Tipografia & Fontes
+            </h3>
+            <p className="text-xs text-slate-400">
+              Escolha as fontes dos títulos e textos, além do tamanho das letras.
+            </p>
+          </div>
+
+          {/* Seletor Visual de Fonte de Títulos (2 Colunas) */}
+          <div className="space-y-3 pt-2">
+            <div className="flex justify-between items-center">
+              <label className="text-xs font-bold text-slate-300 block">Fonte dos Títulos</label>
+              <span className="text-[10px] text-emerald-400 font-mono font-bold">Selecionada: {temaSeguro.tipografia.fonteTitulo}</span>
+            </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto pr-1 custom-scrollbar">
                   {GOOGLE_FONTS_LIST.map(f => {
                     const selecionada = temaSeguro.tipografia.fonteTitulo === f;

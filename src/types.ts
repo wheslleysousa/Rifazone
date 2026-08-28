@@ -1,6 +1,11 @@
 export interface Premio {
   posicao: number;
   descricao: string;
+  corFundo?: string;
+  corTexto?: string;
+  corBadgeFundo?: string;
+  corBadgeTexto?: string;
+  corBorda?: string;
 }
 
 export interface CotaPremiada {
@@ -53,6 +58,21 @@ export interface TemaCampanha {
     cardBorda: string;
     faviconFundo: string;
     iconeCor: string;
+    // Cores específicas individuais por seção de ícones
+    iconePremios?: string;
+    iconeRegulamento?: string;
+    iconeCotasPremiadas?: string;
+    iconeTopCompradores?: string;
+    iconeGanhadores?: string;
+    iconeMeusNumeros?: string;
+    iconeSorteio?: string;
+    // Cores de Selos e Badges
+    seloBannerFundo?: string;
+    seloBannerTexto?: string;
+    seloPopularFundo?: string;
+    seloPopularTexto?: string;
+    botaoDestaqueFundo?: string;
+    botaoDestaqueTexto?: string;
     // Cores específicas solicitadas
     barraProgressoFundo: string;
     barraProgressoPreenchimento: string;
@@ -61,11 +81,40 @@ export interface TemaCampanha {
     botaoCotasFundo: string;
     botaoCotasTexto: string;
     botaoCotasNumero: string;
+    botaoCotasBorda?: string;
     controlesFundo: string;
     controlesTexto: string;
+    controlesInputFundo?: string;
+    controlesInputTexto?: string;
+    controlesBorda?: string;
     textoPrecoBarra: string;
     subtituloCor: string;
     localSorteioCor: string;
+    // Cores da Seção de Prêmios
+    premioFundo?: string;
+    premioTexto?: string;
+    premioBadgeFundo?: string;
+    premioBadgeTexto?: string;
+    premioBorda?: string;
+    // Cores individuais de cada card de seção
+    cardBannerFundo?: string;
+    cardBannerBorda?: string;
+    cardProgressoFundo?: string;
+    cardProgressoBorda?: string;
+    cardCotasFundo?: string;
+    cardCotasBorda?: string;
+    cardCotasTexto?: string;
+    cardPremiosFundo?: string;
+    cardPremiosBorda?: string;
+    cardCotasPremiadasFundo?: string;
+    cardCotasPremiadasBorda?: string;
+    cardRankingFundo?: string;
+    cardRankingBorda?: string;
+    cardRegulamentoFundo?: string;
+    cardRegulamentoBorda?: string;
+    cardRegulamentoTexto?: string;
+    cardGanhadoresFundo?: string;
+    cardGanhadoresBorda?: string;
   };
   secaoIcones: {
     premios: string;
@@ -74,19 +123,78 @@ export interface TemaCampanha {
     ganhadores: string;
     regulamento: string;
     descricao: string;
+    meusNumeros?: string;
+    sorteio?: string;
+    botaoCompra?: string;
   };
   botao: {
     formato: 'reto' | 'arredondado' | 'pill' | 'super' | 'cortado' | 'inclinado' | 'square' | 'rounded' | 'pilled' | 'round';
     raioBorda: number; // 0 a 50
     tamanhoAltura: number; // slider px (ex: 12 a 24)
     tamanhoTexto: number; // slider px (ex: 12 a 20)
-    estilo: 'solido' | 'gradiente' | 'vidro' | 'transparente' | '3d' | 'neon' | 'outline' | 'soft';
-    estiloPacotes?: 'solido' | 'gradiente' | 'vidro' | 'transparente' | '3d' | 'neon' | 'outline' | 'soft';
-    estiloCotas?: 'solido' | 'gradiente' | 'vidro' | 'transparente' | '3d' | 'neon' | 'outline' | 'soft';
+    estilo: 'solido' | 'vidro' | 'transparente' | '3d' | 'gradiente' | 'neon' | 'outline' | 'soft';
     sombraAltura?: number; // 3D shadow height (ex: 4px)
     sombraLargura?: number; // 3D shadow width / offset (ex: 4px)
+    sombraOffsetX?: number;
+    sombraOffsetY?: number;
     corSombra?: string; // 3D shadow color
+    larguraBorda?: number;
+    corBorda?: string;
+    possuirBorda?: boolean;
     textoCompra: string;
+    iconeCompra?: string;
+    // Botões dos pacotes promocionais
+    estiloPacotes?: 'solido' | 'vidro' | 'transparente' | '3d' | 'gradiente' | 'neon' | 'outline' | 'soft';
+    raioBordaPacotes?: number; // 0 a 30
+    tamanhoAlturaPacotes?: number; // slider px
+    tamanhoTextoPacotes?: number;
+    larguraBordaPacotes?: number;
+    corBordaPacotes?: string;
+    possuirBordaPacotes?: boolean;
+    sombraAlturaPacotes?: number;
+    sombraLarguraPacotes?: number;
+    sombraOffsetXPacotes?: number;
+    sombraOffsetYPacotes?: number;
+    corSombraPacotes?: string;
+    // Controles de ajuste manual (+ e -)
+    estiloControles?: 'solido' | 'vidro' | 'transparente' | '3d' | 'gradiente' | 'neon' | 'outline' | 'soft';
+    raioBordaControles?: number; // 0 a 30
+    tamanhoControles?: number; // 32 a 56px
+    tamanhoTextoControles?: number;
+    larguraBordaControles?: number;
+    corBordaControles?: string;
+    possuirBordaControles?: boolean;
+    sombraAlturaControles?: number;
+    sombraLarguraControles?: number;
+    sombraOffsetXControles?: number;
+    sombraOffsetYControles?: number;
+    corSombraControles?: string;
+    // Cotas da grade manual
+    estiloCotas?: 'solido' | 'vidro' | 'transparente' | '3d' | 'gradiente' | 'neon' | 'outline' | 'soft';
+    raioBordaCotas?: number; // 0 a 20
+    tamanhoCotas?: number;
+    tamanhoTextoCotas?: number;
+    larguraBordaCotas?: number;
+    corBordaCotas?: string;
+    possuirBordaCotas?: boolean;
+    sombraAlturaCotas?: number;
+    sombraLarguraCotas?: number;
+    sombraOffsetXCotas?: number;
+    sombraOffsetYCotas?: number;
+    corSombraCotas?: string;
+    // Cards das seções
+    estiloCards?: 'solido' | 'vidro' | 'transparente' | '3d';
+    raioBordaCards?: number; // 0 a 32
+    tamanhoFonteCards?: number;
+    tamanhoAlturaCards?: number;
+    larguraBordaCards?: number;
+    possuirBordaCards?: boolean;
+    corBordaCards?: string;
+    sombraAlturaCards?: number;
+    sombraLarguraCards?: number;
+    sombraOffsetXCards?: number;
+    sombraOffsetYCards?: number;
+    corSombraCards?: string;
   };
   tipografia: {
     fonteTitulo: string; // ex: 'Inter', 'Poppins', etc.
@@ -161,6 +269,13 @@ export const TEMA_PADRAO: TemaCampanha = {
     cardBorda: '#334155',
     faviconFundo: '#334155',
     iconeCor: '#10b981',
+    iconePremios: '#10b981',
+    iconeRegulamento: '#10b981',
+    iconeCotasPremiadas: '#10b981',
+    iconeTopCompradores: '#10b981',
+    iconeGanhadores: '#10b981',
+    iconeMeusNumeros: '#10b981',
+    iconeSorteio: '#10b981',
     barraProgressoFundo: '#1e293b',
     barraProgressoPreenchimento: '#10b981',
     barraProgressoTexto: '#ffffff',
@@ -168,11 +283,44 @@ export const TEMA_PADRAO: TemaCampanha = {
     botaoCotasFundo: '#1e293b',
     botaoCotasTexto: '#94a3b8',
     botaoCotasNumero: '#ffffff',
+    botaoCotasBorda: '#334155',
     controlesFundo: '#1e293b',
     controlesTexto: '#ffffff',
+    controlesInputFundo: '#0f172a',
+    controlesInputTexto: '#ffffff',
+    controlesBorda: '#334155',
     textoPrecoBarra: '#10b981',
     subtituloCor: '#94a3b8',
-    localSorteioCor: '#10b981'
+    localSorteioCor: '#10b981',
+    seloBannerFundo: '#f59e0b',
+    seloBannerTexto: '#022c22',
+    seloPopularFundo: '#f59e0b',
+    seloPopularTexto: '#022c22',
+    botaoDestaqueFundo: '#10b981',
+    botaoDestaqueTexto: '#022c22',
+    premioFundo: '#0f172a',
+    premioTexto: '#ffffff',
+    premioBadgeFundo: '#10b981',
+    premioBadgeTexto: '#022c22',
+    premioBorda: '#1e293b',
+    cardBannerFundo: '#0f172a',
+    cardBannerBorda: '#1e293b',
+    cardProgressoFundo: '#0f172a',
+    cardProgressoBorda: '#1e293b',
+    cardCotasFundo: '#0f172a',
+    cardCotasBorda: '#1e293b',
+    cardCotasTexto: '#ffffff',
+    cardPremiosFundo: '#0f172a',
+    cardPremiosBorda: '#1e293b',
+    cardCotasPremiadasFundo: '#0f172a',
+    cardCotasPremiadasBorda: '#1e293b',
+    cardRankingFundo: '#0f172a',
+    cardRankingBorda: '#1e293b',
+    cardRegulamentoFundo: '#0f172a',
+    cardRegulamentoBorda: '#1e293b',
+    cardRegulamentoTexto: '#cbd5e1',
+    cardGanhadoresFundo: '#0f172a',
+    cardGanhadoresBorda: '#1e293b'
   },
   secaoIcones: {
     premios: 'Trophy',
@@ -180,7 +328,10 @@ export const TEMA_PADRAO: TemaCampanha = {
     topCompradores: 'TrendingUp',
     ganhadores: 'Users',
     regulamento: 'FileText',
-    descricao: 'Info'
+    descricao: 'Info',
+    meusNumeros: 'Ticket',
+    sorteio: 'Calendar',
+    botaoCompra: 'Sparkles'
   },
   botao: {
     formato: 'arredondado',
@@ -188,8 +339,25 @@ export const TEMA_PADRAO: TemaCampanha = {
     tamanhoAltura: 16,
     tamanhoTexto: 15,
     estilo: 'solido',
+    iconeCompra: 'Sparkles',
     estiloPacotes: 'solido',
+    estiloControles: 'solido',
     estiloCotas: 'solido',
+    estiloCards: 'solido',
+    raioBordaPacotes: 12,
+    tamanhoAlturaPacotes: 12,
+    sombraAlturaPacotes: 3,
+    corSombraPacotes: '#047857',
+    raioBordaControles: 12,
+    tamanhoControles: 44,
+    sombraAlturaControles: 3,
+    corSombraControles: '#047857',
+    raioBordaCotas: 8,
+    sombraAlturaCotas: 2,
+    corSombraCotas: '#047857',
+    raioBordaCards: 16,
+    sombraAlturaCards: 4,
+    corSombraCards: '#0f172a',
     sombraAltura: 4,
     sombraLargura: 4,
     corSombra: '#047857',

@@ -18,6 +18,7 @@ import { SocialNotifications } from './SocialNotifications';
 import { ExitPopup } from './ExitPopup';
 import { WhatsAppIcon, TikTokIcon, InstagramIcon } from './BrandIcons';
 import { formatarMoeda, toCents, toReais } from '../lib/money';
+import { getSectionIcon, calcularEstiloBotao, calcularEstiloCard } from '../lib/temaHelpers';
 import { 
   initMetaPixel, 
   trackViewContent, 
@@ -535,10 +536,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
   } as React.CSSProperties;
 
   const getIcon = (name: string) => {
-    const icons: Record<string, any> = {
-      Trophy, Gift, Ticket, Zap, Sparkles, TrendingUp, Users, FileText, Info, Shield, Camera, Video, Layout, ShieldCheck
-    };
-    return icons[name] || Trophy;
+    return getSectionIcon(name);
   };
 
   // Carregamento dinâmico de fontes do Google Fonts para títulos e textos
@@ -975,6 +973,13 @@ export const CampanhaPublicaView: React.FC<Props> = ({
     const imagens = [campanha.bannerUrl, ...(campanha.fotosCarrossel || [])].filter(Boolean);
     const [index, setIndex] = useState(0);
 
+    const bannerCardStyle = calcularEstiloCard({
+      estilo: tema.botao?.estiloCards,
+      corFundo: (tema.cores as any).cardBannerFundo || tema.cores.cardFundo,
+      corBorda: (tema.cores as any).cardBannerBorda || tema.cores.cardBorda,
+      raioBorda: tema.botao?.raioBordaCards ?? 16,
+    });
+
     // Auto-play opcional
     useEffect(() => {
       if (imagens.length <= 1 || !campanha.autoplayGaleria) return;
@@ -988,7 +993,13 @@ export const CampanhaPublicaView: React.FC<Props> = ({
     if (imagens.length === 0) return null;
 
     return (
-      <div className="relative rounded-2xl overflow-hidden border border-slate-800 shadow-2xl bg-slate-900 group">
+      <div 
+        className={`relative overflow-hidden border shadow-2xl group ${bannerCardStyle.className}`}
+        style={{
+          ...bannerCardStyle.style,
+          borderRadius: `${tema.botao?.raioBordaCards ?? 16}px`
+        }}
+      >
         <div className="relative aspect-[16/9] overflow-hidden">
           <AnimatePresence initial={false} mode="wait">
             <div key={index} className="absolute inset-0 bg-slate-950">
@@ -1058,9 +1069,17 @@ export const CampanhaPublicaView: React.FC<Props> = ({
         </div>
         
         {campanha.selo && (campanha.exibirSelo ?? true) && (
-          <div className="absolute top-3 left-3 px-3 py-1 bg-amber-500 text-slate-950 font-black text-[10px] uppercase tracking-wider rounded-full shadow-lg flex items-center gap-1 z-20">
-            <Flame className="w-3 h-3 fill-slate-950" />
-            {campanha.selo}
+          <div 
+            style={{
+              backgroundColor: tema.cores.seloBannerFundo || '#f59e0b',
+              color: tema.cores.seloBannerTexto || '#022c22'
+            }}
+            className="absolute top-3 left-3 px-3 py-1 font-black text-[10px] uppercase tracking-wider rounded-full shadow-lg flex items-center gap-1.5 z-20"
+          >
+            {!(/^\s*[\p{Extended_Pictographic}\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u.test(campanha.selo.trim())) && (
+              <Flame className="w-3 h-3 fill-current" />
+            )}
+            <span>{campanha.selo}</span>
           </div>
         )}
 
@@ -1096,10 +1115,17 @@ export const CampanhaPublicaView: React.FC<Props> = ({
   // 2. Seção Barra de Progresso
   const ProgressoSection = ({ campanha, estatisticas, tema }: { campanha: Campanha; estatisticas: any, tema: TemaCampanha }) => {
     if (campanha.exibirBarraProgresso === false || estatisticas.vendidas === 0) return null;
+    const progCardStyle = calcularEstiloCard({
+      estilo: tema.botao?.estiloCards,
+      corFundo: (tema.cores as any).cardProgressoFundo || tema.cores.cardBarraProgressoFundo || tema.cores.cardFundo,
+      corBorda: (tema.cores as any).cardProgressoBorda || tema.cores.cardBorda,
+      raioBorda: tema.botao?.raioBordaCards ?? 16,
+    });
+
     return (
       <div 
-        className="border border-slate-800 rounded-2xl p-4 shadow-sm"
-        style={{ backgroundColor: tema.cores.cardBarraProgressoFundo }}
+        className={`border rounded-2xl p-4 shadow-sm ${progCardStyle.className}`}
+        style={progCardStyle.style}
       >
         <div className="flex items-center justify-between text-xs mb-2">
           <span className="opacity-60 font-medium">Progresso do sorteio</span>
@@ -1128,8 +1154,22 @@ export const CampanhaPublicaView: React.FC<Props> = ({
 
   // 3. Seção Seletor de Cotas
   const CotasSection = ({ campanha, tema, setQuantidade, setCheckoutAberto }: { campanha: Campanha; tema: TemaCampanha; setQuantidade: any; setCheckoutAberto: any }) => {
+    const cotasCardStyle = calcularEstiloCard({
+      estilo: tema.botao?.estiloCards,
+      corFundo: (tema.cores as any).cardCotasFundo || tema.cores.cardFundo,
+      corBorda: (tema.cores as any).cardCotasBorda || tema.cores.cardBorda,
+      raioBorda: tema.botao?.raioBordaCards ?? 16,
+    });
+    const corTextoCotas = (tema.cores as any).cardCotasTexto || tema.cores.texto || '#ffffff';
+
     return (
-      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+      <div 
+        className={`border rounded-2xl p-5 shadow-sm space-y-4 ${cotasCardStyle.className}`}
+        style={{
+          ...cotasCardStyle.style,
+          color: corTextoCotas
+        }}
+      >
         <div className="flex items-center justify-between">
           <h2 className="text-base font-black text-white">
             Escolha a quantidade de cotas
@@ -1193,6 +1233,13 @@ export const CampanhaPublicaView: React.FC<Props> = ({
               return (
                 <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
                   {listaBotoes.map((item, idx: number) => {
+                    const isDestaque = item.destaque;
+                    const corFundoPacote = isDestaque ? (tema.cores.botaoDestaqueFundo || tema.cores.primaria) : tema.cores.botaoCotasFundo;
+                    const corTextoPacote = isDestaque ? (tema.cores.botaoDestaqueTexto || '#022c22') : tema.cores.botaoCotasTexto;
+                    const corNumeroPacote = isDestaque ? (tema.cores.botaoDestaqueTexto || '#022c22') : tema.cores.botaoCotasNumero;
+                    const corSeloPopularFundo = tema.cores.seloPopularFundo || '#f59e0b';
+                    const corSeloPopularTexto = tema.cores.seloPopularTexto || '#022c22';
+
                     return (
                       <button
                         key={idx}
@@ -1206,23 +1253,42 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                             return Math.min(max, Math.max(min, novaQtd));
                           });
                         }}
-                        className={`relative py-3 px-2 rounded-xl border text-center transition flex flex-col items-center justify-center gap-0.5 group active:scale-95 ${
-                          item.destaque
-                            ? 'bg-emerald-500/10 border-emerald-500/40 hover:bg-emerald-500/20 shadow-sm'
-                            : 'bg-slate-800/60 border-slate-700/80 hover:bg-slate-800 hover:border-slate-600'
-                        }`}
+                        style={calcularEstiloBotao({
+                          estilo: tema.botao?.estiloPacotes || 'solido',
+                          corFundo: corFundoPacote,
+                          corTexto: corTextoPacote,
+                          corBorda: tema.cores.botaoCotasBorda || tema.cores.cardBorda,
+                          raioBorda: tema.botao?.raioBordaPacotes ?? 12,
+                          tamanhoAltura: tema.botao?.tamanhoAlturaPacotes ?? 12,
+                          sombraAltura: tema.botao?.sombraAlturaPacotes ?? 3,
+                          corSombra: tema.botao?.corSombraPacotes,
+                        }).style}
+                        className={`${
+                          calcularEstiloBotao({
+                            estilo: tema.botao?.estiloPacotes || 'solido',
+                            corFundo: corFundoPacote,
+                            corTexto: corTextoPacote,
+                            raioBorda: tema.botao?.raioBordaPacotes ?? 12,
+                          }).className
+                        } relative py-3 px-2 border text-center transition flex flex-col items-center justify-center gap-0.5 group active:scale-95 cursor-pointer`}
                       >
-                        {item.destaque && (
-                          <span className="absolute -top-2 left-1/2 -translate-x-1/2 px-1.5 py-0.5 bg-amber-500 text-slate-950 font-black text-[8px] uppercase tracking-wider rounded shadow whitespace-nowrap">
+                        {isDestaque && (
+                          <span 
+                            style={{
+                              backgroundColor: corSeloPopularFundo,
+                              color: corSeloPopularTexto,
+                            }}
+                            className="absolute -top-2 left-1/2 -translate-x-1/2 px-1.5 py-0.5 font-black text-[8px] uppercase tracking-wider rounded shadow whitespace-nowrap"
+                          >
                             Mais Popular
                           </span>
                         )}
-                        <span className="block text-sm font-black group-hover:opacity-80 transition-opacity" style={{ color: tema.cores.botaoCotasNumero }}>
+                        <span className="block text-sm font-black group-hover:opacity-80 transition-opacity" style={{ color: corNumeroPacote }}>
                           +{item.quantidade}
                         </span>
                         <span
                           className="block text-[11px] font-extrabold"
-                          style={{ color: tema.cores.botaoCotasTexto }}
+                          style={{ color: corTextoPacote }}
                         >
                           {formatarMoeda(item.valor)}
                         </span>
@@ -1234,68 +1300,92 @@ export const CampanhaPublicaView: React.FC<Props> = ({
             })()}
 
             {/* Seletor Manual (+1 / -1 e Input Direto) */}
-            <div className="p-3 border border-slate-800 rounded-xl" style={{ backgroundColor: tema.cores.cardFundo }}>
-              <div className="flex items-center justify-between gap-2">
-                {/* Botão Decrementar -1 */}
-                <button
-                  type="button"
-                  onClick={() => setQuantidade((q: number) => Math.max(campanha.minPorCompra || 1, (Number(q) || 1) - 1))}
-                  className="w-11 h-11 rounded-xl active:scale-95 flex items-center justify-center font-black transition shrink-0 border border-slate-700/60 shadow-sm"
-                  style={{ backgroundColor: tema.cores.controlesFundo, color: tema.cores.controlesTexto }}
-                  aria-label="Diminuir 1 cota"
-                  title="Diminuir 1 cota"
-                >
-                  <Minus className="w-4 h-4" />
-                </button>
+            {(() => {
+              const cardControlesStyle = calcularEstiloCard({
+                estilo: tema.botao?.estiloCards,
+                corFundo: tema.cores.cardFundo,
+                corBorda: tema.cores.cardBorda,
+                raioBorda: tema.botao?.raioBordaCards ?? 16,
+              });
 
-                {/* Input Central com Digitação e Edição Livre */}
-                <div className="flex-1 flex items-center justify-center gap-2">
-                  <input
-                    type="number"
-                    min={campanha.minPorCompra || 1}
-                    max={campanha.maxPorCompra || 500000}
-                    value={quantidade === 0 ? '' : quantidade}
-                    onChange={e => {
-                      const valStr = e.target.value;
-                      if (valStr === '') {
-                        setQuantidade(0);
-                        return;
-                      }
-                      const val = parseInt(valStr, 10);
-                      if (!isNaN(val)) {
-                        const max = campanha.maxPorCompra || 500000;
-                        if (val > max) {
-                          setQuantidade(max);
-                        } else {
-                          setQuantidade(val);
-                        }
-                      }
-                    }}
-                    onBlur={() => {
-                      const min = campanha.minPorCompra || 1;
-                      if (!quantidade || quantidade < min) {
-                        setQuantidade(min);
-                      }
-                    }}
-                    className="w-28 bg-transparent border border-slate-700 rounded-xl py-1.5 px-2 text-center text-xl font-black focus:outline-none font-mono shadow-inner"
-                    style={{ color: tema.cores.texto, borderColor: tema.cores.cardBorda }}
-                  />
-                  <span className="text-sm font-bold opacity-70">cotas</span>
+              const btnCtrlStyle = calcularEstiloBotao({
+                estilo: tema.botao?.estiloControles || 'solido',
+                corFundo: tema.cores.controlesFundo,
+                corTexto: tema.cores.controlesTexto,
+                raioBorda: tema.botao?.raioBordaControles ?? 12,
+                tamanhoAltura: 10,
+                sombraAltura: tema.botao?.sombraAlturaControles ?? 3,
+                corSombra: tema.botao?.corSombraControles,
+              });
+
+              return (
+                <div 
+                  className={`p-3 border rounded-xl ${cardControlesStyle.className}`} 
+                  style={cardControlesStyle.style}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    {/* Botão Decrementar -1 */}
+                    <button
+                      type="button"
+                      onClick={() => setQuantidade((q: number) => Math.max(campanha.minPorCompra || 1, (Number(q) || 1) - 1))}
+                      className={`w-11 h-11 active:scale-95 flex items-center justify-center font-black transition shrink-0 ${btnCtrlStyle.className}`}
+                      style={btnCtrlStyle.style}
+                      aria-label="Diminuir 1 cota"
+                      title="Diminuir 1 cota"
+                    >
+                      <Minus className="w-4 h-4" />
+                    </button>
+
+                    {/* Input Central com Digitação e Edição Livre */}
+                    <div className="flex-1 flex items-center justify-center gap-2">
+                      <input
+                        type="number"
+                        min={campanha.minPorCompra || 1}
+                        max={campanha.maxPorCompra || 500000}
+                        value={quantidade === 0 ? '' : quantidade}
+                        onChange={e => {
+                          const valStr = e.target.value;
+                          if (valStr === '') {
+                            setQuantidade(0);
+                            return;
+                          }
+                          const val = parseInt(valStr, 10);
+                          if (!isNaN(val)) {
+                            const max = campanha.maxPorCompra || 500000;
+                            if (val > max) {
+                              setQuantidade(max);
+                            } else {
+                              setQuantidade(val);
+                            }
+                          }
+                        }}
+                        onBlur={() => {
+                          const min = campanha.minPorCompra || 1;
+                          if (!quantidade || quantidade < min) {
+                            setQuantidade(min);
+                          }
+                        }}
+                        className="w-28 bg-transparent border border-slate-700 rounded-xl py-1.5 px-2 text-center text-xl font-black focus:outline-none font-mono shadow-inner"
+                        style={{ color: tema.cores.texto, borderColor: tema.cores.cardBorda }}
+                      />
+                      <span className="text-sm font-bold opacity-70">cotas</span>
+                    </div>
+
+                    {/* Botão Incrementar +1 */}
+                    <button
+                      type="button"
+                      onClick={() => setQuantidade((q: number) => Math.min(campanha.maxPorCompra || 500000, (Number(q) || 0) + 1))}
+                      style={btnCtrlStyle.style}
+                      className={`w-11 h-11 flex items-center justify-center font-black transition active:scale-95 shrink-0 hover:opacity-90 ${btnCtrlStyle.className}`}
+                      aria-label="Aumentar 1 cota"
+                      title="Aumentar 1 cota"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
-
-                {/* Botão Incrementar +1 */}
-                <button
-                  type="button"
-                  onClick={() => setQuantidade((q: number) => Math.min(campanha.maxPorCompra || 500000, (Number(q) || 0) + 1))}
-                  style={{ backgroundColor: tema.cores.controlesFundo, color: tema.cores.controlesTexto, borderRadius: `${tema.botao.raioBorda}px` }}
-                  className="w-11 h-11 rounded-xl flex items-center justify-center font-black transition active:scale-95 shrink-0 hover:opacity-90 shadow-sm"
-                  aria-label="Aumentar 1 cota"
-                  title="Aumentar 1 cota"
-                >
-                  <Plus className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
+              );
+            })()}
           </>
         )}
       </div>
@@ -1305,31 +1395,59 @@ export const CampanhaPublicaView: React.FC<Props> = ({
   // 4. Seção Prêmios Oficiais
   const PremiosSection = ({ campanha, tema }: { campanha: Campanha; tema: TemaCampanha }) => {
     if (campanha.exibirPremios === false || !campanha.premios || campanha.premios.length === 0) return null;
-    const SectionIcon = getIcon(tema.secaoIcones?.ganhadores || 'Trophy');
+    const SectionIcon = getSectionIcon(tema.secaoIcones?.premios || 'Trophy');
+    const iconeCor = (tema.cores as any)?.iconePremios || tema.cores?.iconeCor || '#10b981';
+    const cardStyle = calcularEstiloCard({
+      estilo: tema.botao?.estiloCards,
+      corFundo: (tema.cores as any).cardPremiosFundo || tema.cores.cardFundo,
+      corBorda: (tema.cores as any).cardPremiosBorda || tema.cores.cardBorda,
+      raioBorda: tema.botao?.raioBordaCards ?? 16,
+    });
+
     return (
-      <div className="border border-slate-800 rounded-2xl p-5 shadow-sm" style={{ backgroundColor: tema.cores.cardFundo }}>
-        <h3 className="text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-1.5 opacity-60">
-          <SectionIcon className="w-4 h-4" style={{ color: tema.cores.iconeCor }} />
+      <div className={`border rounded-2xl p-5 shadow-sm ${cardStyle.className}`} style={cardStyle.style}>
+        <h3 className="text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-1.5 opacity-80">
+          <SectionIcon className="w-4 h-4" style={{ color: iconeCor }} />
           Premiação
         </h3>
-        <div className="space-y-2">
-          {campanha.premios.map((premio, idx) => (
-            <div
-              key={idx}
-              className="flex items-center gap-3 p-3 rounded-xl border border-slate-700/60"
-              style={{ backgroundColor: tema.cores.controlesFundo }}
-            >
-              <div 
-                className="w-7 h-7 rounded-lg border flex items-center justify-center font-black text-xs"
-                style={{ backgroundColor: `${tema.cores.primaria}20`, borderColor: `${tema.cores.primaria}40`, color: tema.cores.primaria }}
+        <div className="space-y-2.5">
+          {campanha.premios.map((premio, idx) => {
+            const numPosicao = premio.posicao || (idx + 1);
+            const posicaoText = `${numPosicao}º`;
+            
+            // Custom item colors or theme fallback
+            const bg = premio.corFundo || (tema.cores as any).premioFundo || tema.cores.controlesFundo || 'rgba(15, 23, 42, 0.7)';
+            const textCor = premio.corTexto || (tema.cores as any).premioTexto || tema.cores.texto || '#ffffff';
+            const badgeBg = premio.corBadgeFundo || (tema.cores as any).premioBadgeFundo || tema.cores.primaria || '#10b981';
+            const badgeTexto = premio.corBadgeTexto || (tema.cores as any).premioBadgeTexto || '#022c22';
+            const bordaCor = premio.corBorda || (tema.cores as any).premioBorda || 'rgba(51, 65, 85, 0.6)';
+
+            return (
+              <div
+                key={idx}
+                className="flex items-center gap-3 p-3.5 rounded-xl border shadow-sm transition-all"
+                style={{
+                  backgroundColor: bg,
+                  borderColor: bordaCor,
+                  color: textCor
+                }}
               >
-                {premio.posicao}º
+                <div 
+                  className="px-2.5 py-1 min-w-[38px] rounded-lg border font-black text-xs shrink-0 flex items-center justify-center shadow-sm uppercase tracking-wider"
+                  style={{ 
+                    backgroundColor: badgeBg, 
+                    borderColor: `${badgeBg}99`, 
+                    color: badgeTexto 
+                  }}
+                >
+                  {posicaoText}
+                </div>
+                <span className="text-sm font-bold flex-1 leading-snug">
+                  {premio.descricao}
+                </span>
               </div>
-              <span className="text-sm font-bold">
-                {premio.descricao}
-              </span>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     );
@@ -1338,12 +1456,20 @@ export const CampanhaPublicaView: React.FC<Props> = ({
   // 5. Seção Cotas Premiadas (Instantâneas)
   const CotasPremiadasSection = ({ campanha, tema }: { campanha: Campanha; tema: TemaCampanha }) => {
     if (campanha.exibirCotasPremiadas === false || !campanha.cotasPremiadas || campanha.cotasPremiadas.length === 0) return null;
-    const SectionIcon = getIcon(tema.secaoIcones?.cotasPremiadas || 'Gift');
+    const SectionIcon = getSectionIcon(tema.secaoIcones?.cotasPremiadas || 'Gift');
+    const iconeCor = (tema.cores as any)?.iconeCotasPremiadas || tema.cores?.iconeCor || '#10b981';
+    const cardStyle = calcularEstiloCard({
+      estilo: tema.botao?.estiloCards,
+      corFundo: (tema.cores as any).cardCotasPremiadasFundo || tema.cores.cardFundo,
+      corBorda: (tema.cores as any).cardCotasPremiadasBorda || tema.cores.cardBorda,
+      raioBorda: tema.botao?.raioBordaCards ?? 16,
+    });
+
     return (
-      <div className="border border-slate-800 rounded-2xl p-5 shadow-sm" style={{ backgroundColor: tema.cores.cardFundo }}>
+      <div className={`border rounded-2xl p-5 shadow-sm ${cardStyle.className}`} style={cardStyle.style}>
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 opacity-60">
-            <SectionIcon className="w-4 h-4" style={{ color: tema.cores.iconeCor }} />
+          <h3 className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 opacity-80">
+            <SectionIcon className="w-4 h-4" style={{ color: iconeCor }} />
             Cotas Premiadas (Ganhe no Pix na Hora)
           </h3>
         </div>
@@ -1383,11 +1509,19 @@ export const CampanhaPublicaView: React.FC<Props> = ({
   // 6. Seção Top Compradores / Ranking
   const RankingSection = ({ ranking, tema }: { ranking: RankingItem[]; tema: TemaCampanha }) => {
     if (!ranking || ranking.length === 0) return null;
-    const SectionIcon = getIcon(tema.secaoIcones?.topCompradores || 'Users');
+    const SectionIcon = getSectionIcon(tema.secaoIcones?.topCompradores || 'Users');
+    const iconeCor = (tema.cores as any)?.iconeTopCompradores || tema.cores?.iconeCor || '#10b981';
+    const cardStyle = calcularEstiloCard({
+      estilo: tema.botao?.estiloCards,
+      corFundo: (tema.cores as any).cardRankingFundo || tema.cores.cardFundo,
+      corBorda: (tema.cores as any).cardRankingBorda || tema.cores.cardBorda,
+      raioBorda: tema.botao?.raioBordaCards ?? 16,
+    });
+
     return (
-      <div className="border border-slate-800 rounded-2xl p-5 shadow-sm" style={{ backgroundColor: tema.cores.cardFundo }}>
-        <h3 className="text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-1.5 opacity-60">
-          <SectionIcon className="w-4 h-4" style={{ color: tema.cores.iconeCor }} />
+      <div className={`border rounded-2xl p-5 shadow-sm ${cardStyle.className}`} style={cardStyle.style}>
+        <h3 className="text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-1.5 opacity-80">
+          <SectionIcon className="w-4 h-4" style={{ color: iconeCor }} />
           Top Compradores
         </h3>
         <div className="space-y-2">
@@ -1422,15 +1556,24 @@ export const CampanhaPublicaView: React.FC<Props> = ({
 
   // 7. Seção Regulamento & Informações
   const RegulamentoSection = ({ campanha, tema, descricaoAberta, setDescricaoAberta }: { campanha: Campanha; tema: TemaCampanha; descricaoAberta: boolean; setDescricaoAberta: any }) => {
-    const SectionIcon = getIcon(tema.secaoIcones?.regulamento || 'Info');
+    const SectionIcon = getSectionIcon(tema.secaoIcones?.regulamento || 'Info');
+    const iconeCor = (tema.cores as any)?.iconeRegulamento || tema.cores?.iconeCor || '#10b981';
+    const cardStyle = calcularEstiloCard({
+      estilo: tema.botao?.estiloCards,
+      corFundo: (tema.cores as any).cardRegulamentoFundo || tema.cores.cardFundo,
+      corBorda: (tema.cores as any).cardRegulamentoBorda || tema.cores.cardBorda,
+      raioBorda: tema.botao?.raioBordaCards ?? 16,
+    });
+    const regTextoCor = (tema.cores as any).cardRegulamentoTexto || tema.cores.descricoes || '#cbd5e1';
+
     return (
-      <div className="border border-slate-800 rounded-2xl p-5 shadow-sm" style={{ backgroundColor: tema.cores.cardFundo }}>
+      <div className={`border rounded-2xl p-5 shadow-sm ${cardStyle.className}`} style={cardStyle.style}>
         <button
           onClick={() => setDescricaoAberta(!descricaoAberta)}
           className="w-full flex items-center justify-between text-left"
         >
-          <span className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 opacity-60">
-            <SectionIcon className="w-4 h-4" style={{ color: tema.cores.iconeCor }} />
+          <span className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 opacity-80">
+            <SectionIcon className="w-4 h-4" style={{ color: iconeCor }} />
             Regulamento & Informações
           </span>
           {descricaoAberta ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -1438,7 +1581,8 @@ export const CampanhaPublicaView: React.FC<Props> = ({
 
         {descricaoAberta && (
           <div
-            className="mt-4 pt-4 border-t border-slate-800 text-xs leading-relaxed space-y-2 opacity-80"
+            className="mt-4 pt-4 border-t border-slate-800 text-xs leading-relaxed space-y-2"
+            style={{ color: regTextoCor }}
             dangerouslySetInnerHTML={{ __html: campanha.descricao }}
           />
         )}
@@ -1447,12 +1591,21 @@ export const CampanhaPublicaView: React.FC<Props> = ({
   };
 
   // 8. Seção Ganhadores da Campanha
-  const GanhadoresSection = ({ campanha }: { campanha: Campanha }) => {
+  const GanhadoresSection = ({ campanha, tema }: { campanha: Campanha; tema: TemaCampanha }) => {
     if (campanha.exibirPaginaGanhadores === false || !campanha.ganhador) return null;
+    const SectionIcon = getSectionIcon(tema.secaoIcones?.ganhadores || 'Trophy');
+    const iconeCor = (tema.cores as any)?.iconeGanhadores || tema.cores?.iconeCor || '#f59e0b';
+    const cardStyle = calcularEstiloCard({
+      estilo: tema.botao?.estiloCards,
+      corFundo: (tema.cores as any).cardGanhadoresFundo || tema.cores.cardFundo,
+      corBorda: (tema.cores as any).cardGanhadoresBorda || tema.cores.cardBorda,
+      raioBorda: tema.botao?.raioBordaCards ?? 16,
+    });
+
     return (
-      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-3">
+      <div className={`border rounded-2xl p-5 shadow-sm space-y-3 ${cardStyle.className}`} style={cardStyle.style}>
         <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-          <Trophy className="w-4 h-4 text-amber-400" />
+          <SectionIcon className="w-4 h-4" style={{ color: iconeCor }} />
           Ganhadores da Campanha
         </h3>
 
@@ -1513,7 +1666,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
       case 'descricao':
         return <RegulamentoSection campanha={campanha} tema={tema} descricaoAberta={descricaoAberta} setDescricaoAberta={setDescricaoAberta} />;
       case 'ganhadores':
-        return <GanhadoresSection campanha={campanha} />;
+        return <GanhadoresSection campanha={campanha} tema={tema} />;
       default:
         return null;
     }
@@ -1955,27 +2108,47 @@ export const CampanhaPublicaView: React.FC<Props> = ({
               (campanha.status as string) === 'pausada' ||
               campanha.status === 'rascunho'
                 ? undefined
-                : {
-                    backgroundColor: 'var(--btn)',
-                    color: 'var(--btn-txt)',
-                    borderRadius: `${tema.botao.raioBorda}px`
-                  }
+                : calcularEstiloBotao({
+                    estilo: tema.botao?.estilo || 'solido',
+                    corFundo: tema.cores.botao,
+                    corTexto: tema.cores.textoBotao,
+                    raioBorda: tema.botao.raioBorda,
+                    tamanhoAltura: tema.botao.tamanhoAltura,
+                    tamanhoTexto: tema.botao.tamanhoTexto,
+                    sombraAltura: tema.botao.sombraAltura,
+                    sombraLargura: tema.botao.sombraLargura,
+                    corSombra: tema.botao.corSombra,
+                  }).style
             }
-            className={`flex-1 font-black flex items-center justify-center gap-2 transition active:scale-[0.98] ${getBtnRoundingClass(tema.botao.formato)} ${getBtnSizeClass(tema.botao.tamanhoAltura)} shadow-lg ${
+            className={`flex-1 font-black flex items-center justify-center gap-2 transition active:scale-[0.98] cursor-pointer ${
+              calcularEstiloBotao({
+                estilo: tema.botao?.estilo || 'solido',
+                corFundo: tema.cores.botao,
+                corTexto: tema.cores.textoBotao,
+                raioBorda: tema.botao.raioBorda,
+              }).className
+            } ${getBtnSizeClass(tema.botao.tamanhoAltura)} ${
               (campanha.status as string) === 'pausada' || campanha.status === 'rascunho'
                 ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40 cursor-not-allowed shadow-none'
                 : tempoRestante?.status === 'aguardando_inicio'
                 ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40 cursor-not-allowed shadow-none'
                 : tempoRestante?.status === 'encerrada'
                 ? 'bg-red-500/20 text-red-400 border border-red-500/40 cursor-not-allowed shadow-none'
-                : 'hover:opacity-95'
+                : 'hover:opacity-95 shadow-lg'
             }`}
           >
-            <Sparkles className={`w-4 h-4 ${
-              tempoRestante?.status === 'aguardando_inicio' || tempoRestante?.status === 'encerrada' || (campanha.status as string) === 'pausada'
-                ? 'text-current'
-                : 'fill-current'
-            }`} />
+            {(() => {
+              const iconeCompraName = tema.botao?.iconeCompra || tema.secaoIcones?.botaoCompra || 'Sparkles';
+              const IconeCompraBtn = getSectionIcon(iconeCompraName, null);
+              if (!IconeCompraBtn) return null;
+              return (
+                <IconeCompraBtn className={`w-4 h-4 ${
+                  tempoRestante?.status === 'aguardando_inicio' || tempoRestante?.status === 'encerrada' || (campanha.status as string) === 'pausada'
+                    ? 'text-current'
+                    : 'fill-current'
+                }`} />
+              );
+            })()}
             {(campanha.status as string) === 'pausada' || campanha.status === 'rascunho'
               ? 'CAMPANHA PAUSADA'
               : tempoRestante?.status === 'aguardando_inicio'

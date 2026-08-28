@@ -1,3 +1,4 @@
+import { toast } from '../lib/toast';
 import React, { useState, useEffect } from 'react';
 import { FileText, Copy, Check, Clock, AlertCircle, Sparkles, CheckCircle2, ExternalLink, Ticket, ArrowRight } from 'lucide-react';
 import { formatarMoeda } from '../lib/money';
@@ -87,11 +88,11 @@ export const BoletoPaymentModal: React.FC<Props> = ({
             if (onSuccess) onSuccess(data.numeros);
           }
         } else {
-          alert('O pagamento via boleto ainda está em processamento bancário (compensação em até 1 a 3 dias úteis).');
+          toast('O pagamento via boleto ainda está em processamento bancário (compensação em até 1 a 3 dias úteis).');
         }
       }
     } catch (e) {
-      alert('Erro ao verificar status. Tente novamente.');
+      toast('Erro ao verificar status. Tente novamente.');
     } finally {
       setChecando(false);
     }

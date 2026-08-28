@@ -1,3 +1,5 @@
+import { confirmar } from '../../lib/confirm';
+import { toast } from '../../lib/toast';
 import React, { useState, useEffect } from 'react';
 import { Campanha, Pedido } from '../../types';
 import { extrairValorReaisPedido } from '../../lib/money';
@@ -186,28 +188,28 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
         window.open(json.url, 'fb_oauth', `width=${width},height=${height},top=${top},left=${left}`);
         
         // Pede pro usuário recarregar a página após logar no popup
-        alert('Uma nova janela foi aberta para conectar sua conta do Facebook.\n\nSe a janela não abriu, permita os popups no seu navegador.\n\nApós autorizar no Facebook, recarregue esta página para ver seus dados.');
+        toast('Uma nova janela foi aberta para conectar sua conta do Facebook.\n\nSe a janela não abriu, permita os popups no seu navegador.\n\nApós autorizar no Facebook, recarregue esta página para ver seus dados.');
       } else {
-        alert(json.error || 'Erro ao gerar URL de conexão do Facebook. (Configure as variáveis no Render)');
+        toast(json.error || 'Erro ao gerar URL de conexão do Facebook. (Configure as variáveis no Render)');
       }
     } catch (err: any) {
-      alert('Falha ao conectar com o Facebook.');
+      toast('Falha ao conectar com o Facebook.');
     } finally {
       setConectandoFacebook(false);
     }
   };
 
   const handleDesconectarFacebook = async () => {
-    if (!confirm('Deseja desconectar sua conta do Facebook?')) return;
+    if (!(await confirmar({ mensagem: 'Deseja desconectar sua conta do Facebook?', perigo: true, confirmarLabel: 'Desconectar' }))) return;
     try {
       const res = await authFetch('/api/admin/configuracoes/desconectar-facebook', { method: 'POST' });
       if (res.ok) {
         buscarInsights();
       } else {
-        alert('Erro ao desconectar conta.');
+        toast('Erro ao desconectar conta.');
       }
     } catch (err) {
-      alert('Erro ao desconectar.');
+      toast('Erro ao desconectar.');
     }
   };
 
@@ -238,10 +240,10 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
         // O buscarInsights atualiza o state, disparando render.
         buscarInsights(); 
       } else {
-        alert('Erro ao salvar vinculação.');
+        toast('Erro ao salvar vinculação.');
       }
     } catch (err) {
-      alert('Erro ao vincular.');
+      toast('Erro ao vincular.');
     }
   };
 

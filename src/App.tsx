@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { CampanhaPublicaView } from './components/CampanhaPublicaView';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { ToastHost } from './components/ToastHost';
+import { ConfirmHost } from './components/ConfirmHost';
 import { AlertTriangle, Copy, X, Check } from 'lucide-react';
 import { lazyWithRetry } from './lib/lazy-retry';
 
@@ -110,6 +112,8 @@ ${globalError.stack || 'Sem mais detalhes'}`;
 
   return (
     <>
+      <ToastHost />
+      <ConfirmHost />
       {currentRoute === 'publica' && codigoCampanha ? (
         <CampanhaPublicaView
           codigo={codigoCampanha}

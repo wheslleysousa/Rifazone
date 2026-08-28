@@ -1,3 +1,5 @@
+import { confirmar } from '../../lib/confirm';
+import { toast } from '../../lib/toast';
 import React, { useState, useEffect } from 'react';
 import { 
   MessageSquare, Clock, Copy, Check, Send, AlertCircle, 
@@ -230,10 +232,10 @@ export const RemarketingView: React.FC<Props> = ({
         onRefresh();
       } else {
         const err = await res.json();
-        alert(err.error || 'Erro ao salvar configurações.');
+        toast(err.error || 'Erro ao salvar configurações.');
       }
     } catch (e) {
-      alert('Falha de conexão ao salvar configurações.');
+      toast('Falha de conexão ao salvar configurações.');
     } finally {
       setSalvandoConfig(false);
       setTimeout(() => setMsgFeedback(''), 4000);
@@ -255,10 +257,10 @@ export const RemarketingView: React.FC<Props> = ({
         if (subAba === 'fila') fetchFila();
         onRefresh();
       } else {
-        alert(data.error || 'Erro ao varrer pedidos pendentes.');
+        toast(data.error || 'Erro ao varrer pedidos pendentes.');
       }
     } catch (err) {
-      alert('Falha de conexão ao executar enfileiramento.');
+      toast('Falha de conexão ao executar enfileiramento.');
     } finally {
       setExecutandoMotor(false);
     }
@@ -279,10 +281,10 @@ export const RemarketingView: React.FC<Props> = ({
         fetchFila();
         onRefresh();
       } else {
-        alert(data.error || 'Erro ao processar fila de outbox.');
+        toast(data.error || 'Erro ao processar fila de outbox.');
       }
     } catch (err) {
-      alert('Falha de conexão ao processar fila.');
+      toast('Falha de conexão ao processar fila.');
     } finally {
       setProcessandoFila(false);
     }
@@ -290,7 +292,7 @@ export const RemarketingView: React.FC<Props> = ({
 
   // Cancelar/Limpar todas as mensagens pendentes da fila
   const handleLimparFilaMensagens = async () => {
-    if (!window.confirm('Deseja realmente cancelar todas as mensagens pendentes ou com erro na fila?')) {
+    if (!(await confirmar({ mensagem: 'Deseja realmente cancelar todas as mensagens pendentes ou com erro na fila?', perigo: true, confirmarLabel: 'Cancelar tudo' }))) {
       return;
     }
     try {
@@ -299,14 +301,14 @@ export const RemarketingView: React.FC<Props> = ({
         method: 'POST'
       });
       if (res.ok) {
-        alert('Todas as mensagens da fila foram canceladas com sucesso.');
+        toast('Todas as mensagens da fila foram canceladas com sucesso.');
         fetchFila();
       } else {
         const err = await res.json();
-        alert(err.error || 'Erro ao limpar fila de mensagens.');
+        toast(err.error || 'Erro ao limpar fila de mensagens.');
       }
     } catch (err) {
-      alert('Falha ao limpar fila de mensagens.');
+      toast('Falha ao limpar fila de mensagens.');
     }
   };
 
@@ -1203,7 +1205,7 @@ export const RemarketingView: React.FC<Props> = ({
                     const pct = Number(elPct?.value || 0);
 
                     if (!codigo || pct <= 0) {
-                      alert('Informe o código e uma porcentagem válida.');
+                      toast('Informe o código e uma porcentagem válida.');
                       return;
                     }
 

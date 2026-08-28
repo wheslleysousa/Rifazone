@@ -1,3 +1,5 @@
+import { confirmar } from '../lib/confirm';
+import { toast } from '../lib/toast';
 import React, { useState, useEffect } from 'react';
 import { Campanha, Pedido } from '../types';
 import {
@@ -169,10 +171,10 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
         setCampanhaParaExcluir(null);
         await carregarTudo();
       } else {
-        alert('Erro ao excluir campanha.');
+        toast('Erro ao excluir campanha.');
       }
     } catch (e) {
-      alert('Falha de conexão ao tentar excluir campanha.');
+      toast('Falha de conexão ao tentar excluir campanha.');
     } finally {
       setExcluindoCampanha(false);
     }
@@ -542,11 +544,11 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
         setIaAviso('✨ Conteúdo gerado com IA! Revise e publique quando quiser.');
       } else {
         setIaAviso('');
-        alert(data.error || 'Erro ao gerar com IA.');
+        toast(data.error || 'Erro ao gerar com IA.');
       }
     } catch (err) {
       setIaAviso('');
-      alert('Erro de conexão ao chamar assistente de IA.');
+      toast('Erro de conexão ao chamar assistente de IA.');
     }
   };
 
@@ -586,7 +588,7 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
 
   // Desconectar Mercado Pago
   const handleDesconectarMercadoPago = async () => {
-    if (!window.confirm('Deseja realmente desconectar sua conta do Mercado Pago? As próximas compras não conseguirão gerar Pix até uma nova conta ser conectada.')) {
+    if (!(await confirmar({ titulo: 'Desconectar Mercado Pago', mensagem: 'As próximas compras não conseguirão gerar Pix até uma nova conta ser conectada. Deseja continuar?', perigo: true, confirmarLabel: 'Desconectar' }))) {
       return;
     }
 
@@ -644,10 +646,10 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
     try {
       const res = await authFetch('/api/admin/limpar-reservas', { method: 'POST' });
       const data = await res.json();
-      alert(`Reservas expiradas limpas com sucesso! Cotas liberadas: ${data.cotasLiberadas}`);
+      toast(`Reservas expiradas limpas com sucesso! Cotas liberadas: ${data.cotasLiberadas}`);
       carregarTudo();
     } catch {
-      alert('Erro ao limpar reservas.');
+      toast('Erro ao limpar reservas.');
     }
   };
 
@@ -1454,7 +1456,7 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
                           onClick={async () => {
                             const shareUrl = `${window.location.origin}/c/${c.codigo}`;
                             await navigator.clipboard.writeText(shareUrl);
-                            alert('Link da rifa copiado com sucesso!');
+                            toast('Link da rifa copiado com sucesso!');
                           }}
                           className="col-span-2 py-3.5 px-3 bg-slate-100 hover:bg-white text-slate-900 text-[11px] font-black rounded-2xl flex items-center justify-center gap-2 transition shadow-xl active:scale-95"
                         >

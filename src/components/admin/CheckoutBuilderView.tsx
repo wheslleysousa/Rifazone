@@ -1,3 +1,5 @@
+import { confirmar } from '../../lib/confirm';
+import { toast } from '../../lib/toast';
 import React, { useState, useEffect, useRef } from 'react';
 import { CheckoutConfig, CheckoutSalvo, DEFAULT_CHECKOUT_CONFIG, ConfirmacaoCompraConfig, CupomDesconto } from '../../types';
 import { dispararExplosaoConfetes } from '../../utils/confettiUtils';
@@ -178,11 +180,11 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
   };
 
   const handleExcluir = async (id: string) => {
-    if (!confirm('Excluir este checkout?')) return;
+    if (!(await confirmar({ mensagem: 'Excluir este checkout?', perigo: true, confirmarLabel: 'Excluir' }))) return;
     try {
       const res = await authFetch(`/api/admin/checkouts/${id}`, { method: 'DELETE' });
       if (res.ok) { if (editandoId === id) { setFormAberto(false); setEditandoId(null); } await carregarCheckouts(); }
-    } catch { alert('Erro ao excluir.'); }
+    } catch { toast('Erro ao excluir.'); }
   };
 
   const upd = (patch: Partial<CheckoutConfigExtended>) => setCheckoutConfig(prev => ({ ...prev, ...patch }));
@@ -202,7 +204,7 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 5 * 1024 * 1024) {
-      alert('A imagem deve ter no máximo 5MB.');
+      toast('A imagem deve ter no máximo 5MB.');
       return;
     }
     const reader = new FileReader();

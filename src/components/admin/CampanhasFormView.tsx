@@ -1,3 +1,5 @@
+import { confirmar } from '../../lib/confirm';
+import { toast } from '../../lib/toast';
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, Reorder, AnimatePresence, useDragControls } from 'motion/react';
 import { 
@@ -142,7 +144,7 @@ export const CampanhasFormView: React.FC<Props> = ({
       const url = await uploadImageToStorage(file, 'organizadores', 400, 400, 0.85);
       setForm(prev => ({ ...prev, organizadorFoto: url }));
     } catch (err: any) {
-      alert(err.message || 'Erro ao carregar foto do organizador.');
+      toast(err.message || 'Erro ao carregar foto do organizador.');
     } finally {
       setCarregandoOrganizadorFoto(false);
     }
@@ -154,7 +156,7 @@ export const CampanhasFormView: React.FC<Props> = ({
       const url = await uploadImageToStorage(file, 'logoscabecalho', 600, 600, 0.9);
       setForm(prev => ({ ...prev, cabecalhoLogoUrl: url }));
     } catch (err: any) {
-      alert(err.message || 'Erro ao carregar logo do cabeçalho.');
+      toast(err.message || 'Erro ao carregar logo do cabeçalho.');
     } finally {
       setCarregandoCabecalhoLogo(false);
     }
@@ -188,7 +190,7 @@ export const CampanhasFormView: React.FC<Props> = ({
       const url = await uploadImageToStorage(file, 'banners', 1200, 1200, 0.82);
       setForm(prev => ({ ...prev, bannerUrl: url }));
     } catch (err: any) {
-      alert(err.message || 'Erro ao carregar a foto.');
+      toast(err.message || 'Erro ao carregar a foto.');
     } finally {
       setCarregandoBanner(false);
     }
@@ -212,7 +214,7 @@ export const CampanhasFormView: React.FC<Props> = ({
       const fotosAtuais = form.fotosCarrossel || [];
       setForm(prev => ({ ...prev, fotosCarrossel: [...fotosAtuais, ...novasFotos] }));
     } catch (err: any) {
-      alert(err.message || 'Erro ao carregar as fotos do carrossel.');
+      toast(err.message || 'Erro ao carregar as fotos do carrossel.');
     } finally {
       setCarregandoCarrossel(false);
     }
@@ -447,14 +449,14 @@ export const CampanhasFormView: React.FC<Props> = ({
     setDraggedPromoIdx(null);
   };
 
-  const handleRemovePromo = (idx: number) => {
-    if (!window.confirm("Deseja realmente remover este pacote promocional?")) return;
+  const handleRemovePromo = async (idx: number) => {
+    if (!(await confirmar({ mensagem: 'Deseja realmente remover este pacote promocional?', perigo: true, confirmarLabel: 'Remover' }))) return;
     const promos = (form.promocoes || []).filter((_, i) => i !== idx);
     setForm(prev => ({ ...prev, promocoes: promos }));
   };
 
-  const handleLimparTodasPromocoes = () => {
-    if (!window.confirm("Deseja realmente apagar todos os pacotes promocionais?")) return;
+  const handleLimparTodasPromocoes = async () => {
+    if (!(await confirmar({ mensagem: 'Deseja realmente apagar TODOS os pacotes promocionais?', perigo: true, confirmarLabel: 'Apagar todos' }))) return;
     const promos: Promocao[] = [];
     setForm(prev => ({ ...prev, promocoes: promos }));
   };
@@ -643,7 +645,7 @@ export const CampanhasFormView: React.FC<Props> = ({
               onClick={async () => {
                 const erroTxt = `=== ERRO AO SALVAR CAMPANHA ===\nErro: ${erro}\nCampanha ID: ${form.id || 'nova'}\nTitulo: ${form.titulo}\nData: ${new Date().toISOString()}`;
                 await navigator.clipboard.writeText(erroTxt);
-                alert('Detalhes do erro copiados para a área de transferência! Cole aqui no chat para resolvermos.');
+                toast('Detalhes do erro copiados para a área de transferência! Cole aqui no chat para resolvermos.');
               }}
               className="px-2.5 py-1 bg-red-500/20 hover:bg-red-500/30 text-red-200 border border-red-500/40 rounded-lg text-[10px] font-black shrink-0 transition"
             >

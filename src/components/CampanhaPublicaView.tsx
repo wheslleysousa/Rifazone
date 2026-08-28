@@ -1,3 +1,4 @@
+import { toast } from '../lib/toast';
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Campanha, CampanhaPublicaResponse, Promocao, OfertaRelampago, TemaCampanha, TEMA_PADRAO, DEFAULT_CHECKOUT_CONFIG, RankingItem } from '../types';
@@ -2516,7 +2517,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                   navigator.share({ title: campanha.titulo, url: window.location.href });
                 } else {
                   navigator.clipboard.writeText(window.location.href);
-                  alert('Link da campanha copiado com sucesso!');
+                  toast('Link da campanha copiado com sucesso!');
                 }
               }}
               className="w-12 h-12 bg-slate-800/90 hover:bg-slate-700 text-slate-100 border border-slate-700 rounded-full flex items-center justify-center shadow-lg shadow-black/30 backdrop-blur transition-transform hover:scale-110 active:scale-95"

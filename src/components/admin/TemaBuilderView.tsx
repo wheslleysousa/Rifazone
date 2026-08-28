@@ -1,3 +1,5 @@
+import { confirmar } from '../../lib/confirm';
+import { toast } from '../../lib/toast';
 import React, { useState, useEffect } from 'react';
 import { CelebrationPreview } from './CelebrationPreview';
 import { Campanha, TemaCampanha, TEMA_PADRAO, EstiloSalvo, CheckoutConfig, DEFAULT_CHECKOUT_CONFIG, GOOGLE_FONTS_LIST } from '../../types';
@@ -497,8 +499,8 @@ export const TemaBuilderView: React.FC<Props> = ({
     }
   };
 
-  const handleRestaurarPadrao = () => {
-    if (window.confirm('Deseja restaurar todas as cores, botão e layout para o Tema Padrão?')) {
+  const handleRestaurarPadrao = async () => {
+    if (await confirmar({ mensagem: 'Deseja restaurar todas as cores, botão e layout para o Tema Padrão?', perigo: true, confirmarLabel: 'Restaurar' })) {
       onChangeTema(TEMA_PADRAO);
       if (onChangeCampanha) {
         onChangeCampanha(prev => ({ ...prev, tema: TEMA_PADRAO }));
@@ -532,7 +534,7 @@ export const TemaBuilderView: React.FC<Props> = ({
       setSalvandoEstilo(true);
       const u = auth.currentUser;
       if (!u) {
-        alert('Faça login para salvar seus estilos.');
+        toast('Faça login para salvar seus estilos.');
         return;
       }
       const token = await u.getIdToken();
@@ -556,10 +558,10 @@ export const TemaBuilderView: React.FC<Props> = ({
         exibirToast(`Estilo "${novo.nome}" salvo com sucesso!`);
       } else {
         const err = await res.json();
-        alert(err.error || 'Erro ao salvar estilo.');
+        toast(err.error || 'Erro ao salvar estilo.');
       }
     } catch (err: any) {
-      alert('Falha ao conectar com o servidor para salvar o estilo.');
+      toast('Falha ao conectar com o servidor para salvar o estilo.');
     } finally {
       setSalvandoEstilo(false);
     }

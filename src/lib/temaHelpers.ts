@@ -281,7 +281,12 @@ export function obterFundoCss(fundo: string | undefined, fallback = '#10b981'): 
   if (!fundo) return { background: fallback };
   const val = fundo.trim();
   if (val.startsWith('linear-gradient(') || val.startsWith('radial-gradient(')) {
-    return { background: val };
+    return { 
+      background: val,
+      backgroundRepeat: 'no-repeat',
+      backgroundSize: '100% 100%',
+      backgroundOrigin: 'border-box'
+    };
   }
   return { backgroundColor: val };
 }
@@ -335,6 +340,9 @@ export function calcularEstiloBotao(params: ParametrosEstiloBotao): { style: Rea
         background: isGradient
           ? corFundo
           : `linear-gradient(135deg, ${hexToRgba(corFundo, 0.35)} 0%, ${hexToRgba(corFundo, 0.15)} 100%)`,
+        backgroundRepeat: isGradient ? 'no-repeat' : undefined,
+        backgroundSize: isGradient ? '100% 100%' : undefined,
+        backgroundOrigin: isGradient ? 'border-box' : undefined,
         backdropFilter: 'blur(12px)',
         WebkitBackdropFilter: 'blur(12px)',
         border: temBorda ? (corBorda ? `${espessuraBorda} solid ${corBorda}` : `1px solid ${hexToRgba('#ffffff', 0.25)}`) : 'none',
@@ -360,7 +368,14 @@ export function calcularEstiloBotao(params: ParametrosEstiloBotao): { style: Rea
       const largura = Math.max(2, sombraLargura || 4);
       style = {
         ...style,
-        ...(isGradient ? { background: corFundo } : { backgroundColor: corFundo }),
+        ...(isGradient 
+          ? { 
+              background: corFundo, 
+              backgroundRepeat: 'no-repeat', 
+              backgroundSize: '100% 100%', 
+              backgroundOrigin: 'border-box' 
+            } 
+          : { backgroundColor: corFundo }),
         color: corTexto,
         border: temBorda ? bordaFinal : 'none',
         boxShadow: isPressionado
@@ -375,7 +390,14 @@ export function calcularEstiloBotao(params: ParametrosEstiloBotao): { style: Rea
     default:
       style = {
         ...style,
-        ...(isGradient ? { background: corFundo } : { backgroundColor: corFundo }),
+        ...(isGradient 
+          ? { 
+              background: corFundo, 
+              backgroundRepeat: 'no-repeat', 
+              backgroundSize: '100% 100%', 
+              backgroundOrigin: 'border-box' 
+            } 
+          : { backgroundColor: corFundo }),
         color: corTexto,
         border: temBorda ? bordaFinal : 'none',
         boxShadow: `0 4px 14px 0 ${isGradient ? 'rgba(0,0,0,0.35)' : hexToRgba(corFundo, 0.35)}`,
@@ -399,6 +421,8 @@ export function calcularEstiloCard(params: {
   raioBorda?: number;
   sombraAltura?: number;
   corSombra?: string;
+  tamanhoAlturaCards?: number;
+  tamanhoFonteCards?: number;
 }): { style: React.CSSProperties; className: string } {
   const {
     estilo = 'solido',
@@ -408,7 +432,9 @@ export function calcularEstiloCard(params: {
     possuirBorda,
     raioBorda = 16,
     sombraAltura = 4,
-    corSombra
+    corSombra,
+    tamanhoAlturaCards,
+    tamanhoFonteCards
   } = params;
 
   const isGradient = corFundo.trim().startsWith('linear-gradient(') || corFundo.trim().startsWith('radial-gradient(');
@@ -416,12 +442,16 @@ export function calcularEstiloCard(params: {
   const espessuraBorda = temBorda ? (larguraBorda !== undefined ? `${larguraBorda}px` : '1px') : '0px';
   const bordaFinal = temBorda ? `${espessuraBorda} solid ${corBorda}` : 'none';
 
+  const paddingVal = tamanhoAlturaCards !== undefined ? `${tamanhoAlturaCards}px` : '20px';
+
   let style: React.CSSProperties = {
     borderRadius: `${raioBorda}px`,
+    padding: paddingVal,
+    fontSize: tamanhoFonteCards !== undefined ? `${tamanhoFonteCards}px` : undefined,
     transition: 'all 0.2s ease',
   };
 
-  let className = 'relative p-5 ';
+  let className = 'relative ';
 
   switch (estilo) {
     case 'vidro':
@@ -430,6 +460,9 @@ export function calcularEstiloCard(params: {
         background: isGradient
           ? corFundo
           : `linear-gradient(135deg, ${hexToRgba(corFundo, 0.65)} 0%, ${hexToRgba(corFundo, 0.35)} 100%)`,
+        backgroundRepeat: isGradient ? 'no-repeat' : undefined,
+        backgroundSize: isGradient ? '100% 100%' : undefined,
+        backgroundOrigin: isGradient ? 'border-box' : undefined,
         backdropFilter: 'blur(16px)',
         WebkitBackdropFilter: 'blur(16px)',
         border: temBorda ? (corBorda ? `${espessuraBorda} solid ${corBorda}` : `1px solid ${hexToRgba('#ffffff', 0.15)}`) : 'none',
@@ -451,7 +484,14 @@ export function calcularEstiloCard(params: {
       const sombraCor = corSombra || (isGradient ? '#090d16' : escurecerCor(corFundo, 40));
       style = {
         ...style,
-        ...(isGradient ? { background: corFundo } : { backgroundColor: corFundo }),
+        ...(isGradient 
+          ? { 
+              background: corFundo, 
+              backgroundRepeat: 'no-repeat', 
+              backgroundSize: '100% 100%', 
+              backgroundOrigin: 'border-box' 
+            } 
+          : { backgroundColor: corFundo }),
         border: temBorda ? bordaFinal : 'none',
         boxShadow: `0px ${altura}px 0px ${sombraCor}, 0px ${altura + 4}px 12px rgba(0, 0, 0, 0.45)`,
       };
@@ -461,7 +501,14 @@ export function calcularEstiloCard(params: {
     default:
       style = {
         ...style,
-        ...(isGradient ? { background: corFundo } : { backgroundColor: corFundo }),
+        ...(isGradient 
+          ? { 
+              background: corFundo, 
+              backgroundRepeat: 'no-repeat', 
+              backgroundSize: '100% 100%', 
+              backgroundOrigin: 'border-box' 
+            } 
+          : { backgroundColor: corFundo }),
         border: temBorda ? bordaFinal : 'none',
         boxShadow: '0 4px 16px 0 rgba(0, 0, 0, 0.25)',
       };

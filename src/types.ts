@@ -146,6 +146,19 @@ export interface TemaCampanha {
     premiadoGanhoBadgeFundo?: string;
     premiadoGanhoBadgeTexto?: string;
     premiadoGanhoBorda?: string;
+    // Grade de Cotas Manuais (Cores por Estado)
+    cotaDisponivelFundo?: string;
+    cotaDisponivelTexto?: string;
+    cotaDisponivelBorda?: string;
+    cotaSelecionadaFundo?: string;
+    cotaSelecionadaTexto?: string;
+    cotaSelecionadaBorda?: string;
+    cotaReservadaFundo?: string;
+    cotaReservadaTexto?: string;
+    cotaReservadaBorda?: string;
+    cotaPagaFundo?: string;
+    cotaPagaTexto?: string;
+    cotaPagaBorda?: string;
   };
   barraProgresso?: {
     titulo?: string;
@@ -155,6 +168,15 @@ export interface TemaCampanha {
     altura?: number;
     raioBorda?: number;
     larguraMax?: string;
+    tamanhoTexto?: number;
+    larguraBorda?: number;
+    possuirBorda?: boolean;
+    corBorda?: string;
+    mostrarTipo?: 'porcentagem' | 'horas';
+    tipoFundoProgresso?: 'solido' | 'gradiente';
+    fundoCorProgresso?: string;
+    fundoGradienteProgresso?: string;
+    estiloProgresso?: 'solido' | 'vidro' | 'transparente' | '3d';
   };
   secaoIcones: {
     premios: string;
@@ -237,12 +259,49 @@ export interface TemaCampanha {
     sombraOffsetXCards?: number;
     sombraOffsetYCards?: number;
     corSombraCards?: string;
+    // Títulos Premiados (Cotas Premiadas)
+    raioBordaPremiado?: number;
+    tamanhoAlturaPremiado?: number;
+    tamanhoTextoPremiado?: number;
+    // Título e Subtítulos customizados por módulo
+    tituloCompra?: string;
+    subtituloCompra?: string;
+    tituloPacotes?: string;
+    subtituloPacotes?: string;
+    tituloControles?: string;
+    subtituloControles?: string;
+    tituloCotas?: string;
+    subtituloCotas?: string;
+    tituloProgresso?: string;
+    subtituloProgresso?: string;
+    tituloPremiado?: string;
+    subtituloPremiado?: string;
   };
   tipografia: {
     fonteTitulo: string; // ex: 'Inter', 'Poppins', etc.
     fonteTexto: string;  // ex: 'Inter', 'Roboto', etc.
     tamanhoTitulo: number; // slider px
     tamanhoTexto: number;  // slider px
+    fonteCardBanner?: string;
+    fonteCardBannerSubtitulo?: string;
+    fonteCardProgresso?: string;
+    fonteCardProgressoSubtitulo?: string;
+    fonteCardCotas?: string;
+    fonteCardPremios?: string;
+    fonteCardCotasPremiadas?: string;
+    fonteCardCotasPremiadasSubtitulo?: string;
+    fonteCardRanking?: string;
+    fonteCardRegulamento?: string;
+    fonteCardGanhadores?: string;
+    // Fontes individuais por módulo
+    fonteBotaoCompraTitulo?: string;
+    fonteBotaoCompraSubtitulo?: string;
+    fontePacotesTitulo?: string;
+    fontePacotesSubtitulo?: string;
+    fonteControlesTitulo?: string;
+    fonteControlesSubtitulo?: string;
+    fonteCotasTitulo?: string;
+    fonteCotasSubtitulo?: string;
   };
   fundoMidia?: {
     tipo: 'cor' | 'imagem' | 'video';
@@ -256,6 +315,9 @@ export interface TemaCampanha {
     overlayDegradeAtivo?: boolean;
     overlayDegrade?: string;
     overlayAltura?: number;
+    overlayDirecao?: 'to-top' | 'to-bottom';
+    overlayTipo?: 'cor' | 'gradiente';
+    overlayCor?: string;
     seloAnimado?: boolean;
     seloEstilo?: 'pulso' | 'estatico';
     seloFundo?: string;
@@ -268,13 +330,28 @@ export interface TemaCampanha {
     porApenasFundo?: string;
     porApenasTexto?: string;
     porApenasBorda?: string;
+    porApenasTamanhoValor?: number;
+    porApenasLayout?: 'vertical' | 'horizontal';
     exibirBlocoPromocao?: boolean;
+    promoBlocoFundo?: string;
+    promoBlocoBorda?: string;
     promoTituloDestaque?: string;
-    promoSubtituloDestaque?: string;
-    promoTextoInformativo?: string;
     promoTituloCor?: string;
+    promoTituloFundo?: string;
+    promoSubtituloDestaque?: string;
     promoSubtituloCor?: string;
+    promoTextoInformativo?: string;
     promoTextoCor?: string;
+    promoBadgeFundo?: string;
+    promoBadgeTexto?: string;
+    promoBadgeBorda?: string;
+    promoTituloTamanho?: number;
+    promoSubtituloTamanho?: number;
+    promoRaioBorda?: number;
+    promoAltura?: number;
+    promoLarguraBorda?: number;
+    promoPossuirBorda?: boolean;
+    promoCorBorda?: string;
   };
   layout: {
     ordem: string[]; // ex: ['banner', 'barraProgresso', 'cotas', 'premios', 'premiadas', 'ranking', 'regulamento', 'ganhadores']
@@ -397,7 +474,20 @@ export const TEMA_PADRAO: TemaCampanha = {
     premiadoGanhoTexto: '#94a3b8',
     premiadoGanhoBadgeFundo: '#f59e0b',
     premiadoGanhoBadgeTexto: '#022c22',
-    premiadoGanhoBorda: '#334155'
+    premiadoGanhoBorda: '#334155',
+    // Grade de Cotas Manuais
+    cotaDisponivelFundo: '#0f172a',
+    cotaDisponivelTexto: '#ffffff',
+    cotaDisponivelBorda: '#334155',
+    cotaSelecionadaFundo: '#10b981',
+    cotaSelecionadaTexto: '#022c22',
+    cotaSelecionadaBorda: '#10b981',
+    cotaReservadaFundo: '#d97706',
+    cotaReservadaTexto: '#ffffff',
+    cotaReservadaBorda: '#b45309',
+    cotaPagaFundo: '#1e293b',
+    cotaPagaTexto: '#64748b',
+    cotaPagaBorda: '#334155'
   },
   barraProgresso: {
     titulo: 'Progresso do sorteio',
@@ -406,7 +496,16 @@ export const TEMA_PADRAO: TemaCampanha = {
     textoInterno: '{pct}% vendido',
     altura: 16,
     raioBorda: 9999,
-    larguraMax: '100%'
+    larguraMax: '100%',
+    tamanhoTexto: 12,
+    larguraBorda: 1,
+    possuirBorda: false,
+    corBorda: '#1e293b',
+    mostrarTipo: 'porcentagem',
+    tipoFundoProgresso: 'solido',
+    fundoCorProgresso: '#10b981',
+    fundoGradienteProgresso: 'linear-gradient(90deg, #10b981 0%, #059669 100%)',
+    estiloProgresso: 'solido'
   },
   secaoIcones: {
     premios: 'Trophy',
@@ -446,16 +545,45 @@ export const TEMA_PADRAO: TemaCampanha = {
     raioBordaCards: 16,
     sombraAlturaCards: 4,
     corSombraCards: '#0f172a',
+    raioBordaPremiado: 12,
+    tamanhoAlturaPremiado: 14,
+    tamanhoTextoPremiado: 14,
     sombraAltura: 4,
     sombraLargura: 4,
     corSombra: '#047857',
-    textoCompra: 'GARANTIR MEUS NÚMEROS'
+    textoCompra: 'GARANTIR MEUS NÚMEROS',
+    tituloCompra: 'Garantir meus números',
+    subtituloCompra: 'Selecione a quantidade de cotas abaixo para participar',
+    tituloPacotes: '⚡ Pacotes Promocionais',
+    subtituloPacotes: 'Compre em pacotes e garanta super descontos!',
+    tituloControles: 'Selecione a quantidade manualmente',
+    subtituloControles: 'Use os botões + e - ou digite o valor',
+    tituloCotas: 'Grade de números disponíveis',
+    subtituloCotas: 'Escolha seus números favoritos clicando neles',
+    tituloProgresso: 'Progresso das vendas',
+    subtituloProgresso: 'Garanta já as suas cotas antes que acabe!',
+    tituloPremiado: '🍀 Cotas Premiadas',
+    subtituloPremiado: 'Achou, ganhou na hora no pix!',
   },
   tipografia: {
     fonteTitulo: 'Inter',
     fonteTexto: 'Inter',
     tamanhoTitulo: 24,
-    tamanhoTexto: 16
+    tamanhoTexto: 16,
+    fonteBotaoCompraTitulo: 'Inter',
+    fonteBotaoCompraSubtitulo: 'Inter',
+    fontePacotesTitulo: 'Inter',
+    fontePacotesSubtitulo: 'Inter',
+    fonteControlesTitulo: 'Inter',
+    fonteControlesSubtitulo: 'Inter',
+    fonteCotasTitulo: 'Inter',
+    fonteCotasSubtitulo: 'Inter',
+    fonteCardProgresso: 'Inter',
+    fonteCardProgressoSubtitulo: 'Inter',
+    fonteCardCotasPremiadas: 'Inter',
+    fonteCardCotasPremiadasSubtitulo: 'Inter',
+    fonteCardBanner: 'Inter',
+    fonteCardBannerSubtitulo: 'Inter',
   },
   fundoMidia: {
     tipo: 'cor',
@@ -469,6 +597,9 @@ export const TEMA_PADRAO: TemaCampanha = {
     overlayDegradeAtivo: true,
     overlayDegrade: 'linear-gradient(to top, rgba(0, 0, 0, 0.92) 0%, rgba(0, 0, 0, 0.6) 60%, transparent 100%)',
     overlayAltura: 100,
+    overlayDirecao: 'to-top',
+    overlayTipo: 'gradiente',
+    overlayCor: '#000000',
     seloAnimado: false,
     seloEstilo: 'estatico',
     seloFundo: '#f59e0b',
@@ -478,16 +609,31 @@ export const TEMA_PADRAO: TemaCampanha = {
   ganhadorCelebracaoEstilo: 'confetes',
   cotasConfig: {
     textoPorApenas: 'POR APENAS',
-    porApenasFundo: 'rgba(16, 185, 129, 0.15)',
+    porApenasFundo: '#064e3b',
     porApenasTexto: '#10b981',
-    porApenasBorda: 'rgba(16, 185, 129, 0.3)',
+    porApenasBorda: '#059669',
+    porApenasTamanhoValor: 24,
+    porApenasLayout: 'vertical',
     exibirBlocoPromocao: true,
+    promoBlocoFundo: '#0f172a',
+    promoBlocoBorda: '#334155',
     promoTituloDestaque: '📢 Promoção',
-    promoSubtituloDestaque: 'Compre mais barato!',
-    promoTextoInformativo: 'Quanto mais títulos, mais chances de ganhar!',
     promoTituloCor: '#fbbf24',
+    promoTituloFundo: '#78350f',
+    promoSubtituloDestaque: 'Compre mais barato!',
     promoSubtituloCor: '#ffffff',
-    promoTextoCor: '#94a3b8'
+    promoTextoInformativo: 'Quanto mais títulos, mais chances de ganhar!',
+    promoTextoCor: '#94a3b8',
+    promoBadgeFundo: '#064e3b',
+    promoBadgeTexto: '#6ee7b7',
+    promoBadgeBorda: '#059669',
+    promoTituloTamanho: 14,
+    promoSubtituloTamanho: 12,
+    promoRaioBorda: 12,
+    promoAltura: 12,
+    promoLarguraBorda: 1,
+    promoPossuirBorda: false,
+    promoCorBorda: '#1e293b'
   },
   layout: {
     ordem: ['banner', 'barraProgresso', 'cotas', 'premios', 'premiadas', 'ranking', 'regulamento', 'ganhadores'],

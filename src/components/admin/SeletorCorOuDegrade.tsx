@@ -16,7 +16,35 @@ export interface GradientParsed {
   cores: string[];
 }
 
+export function converterParaHexLocal(cor: string | undefined, padrao = '#10b981'): string {
+  if (!cor) return padrao;
+  const c = cor.trim();
+  if (c.startsWith('#')) {
+    if (c.length === 9) return c.substring(0, 7);
+    return c;
+  }
+  if (c.startsWith('rgba') || c.startsWith('rgb')) {
+    const match = c.match(/\d+/g);
+    if (match && match.length >= 3) {
+      const r = parseInt(match[0], 10);
+      const g = parseInt(match[1], 10);
+      const b = parseInt(match[2], 10);
+      const toHex = (x: number) => {
+        const hex = x.toString(16);
+        return hex.length === 1 ? '0' + hex : hex;
+      };
+      return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+    }
+  }
+  // Se for hex sem hash (ex: '10b981' ou 'fff')
+  if (/^[0-9A-Fa-f]{3,8}$/.test(c)) {
+    return `#${c}`;
+  }
+  return padrao;
+}
+
 export function parseColorOrGradient(input: string | undefined, defaultColor = '#10b981'): { isGradient: boolean; color: string; gradient: GradientParsed } {
+
   if (!input) {
     return {
       isGradient: false,
@@ -118,10 +146,10 @@ export const SeletorCorOuDegrade: React.FC<SeletorCorOuDegradeProps> = ({
 }) => {
   const parsed = parseColorOrGradient(valor);
   const [modo, setModo] = useState<'solida' | 'degrade'>(parsed.isGradient ? 'degrade' : 'solida');
-  const [corSolida, setCorSolida] = useState<string>(parsed.color || '#10b981');
+  const [corSolida, setCorSolida] = useState<string>(converterParaHexLocal(parsed.color) || '#10b981');
   const [direcao, setDirecao] = useState<string>(parsed.gradient.direcao || 'to bottom');
   const [coresDegrade, setCoresDegrade] = useState<string[]>(
-    parsed.gradient.cores.length >= 2 ? parsed.gradient.cores : [parsed.color || '#10b981', '#0f172a']
+    (parsed.gradient.cores.length >= 2 ? parsed.gradient.cores : [parsed.color || '#10b981', '#0f172a']).map(c => converterParaHexLocal(c))
   );
   const [qtdCores, setQtdCores] = useState<number>(coresDegrade.length >= 3 ? 3 : 2);
   const [expandido, setExpandido] = useState(false);
@@ -130,31 +158,23 @@ export const SeletorCorOuDegrade: React.FC<SeletorCorOuDegradeProps> = ({
     const atual = parseColorOrGradient(valor);
     setModo(atual.isGradient ? 'degrade' : 'solida');
     if (!atual.isGradient) {
-      setCorSolida(atual.color);
+      setCorSolida(converterParaHexLocal(atual.color));
     } else {
       setDirecao(atual.gradient.direcao);
-      setCoresDegrade(atual.gradient.cores);
+      setCoresDegrade(atual.gradient.cores.map(c => converterParaHexLocal(c)));
       setQtdCores(atual.gradient.cores.length >= 3 ? 3 : 2);
     }
   }, [valor]);
 
   const normalizarCor = (input: string): string => {
-    const limpo = input.trim();
-    if (!limpo) return '#000000';
-    if (limpo.startsWith('#') || limpo.startsWith('rgb') || limpo.startsWith('hsl') || limpo === 'transparent') {
-      return limpo;
-    }
-    // Se for hex sem hash (ex: '10b981' ou 'fff')
-    if (/^[0-9A-Fa-f]{3,8}$/.test(limpo)) {
-      return `#${limpo}`;
-    }
-    return limpo;
+    return converterParaHexLocal(input);
   };
 
   const aplicarSolida = (cor: string) => {
-    setCorSolida(cor);
+    const hex = converterParaHexLocal(cor);
+    setCorSolida(hex);
     setModo('solida');
-    onChange(normalizarCor(cor));
+    onChange(hex);
   };
 
   const aplicarDegrade = (novaDir: string, novasCores: string[]) => {

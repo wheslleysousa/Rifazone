@@ -618,6 +618,19 @@ export const CampanhaPublicaView: React.FC<Props> = ({
     '--subtitulo-cor': tema.cores.subtituloCor,
     '--local-sorteio-cor': tema.cores.localSorteioCor,
     '--icone-cor': tema.cores.iconeCor,
+    // Grade de Cotas Manuais (Cores por Estado)
+    '--cota-disponivel-fundo': (tema.cores as any).cotaDisponivelFundo || '#0f172a',
+    '--cota-disponivel-texto': (tema.cores as any).cotaDisponivelTexto || '#ffffff',
+    '--cota-disponivel-borda': (tema.cores as any).cotaDisponivelBorda || '#334155',
+    '--cota-selecionada-fundo': (tema.cores as any).cotaSelecionadaFundo || tema.cores.primaria || '#10b981',
+    '--cota-selecionada-texto': (tema.cores as any).cotaSelecionadaTexto || '#022c22',
+    '--cota-selecionada-borda': (tema.cores as any).cotaSelecionadaBorda || tema.cores.primaria || '#10b981',
+    '--cota-reservada-fundo': (tema.cores as any).cotaReservadaFundo || '#d97706',
+    '--cota-reservada-texto': (tema.cores as any).cotaReservadaTexto || '#ffffff',
+    '--cota-reservada-borda': (tema.cores as any).cotaReservadaBorda || '#b45309',
+    '--cota-paga-fundo': (tema.cores as any).cotaPagaFundo || '#1e293b',
+    '--cota-paga-texto': (tema.cores as any).cotaPagaTexto || '#64748b',
+    '--cota-paga-borda': (tema.cores as any).cotaPagaBorda || '#334155',
   } as React.CSSProperties;
 
   const getIcon = (name: string) => {
@@ -1133,6 +1146,8 @@ export const CampanhaPublicaView: React.FC<Props> = ({
       raioBorda: isFullWidth ? 0 : (tema.botao?.raioBordaCards ?? 16),
       possuirBorda: tema.botao?.possuirBordaCards,
       larguraBorda: tema.botao?.larguraBordaCards,
+      tamanhoAlturaCards: tema.botao?.tamanhoAlturaCards,
+      tamanhoFonteCards: tema.botao?.tamanhoFonteCards,
     });
 
     const overlayDegradeEstilo = bannerConfig.overlayDegradeAtivo !== false
@@ -1158,10 +1173,11 @@ export const CampanhaPublicaView: React.FC<Props> = ({
         }`}
         style={
           isFullWidth
-            ? { borderRadius: '0px' }
+            ? { borderRadius: '0px', fontFamily: tema.tipografia.fonteCardBanner }
             : {
                 ...bannerCardStyle.style,
-                borderRadius: `${tema.botao?.raioBordaCards ?? 16}px`
+                borderRadius: `${tema.botao?.raioBordaCards ?? 16}px`,
+                fontFamily: tema.tipografia.fonteCardBanner
               }
         }
       >
@@ -1229,14 +1245,14 @@ export const CampanhaPublicaView: React.FC<Props> = ({
             )}
             <h1 
               className={`font-black leading-tight drop-shadow-md ${getTitleSizeClass(tema.tipografia.tamanhoTitulo)}`}
-              style={{ color: tema.cores.titulos, fontFamily: tema.tipografia.fonteTitulo }}
+              style={{ color: tema.cores.titulos, fontFamily: tema.tipografia.fonteCardBanner || tema.tipografia.fonteTitulo }}
             >
               {campanha.titulo}
             </h1>
             {campanha.subtitulo && (
               <p 
                 className="text-[12px] sm:text-xs mt-1 line-clamp-2 opacity-95 uppercase font-medium tracking-tight text-slate-200 drop-shadow"
-                style={{ color: tema.cores.subtituloCor || '#e2e8f0', fontFamily: tema.tipografia.fonteTexto }}
+                style={{ color: tema.cores.subtituloCor || '#e2e8f0', fontFamily: tema.tipografia.fonteCardBannerSubtitulo || tema.tipografia.fonteCardBanner || tema.tipografia.fonteTexto }}
               >
                 {campanha.subtitulo}
               </p>
@@ -1286,6 +1302,8 @@ export const CampanhaPublicaView: React.FC<Props> = ({
       corFundo: (tema.cores as any).cardProgressoFundo || tema.cores.cardBarraProgressoFundo || tema.cores.cardFundo,
       corBorda: (tema.cores as any).cardProgressoBorda || tema.cores.cardBorda,
       raioBorda: tema.botao?.raioBordaCards ?? 16,
+      tamanhoAlturaCards: tema.botao?.tamanhoAlturaCards,
+      tamanhoFonteCards: tema.botao?.tamanhoFonteCards,
     });
 
     const cfg = tema.barraProgresso || {};
@@ -1301,7 +1319,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
     return (
       <div 
         className={`border rounded-2xl p-4 shadow-sm mx-auto ${progCardStyle.className}`}
-        style={{ ...progCardStyle.style, maxWidth: larguraMax }}
+        style={{ ...progCardStyle.style, maxWidth: larguraMax, fontFamily: tema.tipografia.fonteCardProgresso }}
       >
         {(tituloText || subtituloText || textoBarra) && (
           <div className="mb-2 space-y-0.5">
@@ -1314,7 +1332,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
               )}
             </div>
             {subtituloText && (
-              <p className="text-[11px] opacity-70" style={{ color: tema.cores.descricoes }}>
+              <p className="text-[11px] opacity-70" style={{ fontFamily: tema.tipografia.fonteCardProgressoSubtitulo || 'Inter', color: tema.cores.descricoes }}>
                 {subtituloText}
               </p>
             )}
@@ -1355,6 +1373,111 @@ export const CampanhaPublicaView: React.FC<Props> = ({
     );
   };
 
+  // 2a. Seção Preço Unitário ("Por apenas R$ ...")
+  const PrecoUnitarioSection = ({ campanha, tema }: { campanha: Campanha; tema: TemaCampanha }) => {
+    if (campanha.modalidade === 'gratis') return null;
+
+    const cotasCfg = tema.cotasConfig || {};
+    const textoPorApenas = cotasCfg.textoPorApenas || 'Por apenas';
+    const porApenasFundo = cotasCfg.porApenasFundo || '#064e3b';
+    const porApenasTexto = cotasCfg.porApenasTexto || tema.cores.primaria || '#10b981';
+    const porApenasBorda = cotasCfg.porApenasBorda || '#059669';
+
+    const estiloCard = calcularEstiloCard({
+      estilo: tema.botao?.estiloCards,
+      corFundo: '#090d16',
+      corBorda: porApenasBorda,
+      raioBorda: tema.botao?.raioBordaCards ?? 16,
+    });
+
+    return (
+      <div 
+        className={`border rounded-2xl p-4 shadow-sm text-center transition-all ${estiloCard.className}`}
+        style={{
+          ...estiloCard.style,
+          borderColor: porApenasBorda,
+          fontFamily: tema.tipografia.fonteCardCotas
+        }}
+      >
+        <div className="flex flex-col items-center justify-center gap-2">
+          {/* Texto descritivo */}
+          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest block">
+            {textoPorApenas}
+          </span>
+          {/* Preço de destaque */}
+          <div 
+            className="px-5 py-2 rounded-xl font-black text-2xl sm:text-3xl shadow-md border font-mono tracking-tight inline-block"
+            style={{
+              ...obterFundoCss(porApenasFundo, '#064e3b'),
+              color: porApenasTexto,
+              borderColor: porApenasBorda,
+            }}
+          >
+            {formatarMoeda(campanha.valorCota)}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // 2b. Seção Cabeçalho da Promoção (Separado, Título em cima, Subtítulo embaixo, sem texto informativo)
+  const CabecalhoPromocaoSection = ({ campanha, tema }: { campanha: Campanha; tema: TemaCampanha }) => {
+    const cotasCfg = tema.cotasConfig || {};
+    const exibirPromo = (cotasCfg.exibirBlocoPromocao !== false) && (campanha.promocoes && campanha.promocoes.length > 0);
+    
+    if (!exibirPromo) return null;
+
+    const promoTitulo = cotasCfg.promoTituloDestaque || '📢 Promoção';
+    const promoSubtitulo = cotasCfg.promoSubtituloDestaque || 'Compre mais barato!';
+    const promoTituloCor = cotasCfg.promoTituloCor || '#fbbf24';
+    const promoSubtituloCor = cotasCfg.promoSubtituloCor || '#ffffff';
+    const promoTituloTamanho = cotasCfg.promoTituloTamanho || 14;
+    const promoSubtituloTamanho = cotasCfg.promoSubtituloTamanho || 12;
+
+    const estiloCard = calcularEstiloCard({
+      estilo: tema.botao?.estiloCards,
+      corFundo: cotasCfg.promoBlocoFundo || '#0f172a',
+      corBorda: cotasCfg.promoCorBorda || '#334155',
+      larguraBorda: cotasCfg.promoLarguraBorda ?? 1,
+      possuirBorda: cotasCfg.promoPossuirBorda ?? true,
+      raioBorda: cotasCfg.promoRaioBorda ?? 12,
+      tamanhoAlturaCards: cotasCfg.promoAltura ?? 12,
+    });
+
+    return (
+      <div 
+        className={`border rounded-2xl p-4 shadow-sm text-center transition-all ${estiloCard.className}`}
+        style={{
+          ...estiloCard.style,
+          fontFamily: tema.tipografia.fonteCardCotas
+        }}
+      >
+        <div className="flex flex-col items-center gap-1.5 justify-center">
+          {/* Título da Promoção - Fica em cima */}
+          <span 
+            className="font-black leading-tight tracking-wide uppercase block"
+            style={{ 
+              color: promoTituloCor,
+              fontSize: `${promoTituloTamanho}px`
+            }}
+          >
+            {promoTitulo}
+          </span>
+          {/* Subtítulo da Promoção - Fica embaixo */}
+          <span 
+            className="font-bold leading-normal opacity-90 block"
+            style={{ 
+              color: promoSubtituloCor,
+              fontSize: `${promoSubtituloTamanho}px`
+            }}
+          >
+            {promoSubtitulo}
+          </span>
+        </div>
+      </div>
+    );
+  };
+
   // 3. Seção Seletor de Cotas
   const CotasSection = ({ campanha, tema, setQuantidade, setCheckoutAberto }: { campanha: Campanha; tema: TemaCampanha; setQuantidade: any; setCheckoutAberto: any }) => {
     const cotasCardStyle = calcularEstiloCard({
@@ -1364,6 +1487,8 @@ export const CampanhaPublicaView: React.FC<Props> = ({
       raioBorda: tema.botao?.raioBordaCards ?? 16,
       possuirBorda: tema.botao?.possuirBordaCards,
       larguraBorda: tema.botao?.larguraBordaCards,
+      tamanhoAlturaCards: tema.botao?.tamanhoAlturaCards,
+      tamanhoFonteCards: tema.botao?.tamanhoFonteCards,
     });
     const corTextoCotas = (tema.cores as any).cardCotasTexto || tema.cores.texto || '#ffffff';
 
@@ -1433,55 +1558,22 @@ export const CampanhaPublicaView: React.FC<Props> = ({
         className={`border rounded-2xl p-4 sm:p-5 shadow-sm space-y-4 ${cotasCardStyle.className}`}
         style={{
           ...cotasCardStyle.style,
-          color: corTextoCotas
+          color: corTextoCotas,
+          fontFamily: tema.tipografia.fonteCardCotas
         }}
       >
-        {/* BLOCO DE PREÇO UNITÁRIO E PROMOÇÃO (Logo abaixo da Barra de Progresso) */}
-        {campanha.modalidade !== 'gratis' && (
-          <div className="space-y-2 pb-1 border-b border-slate-800/60">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <span className="text-sm font-black text-slate-300 flex items-center gap-1.5 uppercase tracking-wide">
-                {textoPorApenas}
-                <span 
-                  className="px-2.5 py-1 rounded-lg font-black text-base sm:text-lg shadow-sm border font-mono tracking-tight"
-                  style={{
-                    ...obterFundoCss(porApenasFundo, 'rgba(16, 185, 129, 0.15)'),
-                    color: porApenasTexto,
-                    borderColor: porApenasBorda
-                  }}
-                >
-                  {formatarMoeda(campanha.valorCota)}
-                </span>
-              </span>
-
-              {campanha.tituloSelecaoCotas && (
-                <span className="text-[11px] font-bold text-slate-400">
-                  {campanha.tituloSelecaoCotas}
-                </span>
-              )}
-            </div>
-
-            {/* Cabeçalho da Promoção Compre Mais Barato */}
-            {exibirPromo && (
-              <div className="pt-2">
-                <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <div className="flex items-center gap-1.5 text-xs font-black">
-                    <span style={{ color: promoTituloCor }}>{promoTitulo}</span>
-                    <span className="font-extrabold" style={{ color: promoSubtituloCor }}>{promoSubtitulo}</span>
-                  </div>
-
-                  {melhorPromo && melhorPromo.descontoPct && melhorPromo.descontoPct > 0 && (
-                    <div className="flex items-center gap-1.5 bg-emerald-500/20 border border-emerald-500/40 px-2 py-0.5 rounded-md text-[11px] font-black text-emerald-300">
-                      <span>{melhorPromo.quantidade} POR {formatarMoeda(melhorPromo.valor)}</span>
-                      <span className="bg-emerald-500 text-slate-950 px-1 rounded text-[9px] font-black">-{melhorPromo.descontoPct}%</span>
-                    </div>
-                  )}
-                </div>
-
-                <p className="text-[11px] mt-0.5" style={{ color: promoTextoCor }}>
-                  {promoTexto}
-                </p>
-              </div>
+        {/* Títulos e Subtítulos - Grade de Cotas */}
+        {(tema.botao.tituloCotas || tema.botao.subtituloCotas || campanha.tituloSelecaoCotas) && (
+          <div className="pb-1 border-b border-slate-800/60 text-center sm:text-left space-y-0.5 mb-2">
+            {(tema.botao.tituloCotas || campanha.tituloSelecaoCotas) && (
+              <h3 className="font-black uppercase tracking-wider text-slate-300" style={{ fontFamily: tema.tipografia.fonteCotasTitulo || 'Inter', fontSize: '0.85rem', color: tema.cores.titulos || '#ffffff' }}>
+                {tema.botao.tituloCotas || campanha.tituloSelecaoCotas}
+              </h3>
+            )}
+            {tema.botao.subtituloCotas && (
+              <p className="text-[10px] opacity-70 mt-0.5" style={{ fontFamily: tema.tipografia.fonteCotasSubtitulo || 'Inter', color: tema.cores.descricoes || '#94a3b8' }}>
+                {tema.botao.subtituloCotas}
+              </p>
             )}
           </div>
         )}
@@ -1510,6 +1602,22 @@ export const CampanhaPublicaView: React.FC<Props> = ({
           </div>
         ) : (
           <>
+            {/* Títulos e Subtítulos - Pacotes */}
+            {(tema.botao.tituloPacotes || tema.botao.subtituloPacotes) && (
+              <div className="text-center sm:text-left space-y-0.5 pb-2">
+                {tema.botao.tituloPacotes && (
+                  <h3 className="font-black" style={{ fontFamily: tema.tipografia.fontePacotesTitulo || 'Inter', fontSize: '1rem', color: tema.cores.titulos }}>
+                    {tema.botao.tituloPacotes}
+                  </h3>
+                )}
+                {tema.botao.subtituloPacotes && (
+                  <p className="text-xs opacity-70" style={{ fontFamily: tema.tipografia.fontePacotesSubtitulo || 'Inter', color: tema.cores.descricoes }}>
+                    {tema.botao.subtituloPacotes}
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* Botões de Pacotes de Cotas */}
             <div className={`grid ${colMobileClass} ${colDesktopClass} gap-2.5`}>
               {listaBotoes.map((item, idx: number) => {
@@ -1587,6 +1695,22 @@ export const CampanhaPublicaView: React.FC<Props> = ({
               })}
             </div>
 
+            {/* Títulos e Subtítulos - Controles */}
+            {(tema.botao.tituloControles || tema.botao.subtituloControles) && (
+              <div className="text-center sm:text-left space-y-0.5 pt-4 pb-1">
+                {tema.botao.tituloControles && (
+                  <h3 className="font-black" style={{ fontFamily: tema.tipografia.fonteControlesTitulo || 'Inter', fontSize: '1rem', color: tema.cores.titulos }}>
+                    {tema.botao.tituloControles}
+                  </h3>
+                )}
+                {tema.botao.subtituloControles && (
+                  <p className="text-xs opacity-70" style={{ fontFamily: tema.tipografia.fonteControlesSubtitulo || 'Inter', color: tema.cores.descricoes }}>
+                    {tema.botao.subtituloControles}
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* Seletor Manual (+1 / -1 e Input Direto) */}
             {(() => {
               const cardControlesStyle = calcularEstiloCard({
@@ -1619,8 +1743,8 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                     <button
                       type="button"
                       onClick={() => setQuantidade((q: number) => Math.max(campanha.minPorCompra || 1, (Number(q) || 1) - 1))}
-                      className={`w-11 h-11 active:scale-95 flex items-center justify-center font-black transition shrink-0 cursor-pointer ${btnCtrlStyle.className}`}
-                      style={btnCtrlStyle.style}
+                      className={`active:scale-95 flex items-center justify-center font-black transition shrink-0 cursor-pointer ${btnCtrlStyle.className}`}
+                      style={{ ...btnCtrlStyle.style, width: tema.botao?.tamanhoControles ?? 44, height: tema.botao?.tamanhoControles ?? 44 }}
                       aria-label="Diminuir 1 cota"
                       title="Diminuir 1 cota"
                     >
@@ -1666,8 +1790,8 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                     <button
                       type="button"
                       onClick={() => setQuantidade((q: number) => Math.min(campanha.maxPorCompra || 500000, (Number(q) || 0) + 1))}
-                      style={btnCtrlStyle.style}
-                      className={`w-11 h-11 flex items-center justify-center font-black transition active:scale-95 shrink-0 hover:opacity-90 ${btnCtrlStyle.className}`}
+                      style={{ ...btnCtrlStyle.style, width: tema.botao?.tamanhoControles ?? 44, height: tema.botao?.tamanhoControles ?? 44 }}
+                      className={`flex items-center justify-center font-black transition active:scale-95 shrink-0 hover:opacity-90 ${btnCtrlStyle.className}`}
                       aria-label="Aumentar 1 cota"
                       title="Aumentar 1 cota"
                     >
@@ -1693,10 +1817,12 @@ export const CampanhaPublicaView: React.FC<Props> = ({
       corFundo: (tema.cores as any).cardPremiosFundo || tema.cores.cardFundo,
       corBorda: (tema.cores as any).cardPremiosBorda || tema.cores.cardBorda,
       raioBorda: tema.botao?.raioBordaCards ?? 16,
+      tamanhoAlturaCards: tema.botao?.tamanhoAlturaCards,
+      tamanhoFonteCards: tema.botao?.tamanhoFonteCards,
     });
 
     return (
-      <div className={`border rounded-2xl p-5 shadow-sm ${cardStyle.className}`} style={cardStyle.style}>
+      <div className={`border rounded-2xl p-5 shadow-sm ${cardStyle.className}`} style={{ ...cardStyle.style, fontFamily: tema.tipografia.fonteCardPremios }}>
         <h3 className="text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-1.5 opacity-80">
           <SectionIcon className="w-4 h-4" style={{ color: iconeCor }} />
           Premiação
@@ -1754,15 +1880,24 @@ export const CampanhaPublicaView: React.FC<Props> = ({
       corFundo: (tema.cores as any).cardCotasPremiadasFundo || tema.cores.cardFundo,
       corBorda: (tema.cores as any).cardCotasPremiadasBorda || tema.cores.cardBorda,
       raioBorda: tema.botao?.raioBordaCards ?? 16,
+      tamanhoAlturaCards: tema.botao?.tamanhoAlturaCards,
+      tamanhoFonteCards: tema.botao?.tamanhoFonteCards,
     });
 
     return (
-      <div className={`border rounded-2xl p-5 shadow-sm ${cardStyle.className}`} style={cardStyle.style}>
+      <div className={`border rounded-2xl p-5 shadow-sm ${cardStyle.className}`} style={{ ...cardStyle.style }}>
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 opacity-80">
-            <SectionIcon className="w-4 h-4" style={{ color: iconeCor }} />
-            Cotas Premiadas (Ganhe no Pix na Hora)
-          </h3>
+          <div className="space-y-1">
+            <h3 className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 opacity-80" style={{ fontFamily: tema.tipografia.fonteCardCotasPremiadas || 'Inter' }}>
+              <SectionIcon className="w-4 h-4" style={{ color: iconeCor }} />
+              {tema.botao.tituloPremiado || 'Cotas Premiadas (Ganhe no Pix na Hora)'}
+            </h3>
+            {tema.botao.subtituloPremiado && (
+              <p className="text-[10px] opacity-70" style={{ fontFamily: tema.tipografia.fonteCardCotasPremiadasSubtitulo || 'Inter' }}>
+                {tema.botao.subtituloPremiado}
+              </p>
+            )}
+          </div>
         </div>
         <div className="grid grid-cols-2 gap-2">
           {campanha.cotasPremiadas.map((cp, idx) => {
@@ -1783,16 +1918,30 @@ export const CampanhaPublicaView: React.FC<Props> = ({
               ? ((tema.cores as any).premiadoGanhoBadgeTexto || '#022c22')
               : ((tema.cores as any).premiadoDisponivelBadgeTexto || '#022c22');
 
+            const raioBordaFinal = tema.botao?.raioBordaPremiado !== undefined ? `${tema.botao.raioBordaPremiado}px` : '12px';
+            const paddingV = tema.botao?.tamanhoAlturaPremiado !== undefined ? `${tema.botao.tamanhoAlturaPremiado}px` : '12px';
+            const paddingH = tema.botao?.tamanhoAlturaPremiado !== undefined ? `${Math.floor(tema.botao.tamanhoAlturaPremiado * 1.25)}px` : '16px';
+            const numFontSize = tema.botao?.tamanhoTextoPremiado !== undefined ? `${tema.botao.tamanhoTextoPremiado}px` : '14px';
+            const textFontSize = tema.botao?.tamanhoTextoPremiado !== undefined ? `${Math.max(10, tema.botao.tamanhoTextoPremiado - 3)}px` : '11px';
+
             return (
               <div
                 key={idx}
-                className={`p-3 rounded-xl border text-xs transition-all ${isEncontrada ? 'opacity-75' : ''}`}
-                style={{ backgroundColor: bg, borderColor: border }}
+                className={`border transition-all ${isEncontrada ? 'opacity-75' : ''}`}
+                style={{ 
+                  backgroundColor: bg, 
+                  borderColor: border,
+                  borderRadius: raioBordaFinal,
+                  paddingTop: paddingV,
+                  paddingBottom: paddingV,
+                  paddingLeft: paddingH,
+                  paddingRight: paddingH,
+                }}
               >
                 <div className="flex items-center justify-between mb-1">
                   <span
-                    className="font-mono font-black text-sm"
-                    style={{ color: textNum }}
+                    className="font-mono font-black"
+                    style={{ color: textNum, fontSize: numFontSize }}
                   >
                     {cp.numero}
                   </span>
@@ -1806,7 +1955,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                     {isEncontrada ? 'Ganha' : 'Disponível'}
                   </span>
                 </div>
-                <span className="block font-medium text-[11px] truncate opacity-80" style={{ color: textNum }}>
+                <span className="block font-medium truncate opacity-80" style={{ color: textNum, fontSize: textFontSize }}>
                   {cp.premio}
                 </span>
               </div>
@@ -1827,10 +1976,12 @@ export const CampanhaPublicaView: React.FC<Props> = ({
       corFundo: (tema.cores as any).cardRankingFundo || tema.cores.cardFundo,
       corBorda: (tema.cores as any).cardRankingBorda || tema.cores.cardBorda,
       raioBorda: tema.botao?.raioBordaCards ?? 16,
+      tamanhoAlturaCards: tema.botao?.tamanhoAlturaCards,
+      tamanhoFonteCards: tema.botao?.tamanhoFonteCards,
     });
 
     return (
-      <div className={`border rounded-2xl p-5 shadow-sm ${cardStyle.className}`} style={cardStyle.style}>
+      <div className={`border rounded-2xl p-5 shadow-sm ${cardStyle.className}`} style={{ ...cardStyle.style, fontFamily: tema.tipografia.fonteCardRanking }}>
         <h3 className="text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-1.5 opacity-80">
           <SectionIcon className="w-4 h-4" style={{ color: iconeCor }} />
           Top Compradores
@@ -1896,6 +2047,8 @@ export const CampanhaPublicaView: React.FC<Props> = ({
       corFundo: (tema.cores as any).cardRegulamentoFundo || tema.cores.cardFundo,
       corBorda: (tema.cores as any).cardRegulamentoBorda || tema.cores.cardBorda,
       raioBorda: tema.botao?.raioBordaCards ?? 16,
+      tamanhoAlturaCards: tema.botao?.tamanhoAlturaCards,
+      tamanhoFonteCards: tema.botao?.tamanhoFonteCards,
     });
     const regTextoCor = (tema.cores as any).cardRegulamentoTexto || tema.cores.descricoes || '#cbd5e1';
 
@@ -1904,7 +2057,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
     return (
       <div className="space-y-3">
         {temDesc && (
-          <div className={`border rounded-2xl p-4 sm:p-5 shadow-sm transition-all ${cardStyle.className}`} style={cardStyle.style}>
+          <div className={`border rounded-2xl p-4 sm:p-5 shadow-sm transition-all ${cardStyle.className}`} style={{ ...cardStyle.style, fontFamily: tema.tipografia.fonteCardRegulamento }}>
             <button
               type="button"
               onClick={() => setDescAberta(!descAberta)}
@@ -1931,7 +2084,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
         )}
 
         {temReg && (
-          <div className={`border rounded-2xl p-4 sm:p-5 shadow-sm transition-all ${cardStyle.className}`} style={cardStyle.style}>
+          <div className={`border rounded-2xl p-4 sm:p-5 shadow-sm transition-all ${cardStyle.className}`} style={{ ...cardStyle.style, fontFamily: tema.tipografia.fonteCardRegulamento }}>
             <button
               type="button"
               onClick={() => setRegAberto(!regAberto)}
@@ -1970,10 +2123,12 @@ export const CampanhaPublicaView: React.FC<Props> = ({
       corFundo: (tema.cores as any).cardGanhadoresFundo || tema.cores.cardFundo,
       corBorda: (tema.cores as any).cardGanhadoresBorda || tema.cores.cardBorda,
       raioBorda: tema.botao?.raioBordaCards ?? 16,
+      tamanhoAlturaCards: tema.botao?.tamanhoAlturaCards,
+      tamanhoFonteCards: tema.botao?.tamanhoFonteCards,
     });
 
     return (
-      <div className={`border rounded-2xl p-5 shadow-sm space-y-3 ${cardStyle.className}`} style={cardStyle.style}>
+      <div className={`border rounded-2xl p-5 shadow-sm space-y-3 ${cardStyle.className}`} style={{ ...cardStyle.style, fontFamily: tema.tipografia.fonteCardGanhadores }}>
         <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
           <SectionIcon className="w-4 h-4" style={{ color: iconeCor }} />
           Ganhadores da Campanha
@@ -2031,7 +2186,13 @@ export const CampanhaPublicaView: React.FC<Props> = ({
         return <BannerSection campanha={campanha} tema={tema} />;
       case 'barraProgresso':
       case 'progresso':
-        return <ProgressoSection campanha={campanha} estatisticas={estatisticas} tema={tema} />;
+        return (
+          <div className="space-y-4">
+            <PrecoUnitarioSection campanha={campanha} tema={tema} />
+            <CabecalhoPromocaoSection campanha={campanha} tema={tema} />
+            <ProgressoSection campanha={campanha} estatisticas={estatisticas} tema={tema} />
+          </div>
+        );
       case 'cotas':
         return <CotasSection campanha={campanha} tema={tema} setQuantidade={setQuantidade} setCheckoutAberto={setCheckoutAberto} />;
       case 'premios':
@@ -2469,8 +2630,23 @@ export const CampanhaPublicaView: React.FC<Props> = ({
 
       {/* Barra Fixa Inferior de Compra Instantânea */}
       <footer className={`${modoPreview ? 'sticky' : 'fixed'} bottom-0 left-0 right-0 z-30 bg-slate-950/95 backdrop-blur-md border-t border-slate-800 p-3`}>
-        <div className="max-w-xl mx-auto flex items-center justify-between gap-3">
-          <div>
+        <div className="max-w-xl mx-auto flex flex-col gap-2 w-full">
+          {(tema.botao.tituloCompra || tema.botao.subtituloCompra) && (
+            <div className="text-center w-full pb-1">
+              {tema.botao.tituloCompra && (
+                <div className="font-black" style={{ fontFamily: tema.tipografia.fonteBotaoCompraTitulo || 'Inter', fontSize: '0.85rem', color: tema.cores.titulos || '#ffffff' }}>
+                  {tema.botao.tituloCompra}
+                </div>
+              )}
+              {tema.botao.subtituloCompra && (
+                <div className="text-[10px] opacity-70 mt-0.5" style={{ fontFamily: tema.tipografia.fonteBotaoCompraSubtitulo || 'Inter', color: tema.cores.descricoes || '#94a3b8' }}>
+                  {tema.botao.subtituloCompra}
+                </div>
+              )}
+            </div>
+          )}
+          <div className="flex items-center justify-between gap-3">
+            <div>
             <span className="text-[10px] uppercase font-bold text-slate-400 block">
               {quantidade} cotas selecionadas
             </span>
@@ -2546,6 +2722,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
               ? 'VENDAS ENCERRADAS'
               : (tema.botao.textoCompra || 'PARTICIPAR DO SORTEIO').toUpperCase()}
           </button>
+        </div>
         </div>
       </footer>
 

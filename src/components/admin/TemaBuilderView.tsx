@@ -13,6 +13,7 @@ import {
   ChevronUp, ChevronDown
 } from 'lucide-react';
 import { auth } from '../../lib/firebase';
+import { dispararExplosaoConfetes } from '../../utils/confettiUtils';
 import { 
   ICON_SETS, 
   getSectionIcon, 
@@ -85,6 +86,29 @@ const BLOCOS_DISPONIVEIS: BlocoConfig[] = [
   { id: 'regulamento', nome: 'Descrição & Regulamento', descricao: 'Texto explicativo e regras oficiais da campanha', icone: '📜' },
   { id: 'ganhadores', nome: 'Ganhadores / Apuração', descricao: 'Exibição do ganhador contemplado', icone: '🎉' },
 ];
+
+const converterParaHex = (cor: string | undefined, padrao: string): string => {
+  if (!cor) return padrao;
+  const c = cor.trim();
+  if (c.startsWith('#')) {
+    if (c.length === 9) return c.substring(0, 7);
+    return c;
+  }
+  if (c.startsWith('rgba') || c.startsWith('rgb')) {
+    const match = c.match(/\d+/g);
+    if (match && match.length >= 3) {
+      const r = parseInt(match[0], 10);
+      const g = parseInt(match[1], 10);
+      const b = parseInt(match[2], 10);
+      const toHex = (x: number) => {
+        const hex = x.toString(16);
+        return hex.length === 1 ? '0' + hex : hex;
+      };
+      return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+    }
+  }
+  return padrao.startsWith('rgba') ? '#10b981' : padrao;
+};
 
 export const TemaBuilderView: React.FC<Props> = ({
   campanha,
@@ -1075,7 +1099,7 @@ export const TemaBuilderView: React.FC<Props> = ({
                         Voltar para Botões & Elementos
                       </button>
                       <span className="text-[10px] uppercase font-black tracking-wider px-2.5 py-1 rounded bg-slate-950 border border-slate-800 text-slate-400">
-                        {subAbaBotao === 'compra' ? 'CTA Principal' : subAbaBotao === 'pacotes' ? 'Pacotes' : subAbaBotao === 'controles' ? 'Quantidade' : subAbaBotao === 'cotas' ? 'Cotas' : subAbaBotao === 'progresso' ? 'Progresso de Vendas' : 'Cards das Seções'}
+                        {subAbaBotao === 'compra' ? 'CTA Principal' : subAbaBotao === 'pacotes' ? 'Pacotes' : subAbaBotao === 'controles' ? 'Quantidade' : subAbaBotao === 'cotas' ? 'Cotas' : subAbaBotao === 'progresso' ? 'Progresso de Vendas' : subAbaBotao === 'titulosPremiados' ? 'Títulos Premiados' : 'Cards das Seções'}
                       </span>
                     </div>
                   )}
@@ -1087,7 +1111,8 @@ export const TemaBuilderView: React.FC<Props> = ({
                         { id: 'pacotes', titulo: 'Botões dos Pacotes Promocionais', desc: 'Estilo visual dos combos de cotas, cores padrão, pacote em destaque e selos.', icone: Package, color: 'text-amber-400 bg-amber-500/10' },
                         { id: 'controles', titulo: 'Controles de Quantidade (+ e -)', desc: 'Cores dos botões de adicionar/remover cotas, campo de quantidade e bordas.', icone: SlidersHorizontal, color: 'text-blue-400 bg-blue-500/10' },
                         { id: 'cotas', titulo: 'Grade de Cotas Manuais', desc: 'Cores das cotas livres, selecionadas, pagas/reservadas e números.', icone: Ticket, color: 'text-pink-400 bg-pink-500/10' },
-                        { id: 'progresso', titulo: 'Card de Progresso de Vendas', desc: 'Personalize as cores do card de progresso, barra de progresso, preço unitário e selos.', icone: Sliders, color: 'text-rose-400 bg-rose-500/10' },
+                        { id: 'progresso', titulo: 'Card de Progresso de Vendas', desc: 'Personalize textos, dimensões, cantos e cores da barra de progresso.', icone: Sliders, color: 'text-rose-400 bg-rose-500/10' },
+                        { id: 'titulosPremiados', titulo: 'Títulos Premiados (Cotas Instantâneas)', desc: 'Cores, textos e badges nos estados "Disponível" e "Já Ganho".', icone: Gift, color: 'text-amber-400 bg-amber-500/10' },
                         { id: 'cards', titulo: 'Cards das Seções & Conteúdos', desc: 'Estilo visual dos quadros de Premiação, Banner, Cotas, Premiadas, Ranking, Regulamento e Ganhadores.', icone: Box, color: 'text-purple-400 bg-purple-500/10' }
                       ].map(item => {
                         const IconComponent = item.icone;
@@ -1936,19 +1961,122 @@ export const TemaBuilderView: React.FC<Props> = ({
                               Card de Progresso de Vendas
                             </h4>
                             <p className="text-xs text-slate-400">
-                              Personalize as cores e detalhes da barra de progresso, preços unitários e selos informativos da campanha.
+                              Personalize textos, dimensões, cantos e cores da barra de progresso da campanha.
                             </p>
                           </div>
 
+                          {/* Seção 1: Textos & Placeholders */}
+                          <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-4">
+                            <h5 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
+                              <Type className="w-3.5 h-3.5 text-emerald-400" /> Textos & Rótulos da Barra
+                            </h5>
+                            <div className="grid grid-cols-1 gap-3.5 text-xs">
+                              <div>
+                                <label className="block text-slate-300 font-bold mb-1">Título (Acima da Barra)</label>
+                                <input
+                                  type="text"
+                                  value={temaSeguro.barraProgresso?.titulo ?? 'Progresso do sorteio'}
+                                  onChange={e => atualizarTema({ barraProgresso: { ...temaSeguro.barraProgresso, titulo: e.target.value } })}
+                                  placeholder="Ex: Progresso do sorteio"
+                                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-slate-300 font-bold mb-1">Subtítulo / Descrição</label>
+                                <input
+                                  type="text"
+                                  value={temaSeguro.barraProgresso?.subtitulo ?? ''}
+                                  onChange={e => atualizarTema({ barraProgresso: { ...temaSeguro.barraProgresso, subtitulo: e.target.value } })}
+                                  placeholder="Ex: Acompanhe a arrecadação em tempo real"
+                                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-slate-300 font-bold mb-1">
+                                  Texto Interno/Alinhado <span className="text-slate-500 font-normal">(use &#123;pct&#125; para a % vendida)</span>
+                                </label>
+                                <input
+                                  type="text"
+                                  value={temaSeguro.barraProgresso?.textoInterno ?? '{pct}% vendido'}
+                                  onChange={e => atualizarTema({ barraProgresso: { ...temaSeguro.barraProgresso, textoInterno: e.target.value } })}
+                                  placeholder="Ex: {pct}% vendido"
+                                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-slate-300 font-bold mb-1">
+                                  Texto do Rodapé <span className="text-slate-500 font-normal">(use &#123;vendidas&#125; e &#123;disponiveis&#125; ou deixe em branco para padrão)</span>
+                                </label>
+                                <input
+                                  type="text"
+                                  value={temaSeguro.barraProgresso?.rodape ?? ''}
+                                  onChange={e => atualizarTema({ barraProgresso: { ...temaSeguro.barraProgresso, rodape: e.target.value } })}
+                                  placeholder="Ex: {vendidas} cotas vendidas • {disponiveis} disponíveis"
+                                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Seção 2: Estilo & Dimensões */}
+                          <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-4">
+                            <h5 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
+                              <SlidersHorizontal className="w-3.5 h-3.5 text-blue-400" /> Estilo & Dimensões
+                            </h5>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                              <div>
+                                <div className="flex justify-between items-center mb-1">
+                                  <label className="text-slate-300 font-bold">Altura da Barra</label>
+                                  <span className="font-mono text-emerald-400 font-bold">{temaSeguro.barraProgresso?.altura ?? 16}px</span>
+                                </div>
+                                <input
+                                  type="range"
+                                  min={8}
+                                  max={40}
+                                  value={temaSeguro.barraProgresso?.altura ?? 16}
+                                  onChange={e => atualizarTema({ barraProgresso: { ...temaSeguro.barraProgresso, altura: Number(e.target.value) } })}
+                                  className="w-full accent-emerald-500 cursor-pointer"
+                                />
+                              </div>
+                              <div>
+                                <div className="flex justify-between items-center mb-1">
+                                  <label className="text-slate-300 font-bold">Cantos Arredondados</label>
+                                  <span className="font-mono text-emerald-400 font-bold">{temaSeguro.barraProgresso?.raioBorda ?? 9999}px</span>
+                                </div>
+                                <input
+                                  type="range"
+                                  min={0}
+                                  max={30}
+                                  value={temaSeguro.barraProgresso?.raioBorda ?? 9999}
+                                  onChange={e => atualizarTema({ barraProgresso: { ...temaSeguro.barraProgresso, raioBorda: Number(e.target.value) } })}
+                                  className="w-full accent-emerald-500 cursor-pointer"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-slate-300 font-bold mb-1">Largura Máxima</label>
+                                <select
+                                  value={temaSeguro.barraProgresso?.larguraMax ?? '100%'}
+                                  onChange={e => atualizarTema({ barraProgresso: { ...temaSeguro.barraProgresso, larguraMax: e.target.value } })}
+                                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500"
+                                >
+                                  <option value="100%">100% (Largura total)</option>
+                                  <option value="90%">90%</option>
+                                  <option value="80%">80%</option>
+                                  <option value="700px">Max 700px</option>
+                                  <option value="500px">Max 500px</option>
+                                </select>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Seção 3: Cores do Card de Progresso */}
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                             {[
-                              { key: 'cardBarraProgressoFundo', label: 'Fundo do Card de Progresso', desc: 'Caixa externa que envolve a barra e o preço' },
+                              { key: 'cardBarraProgressoFundo', label: 'Fundo do Card de Progresso', desc: 'Caixa externa que envolve a barra' },
                               { key: 'barraProgressoFundo', label: 'Trilho Vazio da Barra', desc: 'Fundo do indicador de progresso' },
                               { key: 'barraProgressoPreenchimento', label: 'Preenchimento da Barra', desc: 'Indicação de cotas vendidas' },
-                              { key: 'barraProgressoTexto', label: 'Texto do Progresso', desc: 'Indicador textual (ex: 45% vendido)' },
+                              { key: 'barraProgressoTexto', label: 'Texto do Progresso', desc: 'Cor do texto do rodapé/contador' },
                               { key: 'textoPrecoBarra', label: 'Preço no Card', desc: 'Cor do preço unitário exibido' },
-                              { key: 'seloBannerFundo', label: 'Fundo do Selo do Banner', desc: 'Tag de destaque no banner principal' },
-                              { key: 'seloBannerTexto', label: 'Texto do Selo do Banner', desc: 'Cor do texto da tag de destaque' },
                             ].map(item => {
                               const val = (temaSeguro.cores as any)[item.key] || '#10b981';
                               return (
@@ -1974,6 +2102,157 @@ export const TemaBuilderView: React.FC<Props> = ({
                                 </div>
                               );
                             })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 4.6. TÍTULOS PREMIADOS (COTAS INSTANTÂNEAS) */}
+                      {subAbaBotao === 'titulosPremiados' && (
+                        <div className="space-y-6 animate-in fade-in duration-200">
+                          <div className="space-y-1">
+                            <h4 className="text-sm font-black text-white flex items-center gap-2">
+                              <Gift className="w-4 h-4 text-amber-400" />
+                              Personalização dos Títulos Premiados
+                            </h4>
+                            <p className="text-xs text-slate-400">
+                              Configure as cores das cotas premiadas instantâneas nos dois estados: Disponível para compra e Já Ganha/Encontrada.
+                            </p>
+                          </div>
+
+                          {/* Prévia Interativa dos Títulos Premiados */}
+                          <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-3">
+                            <h5 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
+                              <Eye className="w-3.5 h-3.5 text-emerald-400" /> Prévia dos Estados das Cotas Premiadas
+                            </h5>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              {/* State 1: Disponível */}
+                              <div 
+                                className="p-3.5 rounded-xl border text-xs" 
+                                style={{ 
+                                  backgroundColor: (temaSeguro.cores as any).premiadoDisponivelFundo || '#0f172a', 
+                                  borderColor: (temaSeguro.cores as any).premiadoDisponivelBorda || '#1e293b' 
+                                }}
+                              >
+                                <div className="flex items-center justify-between mb-1.5">
+                                  <span className="font-mono font-black text-sm" style={{ color: (temaSeguro.cores as any).premiadoDisponivelTexto || '#ffffff' }}>
+                                    012345
+                                  </span>
+                                  <span 
+                                    className="text-[10px] font-bold uppercase px-2 py-0.5 rounded"
+                                    style={{ 
+                                      backgroundColor: (temaSeguro.cores as any).premiadoDisponivelBadgeFundo || '#10b981', 
+                                      color: (temaSeguro.cores as any).premiadoDisponivelBadgeTexto || '#022c22' 
+                                    }}
+                                  >
+                                    Disponível
+                                  </span>
+                                </div>
+                                <span className="block font-medium text-[11px]" style={{ color: (temaSeguro.cores as any).premiadoDisponivelTexto || '#ffffff' }}>
+                                  R$ 500,00 no Pix Instantâneo
+                                </span>
+                              </div>
+
+                              {/* State 2: Ganho */}
+                              <div 
+                                className="p-3.5 rounded-xl border text-xs opacity-85" 
+                                style={{ 
+                                  backgroundColor: (temaSeguro.cores as any).premiadoGanhoFundo || '#1e1b4b', 
+                                  borderColor: (temaSeguro.cores as any).premiadoGanhoBorda || '#334155' 
+                                }}
+                              >
+                                <div className="flex items-center justify-between mb-1.5">
+                                  <span className="font-mono font-black text-sm" style={{ color: (temaSeguro.cores as any).premiadoGanhoTexto || '#94a3b8' }}>
+                                    987654
+                                  </span>
+                                  <span 
+                                    className="text-[10px] font-bold uppercase px-2 py-0.5 rounded"
+                                    style={{ 
+                                      backgroundColor: (temaSeguro.cores as any).premiadoGanhoBadgeFundo || '#f59e0b', 
+                                      color: (temaSeguro.cores as any).premiadoGanhoBadgeTexto || '#022c22' 
+                                    }}
+                                  >
+                                    Ganha
+                                  </span>
+                                </div>
+                                <span className="block font-medium text-[11px]" style={{ color: (temaSeguro.cores as any).premiadoGanhoTexto || '#94a3b8' }}>
+                                  iPhone 16 Pro Max 256GB
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Controles do Estado Disponível */}
+                          <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-4">
+                            <h5 className="text-xs font-black text-emerald-400 uppercase tracking-wider flex items-center gap-2">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-400" /> Estado: Cota Premiada Disponível
+                            </h5>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                              {[
+                                { key: 'premiadoDisponivelFundo', label: 'Cor de Fundo', desc: 'Fundo do card da cota livre' },
+                                { key: 'premiadoDisponivelTexto', label: 'Cor do Texto / Número', desc: 'Texto principal e número da cota' },
+                                { key: 'premiadoDisponivelBorda', label: 'Cor da Borda', desc: 'Contorno do card' },
+                                { key: 'premiadoDisponivelBadgeFundo', label: 'Fundo do Selo ("Disponível")', desc: 'Fundo da tag de estado' },
+                                { key: 'premiadoDisponivelBadgeTexto', label: 'Texto do Selo ("Disponível")', desc: 'Texto da tag de estado' },
+                              ].map(item => {
+                                const val = (temaSeguro.cores as any)[item.key] || '#10b981';
+                                return (
+                                  <div key={item.key} className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-1.5">
+                                    <label className="text-xs font-bold text-slate-300 block">{item.label}</label>
+                                    <div className="flex items-center gap-2">
+                                      <input
+                                        type="color"
+                                        value={val}
+                                        onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [item.key]: e.target.value } })}
+                                        className="w-9 h-9 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                                      />
+                                      <input
+                                        type="text"
+                                        value={val}
+                                        onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [item.key]: e.target.value } })}
+                                        className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white uppercase focus:outline-none focus:border-emerald-500"
+                                      />
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* Controles do Estado Já Ganho / Encontrado */}
+                          <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-4">
+                            <h5 className="text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-2">
+                              <Trophy className="w-4 h-4 text-amber-400" /> Estado: Cota Premiada Já Ganha / Encontrada
+                            </h5>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                              {[
+                                { key: 'premiadoGanhoFundo', label: 'Cor de Fundo', desc: 'Fundo do card da cota premiada achada' },
+                                { key: 'premiadoGanhoTexto', label: 'Cor do Texto / Número', desc: 'Texto principal e número' },
+                                { key: 'premiadoGanhoBorda', label: 'Cor da Borda', desc: 'Contorno do card' },
+                                { key: 'premiadoGanhoBadgeFundo', label: 'Fundo do Selo ("Ganha")', desc: 'Fundo da tag do ganhador' },
+                                { key: 'premiadoGanhoBadgeTexto', label: 'Texto do Selo ("Ganha")', desc: 'Texto da tag do ganhador' },
+                              ].map(item => {
+                                const val = (temaSeguro.cores as any)[item.key] || '#f59e0b';
+                                return (
+                                  <div key={item.key} className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-1.5">
+                                    <label className="text-xs font-bold text-slate-300 block">{item.label}</label>
+                                    <div className="flex items-center gap-2">
+                                      <input
+                                        type="color"
+                                        value={val}
+                                        onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [item.key]: e.target.value } })}
+                                        className="w-9 h-9 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                                      />
+                                      <input
+                                        type="text"
+                                        value={val}
+                                        onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [item.key]: e.target.value } })}
+                                        className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white uppercase focus:outline-none focus:border-emerald-500"
+                                      />
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
                         </div>
                       )}
@@ -2266,13 +2545,13 @@ export const TemaBuilderView: React.FC<Props> = ({
                                   <div className="flex items-center gap-2">
                                     <input
                                       type="color"
-                                      value={(temaSeguro.cores as any).premioBorda || 'rgba(51, 65, 85, 0.6)'}
+                                      value={converterParaHex((temaSeguro.cores as any).premioBorda, '#334155')}
                                       onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, premioBorda: e.target.value } })}
                                       className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
                                     />
                                     <input
                                       type="text"
-                                      value={(temaSeguro.cores as any).premioBorda || 'rgba(51, 65, 85, 0.6)'}
+                                      value={(temaSeguro.cores as any).premioBorda || '#334155'}
                                       onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, premioBorda: e.target.value } })}
                                       className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
                                     />
@@ -2298,13 +2577,13 @@ export const TemaBuilderView: React.FC<Props> = ({
                                   <div className="flex items-center gap-2">
                                     <input
                                       type="color"
-                                      value={(temaSeguro.cores as any).cotaPremiadaLivreFundo || 'rgba(16, 185, 129, 0.1)'}
+                                      value={converterParaHex((temaSeguro.cores as any).cotaPremiadaLivreFundo, '#10b981')}
                                       onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cotaPremiadaLivreFundo: e.target.value } })}
                                       className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
                                     />
                                     <input
                                       type="text"
-                                      value={(temaSeguro.cores as any).cotaPremiadaLivreFundo || 'rgba(16, 185, 129, 0.1)'}
+                                      value={(temaSeguro.cores as any).cotaPremiadaLivreFundo || '#10b981'}
                                       onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cotaPremiadaLivreFundo: e.target.value } })}
                                       className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
                                     />
@@ -2315,13 +2594,13 @@ export const TemaBuilderView: React.FC<Props> = ({
                                   <div className="flex items-center gap-2">
                                     <input
                                       type="color"
-                                      value={(temaSeguro.cores as any).cotaPremiadaLivreBorda || 'rgba(16, 185, 129, 0.3)'}
+                                      value={converterParaHex((temaSeguro.cores as any).cotaPremiadaLivreBorda, '#059669')}
                                       onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cotaPremiadaLivreBorda: e.target.value } })}
                                       className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
                                     />
                                     <input
                                       type="text"
-                                      value={(temaSeguro.cores as any).cotaPremiadaLivreBorda || 'rgba(16, 185, 129, 0.3)'}
+                                      value={(temaSeguro.cores as any).cotaPremiadaLivreBorda || '#059669'}
                                       onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cotaPremiadaLivreBorda: e.target.value } })}
                                       className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
                                     />
@@ -2349,13 +2628,13 @@ export const TemaBuilderView: React.FC<Props> = ({
                                   <div className="flex items-center gap-2">
                                     <input
                                       type="color"
-                                      value={(temaSeguro.cores as any).cotaPremiadaAchadaFundo || 'rgba(30, 41, 59, 0.3)'}
+                                      value={converterParaHex((temaSeguro.cores as any).cotaPremiadaAchadaFundo, '#1e293b')}
                                       onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cotaPremiadaAchadaFundo: e.target.value } })}
                                       className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
                                     />
                                     <input
                                       type="text"
-                                      value={(temaSeguro.cores as any).cotaPremiadaAchadaFundo || 'rgba(30, 41, 59, 0.3)'}
+                                      value={(temaSeguro.cores as any).cotaPremiadaAchadaFundo || '#1e293b'}
                                       onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cotaPremiadaAchadaFundo: e.target.value } })}
                                       className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
                                     />
@@ -2366,13 +2645,13 @@ export const TemaBuilderView: React.FC<Props> = ({
                                   <div className="flex items-center gap-2">
                                     <input
                                       type="color"
-                                      value={(temaSeguro.cores as any).cotaPremiadaAchadaBorda || 'rgba(30, 41, 59, 0.5)'}
+                                      value={converterParaHex((temaSeguro.cores as any).cotaPremiadaAchadaBorda, '#475569')}
                                       onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cotaPremiadaAchadaBorda: e.target.value } })}
                                       className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
                                     />
                                     <input
                                       type="text"
-                                      value={(temaSeguro.cores as any).cotaPremiadaAchadaBorda || 'rgba(30, 41, 59, 0.5)'}
+                                      value={(temaSeguro.cores as any).cotaPremiadaAchadaBorda || '#475569'}
                                       onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cotaPremiadaAchadaBorda: e.target.value } })}
                                       className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
                                     />
@@ -2578,13 +2857,13 @@ export const TemaBuilderView: React.FC<Props> = ({
                                   <div className="flex items-center gap-2">
                                     <input
                                       type="color"
-                                      value={(temaSeguro.cores as any).ganhadorBlocoFundo || 'rgba(16, 185, 129, 0.1)'}
+                                      value={converterParaHex((temaSeguro.cores as any).ganhadorBlocoFundo, '#10b981')}
                                       onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, ganhadorBlocoFundo: e.target.value } })}
                                       className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
                                     />
                                     <input
                                       type="text"
-                                      value={(temaSeguro.cores as any).ganhadorBlocoFundo || 'rgba(16, 185, 129, 0.1)'}
+                                      value={(temaSeguro.cores as any).ganhadorBlocoFundo || '#10b981'}
                                       onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, ganhadorBlocoFundo: e.target.value } })}
                                       className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
                                     />
@@ -2595,13 +2874,13 @@ export const TemaBuilderView: React.FC<Props> = ({
                                   <div className="flex items-center gap-2">
                                     <input
                                       type="color"
-                                      value={(temaSeguro.cores as any).ganhadorBlocoBorda || 'rgba(16, 185, 129, 0.3)'}
+                                      value={converterParaHex((temaSeguro.cores as any).ganhadorBlocoBorda, '#059669')}
                                       onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, ganhadorBlocoBorda: e.target.value } })}
                                       className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
                                     />
                                     <input
                                       type="text"
-                                      value={(temaSeguro.cores as any).ganhadorBlocoBorda || 'rgba(16, 185, 129, 0.3)'}
+                                      value={(temaSeguro.cores as any).ganhadorBlocoBorda || '#059669'}
                                       onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, ganhadorBlocoBorda: e.target.value } })}
                                       className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
                                     />
@@ -3084,40 +3363,93 @@ export const TemaBuilderView: React.FC<Props> = ({
                 )}
               </div>
 
-              {/* Estilo de Celebração de Ganhadores */}
-              <div className="space-y-2 p-3.5 bg-slate-950/80 border border-slate-800 rounded-xl">
-                <div className="flex justify-between items-center">
-                  <label className="text-xs font-bold text-white block">
-                    Estilo de Comemoração de Ganhadores / Cotas Premiadas
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setPreviewAnimacao(temaSeguro.ganhadorCelebracaoEstilo || 'confetes')}
-                    className="text-[10px] bg-purple-500/15 hover:bg-purple-500/35 text-purple-300 font-black border border-purple-500/30 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
-                  >
-                    ⚡ Testar Efeito
-                  </button>
+              {/* Estilo de Celebração de Ganhadores / Cotas Premiadas */}
+              <div className="space-y-3 p-4 bg-slate-950/80 border border-slate-800 rounded-2xl">
+                <div>
+                  <h4 className="text-xs font-bold text-white uppercase tracking-wider block mb-1">
+                    Animação de Celebração de Ganhadores & Cotas Premiadas
+                  </h4>
+                  <p className="text-xs text-slate-400">
+                    Selecione o efeito festivo exibido na apuração de ganhadores e revelação de cotas premiadas:
+                  </p>
                 </div>
-                <select
-                  value={temaSeguro.ganhadorCelebracaoEstilo || 'confetes'}
-                  onChange={e => {
-                    const val = e.target.value as any;
-                    atualizarTema({ ganhadorCelebracaoEstilo: val });
-                    setPreviewAnimacao(val);
-                  }}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
-                >
-                  <option value="confetes">🎉 Chuva de Confetes</option>
-                  <option value="estrela">⭐ Explosão de Estrelas</option>
-                  <option value="fogo">🔥 Efeito Chamas / Fogo</option>
-                  <option value="coracao">💖 Corações Amados</option>
-                  <option value="moeda">🪙 Moedas de Ouro</option>
-                  <option value="trofeu">🏆 Troféu de Ouro</option>
-                  <option value="diamante">💎 Diamantes Brilhantes</option>
-                  <option value="raio">⚡ Raios de Energia</option>
-                  <option value="coroa">👑 Coroa Real</option>
-                  <option value="foguete">🚀 Foguete ao Espaço</option>
-                </select>
+
+                <div className="grid grid-cols-1 gap-2.5">
+                  {/* Opção 1: Explosão de Confetes */}
+                  <div
+                    onClick={() => {
+                      atualizarTema({ ganhadorCelebracaoEstilo: 'confetes' });
+                      setPreviewAnimacao('confetes');
+                    }}
+                    className={`p-3.5 rounded-xl border transition-all cursor-pointer ${
+                      temaSeguro.ganhadorCelebracaoEstilo !== 'nenhuma'
+                        ? 'bg-purple-950/40 border-purple-500 ring-1 ring-purple-500/50'
+                        : 'bg-slate-900 border-slate-800 hover:border-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex gap-3">
+                        <span className="text-xl">🎉</span>
+                        <div>
+                          <h5 className="text-xs font-bold text-white flex items-center gap-2">
+                            Explosão de Confetes
+                            <span className="text-[9px] bg-purple-500/20 text-purple-300 font-bold px-2 py-0.5 rounded-full border border-purple-500/30">
+                              Recomendado
+                            </span>
+                          </h5>
+                          <p className="text-[11px] text-slate-400 mt-0.5">
+                            Dispara dois canhões laterais no fundo da tela em um arco limpo.
+                          </p>
+                        </div>
+                      </div>
+                      {temaSeguro.ganhadorCelebracaoEstilo !== 'nenhuma' && (
+                        <CheckCircle2 className="w-4 h-4 text-purple-400 shrink-0" />
+                      )}
+                    </div>
+
+                    <div className="mt-2.5 pt-2 border-t border-slate-800/80 flex items-center justify-between">
+                      <span className="text-[10px] text-slate-500 font-mono">Estilo: Explosão Lateral Dupla</span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          dispararExplosaoConfetes();
+                        }}
+                        className="px-2.5 py-1 bg-purple-500/20 hover:bg-purple-500/40 text-purple-300 font-bold rounded-lg text-[10px] flex items-center gap-1 border border-purple-500/30 transition cursor-pointer"
+                      >
+                        <Zap className="w-3 h-3 text-purple-400" /> ⚡ Testar Efeito
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Opção 2: Nenhuma Animação */}
+                  <div
+                    onClick={() => {
+                      atualizarTema({ ganhadorCelebracaoEstilo: 'nenhuma' });
+                      setPreviewAnimacao(null);
+                    }}
+                    className={`p-3.5 rounded-xl border transition-all cursor-pointer ${
+                      temaSeguro.ganhadorCelebracaoEstilo === 'nenhuma'
+                        ? 'bg-purple-950/40 border-purple-500 ring-1 ring-purple-500/50'
+                        : 'bg-slate-900 border-slate-800 hover:border-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex gap-3">
+                        <span className="text-xl">🚫</span>
+                        <div>
+                          <h5 className="text-xs font-bold text-white">Nenhuma Animação</h5>
+                          <p className="text-[11px] text-slate-400 mt-0.5">
+                            Desativa efeitos festivos ao revelar sorteios ou cotas.
+                          </p>
+                        </div>
+                      </div>
+                      {temaSeguro.ganhadorCelebracaoEstilo === 'nenhuma' && (
+                        <CheckCircle2 className="w-4 h-4 text-purple-400 shrink-0" />
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* Visibilidade do Local do Sorteio */}

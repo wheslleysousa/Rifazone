@@ -97,7 +97,9 @@ export function sanitizarCampanha(
       ? data.promocoes.map(p => ({
           quantidade: Number(p.quantidade),
           valor: toCents(p.valor),
-          destaque: Boolean(p.destaque)
+          destaque: Boolean(p.destaque),
+          descontoPct: (p.descontoPct !== undefined && p.descontoPct !== null && !isNaN(Number(p.descontoPct))) ? Number(p.descontoPct) : undefined,
+          rotulo: p.rotulo ? String(p.rotulo).trim() : undefined
         }))
       : (base?.promocoes || []),
     ofertasRelampago: Array.isArray(data.ofertasRelampago)
@@ -138,6 +140,7 @@ export function sanitizarCampanha(
     exigirEmail: data.exigirEmail !== undefined ? Boolean(data.exigirEmail) : (base?.exigirEmail ?? false),
     exigirCpf: data.exigirCpf !== undefined ? Boolean(data.exigirCpf) : (base?.exigirCpf ?? false),
     coletarRedesSociais: data.coletarRedesSociais !== undefined ? data.coletarRedesSociais : (base?.coletarRedesSociais ?? undefined),
+    coletarEndereco: data.coletarEndereco !== undefined ? data.coletarEndereco : (base?.coletarEndereco ?? undefined),
     tema: data.tema || base?.tema || TEMA_PADRAO,
     checkoutId: data.checkoutId !== undefined ? (data.checkoutId || undefined) : (base?.checkoutId ?? undefined),
     checkout: data.checkout || base?.checkout || DEFAULT_CHECKOUT_CONFIG,
@@ -430,6 +433,15 @@ app.post('/api/pedidos', strictLimiter, async (req, res) => {
       email: comprador.email ? comprador.email.trim() : null,
       instagram: comprador.instagram ? String(comprador.instagram).replace(/^@+/, '').trim() : null,
       tiktok: comprador.tiktok ? String(comprador.tiktok).replace(/^@+/, '').trim() : null,
+      nomeSocial: comprador.nomeSocial ? String(comprador.nomeSocial).trim() : null,
+      dataNascimento: comprador.dataNascimento ? String(comprador.dataNascimento).trim() : null,
+      cep: comprador.cep ? String(comprador.cep).trim() : null,
+      logradouro: comprador.logradouro ? String(comprador.logradouro).trim() : null,
+      numero: comprador.numero ? String(comprador.numero).trim() : null,
+      bairro: comprador.bairro ? String(comprador.bairro).trim() : null,
+      uf: comprador.uf ? String(comprador.uf).trim() : null,
+      cidade: comprador.cidade ? String(comprador.cidade).trim() : null,
+      complemento: comprador.complemento ? String(comprador.complemento).trim() : null,
       criadoEm: new Date().toISOString()
     });
 
@@ -730,7 +742,18 @@ app.post('/api/pedidos', strictLimiter, async (req, res) => {
         nome: compradorSalvo.nome,
         whatsapp: compradorSalvo.whatsapp,
         cpf: compradorSalvo.cpf,
-        email: compradorSalvo.email
+        email: compradorSalvo.email,
+        instagram: compradorSalvo.instagram,
+        tiktok: compradorSalvo.tiktok,
+        nomeSocial: compradorSalvo.nomeSocial,
+        dataNascimento: compradorSalvo.dataNascimento,
+        cep: compradorSalvo.cep,
+        logradouro: compradorSalvo.logradouro,
+        numero: compradorSalvo.numero,
+        bairro: compradorSalvo.bairro,
+        uf: compradorSalvo.uf,
+        cidade: compradorSalvo.cidade,
+        complemento: compradorSalvo.complemento
       },
       numeros: cotasAReservar,
       quantidade: totalQtd,

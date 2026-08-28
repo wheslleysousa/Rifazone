@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Gift, Sparkles, Trophy, X, PartyPopper, CheckCircle2, RotateCw } from 'lucide-react';
-import confetti from 'canvas-confetti';
+import { dispararExplosaoConfetes, limparConfetes } from '../utils/confettiUtils';
 import { RoletaItem } from '../types';
 
 interface Props {
@@ -18,11 +18,7 @@ export const RoletaPremiadaModal: React.FC<Props> = ({ itens, compradorNome, onC
   // Limpa confetes ao desmontar o componente
   useEffect(() => {
     return () => {
-      try {
-        confetti.reset();
-      } catch (e) {
-        // Ignora se indisponível
-      }
+      limparConfetes();
     };
   }, []);
 
@@ -66,11 +62,7 @@ export const RoletaPremiadaModal: React.FC<Props> = ({ itens, compradorNome, onC
       setJaGirou(true);
       setItemGanhado(itensRoleta[indexEscolhido]);
       
-      confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 }
-      });
+      dispararExplosaoConfetes();
     }, 4000);
   };
 

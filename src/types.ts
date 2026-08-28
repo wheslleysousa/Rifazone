@@ -20,6 +20,8 @@ export interface Promocao {
   quantidade: number;
   valor: number;
   destaque: boolean;
+  descontoPct?: number;
+  rotulo?: string;
 }
 
 export interface OfertaRelampago {
@@ -132,6 +134,27 @@ export interface TemaCampanha {
     cotaPremiadaAchadaFundo?: string;
     cotaPremiadaAchadaBorda?: string;
     cotaPremiadaAchadaTexto?: string;
+    // Títulos / Cotas Premiadas - Disponível
+    premiadoDisponivelFundo?: string;
+    premiadoDisponivelTexto?: string;
+    premiadoDisponivelBadgeFundo?: string;
+    premiadoDisponivelBadgeTexto?: string;
+    premiadoDisponivelBorda?: string;
+    // Títulos / Cotas Premiadas - Ganho
+    premiadoGanhoFundo?: string;
+    premiadoGanhoTexto?: string;
+    premiadoGanhoBadgeFundo?: string;
+    premiadoGanhoBadgeTexto?: string;
+    premiadoGanhoBorda?: string;
+  };
+  barraProgresso?: {
+    titulo?: string;
+    subtitulo?: string;
+    rodape?: string;
+    textoInterno?: string;
+    altura?: number;
+    raioBorda?: number;
+    larguraMax?: string;
   };
   secaoIcones: {
     premios: string;
@@ -226,7 +249,7 @@ export interface TemaCampanha {
   organizadorCabecalho?: {
     logoAlinhamento: 'esquerda' | 'centro' | 'direita';
   };
-  ganhadorCelebracaoEstilo?: 'confetes' | 'estrela' | 'fogo' | 'coracao' | 'moeda' | 'trofeu' | 'diamante' | 'raio' | 'coroa' | 'foguete';
+  ganhadorCelebracaoEstilo?: 'confetes' | 'nenhuma' | string;
   layout: {
     ordem: string[]; // ex: ['banner', 'barraProgresso', 'cotas', 'premios', 'premiadas', 'ranking', 'regulamento', 'ganhadores']
     visivel: Record<string, boolean>;
@@ -337,7 +360,27 @@ export const TEMA_PADRAO: TemaCampanha = {
     cardRegulamentoBorda: '#1e293b',
     cardRegulamentoTexto: '#cbd5e1',
     cardGanhadoresFundo: '#0f172a',
-    cardGanhadoresBorda: '#1e293b'
+    cardGanhadoresBorda: '#1e293b',
+    // Títulos / Cotas Premiadas
+    premiadoDisponivelFundo: '#0f172a',
+    premiadoDisponivelTexto: '#ffffff',
+    premiadoDisponivelBadgeFundo: '#10b981',
+    premiadoDisponivelBadgeTexto: '#022c22',
+    premiadoDisponivelBorda: '#1e293b',
+    premiadoGanhoFundo: '#1e1b4b',
+    premiadoGanhoTexto: '#94a3b8',
+    premiadoGanhoBadgeFundo: '#f59e0b',
+    premiadoGanhoBadgeTexto: '#022c22',
+    premiadoGanhoBorda: '#334155'
+  },
+  barraProgresso: {
+    titulo: 'Progresso do sorteio',
+    subtitulo: '',
+    rodape: '',
+    textoInterno: '{pct}% vendido',
+    altura: 16,
+    raioBorda: 9999,
+    larguraMax: '100%'
   },
   secaoIcones: {
     premios: 'Trophy',
@@ -417,6 +460,7 @@ export interface ConfirmacaoCompraConfig {
   subtitulo?: string;
   mensagemAgradecimento?: string;
   exibirConfetes?: boolean;
+  animacaoSucesso?: 'explosao_confetes' | 'nenhuma';
   exibirNumeros?: boolean;
   exibirBotaoCopiar?: boolean;
   exibirBotaoWhatsapp?: boolean;
@@ -456,6 +500,10 @@ export interface CheckoutConfig {
     exigirTelefone?: boolean;
     confirmarTelefone?: boolean;
     telefoneUnico?: boolean;
+    coletarEndereco?: {
+      ativo?: boolean;
+      obrigatorio?: boolean;
+    };
   };
   timerUrgencia?: {
     ativo?: boolean;
@@ -670,9 +718,16 @@ export interface Campanha {
     whatsapp?: boolean;
     obrigatorio?: boolean;
   };
+  // Coleta de endereço completo no checkout
+  coletarEndereco?: {
+    ativo?: boolean;
+    obrigatorio?: boolean;
+  };
   exibirCabecalhoTipo?: 'nome' | 'logo';
   cabecalhoLogoTamanho?: number;
   cabecalhoLogoUrl?: string;
+  cabecalhoLogoLarguraTotal?: boolean;
+  tituloSelecaoCotas?: string;
   tema?: TemaCampanha;
   checkoutId?: string;
   checkout?: CheckoutConfig;
@@ -684,6 +739,7 @@ export interface Campanha {
   // Exclusão lógica: a campanha some da lista/venda, mas o registro e todo o
   // faturamento (pedidos pagos, saldo, histórico) são preservados para saque.
   excluidaEm?: string | null;
+  encerradaEm?: string | null;
   numeroSorteado: string | null;
   ganhador?: {
     nome: string;
@@ -974,6 +1030,15 @@ export interface Comprador {
   email: string | null;
   instagram?: string | null;
   tiktok?: string | null;
+  nomeSocial?: string | null;
+  dataNascimento?: string | null;
+  cep?: string | null;
+  logradouro?: string | null;
+  numero?: string | null;
+  bairro?: string | null;
+  uf?: string | null;
+  cidade?: string | null;
+  complemento?: string | null;
   criadoEm: string;
 }
 
@@ -989,6 +1054,15 @@ export interface Pedido {
     email?: string | null;
     instagram?: string | null;
     tiktok?: string | null;
+    nomeSocial?: string | null;
+    dataNascimento?: string | null;
+    cep?: string | null;
+    logradouro?: string | null;
+    numero?: string | null;
+    bairro?: string | null;
+    uf?: string | null;
+    cidade?: string | null;
+    complemento?: string | null;
   };
   numeros: string[];
   quantidade: number;

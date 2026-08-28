@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { CheckoutConfig, CheckoutSalvo, DEFAULT_CHECKOUT_CONFIG, ConfirmacaoCompraConfig, CupomDesconto } from '../../types';
+import { dispararExplosaoConfetes } from '../../utils/confettiUtils';
 import {
   CreditCard, QrCode, FileText, ShieldCheck, CheckCircle2,
   Trash2, Edit3, Plus, Save, RefreshCw, Smartphone,
@@ -68,6 +69,7 @@ const defaultExtended: CheckoutConfigExtended = {
     mensagemAgradecimento: 'Obrigado por participar! Boa sorte no sorteio.',
     bannerSucessoUrl: '',
     exibirConfetes: true,
+    animacaoSucesso: 'explosao_confetes',
     exibirNumeros: true,
     exibirBotaoCopiar: true,
     exibirBotaoWhatsapp: true,
@@ -91,6 +93,7 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
   const [previewTab, setPreviewTab] = useState<'pix' | 'cartao' | 'boleto'>('pix');
   const [previewScreen, setPreviewScreen] = useState<'checkout' | 'sucesso'>('checkout');
   const [previewDevice, setPreviewDevice] = useState<'mobile' | 'desktop'>('mobile');
+  const [modalAnimacaoAberto, setModalAnimacaoAberto] = useState(false);
 
   useEffect(() => { carregarCheckouts(); }, []);
 
@@ -406,6 +409,48 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
                   />
                   <span className="text-xs text-slate-200 font-medium">Exigir E-mail do comprador para confirmação</span>
                 </label>
+
+                <div className="p-3 bg-slate-950/60 border border-slate-800 rounded-xl space-y-2">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={checkoutConfig.coletaDados?.coletarEndereco?.ativo || false}
+                      onChange={e => upd({
+                        coletaDados: {
+                          ...(checkoutConfig.coletaDados || {}),
+                          coletarEndereco: {
+                            ...(checkoutConfig.coletaDados?.coletarEndereco || {}),
+                            ativo: e.target.checked
+                          }
+                        }
+                      })}
+                      className="w-4 h-4 rounded text-emerald-500 bg-slate-900 border-slate-700 cursor-pointer"
+                    />
+                    <div>
+                      <span className="text-xs text-slate-200 font-medium block">Coletar Endereço Completo do Comprador</span>
+                      <span className="text-[11px] text-slate-400 block">Exibe campos de CEP, Logradouro, Número, Bairro, Cidade e UF no checkout</span>
+                    </div>
+                  </label>
+                  {checkoutConfig.coletaDados?.coletarEndereco?.ativo && (
+                    <label className="flex items-center gap-3 pl-7 pt-1.5 cursor-pointer border-t border-slate-800/60 mt-2">
+                      <input
+                        type="checkbox"
+                        checked={checkoutConfig.coletaDados?.coletarEndereco?.obrigatorio || false}
+                        onChange={e => upd({
+                          coletaDados: {
+                            ...(checkoutConfig.coletaDados || {}),
+                            coletarEndereco: {
+                              ...(checkoutConfig.coletaDados?.coletarEndereco || {}),
+                              obrigatorio: e.target.checked
+                            }
+                          }
+                        })}
+                        className="w-4 h-4 rounded text-amber-500 bg-slate-900 border-slate-700 cursor-pointer"
+                      />
+                      <span className="text-xs text-amber-400 font-medium">Tornar preenchimento do endereço OBRIGATÓRIO</span>
+                    </label>
+                  )}
+                </div>
               </div>
             </div>
             {/* 5. Temporizador */}
@@ -665,19 +710,51 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
                 />
               </div>
 
+              {/* Opção Escolher Animação da Tela de Sucesso */}
+              <div className="p-3 bg-slate-950/80 border border-slate-800 rounded-xl space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-white flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-yellow-400" /> Animação da Tela de Sucesso
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => dispararExplosaoConfetes()}
+                    className="text-[10px] bg-purple-500/20 hover:bg-purple-500/40 text-purple-300 font-black border border-purple-500/40 px-2.5 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
+                  >
+                    <Zap className="w-3 h-3 text-purple-400" /> ⚡ Testar Efeito
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 p-2 bg-slate-900 border border-slate-700/80 rounded-xl flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <PartyPopper className="w-4 h-4 text-purple-400" />
+                      <div>
+                        <span className="text-xs font-bold text-white block">
+                          {conf.animacaoSucesso === 'nenhuma' || conf.exibirConfetes === false
+                            ? 'Nenhuma Animação'
+                            : '🎉 Explosão de Confetes'}
+                        </span>
+                        <span className="text-[10px] text-slate-400 block">
+                          {conf.animacaoSucesso === 'nenhuma' || conf.exibirConfetes === false
+                            ? 'Sem efeito visual ao concluir'
+                            : 'Explosão lateral com 2 canhões'}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setModalAnimacaoAberto(true)}
+                      className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg text-xs transition shadow-sm cursor-pointer"
+                    >
+                      Escolher Animação
+                    </button>
+                  </div>
+                </div>
+              </div>
+
               {/* Toggles da Tela de Sucesso */}
               <div className="space-y-2 pt-1">
-                <label className="flex items-center justify-between p-2.5 bg-slate-950/60 border border-slate-800 rounded-xl cursor-pointer">
-                  <span className="text-xs text-slate-300 font-bold flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-yellow-400" /> Disparar Animação de Confetes
-                  </span>
-                  <input
-                    type="checkbox"
-                    checked={conf.exibirConfetes !== false}
-                    onChange={e => updConfirmacao({ exibirConfetes: e.target.checked })}
-                    className="w-4 h-4 accent-emerald-500"
-                  />
-                </label>
 
                 <label className="flex items-center justify-between p-2.5 bg-slate-950/60 border border-slate-800 rounded-xl cursor-pointer">
                   <span className="text-xs text-slate-300 font-bold flex items-center gap-1.5">
@@ -1076,6 +1153,116 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
                 )}
               </div>
               <p className="text-center text-[10px] text-slate-500">Preview dinâmico — alterne entre as abas acima para testar o visual</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Escolher Animação */}
+      {modalAnimacaoAberto && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
+          <div className="relative w-full max-w-lg bg-slate-900 border border-slate-700/80 rounded-2xl p-6 shadow-2xl text-white space-y-5">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <PartyPopper className="w-5 h-5 text-purple-400" />
+                <h3 className="text-base font-bold">Escolher Animação</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalAnimacaoAberto(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-300">
+              Selecione o estilo de comemoração visual exibido na tela de compra concluída e nas cotas premiadas:
+            </p>
+
+            <div className="space-y-3">
+              {/* Opção 1: Explosão de Confetes */}
+              <div
+                className={`p-4 rounded-xl border transition-all cursor-pointer ${
+                  conf.animacaoSucesso !== 'nenhuma' && conf.exibirConfetes !== false
+                    ? 'bg-purple-950/40 border-purple-500 ring-1 ring-purple-500/50'
+                    : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
+                }`}
+                onClick={() => {
+                  updConfirmacao({ animacaoSucesso: 'explosao_confetes', exibirConfetes: true });
+                }}
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex gap-3">
+                    <span className="text-2xl">🎉</span>
+                    <div>
+                      <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                        Explosão de Confetes
+                        <span className="text-[10px] bg-purple-500/20 text-purple-300 font-bold px-2 py-0.5 rounded-full border border-purple-500/30">
+                          Recomendado
+                        </span>
+                      </h4>
+                      <p className="text-xs text-slate-400 mt-1">
+                        Dispara dois canhões de confetes saindo das extremidades inferiores da tela, explodindo para cima e caindo em arco por todo canto.
+                      </p>
+                    </div>
+                  </div>
+                  {conf.animacaoSucesso !== 'nenhuma' && conf.exibirConfetes !== false && (
+                    <CheckCircle2 className="w-5 h-5 text-purple-400 shrink-0" />
+                  )}
+                </div>
+
+                <div className="mt-3 pt-3 border-t border-slate-800/80 flex items-center justify-between">
+                  <span className="text-[11px] text-slate-400 font-mono">Estilo: Explosão Lateral Dupla</span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      dispararExplosaoConfetes();
+                    }}
+                    className="px-3 py-1 bg-purple-500/20 hover:bg-purple-500/40 text-purple-300 font-bold rounded-lg text-xs flex items-center gap-1 border border-purple-500/30 transition cursor-pointer"
+                  >
+                    <Zap className="w-3.5 h-3.5 text-purple-400" /> ⚡ Testar Animação
+                  </button>
+                </div>
+              </div>
+
+              {/* Opção 2: Nenhuma Animação */}
+              <div
+                className={`p-4 rounded-xl border transition-all cursor-pointer ${
+                  conf.animacaoSucesso === 'nenhuma' || conf.exibirConfetes === false
+                    ? 'bg-purple-950/40 border-purple-500 ring-1 ring-purple-500/50'
+                    : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
+                }`}
+                onClick={() => {
+                  updConfirmacao({ animacaoSucesso: 'nenhuma', exibirConfetes: false });
+                }}
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex gap-3">
+                    <span className="text-2xl">🚫</span>
+                    <div>
+                      <h4 className="text-sm font-bold text-white">Nenhuma Animação</h4>
+                      <p className="text-xs text-slate-400 mt-1">
+                        Desativa efeitos visuais festivos na conclusão do pedido ou cotas premiadas.
+                      </p>
+                    </div>
+                  </div>
+                  {(conf.animacaoSucesso === 'nenhuma' || conf.exibirConfetes === false) && (
+                    <CheckCircle2 className="w-5 h-5 text-purple-400 shrink-0" />
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-2 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setModalAnimacaoAberto(false)}
+                className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition shadow-lg shadow-emerald-500/20 cursor-pointer"
+              >
+                Concluído
+              </button>
             </div>
           </div>
         </div>

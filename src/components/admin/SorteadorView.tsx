@@ -3,7 +3,7 @@ import {
   Trophy, Sparkles, RotateCw, CheckCircle2, AlertCircle, 
   Calendar, ShieldCheck, Share2, Copy, Download, Ticket, User, Gift, Phone, X
 } from 'lucide-react';
-import confetti from 'canvas-confetti';
+import { dispararExplosaoConfetes } from '../../utils/confettiUtils';
 import { Campanha, Pedido } from '../../types';
 
 interface Props {
@@ -121,11 +121,7 @@ export const SorteadorView: React.FC<Props> = ({ campanhas, pedidos, onApurarCam
           .then(res => {
             setResultadoFinal(res);
             setModalGanhadorOpen(true);
-            confetti({
-              particleCount: 180,
-              spread: 90,
-              origin: { y: 0.6 }
-            });
+            dispararExplosaoConfetes();
           })
           .catch(err => {
             setErro(err.message || 'Erro ao registrar apuração.');
@@ -188,11 +184,7 @@ export const SorteadorView: React.FC<Props> = ({ campanhas, pedidos, onApurarCam
       const res = await onApurarCampanha(campanhaAtual.id, numeroCalculado);
       setResultadoFinal(res);
       setModalGanhadorOpen(true);
-      confetti({
-        particleCount: 160,
-        spread: 80,
-        origin: { y: 0.6 }
-      });
+      dispararExplosaoConfetes();
     } catch (err: any) {
       setErro(err.message || 'Erro ao apurar com os números da Loteria Federal.');
     }

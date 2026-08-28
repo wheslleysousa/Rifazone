@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { CheckCircle2, Ticket, Sparkles, CreditCard, ArrowRight, Users, ExternalLink } from 'lucide-react';
-import confetti from 'canvas-confetti';
+import { dispararExplosaoConfetes } from '../utils/confettiUtils';
 import { formatarMoeda } from '../lib/money';
 import { ConfirmacaoCompraConfig } from '../types';
 
@@ -35,20 +35,11 @@ export const CartaoSuccessModal: React.FC<Props> = ({
   onVerMeusNumeros
 }) => {
   useEffect(() => {
-    if (confirmacaoConfig?.exibirConfetes === false) return;
+    if (confirmacaoConfig?.animacaoSucesso === 'nenhuma' || confirmacaoConfig?.exibirConfetes === false) return;
     try {
-      confetti({
-        particleCount: 90,
-        spread: 70,
-        origin: { y: 0.6 },
-        ticks: 200,
-        disableForReducedMotion: true
-      });
-      setTimeout(() => {
-        try { confetti.reset(); } catch (e) {}
-      }, 2500);
+      dispararExplosaoConfetes();
     } catch (e) {}
-  }, [confirmacaoConfig?.exibirConfetes]);
+  }, [confirmacaoConfig?.animacaoSucesso, confirmacaoConfig?.exibirConfetes]);
 
   return (
     <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto">

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { dispararExplosaoConfetes } from '../../utils/confettiUtils';
 
 interface Particle {
   id: number;
@@ -26,6 +27,10 @@ export const CelebrationPreview: React.FC<CelebrationPreviewProps> = ({ estilo, 
     if (!estilo) {
       setParticles([]);
       return;
+    }
+
+    if (estilo === 'confetes' || (estilo as string) === 'explosao_confetes') {
+      dispararExplosaoConfetes();
     }
 
     // Auto-close after 4 seconds

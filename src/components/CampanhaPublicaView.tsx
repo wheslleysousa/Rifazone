@@ -6,8 +6,10 @@ import {
   ChevronDown, ChevronUp, Plus, Minus, Gift, Info,
   Smartphone, Share2, Instagram, AlertTriangle, AlertCircle, Copy, CheckCircle2,
   User, CreditCard, QrCode, FileText, Lock, Shield, X, Music2, MessageCircle,
-  ChevronLeft, ChevronRight, Star, TrendingUp, Zap, Camera, Video, Layout
+  ChevronLeft, ChevronRight, Star, TrendingUp, Zap, Camera, Video, Layout, Eye, Calendar,
+  MapPin, Building, Home, Hash, Loader2
 } from 'lucide-react';
+import { validarCPF, formatarCPF } from '../utils/cpfValidation';
 import { UpsellModal } from './UpsellModal';
 import { PixPaymentModal } from './PixPaymentModal';
 import { BoletoPaymentModal } from './BoletoPaymentModal';
@@ -61,16 +63,58 @@ export const CampanhaPublicaView: React.FC<Props> = ({
   // Form Comprador Modal Checkout
   const [checkoutAberto, setCheckoutAberto] = useState(false);
   const [nome, setNome] = useState('');
+  const [nomeSocial, setNomeSocial] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
+  const [confirmarWhatsapp, setConfirmarWhatsapp] = useState('');
   const [cpf, setCpf] = useState('');
   const [email, setEmail] = useState('');
   const [instagramInput, setInstagramInput] = useState('');
   const [tiktokInput, setTiktokInput] = useState('');
   const [dataNascimento, setDataNascimento] = useState('');
   const [maiorIdade, setMaiorIdade] = useState(false);
+
+  // Endereço
+  const [cep, setCep] = useState('');
+  const [logradouro, setLogradouro] = useState('');
+  const [numero, setNumero] = useState('');
+  const [bairro, setBairro] = useState('');
+  const [uf, setUf] = useState('');
+  const [cidade, setCidade] = useState('');
+  const [complemento, setComplemento] = useState('');
+  const [carregandoCep, setCarregandoCep] = useState(false);
+  const [cepErro, setCepErro] = useState('');
+
   const [compradorSalvo, setCompradorSalvo] = useState<{ nome: string; whatsapp: string } | null>(null);
   const [formErro, setFormErro] = useState('');
   const [enviandoPedido, setEnviandoPedido] = useState(false);
+
+  const handleCepChange = async (val: string) => {
+    const raw = val.replace(/\D/g, '').slice(0, 8);
+    const formatted = raw.length > 5 ? `${raw.slice(0, 5)}-${raw.slice(5)}` : raw;
+    setCep(formatted);
+    setCepErro('');
+
+    if (raw.length === 8) {
+      setCarregandoCep(true);
+      try {
+        const res = await fetch(`https://viacep.com.br/ws/${raw}/json/`);
+        const dataJson = await res.json();
+        if (dataJson.erro) {
+          setCepErro('CEP não encontrado. Preencha o endereço manualmente.');
+        } else {
+          if (dataJson.logradouro) setLogradouro(dataJson.logradouro);
+          if (dataJson.bairro) setBairro(dataJson.bairro);
+          if (dataJson.localidade) setCidade(dataJson.localidade);
+          if (dataJson.uf) setUf(dataJson.uf.toUpperCase());
+          setCepErro('');
+        }
+      } catch (err) {
+        setCepErro('Erro ao buscar CEP. Preencha o endereço manualmente.');
+      } finally {
+        setCarregandoCep(false);
+      }
+    }
+  };
 
   // Checkout Transparente: Métodos de Pagamento & Cartão
   const [metodoPagamento, setMetodoPagamento] = useState<'pix' | 'cartao' | 'boleto'>('pix');
@@ -185,6 +229,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
   const [organizadorModalAberto, setOrganizadorModalAberto] = useState(false);
   const [campanhasOrganizador, setCampanhasOrganizador] = useState<Campanha[]>([]);
   const [carregandoOrganizador, setCarregandoOrganizador] = useState(false);
+  const [campanhaResultadoModal, setCampanhaResultadoModal] = useState<Campanha | null>(null);
 
   useEffect(() => {
     if (organizadorModalAberto) {
@@ -193,7 +238,26 @@ export const CampanhaPublicaView: React.FC<Props> = ({
         .then(res => res.json())
         .then(resData => {
           if (Array.isArray(resData)) {
-            setCampanhasOrganizador(resData.filter((c: Campanha) => c.status === 'publicada' || c.status === 'pausada'));
+            // Exclui campanhas com exclusão lógica (excluidaEm preenchido)
+            const validas = resData.filter((c: Campanha) => 
+              !c.excluidaEm && (c.status === 'publicada' || c.status === 'pausada' || c.status === 'encerrada')
+            );
+            
+            // Campanhas ativas primeiro (mais recentes no topo)
+            const ativas = validas
+              .filter(c => c.status === 'publicada' || c.status === 'pausada')
+              .sort((a, b) => new Date(b.criadaEm || 0).getTime() - new Date(a.criadaEm || 0).getTime());
+
+            // Campanhas encerradas depois (mais recentes no topo)
+            const encerradas = validas
+              .filter(c => c.status === 'encerrada')
+              .sort((a, b) => {
+                const dataA = new Date(a.encerradaEm || a.atualizadaEm || a.criadaEm || 0).getTime();
+                const dataB = new Date(b.encerradaEm || b.atualizadaEm || b.criadaEm || 0).getTime();
+                return dataB - dataA;
+              });
+
+            setCampanhasOrganizador([...ativas, ...encerradas]);
           }
         })
         .catch(err => console.error('Erro ao buscar campanhas do organizador:', err))
@@ -220,14 +284,34 @@ export const CampanhaPublicaView: React.FC<Props> = ({
       const savedPhone = localStorage.getItem('rifazone_comprador_whatsapp') || localStorage.getItem('rifapix_comprador_whatsapp');
       const savedCpf = localStorage.getItem('rifazone_comprador_cpf') || localStorage.getItem('rifapix_comprador_cpf');
       const savedEmail = localStorage.getItem('rifazone_comprador_email') || localStorage.getItem('rifapix_comprador_email');
+      const savedNomeSocial = localStorage.getItem('rifazone_comprador_nome_social');
+      const savedDataNasc = localStorage.getItem('rifazone_comprador_data_nascimento');
+      const savedCep = localStorage.getItem('rifazone_comprador_cep');
+      const savedLogradouro = localStorage.getItem('rifazone_comprador_logradouro');
+      const savedNumero = localStorage.getItem('rifazone_comprador_numero');
+      const savedBairro = localStorage.getItem('rifazone_comprador_bairro');
+      const savedUf = localStorage.getItem('rifazone_comprador_uf');
+      const savedCidade = localStorage.getItem('rifazone_comprador_cidade');
+      const savedComplemento = localStorage.getItem('rifazone_comprador_complemento');
 
       if (savedNome) setNome(savedNome);
       if (savedPhone) {
-        setWhatsapp(formatWhatsapp(savedPhone));
+        const formattedPhone = formatWhatsapp(savedPhone);
+        setWhatsapp(formattedPhone);
+        setConfirmarWhatsapp(formattedPhone);
         setCompradorSalvo({ nome: savedNome || 'Participante', whatsapp: savedPhone });
       }
       if (savedCpf) setCpf(savedCpf);
       if (savedEmail) setEmail(savedEmail);
+      if (savedNomeSocial) setNomeSocial(savedNomeSocial);
+      if (savedDataNasc) setDataNascimento(savedDataNasc);
+      if (savedCep) setCep(savedCep);
+      if (savedLogradouro) setLogradouro(savedLogradouro);
+      if (savedNumero) setNumero(savedNumero);
+      if (savedBairro) setBairro(savedBairro);
+      if (savedUf) setUf(savedUf);
+      if (savedCidade) setCidade(savedCidade);
+      if (savedComplemento) setComplemento(savedComplemento);
     } catch (e) {}
   }, []);
 
@@ -709,8 +793,20 @@ export const CampanhaPublicaView: React.FC<Props> = ({
     }
 
     const cleanWhatsapp = whatsapp.replace(/\D/g, '');
+    const cleanConfirmar = confirmarWhatsapp.replace(/\D/g, '');
+
+    if (!nome.trim() || nome.trim().split(' ').length < 2) {
+      setFormErro('Por favor, informe seu nome e sobrenome completos.');
+      return;
+    }
+
     if (cleanWhatsapp.length < 10) {
       setFormErro('Informe um WhatsApp válido com DDD.');
+      return;
+    }
+
+    if (cleanWhatsapp !== cleanConfirmar) {
+      setFormErro('Os números de WhatsApp informados não coincidem. Verifique a confirmação.');
       return;
     }
 
@@ -727,17 +823,51 @@ export const CampanhaPublicaView: React.FC<Props> = ({
       }
     }
 
-    // Validação de CPF
+    // Validação de CPF com dígitos verificadores
     const cleanCpf = cpf.replace(/\D/g, '');
-    if (((campanha.checkout?.coletaDados?.exigirCpf || campanha.exigirCpf) || metodoPagamento === 'boleto') && cleanCpf.length !== 11) {
-      setFormErro('Informe um CPF válido com 11 dígitos (obrigatório para emissão de boleto bancário).');
-      return;
+    const cpfExigido = (campanha.checkout?.coletaDados?.exigirCpf || campanha.exigirCpf) || campanha.modalidade === 'gratis' || metodoPagamento === 'boleto';
+    if (cpfExigido || cleanCpf.length > 0) {
+      if (cleanCpf.length !== 11 || !validarCPF(cleanCpf)) {
+        setFormErro('Informe um CPF válido com 11 dígitos e dígitos verificadores corretos.');
+        return;
+      }
     }
 
     // Validação de E-mail
-    if (((campanha.checkout?.coletaDados?.exigirEmail || campanha.exigirEmail) || metodoPagamento === 'cartao') && (!email || !email.includes('@'))) {
-      setFormErro('Informe um endereço de e-mail válido para confirmação do pagamento.');
-      return;
+    const emailExigido = (campanha.checkout?.coletaDados?.exigirEmail || campanha.exigirEmail) || campanha.modalidade === 'gratis' || metodoPagamento === 'cartao';
+    if (emailExigido || email.trim().length > 0) {
+      if (!email || !email.includes('@') || !email.includes('.')) {
+        setFormErro('Informe um endereço de e-mail válido para confirmação do pagamento.');
+        return;
+      }
+    }
+
+    // Validação de Endereço se ativado
+    const coletarEnderecoAtivo = !!(campanha.coletarEndereco?.ativo || campanha.checkout?.coletaDados?.coletarEndereco?.ativo);
+    const coletarEnderecoObrigatorio = !!(campanha.coletarEndereco?.obrigatorio || campanha.checkout?.coletaDados?.coletarEndereco?.obrigatorio);
+
+    if (coletarEnderecoAtivo && coletarEnderecoObrigatorio) {
+      const cleanCep = cep.replace(/\D/g, '');
+      if (cleanCep.length < 8) {
+        setFormErro('Informe um CEP válido com 8 dígitos.');
+        return;
+      }
+      if (!logradouro.trim()) {
+        setFormErro('Informe o logradouro (rua/avenida).');
+        return;
+      }
+      if (!numero.trim()) {
+        setFormErro('Informe o número do endereço.');
+        return;
+      }
+      if (!bairro.trim()) {
+        setFormErro('Informe o bairro.');
+        return;
+      }
+      if (!cidade.trim() || !uf.trim()) {
+        setFormErro('Informe a cidade e UF.');
+        return;
+      }
     }
 
     // Validação específica de Cartão de Crédito
@@ -766,8 +896,8 @@ export const CampanhaPublicaView: React.FC<Props> = ({
         return;
       }
       const cpfCartaoLimpo = (cartaoCpf || cpf).replace(/\D/g, '');
-      if (cpfCartaoLimpo.length !== 11) {
-        setFormErro('Informe o CPF do titular do cartão (11 dígitos).');
+      if (cpfCartaoLimpo.length !== 11 || !validarCPF(cpfCartaoLimpo)) {
+        setFormErro('Informe o CPF válido do titular do cartão (11 dígitos).');
         return;
       }
     }
@@ -794,10 +924,19 @@ export const CampanhaPublicaView: React.FC<Props> = ({
           comprador: {
             nome: nome.trim(),
             whatsapp: cleanWhatsapp,
-            cpf: cpf.trim() || cartaoCpf.trim() || undefined,
+            cpf: cleanCpf || cartaoCpf.replace(/\D/g, '') || undefined,
             email: email.trim() || undefined,
             instagram: instagramInput.trim() || undefined,
-            tiktok: tiktokInput.trim() || undefined
+            tiktok: tiktokInput.trim() || undefined,
+            nomeSocial: nomeSocial.trim() || undefined,
+            dataNascimento: dataNascimento.trim() || undefined,
+            cep: cep.trim() || undefined,
+            logradouro: logradouro.trim() || undefined,
+            numero: numero.trim() || undefined,
+            bairro: bairro.trim() || undefined,
+            uf: uf.trim() || undefined,
+            cidade: cidade.trim() || undefined,
+            complemento: complemento.trim() || undefined
           },
           ofertaRelampagoId: ofertaSelecionada ? (ofertaSelecionada.id || 'oferta-1') : undefined,
           metodoPagamento,
@@ -822,8 +961,17 @@ export const CampanhaPublicaView: React.FC<Props> = ({
       try {
         localStorage.setItem('rifazone_comprador_nome', nome.trim());
         localStorage.setItem('rifazone_comprador_whatsapp', cleanWhatsapp);
+        if (nomeSocial) localStorage.setItem('rifazone_comprador_nome_social', nomeSocial.trim());
         if (cpf) localStorage.setItem('rifazone_comprador_cpf', cpf.trim());
         if (email) localStorage.setItem('rifazone_comprador_email', email.trim());
+        if (dataNascimento) localStorage.setItem('rifazone_comprador_data_nascimento', dataNascimento.trim());
+        if (cep) localStorage.setItem('rifazone_comprador_cep', cep.trim());
+        if (logradouro) localStorage.setItem('rifazone_comprador_logradouro', logradouro.trim());
+        if (numero) localStorage.setItem('rifazone_comprador_numero', numero.trim());
+        if (bairro) localStorage.setItem('rifazone_comprador_bairro', bairro.trim());
+        if (uf) localStorage.setItem('rifazone_comprador_uf', uf.trim());
+        if (cidade) localStorage.setItem('rifazone_comprador_cidade', cidade.trim());
+        if (complemento) localStorage.setItem('rifazone_comprador_complemento', complemento.trim());
         setCompradorSalvo({ nome: nome.trim(), whatsapp: cleanWhatsapp });
       } catch (e) {}
 
@@ -1122,32 +1270,69 @@ export const CampanhaPublicaView: React.FC<Props> = ({
       raioBorda: tema.botao?.raioBordaCards ?? 16,
     });
 
+    const cfg = tema.barraProgresso || {};
+    const pct = estatisticas.percentualVendido;
+    const textoBarra = (cfg.textoInterno ?? '{pct}% vendido').replace('{pct}', String(pct));
+    const tituloText = cfg.titulo !== undefined ? cfg.titulo : 'Progresso do sorteio';
+    const subtituloText = cfg.subtitulo;
+    const rodapeText = cfg.rodape;
+    const altura = cfg.altura ?? 16;
+    const raioBorda = cfg.raioBorda ?? 9999;
+    const larguraMax = cfg.larguraMax ?? '100%';
+
     return (
       <div 
-        className={`border rounded-2xl p-4 shadow-sm ${progCardStyle.className}`}
-        style={progCardStyle.style}
+        className={`border rounded-2xl p-4 shadow-sm mx-auto ${progCardStyle.className}`}
+        style={{ ...progCardStyle.style, maxWidth: larguraMax }}
       >
-        <div className="flex items-center justify-between text-xs mb-2">
-          <span className="opacity-60 font-medium">Progresso do sorteio</span>
-          <span className="font-extrabold" style={{ color: 'var(--brand)' }}>
-            {estatisticas.percentualVendido}% vendido
-          </span>
-        </div>
-        <div className="w-full h-3 rounded-full overflow-hidden p-0.5 border border-slate-700/50" style={{ backgroundColor: tema.cores.barraProgressoFundo }}>
+        {(tituloText || subtituloText || textoBarra) && (
+          <div className="mb-2 space-y-0.5">
+            <div className="flex items-center justify-between text-xs">
+              {tituloText ? <span className="font-bold text-white opacity-90">{tituloText}</span> : <span />}
+              {textoBarra && (
+                <span className="font-extrabold text-xs ml-auto" style={{ color: tema.cores.barraProgressoPreenchimento || 'var(--brand)' }}>
+                  {textoBarra}
+                </span>
+              )}
+            </div>
+            {subtituloText && (
+              <p className="text-[11px] opacity-70" style={{ color: tema.cores.descricoes }}>
+                {subtituloText}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Barra de progresso */}
+        <div 
+          className="w-full overflow-hidden p-0.5 border border-slate-700/50 relative flex items-center" 
+          style={{ 
+            height: `${altura}px`, 
+            borderRadius: `${raioBorda}px`, 
+            backgroundColor: tema.cores.barraProgressoFundo || '#1e293b' 
+          }}
+        >
           <div
-            className="h-full rounded-full transition-all duration-500 shadow-sm"
+            className="h-full transition-all duration-500 shadow-sm"
             style={{
-              width: `${Math.min(100, Math.max(2, estatisticas.percentualVendido))}%`,
-              background: tema.cores.barraProgressoPreenchimento
+              width: `${Math.min(100, Math.max(2, pct))}%`,
+              borderRadius: `${Math.max(0, raioBorda - 2)}px`,
+              background: tema.cores.barraProgressoPreenchimento || '#10b981'
             }}
           />
         </div>
-        {(campanha.exibirQtdCotas ?? true) && (
+
+        {/* Rodapé customizado ou padrão */}
+        {rodapeText ? (
+          <div className="text-[11px] mt-2 text-center opacity-80" style={{ color: tema.cores.barraProgressoTexto }}>
+            {rodapeText.replace('{vendidas}', estatisticas.vendidas.toLocaleString('pt-BR')).replace('{disponiveis}', estatisticas.disponiveis.toLocaleString('pt-BR'))}
+          </div>
+        ) : (campanha.exibirQtdCotas ?? true) ? (
           <div className="flex justify-between text-[11px] mt-2 opacity-60">
             <span style={{ color: tema.cores.barraProgressoTexto }}>{estatisticas.vendidas.toLocaleString('pt-BR')} cotas vendidas</span>
             <span style={{ color: tema.cores.barraProgressoTexto }}>{estatisticas.disponiveis.toLocaleString('pt-BR')} disponíveis</span>
           </div>
-        )}
+        ) : null}
       </div>
     );
   };
@@ -1172,7 +1357,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
       >
         <div className="flex items-center justify-between">
           <h2 className="text-base font-black text-white">
-            Escolha a quantidade de cotas
+            {campanha.tituloSelecaoCotas || 'Selecione a quantidade de cotas'}
           </h2>
           <div className="text-right">
             <span className="text-[11px] text-slate-400 block">{campanha.modalidade === 'gratis' ? 'Inscrição' : 'Por apenas'}</span>
@@ -1215,16 +1400,24 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                     const regularTotal = Number((q * unitPrice).toFixed(2));
                     const promoVal = Number(p.valor);
                     const valorFinal = (promoVal > 0 && promoVal <= regularTotal) ? promoVal : regularTotal;
+                    
+                    let pct = p.descontoPct;
+                    if (pct === undefined && regularTotal > 0 && valorFinal > 0 && valorFinal < regularTotal) {
+                      pct = Math.round((1 - (valorFinal / regularTotal)) * 100);
+                    }
+
                     return {
                       quantidade: q,
                       valor: valorFinal,
-                      destaque: !!p.destaque
+                      destaque: !!p.destaque,
+                      descontoPct: pct && pct > 0 ? pct : undefined,
+                      rotulo: p.rotulo || (p.destaque ? 'Mais popular' : undefined)
                     };
                   })
                 : [
                     { quantidade: 10, valor: Number((10 * unitPrice).toFixed(2)), destaque: false },
                     { quantidade: 25, valor: Number((25 * unitPrice).toFixed(2)), destaque: false },
-                    { quantidade: 50, valor: Number((50 * unitPrice).toFixed(2)), destaque: true },
+                    { quantidade: 50, valor: Number((50 * unitPrice).toFixed(2)), destaque: true, rotulo: 'Mais popular' },
                     { quantidade: 100, valor: Number((100 * unitPrice).toFixed(2)), destaque: false },
                     { quantidade: 250, valor: Number((250 * unitPrice).toFixed(2)), destaque: false },
                     { quantidade: 500, valor: Number((500 * unitPrice).toFixed(2)), destaque: false }
@@ -1233,7 +1426,8 @@ export const CampanhaPublicaView: React.FC<Props> = ({
               return (
                 <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
                   {listaBotoes.map((item, idx: number) => {
-                    const isDestaque = item.destaque;
+                    const rotuloTexto = item.rotulo || (item.destaque ? 'Mais popular' : undefined);
+                    const isDestaque = item.destaque || !!item.rotulo;
                     const corFundoPacote = isDestaque ? (tema.cores.botaoDestaqueFundo || tema.cores.primaria) : tema.cores.botaoCotasFundo;
                     const corTextoPacote = isDestaque ? (tema.cores.botaoDestaqueTexto || '#022c22') : tema.cores.botaoCotasTexto;
                     const corNumeroPacote = isDestaque ? (tema.cores.botaoDestaqueTexto || '#022c22') : tema.cores.botaoCotasNumero;
@@ -1270,28 +1464,35 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                             corTexto: corTextoPacote,
                             raioBorda: tema.botao?.raioBordaPacotes ?? 12,
                           }).className
-                        } relative py-3 px-2 border text-center transition flex flex-col items-center justify-center gap-0.5 group active:scale-95 cursor-pointer`}
+                        } relative py-3 px-2 border text-center transition flex flex-col items-center justify-center gap-0.5 group active:scale-95 cursor-pointer min-h-[64px]`}
                       >
-                        {isDestaque && (
+                        {rotuloTexto && (
                           <span 
                             style={{
                               backgroundColor: corSeloPopularFundo,
                               color: corSeloPopularTexto,
                             }}
-                            className="absolute -top-2 left-1/2 -translate-x-1/2 px-1.5 py-0.5 font-black text-[8px] uppercase tracking-wider rounded shadow whitespace-nowrap"
+                            className="absolute -top-2 left-1/2 -translate-x-1/2 px-1.5 py-0.5 font-black text-[8px] uppercase tracking-wider rounded shadow whitespace-nowrap z-10"
                           >
-                            Mais Popular
+                            {rotuloTexto}
                           </span>
                         )}
                         <span className="block text-sm font-black group-hover:opacity-80 transition-opacity" style={{ color: corNumeroPacote }}>
                           +{item.quantidade}
                         </span>
-                        <span
-                          className="block text-[11px] font-extrabold"
-                          style={{ color: corTextoPacote }}
-                        >
-                          {formatarMoeda(item.valor)}
-                        </span>
+                        <div className="flex items-center gap-1 flex-wrap justify-center">
+                          <span
+                            className="block text-[11px] font-extrabold"
+                            style={{ color: corTextoPacote }}
+                          >
+                            {formatarMoeda(item.valor)}
+                          </span>
+                          {item.descontoPct !== undefined && (
+                            <span className="px-1 py-0.2 bg-emerald-500 text-slate-950 font-black text-[9px] rounded leading-none">
+                              -{item.descontoPct}%
+                            </span>
+                          )}
+                        </div>
                       </button>
                     );
                   })}
@@ -1477,19 +1678,25 @@ export const CampanhaPublicaView: React.FC<Props> = ({
           {campanha.cotasPremiadas.map((cp, idx) => {
             const isEncontrada = cp.status === 'encontrada';
             const bg = isEncontrada
-              ? ((tema.cores as any).cotaPremiadaAchadaFundo || 'rgba(30, 41, 59, 0.3)')
-              : ((tema.cores as any).cotaPremiadaLivreFundo || 'rgba(16, 185, 129, 0.1)');
+              ? ((tema.cores as any).premiadoGanhoFundo || (tema.cores as any).cotaPremiadaAchadaFundo || '#1e1b4b')
+              : ((tema.cores as any).premiadoDisponivelFundo || (tema.cores as any).cotaPremiadaLivreFundo || '#0f172a');
             const border = isEncontrada
-              ? ((tema.cores as any).cotaPremiadaAchadaBorda || 'rgba(30, 41, 59, 0.5)')
-              : ((tema.cores as any).cotaPremiadaLivreBorda || 'rgba(16, 185, 129, 0.3)');
+              ? ((tema.cores as any).premiadoGanhoBorda || (tema.cores as any).cotaPremiadaAchadaBorda || '#334155')
+              : ((tema.cores as any).premiadoDisponivelBorda || (tema.cores as any).cotaPremiadaLivreBorda || '#1e293b');
             const textNum = isEncontrada
-              ? ((tema.cores as any).cotaPremiadaAchadaTexto || '#94a3b8')
-              : ((tema.cores as any).cotaPremiadaLivreTexto || tema.cores.primaria);
+              ? ((tema.cores as any).premiadoGanhoTexto || (tema.cores as any).cotaPremiadaAchadaTexto || '#94a3b8')
+              : ((tema.cores as any).premiadoDisponivelTexto || (tema.cores as any).cotaPremiadaLivreTexto || '#ffffff');
+            const badgeBg = isEncontrada
+              ? ((tema.cores as any).premiadoGanhoBadgeFundo || '#f59e0b')
+              : ((tema.cores as any).premiadoDisponivelBadgeFundo || '#10b981');
+            const badgeText = isEncontrada
+              ? ((tema.cores as any).premiadoGanhoBadgeTexto || '#022c22')
+              : ((tema.cores as any).premiadoDisponivelBadgeTexto || '#022c22');
 
             return (
               <div
                 key={idx}
-                className={`p-3 rounded-xl border text-xs ${isEncontrada ? 'opacity-60' : ''}`}
+                className={`p-3 rounded-xl border text-xs transition-all ${isEncontrada ? 'opacity-75' : ''}`}
                 style={{ backgroundColor: bg, borderColor: border }}
               >
                 <div className="flex items-center justify-between mb-1">
@@ -1502,14 +1709,14 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                   <span 
                     className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded"
                     style={{ 
-                      backgroundColor: isEncontrada ? 'rgba(30, 41, 59, 0.6)' : 'rgba(16, 185, 129, 0.2)',
-                      color: isEncontrada ? '#94a3b8' : '#6ee7b7'
+                      backgroundColor: badgeBg,
+                      color: badgeText
                     }}
                   >
                     {isEncontrada ? 'Ganha' : 'Disponível'}
                   </span>
                 </div>
-                <span className="block font-medium text-[11px] truncate opacity-80" style={{ color: tema.cores.texto }}>
+                <span className="block font-medium text-[11px] truncate opacity-80" style={{ color: textNum }}>
                   {cp.premio}
                 </span>
               </div>
@@ -1581,10 +1788,19 @@ export const CampanhaPublicaView: React.FC<Props> = ({
     );
   };
 
-  // 7. Seção Regulamento & Informações
-  const RegulamentoSection = ({ campanha, tema, descricaoAberta, setDescricaoAberta }: { campanha: Campanha; tema: TemaCampanha; descricaoAberta: boolean; setDescricaoAberta: any }) => {
-    const SectionIcon = getSectionIcon(tema.secaoIcones?.regulamento || 'Info');
-    const iconeCor = (tema.cores as any)?.iconeRegulamento || tema.cores?.iconeCor || '#10b981';
+  // 7. Seção Regulamento & Informações (Acordeão Expansível)
+  const RegulamentoSection = ({ campanha, tema }: { campanha: Campanha; tema: TemaCampanha }) => {
+    const [descAberta, setDescAberta] = useState(false);
+    const [regAberto, setRegAberto] = useState(false);
+
+    const temDesc = Boolean(campanha.descricao && campanha.descricao.trim());
+    const regTexto = (campanha as any).regulamento || (campanha as any).regras;
+    const temReg = Boolean(regTexto && regTexto.trim() && regTexto !== campanha.descricao);
+
+    const SectionIconDesc = getSectionIcon(tema.secaoIcones?.descricao || 'Info');
+    const SectionIconReg = getSectionIcon(tema.secaoIcones?.regulamento || 'FileText');
+    const iconeCorReg = (tema.cores as any)?.iconeRegulamento || tema.cores?.iconeCor || '#10b981';
+
     const cardStyle = calcularEstiloCard({
       estilo: tema.botao?.estiloCards,
       corFundo: (tema.cores as any).cardRegulamentoFundo || tema.cores.cardFundo,
@@ -1593,25 +1809,62 @@ export const CampanhaPublicaView: React.FC<Props> = ({
     });
     const regTextoCor = (tema.cores as any).cardRegulamentoTexto || tema.cores.descricoes || '#cbd5e1';
 
-    return (
-      <div className={`border rounded-2xl p-5 shadow-sm ${cardStyle.className}`} style={cardStyle.style}>
-        <button
-          onClick={() => setDescricaoAberta(!descricaoAberta)}
-          className="w-full flex items-center justify-between text-left"
-        >
-          <span className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 opacity-80">
-            <SectionIcon className="w-4 h-4" style={{ color: iconeCor }} />
-            Regulamento & Informações
-          </span>
-          {descricaoAberta ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-        </button>
+    if (!temDesc && !temReg) return null;
 
-        {descricaoAberta && (
-          <div
-            className="mt-4 pt-4 border-t border-slate-800 text-xs leading-relaxed space-y-2"
-            style={{ color: regTextoCor }}
-            dangerouslySetInnerHTML={{ __html: campanha.descricao }}
-          />
+    return (
+      <div className="space-y-3">
+        {temDesc && (
+          <div className={`border rounded-2xl p-4 sm:p-5 shadow-sm transition-all ${cardStyle.className}`} style={cardStyle.style}>
+            <button
+              type="button"
+              onClick={() => setDescAberta(!descAberta)}
+              aria-expanded={descAberta}
+              className="w-full flex items-center justify-between text-left focus:outline-none group cursor-pointer"
+            >
+              <span className="text-xs font-bold uppercase tracking-wider flex items-center gap-2 opacity-90 group-hover:opacity-100 transition-opacity">
+                <SectionIconDesc className="w-4 h-4 shrink-0" style={{ color: iconeCorReg }} />
+                <span>{temReg ? 'Descrição da Campanha' : 'Descrição & Regulamento'}</span>
+              </span>
+              <div className="p-1 rounded-lg bg-slate-800/40 text-slate-400 group-hover:text-white transition">
+                {descAberta ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </div>
+            </button>
+
+            {descAberta && (
+              <div
+                className="mt-3 pt-3 border-t border-slate-800/80 text-xs leading-relaxed space-y-2 animate-in fade-in duration-200"
+                style={{ color: regTextoCor }}
+                dangerouslySetInnerHTML={{ __html: campanha.descricao }}
+              />
+            )}
+          </div>
+        )}
+
+        {temReg && (
+          <div className={`border rounded-2xl p-4 sm:p-5 shadow-sm transition-all ${cardStyle.className}`} style={cardStyle.style}>
+            <button
+              type="button"
+              onClick={() => setRegAberto(!regAberto)}
+              aria-expanded={regAberto}
+              className="w-full flex items-center justify-between text-left focus:outline-none group cursor-pointer"
+            >
+              <span className="text-xs font-bold uppercase tracking-wider flex items-center gap-2 opacity-90 group-hover:opacity-100 transition-opacity">
+                <SectionIconReg className="w-4 h-4 shrink-0" style={{ color: iconeCorReg }} />
+                <span>Regulamento & Regras</span>
+              </span>
+              <div className="p-1 rounded-lg bg-slate-800/40 text-slate-400 group-hover:text-white transition">
+                {regAberto ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </div>
+            </button>
+
+            {regAberto && (
+              <div
+                className="mt-3 pt-3 border-t border-slate-800/80 text-xs leading-relaxed space-y-2 animate-in fade-in duration-200"
+                style={{ color: regTextoCor }}
+                dangerouslySetInnerHTML={{ __html: regTexto }}
+              />
+            )}
+          </div>
         )}
       </div>
     );
@@ -1700,7 +1953,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
         return <RankingSection ranking={ranking} tema={tema} />;
       case 'regulamento':
       case 'descricao':
-        return <RegulamentoSection campanha={campanha} tema={tema} descricaoAberta={descricaoAberta} setDescricaoAberta={setDescricaoAberta} />;
+        return <RegulamentoSection campanha={campanha} tema={tema} />;
       case 'ganhadores':
         return <GanhadoresSection campanha={campanha} tema={tema} />;
       default:
@@ -1757,25 +2010,27 @@ export const CampanhaPublicaView: React.FC<Props> = ({
       {/* Top Navbar com Menu Lateral */}
       <header className="sticky top-0 z-40 bg-slate-950/95 backdrop-blur-md border-b border-slate-800">
         <div className="max-w-xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          <div className={`flex items-center gap-2 ${campanha.exibirCabecalhoTipo === 'logo' && campanha.cabecalhoLogoLarguraTotal ? 'flex-1 max-w-full justify-center overflow-hidden px-1' : 'min-w-0'}`}>
             <button
               type="button"
               onClick={() => setOrganizadorModalAberto(true)}
-              className="flex items-center gap-2.5 text-left hover:opacity-90 transition cursor-pointer group"
+              className={`flex items-center gap-2.5 text-left hover:opacity-90 transition cursor-pointer group ${campanha.exibirCabecalhoTipo === 'logo' && campanha.cabecalhoLogoLarguraTotal ? 'w-full justify-center' : 'min-w-0'}`}
             >
-              {campanha.organizadorFoto ? (
-                <img
-                  src={campanha.organizadorFoto}
-                  alt={campanha.organizadorNome || 'Organizador'}
-                  className="w-9 h-9 rounded-full object-cover border border-[var(--brand)]/50 shadow-md group-hover:scale-105 transition-transform"
-                />
-              ) : (
-                <div
-                  className="w-9 h-9 rounded-full flex items-center justify-center font-black text-base shadow-md group-hover:scale-105 transition-transform"
-                  style={{ backgroundColor: 'var(--brand)', color: 'var(--btn-txt)' }}
-                >
-                  {(campanha.organizadorNome || 'Rifa')[0].toUpperCase()}
-                </div>
+              {(!campanha.cabecalhoLogoLarguraTotal || campanha.exibirCabecalhoTipo !== 'logo') && (
+                campanha.organizadorFoto ? (
+                  <img
+                    src={campanha.organizadorFoto}
+                    alt={campanha.organizadorNome || 'Organizador'}
+                    className="w-9 h-9 rounded-full object-cover border border-[var(--brand)]/50 shadow-md group-hover:scale-105 transition-transform shrink-0"
+                  />
+                ) : (
+                  <div
+                    className="w-9 h-9 rounded-full flex items-center justify-center font-black text-base shadow-md group-hover:scale-105 transition-transform shrink-0"
+                    style={{ backgroundColor: 'var(--brand)', color: 'var(--btn-txt)' }}
+                  >
+                    {(campanha.organizadorNome || 'Rifa')[0].toUpperCase()}
+                  </div>
+                )
               )}
 
               {/* Conteúdo ao lado da foto: Nome ou Logo */}
@@ -1783,10 +2038,12 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                 <img 
                   src={campanha.cabecalhoLogoUrl || marca?.logoUrl || ''} 
                   alt="Logo" 
-                  className="object-contain transition" 
+                  className={`object-contain transition cursor-pointer ${campanha.cabecalhoLogoLarguraTotal ? 'w-full max-w-full mx-auto' : 'max-w-[200px] sm:max-w-[280px]'}`} 
                   style={{ 
-                    width: `${campanha.cabecalhoLogoTamanho || 40}px`, 
-                    height: `${campanha.cabecalhoLogoTamanho || 40}px` 
+                    height: `${campanha.cabecalhoLogoTamanho || 40}px`, 
+                    maxHeight: '56px',
+                    maxWidth: '100%',
+                    objectFit: 'contain'
                   }}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -2331,57 +2588,112 @@ export const CampanhaPublicaView: React.FC<Props> = ({
               
               {/* DADOS PESSOAIS DO COMPRADOR */}
               <div className="space-y-3">
-                <div>
-                  <label className="text-xs font-semibold text-slate-300 block mb-1">
-                    Nome completo *
-                  </label>
-                  <input
-                    id="input-nome-comprador"
-                    type="text"
-                    placeholder="Ex: João da Silva"
-                    value={nome}
-                    onChange={e => setNome(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-[var(--brand)] focus:outline-none"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-slate-300 block mb-1">
-                    WhatsApp com DDD (para receber os números) *
-                  </label>
-                  <input
-                    id="input-whatsapp-comprador"
-                    type="tel"
-                    placeholder="(11) 99999-9999"
-                    value={whatsapp}
-                    onChange={e => setWhatsapp(formatWhatsapp(e.target.value))}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-mono text-white focus:border-[var(--brand)] focus:outline-none"
-                    required
-                  />
-                </div>
-
-                {((campanha.checkout?.coletaDados?.exigirCpf || campanha.exigirCpf) || campanha.modalidade === 'gratis' || metodoPagamento === 'boleto') && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs font-semibold text-slate-300 block mb-1">
-                      CPF * {campanha.modalidade === 'gratis' ? <span className="text-purple-400 font-normal text-[11px]">(1 cota por CPF)</span> : metodoPagamento === 'boleto' && <span className="text-amber-400 font-normal text-[11px]">(obrigatório para boleto)</span>}
+                      Nome completo *
                     </label>
+                    <input
+                      id="input-nome-comprador"
+                      type="text"
+                      placeholder="Ex: João da Silva"
+                      value={nome}
+                      onChange={e => setNome(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-[var(--brand)] focus:outline-none"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-slate-300 block mb-1">
+                      Nome social <span className="text-slate-500 font-normal">(opcional)</span>
+                    </label>
+                    <input
+                      id="input-nome-social-comprador"
+                      type="text"
+                      placeholder="Como prefere ser chamado"
+                      value={nomeSocial}
+                      onChange={e => setNomeSocial(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-[var(--brand)] focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-300 block mb-1">
+                      WhatsApp com DDD *
+                    </label>
+                    <input
+                      id="input-whatsapp-comprador"
+                      type="tel"
+                      placeholder="(11) 99999-9999"
+                      value={whatsapp}
+                      onChange={e => setWhatsapp(formatWhatsapp(e.target.value))}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-mono text-white focus:border-[var(--brand)] focus:outline-none"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-semibold text-slate-300 block">
+                        Confirmar WhatsApp *
+                      </label>
+                      {confirmarWhatsapp && whatsapp && (
+                        <span className={`text-[10px] font-bold ${
+                          whatsapp.replace(/\D/g, '') === confirmarWhatsapp.replace(/\D/g, '')
+                            ? 'text-emerald-400'
+                            : 'text-rose-400'
+                        }`}>
+                          {whatsapp.replace(/\D/g, '') === confirmarWhatsapp.replace(/\D/g, '') ? '✓ Coincidem' : '✗ Diferentes'}
+                        </span>
+                      )}
+                    </div>
+                    <input
+                      id="input-confirmar-whatsapp-comprador"
+                      type="tel"
+                      placeholder="Repita seu WhatsApp"
+                      value={confirmarWhatsapp}
+                      onChange={e => setConfirmarWhatsapp(formatWhatsapp(e.target.value))}
+                      className={`w-full bg-slate-950 border rounded-xl px-3.5 py-2.5 text-sm font-mono text-white focus:outline-none ${
+                        confirmarWhatsapp && whatsapp.replace(/\D/g, '') !== confirmarWhatsapp.replace(/\D/g, '')
+                          ? 'border-rose-500/80 focus:border-rose-500'
+                          : 'border-slate-700 focus:border-[var(--brand)]'
+                      }`}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-semibold text-slate-300 block">
+                        CPF * {campanha.modalidade === 'gratis' ? <span className="text-purple-400 font-normal text-[10px]">(1/CPF)</span> : metodoPagamento === 'boleto' && <span className="text-amber-400 font-normal text-[10px]">(boleto)</span>}
+                      </label>
+                      {cpf && cpf.replace(/\D/g, '').length === 11 && (
+                        <span className={`text-[10px] font-bold ${
+                          validarCPF(cpf) ? 'text-emerald-400' : 'text-rose-400'
+                        }`}>
+                          {validarCPF(cpf) ? '✓ Válido' : '✗ Inválido'}
+                        </span>
+                      )}
+                    </div>
                     <input
                       id="input-cpf-comprador"
                       type="text"
                       placeholder="000.000.000-00"
                       value={cpf}
-                      onChange={e => setCpf(e.target.value)}
+                      onChange={e => setCpf(formatarCPF(e.target.value))}
                       className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-mono text-white focus:border-[var(--brand)] focus:outline-none"
-                      required
+                      required={!!((campanha.checkout?.coletaDados?.exigirCpf || campanha.exigirCpf) || campanha.modalidade === 'gratis' || metodoPagamento === 'boleto')}
                     />
                   </div>
-                )}
 
-                {((campanha.checkout?.coletaDados?.exigirEmail || campanha.exigirEmail) || campanha.modalidade === 'gratis' || metodoPagamento === 'cartao') && (
                   <div>
                     <label className="text-xs font-semibold text-slate-300 block mb-1">
-                      E-mail * {metodoPagamento === 'cartao' && <span className="text-blue-400 font-normal text-[11px]">(para comprovante do cartão)</span>}
+                      E-mail {((campanha.checkout?.coletaDados?.exigirEmail || campanha.exigirEmail) || campanha.modalidade === 'gratis' || metodoPagamento === 'cartao') ? '*' : <span className="text-slate-500 font-normal">(opcional)</span>}
                     </label>
                     <input
                       id="input-email-comprador"
@@ -2390,10 +2702,10 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                       value={email}
                       onChange={e => setEmail(e.target.value)}
                       className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-[var(--brand)] focus:outline-none"
-                      required
+                      required={!!((campanha.checkout?.coletaDados?.exigirEmail || campanha.exigirEmail) || campanha.modalidade === 'gratis' || metodoPagamento === 'cartao')}
                     />
                   </div>
-                )}
+                </div>
 
                 {/* REDES SOCIAIS DO COMPRADOR (@usuário) */}
                 {campanha.coletarRedesSociais?.ativo && (
@@ -2439,7 +2751,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                   </div>
                 )}
 
-                {/* Data de Nascimento para Cálculo Automático de Idade (Sem calendário nativo, digitação direta 01062004) */}
+                {/* Data de Nascimento para Cálculo Automático de Idade */}
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-xs font-semibold text-slate-300 block">
@@ -2469,6 +2781,114 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                     required
                   />
                 </div>
+
+                {/* ENDEREÇO DO COMPRADOR (ViaCEP Auto-fill) */}
+                {(campanha.coletarEndereco?.ativo || campanha.checkout?.coletaDados?.coletarEndereco?.ativo) && (
+                  <div className="p-3.5 bg-slate-950/70 border border-slate-800 rounded-2xl space-y-3 mt-2">
+                    <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                      <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                        <MapPin className="w-3.5 h-3.5 text-amber-400" />
+                        Endereço Residencial {(campanha.coletarEndereco?.obrigatorio || campanha.checkout?.coletaDados?.coletarEndereco?.obrigatorio) ? '*' : <span className="text-slate-500 font-normal text-[11px]">(opcional)</span>}
+                      </span>
+                      {carregandoCep && (
+                        <span className="text-[11px] text-amber-400 flex items-center gap-1 animate-pulse">
+                          <Loader2 className="w-3 h-3 animate-spin" /> Buscando CEP...
+                        </span>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-semibold text-slate-300 block mb-1">
+                        CEP <span className="text-slate-400 font-normal text-[11px]">(preenche rua, bairro e cidade)</span>
+                      </label>
+                      <input
+                        id="input-cep-comprador"
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="00000-000"
+                        maxLength={9}
+                        value={cep}
+                        onChange={e => handleCepChange(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-mono text-white focus:border-amber-400 focus:outline-none"
+                        required={!!(campanha.coletarEndereco?.obrigatorio || campanha.checkout?.coletaDados?.coletarEndereco?.obrigatorio)}
+                      />
+                      {cepErro && <p className="text-[11px] text-rose-400 mt-1">{cepErro}</p>}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="sm:col-span-2">
+                        <label className="text-xs font-semibold text-slate-300 block mb-1">Logradouro / Rua</label>
+                        <input
+                          type="text"
+                          placeholder="Rua, Avenida, Alameda..."
+                          value={logradouro}
+                          onChange={e => setLogradouro(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-amber-400 focus:outline-none"
+                          required={!!(campanha.coletarEndereco?.obrigatorio || campanha.checkout?.coletaDados?.coletarEndereco?.obrigatorio)}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-slate-300 block mb-1">Número</label>
+                        <input
+                          type="text"
+                          placeholder="123"
+                          value={numero}
+                          onChange={e => setNumero(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-mono text-white focus:border-amber-400 focus:outline-none"
+                          required={!!(campanha.coletarEndereco?.obrigatorio || campanha.checkout?.coletaDados?.coletarEndereco?.obrigatorio)}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="text-xs font-semibold text-slate-300 block mb-1">Bairro</label>
+                        <input
+                          type="text"
+                          placeholder="Bairro"
+                          value={bairro}
+                          onChange={e => setBairro(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-amber-400 focus:outline-none"
+                          required={!!(campanha.coletarEndereco?.obrigatorio || campanha.checkout?.coletaDados?.coletarEndereco?.obrigatorio)}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-slate-300 block mb-1">Cidade</label>
+                        <input
+                          type="text"
+                          placeholder="Cidade"
+                          value={cidade}
+                          onChange={e => setCidade(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-amber-400 focus:outline-none"
+                          required={!!(campanha.coletarEndereco?.obrigatorio || campanha.checkout?.coletaDados?.coletarEndereco?.obrigatorio)}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-slate-300 block mb-1">UF</label>
+                        <input
+                          type="text"
+                          maxLength={2}
+                          placeholder="SP"
+                          value={uf}
+                          onChange={e => setUf(e.target.value.toUpperCase())}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-mono text-white uppercase focus:border-amber-400 focus:outline-none text-center"
+                          required={!!(campanha.coletarEndereco?.obrigatorio || campanha.checkout?.coletaDados?.coletarEndereco?.obrigatorio)}
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-semibold text-slate-300 block mb-1">Complemento <span className="text-slate-500 font-normal">(opcional)</span></label>
+                      <input
+                        type="text"
+                        placeholder="Apto 42, Bloco B, etc."
+                        value={complemento}
+                        onChange={e => setComplemento(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-amber-400 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* CAMPOS ESPECÍFICOS DE CARTÃO DE CRÉDITO */}
@@ -2983,7 +3403,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
               </button>
             </div>
 
-            <div className="overflow-y-auto space-y-3 pr-1 flex-1">
+            <div className="overflow-y-auto space-y-4 pr-1 flex-1">
               {carregandoOrganizador ? (
                 <div className="py-8 text-center text-xs text-slate-400">
                   <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
@@ -2994,44 +3414,115 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                   Nenhuma outra campanha encontrada no momento.
                 </div>
               ) : (
-                campanhasOrganizador.map(c => (
-                  <a
-                    key={c.id}
-                    href={`/c/${c.slug || c.id}`}
-                    className={`p-3 rounded-xl border block transition ${
-                      c.id === campanha.id
-                        ? 'bg-emerald-500/10 border-emerald-500/50 text-white'
-                        : 'bg-slate-950 border-slate-800 hover:border-slate-700 text-slate-200'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      {c.bannerUrl ? (
-                        <img src={c.bannerUrl} alt={c.titulo} className="w-14 h-14 rounded-lg object-cover shrink-0" />
-                      ) : (
-                        <div className="w-14 h-14 rounded-lg bg-slate-800 flex items-center justify-center text-slate-500 text-xs shrink-0">
-                          Rifa
-                        </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-1">
-                          <span className="font-bold text-xs text-white truncate">{c.titulo}</span>
-                          {c.modalidade === 'gratis' ? (
-                            <span className="text-[9px] font-black uppercase bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded border border-purple-500/30">Grátis</span>
-                          ) : (
-                            <span className="text-[9px] font-mono font-bold text-emerald-400">
-                              {c.valorCota === 0 ? 'Grátis' : `R$ ${(c.valorCota || 0).toFixed(2).replace('.', ',')}`}
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-[10px] text-slate-400 line-clamp-1 mt-0.5">{c.subtitulo || c.descricao || 'Sorteio Oficial'}</p>
-                        <div className="text-[10px] text-slate-500 mt-1 flex items-center gap-2">
-                          <span>{c.totalCotas.toLocaleString()} cotas</span>
-                          {c.id === campanha.id && <span className="text-emerald-400 font-bold">• Atual</span>}
-                        </div>
+                <>
+                  {/* Seção Campanhas Ativas */}
+                  {campanhasOrganizador.filter(c => c.status === 'publicada' || c.status === 'pausada').length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-1">
+                        Campanhas em Andamento
+                      </h4>
+                      <div className="space-y-2">
+                        {campanhasOrganizador
+                          .filter(c => c.status === 'publicada' || c.status === 'pausada')
+                          .map(c => (
+                            <a
+                              key={c.id}
+                              href={`/c/${c.slug || c.id}`}
+                              className={`p-3 rounded-xl border block transition ${
+                                c.id === campanha.id
+                                  ? 'bg-emerald-500/10 border-emerald-500/50 text-white'
+                                  : 'bg-slate-950 border-slate-800 hover:border-slate-700 text-slate-200'
+                              }`}
+                            >
+                              <div className="flex items-center gap-3">
+                                {c.bannerUrl ? (
+                                  <img src={c.bannerUrl} alt={c.titulo} className="w-14 h-14 rounded-lg object-cover shrink-0" />
+                                ) : (
+                                  <div className="w-14 h-14 rounded-lg bg-slate-800 flex items-center justify-center text-slate-500 text-xs shrink-0 font-bold">
+                                    Rifa
+                                  </div>
+                                )}
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center justify-between gap-1">
+                                    <span className="font-bold text-xs text-white truncate">{c.titulo}</span>
+                                    {c.modalidade === 'gratis' ? (
+                                      <span className="text-[9px] font-black uppercase bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded border border-purple-500/30">Grátis</span>
+                                    ) : (
+                                      <span className="text-[9px] font-mono font-bold text-emerald-400">
+                                        {c.valorCota === 0 ? 'Grátis' : `R$ ${(c.valorCota || 0).toFixed(2).replace('.', ',')}`}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-[10px] text-slate-400 line-clamp-1 mt-0.5">{c.subtitulo || c.descricao || 'Sorteio Oficial'}</p>
+                                  <div className="text-[10px] text-slate-500 mt-1 flex items-center gap-2">
+                                    <span>{c.totalCotas.toLocaleString()} cotas</span>
+                                    {c.id === campanha.id && <span className="text-emerald-400 font-bold">• Atual</span>}
+                                  </div>
+                                </div>
+                              </div>
+                            </a>
+                          ))}
                       </div>
                     </div>
-                  </a>
-                ))
+                  )}
+
+                  {/* Seção Campanhas Encerradas */}
+                  {campanhasOrganizador.filter(c => c.status === 'encerrada').length > 0 && (
+                    <div className="space-y-2 pt-2">
+                      <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-1 flex items-center gap-1.5">
+                        <Trophy className="w-3.5 h-3.5 text-amber-400" />
+                        Campanhas Encerradas
+                      </h4>
+                      <div className="space-y-2">
+                        {campanhasOrganizador
+                          .filter(c => c.status === 'encerrada')
+                          .map(c => {
+                            const dataEnc = c.encerradaEm || c.atualizadaEm || c.criadaEm;
+                            let dataFmt = '—';
+                            if (dataEnc) {
+                              try {
+                                const d = new Date(dataEnc);
+                                dataFmt = isNaN(d.getTime()) ? dataEnc : d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+                              } catch(e) {}
+                            }
+                            return (
+                              <button
+                                key={c.id}
+                                type="button"
+                                onClick={() => setCampanhaResultadoModal(c)}
+                                className="w-full text-left p-3 rounded-xl border bg-slate-950 border-slate-800 hover:border-amber-500/40 text-slate-200 transition group"
+                              >
+                                <div className="flex items-center gap-3">
+                                  {c.bannerUrl ? (
+                                    <img src={c.bannerUrl} alt={c.titulo} className="w-14 h-14 rounded-lg object-cover shrink-0" />
+                                  ) : (
+                                    <div className="w-14 h-14 rounded-lg bg-slate-800 flex items-center justify-center text-slate-500 text-xs shrink-0 font-bold">
+                                      Rifa
+                                    </div>
+                                  )}
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center justify-between gap-1">
+                                      <span className="font-bold text-xs text-white truncate group-hover:text-amber-300 transition-colors">{c.titulo}</span>
+                                      <span className="text-[9px] font-bold uppercase bg-red-500/20 text-red-300 px-1.5 py-0.5 rounded border border-red-500/30 shrink-0">
+                                        Encerrada
+                                      </span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 line-clamp-1 mt-0.5">
+                                      Encerrada em: {dataFmt}
+                                    </p>
+                                    <div className="text-[10px] text-amber-400/90 font-medium mt-1 flex items-center gap-1">
+                                      <Eye className="w-3 h-3" />
+                                      <span>Ver resultado oficial</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </button>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
 
@@ -3042,6 +3533,163 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                 className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition"
               >
                 Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Visão de Resultado (Campanha Encerrada) */}
+      {campanhaResultadoModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-5 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
+            {/* Cabeçalho do Modal */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3 shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-1 rounded-full bg-red-500/20 text-red-300 border border-red-500/30 text-[10px] font-black uppercase tracking-wider flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                  Encerrada
+                </span>
+                <span className="text-xs text-slate-400 font-medium">Resultado Oficial</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCampanhaResultadoModal(null)}
+                className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Conteúdo do Resultado */}
+            <div className="overflow-y-auto space-y-4 pr-1 flex-1">
+              {/* Card Banner + Título */}
+              <div className="bg-slate-950 border border-slate-800/80 rounded-xl overflow-hidden p-3 flex gap-3.5 items-center">
+                {campanhaResultadoModal.bannerUrl ? (
+                  <img
+                    src={campanhaResultadoModal.bannerUrl}
+                    alt={campanhaResultadoModal.titulo}
+                    className="w-16 h-16 rounded-lg object-cover shrink-0 border border-slate-800"
+                  />
+                ) : (
+                  <div className="w-16 h-16 rounded-lg bg-slate-800 flex items-center justify-center text-slate-500 text-xs shrink-0 font-bold">
+                    Rifa
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-extrabold text-white text-sm line-clamp-2">{campanhaResultadoModal.titulo}</h3>
+                  <div className="text-[11px] text-slate-400 flex items-center gap-1 mt-1">
+                    <Calendar className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                    <span>
+                      Encerrada em:{' '}
+                      {(() => {
+                        const dataEnc = campanhaResultadoModal.encerradaEm || campanhaResultadoModal.atualizadaEm || campanhaResultadoModal.criadaEm;
+                        if (!dataEnc) return '—';
+                        try {
+                          const d = new Date(dataEnc);
+                          return isNaN(d.getTime()) ? dataEnc : d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+                        } catch (e) {
+                          return dataEnc;
+                        }
+                      })()}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Estatísticas da Campanha Encerrada */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-3 text-center">
+                  <span className="text-[11px] text-slate-400 block font-medium">Números Vendidos</span>
+                  <span className="text-base font-mono font-black text-emerald-400">
+                    {((campanhaResultadoModal as any).estatisticas?.vendidas ?? campanhaResultadoModal.totalCotas).toLocaleString()} / {campanhaResultadoModal.totalCotas.toLocaleString()}
+                  </span>
+                </div>
+                <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-3 text-center">
+                  <span className="text-[11px] text-slate-400 block font-medium">Total Arrecadado</span>
+                  <span className="text-base font-mono font-black text-amber-400">
+                    R$ {(((campanhaResultadoModal as any).estatisticas?.vendidas ?? campanhaResultadoModal.totalCotas) * (campanhaResultadoModal.valorCota || 0)).toFixed(2).replace('.', ',')}
+                  </span>
+                </div>
+              </div>
+
+              {/* Bloco de Ganhadores */}
+              <div className="bg-slate-950/90 border border-amber-500/30 rounded-2xl p-4 space-y-3">
+                <h4 className="text-xs font-black uppercase tracking-wider text-amber-400 flex items-center gap-2">
+                  <Trophy className="w-4 h-4 text-amber-400 shrink-0" />
+                  Ganhador(es) da Campanha
+                </h4>
+
+                {campanhaResultadoModal.ganhadoresHistorico && campanhaResultadoModal.ganhadoresHistorico.length > 0 ? (
+                  <div className="space-y-2">
+                    {campanhaResultadoModal.ganhadoresHistorico.map((g, idx) => (
+                      <div key={idx} className="bg-slate-900 border border-slate-800 rounded-xl p-3 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-8 h-8 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 font-black text-xs flex items-center justify-center shrink-0">
+                            #{idx + 1}
+                          </div>
+                          <div className="min-w-0">
+                            <span className="font-extrabold text-xs text-white block truncate">{g.nome || 'Ganhador'}</span>
+                            {g.premioDescricao && (
+                              <span className="text-[10px] text-slate-400 block truncate">{g.premioDescricao}</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className="text-[10px] text-slate-400 block">Cota</span>
+                          <span className="text-xs font-mono font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                            {g.cota}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : campanhaResultadoModal.ganhador ? (
+                  <div className="bg-slate-900 border border-slate-800 rounded-xl p-3.5 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-9 h-9 rounded-full bg-amber-500 text-slate-950 font-black flex items-center justify-center text-sm shrink-0 shadow">
+                        🏆
+                      </div>
+                      <div className="min-w-0">
+                        <span className="font-extrabold text-sm text-white block truncate">{campanhaResultadoModal.ganhador.nome || 'Ganhador'}</span>
+                        <span className="text-[11px] text-emerald-400 font-medium block truncate">Número Sorteado: {campanhaResultadoModal.ganhador.cota || campanhaResultadoModal.numeroSorteado || '—'}</span>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="text-[10px] text-slate-400 block">Cota</span>
+                      <span className="text-xs font-mono font-black text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/30">
+                        {campanhaResultadoModal.ganhador.cota}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-4 bg-slate-900/60 rounded-xl border border-slate-800 text-center">
+                    <p className="text-xs text-slate-400 font-medium">Nenhum ganhador registrado até o momento nesta campanha.</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Botão de Compra Desabilitado */}
+              <div className="pt-1">
+                <button
+                  type="button"
+                  disabled
+                  className="w-full py-3.5 rounded-xl bg-slate-800/80 border border-slate-700/60 text-slate-400 font-bold text-xs flex items-center justify-center gap-2 cursor-not-allowed opacity-80"
+                >
+                  <Lock className="w-4 h-4 text-slate-500" />
+                  <span>VENDAS ENCERRADAS PARA ESTA CAMPANHA</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Rodapé do Modal */}
+            <div className="pt-2 border-t border-slate-800 shrink-0">
+              <button
+                type="button"
+                onClick={() => setCampanhaResultadoModal(null)}
+                className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs transition"
+              >
+                Voltar
               </button>
             </div>
           </div>

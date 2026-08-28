@@ -4,7 +4,7 @@ import {
   Save, Sparkles, Plus, Trash2, Trophy, Gift, Zap, Image as ImageIcon, 
   Youtube, FileText, CheckCircle2, AlertCircle, ArrowLeft,
   LayoutGrid, HelpCircle, Flame, Lock, Eye, Star, Info, Rocket,
-  Upload, Camera, User, Link as LinkIcon, RefreshCw, ChevronRight, ChevronLeft,
+  Upload, Camera, User, Link as LinkIcon, RefreshCw, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, ArrowUp, ArrowDown,
   DollarSign, Clock, MapPin, Tag, Check, Sparkle, GripVertical, Palette, Loader2, CreditCard, ShieldCheck,
   Instagram, MessageSquare, Music, Share2
 } from 'lucide-react';
@@ -356,12 +356,66 @@ export const CampanhasFormView: React.FC<Props> = ({
   };
 
   // Promoções de Pacotes
+  const calcularValoresPacotePromo = (
+    qtd: number,
+    valorCota: number,
+    regrasDesconto?: { aPartirDeValor: number; valorCotaComDesconto: number }[],
+    valorManual?: number
+  ) => {
+    const unitPrice = Number(valorCota) || 0;
+    const valQtd = Number(qtd) || 0;
+    const regularTotal = Number((valQtd * unitPrice).toFixed(2));
+
+    if (valQtd <= 0 || unitPrice <= 0) {
+      return {
+        valor: valorManual && valorManual > 0 ? valorManual : 0,
+        descontoPct: undefined,
+        regularTotal: 0,
+        temDesconto: false
+      };
+    }
+
+    let valorCalculado = regularTotal;
+
+    // Se houver regras de desconto por valor total ativas
+    if (regrasDesconto && regrasDesconto.length > 0) {
+      const regrasOrdenadas = [...regrasDesconto].sort(
+        (a, b) => Number(b.aPartirDeValor) - Number(a.aPartirDeValor)
+      );
+      const regraValida = regrasOrdenadas.find(r => regularTotal >= Number(r.aPartirDeValor));
+      if (regraValida && Number(regraValida.valorCotaComDesconto) > 0 && Number(regraValida.valorCotaComDesconto) < unitPrice) {
+        valorCalculado = Number((valQtd * Number(regraValida.valorCotaComDesconto)).toFixed(2));
+      }
+    }
+
+    const valorFinal = (valorManual !== undefined && valorManual > 0) ? valorManual : valorCalculado;
+    const temDesconto = regularTotal > 0 && valorFinal > 0 && valorFinal < regularTotal;
+    const descontoPct = temDesconto ? Math.round((1 - (valorFinal / regularTotal)) * 100) : undefined;
+
+    return {
+      valor: valorFinal,
+      descontoPct,
+      regularTotal,
+      temDesconto
+    };
+  };
+
   const handleAddPromo = () => {
     const promos = form.promocoes || [];
     setForm(prev => ({
       ...prev,
       promocoes: [...promos, { quantidade: 0, valor: 0.00, destaque: false }]
     }));
+  };
+
+  const handleMoverPromo = (idx: number, direcao: 'up' | 'down') => {
+    const list = [...(form.promocoes || [])];
+    const targetIdx = direcao === 'up' ? idx - 1 : idx + 1;
+    if (targetIdx < 0 || targetIdx >= list.length) return;
+    const item = list[idx];
+    list[idx] = list[targetIdx];
+    list[targetIdx] = item;
+    setForm(prev => ({ ...prev, promocoes: list }));
   };
 
   const handleDragStartPromo = (e: React.DragEvent, idx: number) => {
@@ -397,18 +451,33 @@ export const CampanhasFormView: React.FC<Props> = ({
 
   const handleLimparTodasPromocoes = () => {
     if (!window.confirm("Deseja realmente apagar todos os pacotes promocionais?")) return;
-    const promos = [];
+    const promos: Promocao[] = [];
     setForm(prev => ({ ...prev, promocoes: promos }));
   };
 
   const handleGerarPromocoesSugeridas = () => {
-    const val = Number(form.valorCota) || 0.01;
-    const pacotes: Promocao[] = [
-      { quantidade: 10, valor: Number((10 * val * 0.95).toFixed(2)), destaque: false },
-      { quantidade: 25, valor: Number((25 * val * 0.90).toFixed(2)), destaque: true },
-      { quantidade: 50, valor: Number((50 * val * 0.85).toFixed(2)), destaque: false },
-      { quantidade: 100, valor: Number((100 * val * 0.80).toFixed(2)), destaque: false }
-    ];
+    const val = Number(form.valorCota) || 0.50;
+    const quantidades = [10, 25, 50, 100];
+    const pacotes: Promocao[] = quantidades.map((q, i) => {
+      const res = calcularValoresPacotePromo(q, val, form.descontoPorValorTotal);
+      let valorFinal = res.valor;
+      let descPct = res.descontoPct;
+
+      // Se não tiver regra de desconto aplicada, gera escada de desconto padrão 5%, 10%, 15%, 20%
+      if (!res.temDesconto) {
+        const pctPadrao = (i + 1) * 5;
+        valorFinal = Number((q * val * (1 - pctPadrao / 100)).toFixed(2));
+        descPct = pctPadrao;
+      }
+
+      return {
+        quantidade: q,
+        valor: valorFinal,
+        destaque: q === 50,
+        rotulo: q === 50 ? 'Mais popular' : undefined,
+        descontoPct: descPct
+      };
+    });
     setForm(prev => ({ ...prev, promocoes: pacotes }));
   };
 
@@ -1373,6 +1442,21 @@ export const CampanhasFormView: React.FC<Props> = ({
                               className="w-full accent-emerald-500 bg-slate-950 cursor-pointer h-2 rounded-lg"
                             />
                           </div>
+
+                          <div className="pt-2 border-t border-slate-800/40">
+                            <label className="flex items-center justify-between gap-3 cursor-pointer group/toggle p-3 bg-slate-950/40 border border-slate-800 rounded-xl hover:border-slate-700 transition">
+                              <div>
+                                <span className="text-xs font-bold text-slate-200 block">Exibir Logo em Largura Total</span>
+                                <span className="text-[11px] text-slate-400 block">Centraliza e expande a logo no menu do topo em largura total (responsivo no celular).</span>
+                              </div>
+                              <input
+                                type="checkbox"
+                                checked={!!form.cabecalhoLogoLarguraTotal}
+                                onChange={e => setForm(prev => ({ ...prev, cabecalhoLogoLarguraTotal: e.target.checked }))}
+                                className="w-5 h-5 rounded text-emerald-500 bg-slate-900 border-slate-700 cursor-pointer focus:ring-emerald-500 shrink-0"
+                              />
+                            </label>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -2136,6 +2220,23 @@ export const CampanhasFormView: React.FC<Props> = ({
               </div>
             )}
 
+            {/* Campo Editável: Título do Card de Seleção de Cotas */}
+            <div className="p-4 bg-slate-950/40 border border-slate-800 rounded-2xl space-y-2">
+              <label className="text-xs font-bold text-slate-300 uppercase tracking-wider block">
+                Título do Card de Seleção de Cotas
+              </label>
+              <input
+                type="text"
+                placeholder="Selecione a quantidade de cotas"
+                value={form.tituloSelecaoCotas || ''}
+                onChange={e => setForm(prev => ({ ...prev, tituloSelecaoCotas: e.target.value }))}
+                className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-4 py-3 text-sm font-semibold text-white focus:outline-none focus:border-emerald-500 transition shadow-inner"
+              />
+              <p className="text-[11px] text-slate-400">
+                Personalize o título exibido no topo do card de escolha de cotas na página pública. (Padrão: "Selecione a quantidade de cotas")
+              </p>
+            </div>
+
             {/* PACOTES PROMOCIONAIS */}
             <div className="space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -2149,21 +2250,30 @@ export const CampanhasFormView: React.FC<Props> = ({
                   </p>
                 </div>
 
-                 <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleGerarPromocoesSugeridas}
+                    className="px-3.5 py-2 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/30 font-bold rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-sm active:scale-95"
+                    title="Gerar sugestões de pacotes promocionais"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    Sugestões
+                  </button>
                   {(form.promocoes || []).length > 0 && (
                     <button
                       type="button"
                       onClick={handleLimparTodasPromocoes}
-                      className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 font-bold rounded-xl text-xs flex items-center gap-2 border border-red-500/30 transition-all shadow-sm active:scale-95"
+                      className="px-3.5 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 font-bold rounded-xl text-xs flex items-center gap-1.5 border border-red-500/30 transition-all shadow-sm active:scale-95"
                     >
-                      <Trash2 className="w-4 h-4" />
-                      Apagar Pacotes
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Apagar Tudo
                     </button>
                   )}
                   <button
                     type="button"
                     onClick={handleAddPromo}
-                    className="px-4 py-2 bg-slate-800/50 hover:bg-slate-700/50 text-emerald-400 border border-slate-700/50 font-bold rounded-xl text-xs flex items-center gap-2 transition-all shadow-sm active:scale-95"
+                    className="px-4 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold rounded-xl text-xs flex items-center gap-2 transition-all shadow-sm active:scale-95"
                   >
                     <Plus className="w-4 h-4" />
                     Adicionar Pacote
@@ -2173,96 +2283,225 @@ export const CampanhasFormView: React.FC<Props> = ({
 
               <div className="space-y-3 pt-2">
                 {(form.promocoes || []).length === 0 ? (
-                  <div className="p-8 bg-slate-950/40 border border-dashed border-slate-700/50 rounded-2xl text-center">
-                    <p className="text-sm text-slate-400">Nenhum pacote promocional cadastrado.</p>
+                  <div className="p-8 bg-slate-950/40 border border-dashed border-slate-700/50 rounded-2xl text-center space-y-3">
+                    <Zap className="w-8 h-8 text-slate-600 mx-auto" />
+                    <p className="text-sm text-slate-400 font-medium">Nenhum pacote promocional cadastrado.</p>
+                    <button
+                      type="button"
+                      onClick={handleGerarPromocoesSugeridas}
+                      className="px-4 py-2 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/30 font-bold rounded-xl text-xs inline-flex items-center gap-2 transition-all"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      Gerar Pacotes Automáticos
+                    </button>
                   </div>
                 ) : (
-                  (form.promocoes || []).map((promo, idx) => (
-                    <div
-                      key={idx}
-                      draggable
-                      onDragStart={e => handleDragStartPromo(e, idx)}
-                      onDragOver={handleDragOverPromo}
-                      onDrop={e => handleDropPromo(e, idx)}
-                      className={`p-4 bg-slate-950/50 border rounded-2xl flex flex-col sm:flex-row gap-4 items-center transition-all group shadow-inner ${
-                        draggedPromoIdx === idx
-                          ? 'border-emerald-500/50 bg-emerald-500/5 opacity-50 scale-[0.99]'
-                          : 'border-slate-700/50 hover:border-emerald-500/30 hover:bg-slate-900/50'
-                      }`}
-                    >
-                      {/* Alça de Arrastar */}
-                      <div className="hidden sm:flex items-center justify-center p-2 text-slate-600 hover:text-emerald-400 cursor-grab active:cursor-grabbing transition-colors" title="Arraste para reordenar">
-                        <GripVertical className="w-5 h-5" />
-                      </div>
+                  (form.promocoes || []).map((promo, idx) => {
+                    const unitPrice = Number(form.valorCota) || 0;
+                    const calcInfo = calcularValoresPacotePromo(
+                      promo.quantidade,
+                      unitPrice,
+                      form.descontoPorValorTotal,
+                      promo.valor
+                    );
+                    const regularTotal = calcInfo.regularTotal;
+                    const descontoCalculadoPct = calcInfo.descontoPct;
 
-                      <div className="flex-1 w-full grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                          <label className="text-[10px] text-slate-400 block mb-1 uppercase font-bold tracking-wider">Qtd. de Cotas</label>
-                          <input
-                            type="number"
-                            min="1"
-                            placeholder="Ex: 50"
-                            value={promo.quantidade !== undefined && promo.quantidade > 0 ? promo.quantidade : ''}
-                            onChange={e => {
-                              const valQtd = e.target.value === '' ? 0 : Number(e.target.value);
-                              const unitPrice = Number(form.valorCota) || 0;
-                              const arr = [...(form.promocoes || [])];
-                              arr[idx].quantidade = valQtd;
-                              if (unitPrice > 0) {
-                                arr[idx].valor = Number((valQtd * unitPrice).toFixed(2));
-                              }
-                              setForm(prev => ({ ...prev, promocoes: arr }));
-                            }}
-                            className="w-full bg-slate-900 border border-slate-700/50 rounded-xl px-4 py-2.5 text-sm font-mono font-bold text-white focus:outline-none focus:border-emerald-500 transition-colors shadow-inner"
-                          />
+                    return (
+                      <div
+                        key={idx}
+                        draggable
+                        onDragStart={e => handleDragStartPromo(e, idx)}
+                        onDragOver={handleDragOverPromo}
+                        onDrop={e => handleDropPromo(e, idx)}
+                        className={`p-4 bg-slate-950/60 border rounded-2xl flex flex-col gap-3 transition-all group shadow-inner ${
+                          draggedPromoIdx === idx
+                            ? 'border-emerald-500/50 bg-emerald-500/5 opacity-50 scale-[0.99]'
+                            : 'border-slate-800 hover:border-slate-700 bg-slate-900/30'
+                        }`}
+                      >
+                        {/* Cabeçalho do Card */}
+                        <div className="flex items-center justify-between border-b border-slate-800/80 pb-2.5">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <div className="hidden sm:flex items-center justify-center text-slate-500 hover:text-emerald-400 cursor-grab active:cursor-grabbing transition-colors" title="Arraste para reordenar">
+                              <GripVertical className="w-4 h-4" />
+                            </div>
+                            <span className="text-xs font-black uppercase tracking-wider text-slate-300">
+                              Pacote #{idx + 1}
+                            </span>
+                            {promo.destaque && (
+                              <span className="px-2 py-0.5 bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-md text-[10px] font-bold uppercase tracking-wide flex items-center gap-1">
+                                <Star className="w-3 h-3 fill-amber-400" />
+                                {promo.rotulo || 'Mais popular'}
+                              </span>
+                            )}
+                            {descontoCalculadoPct !== undefined && descontoCalculadoPct > 0 && (
+                              <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-md text-[10px] font-bold flex items-center gap-1">
+                                <Sparkles className="w-3 h-3 text-emerald-400" />
+                                -{descontoCalculadoPct}% OFF
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Botões de Reordenamento e Remoção */}
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              disabled={idx === 0}
+                              onClick={() => handleMoverPromo(idx, 'up')}
+                              className="p-1.5 text-slate-400 hover:text-white disabled:opacity-20 disabled:hover:text-slate-400 hover:bg-slate-800 rounded-lg transition-colors"
+                              title="Mover para cima"
+                            >
+                              <ChevronUp className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              disabled={idx === (form.promocoes || []).length - 1}
+                              onClick={() => handleMoverPromo(idx, 'down')}
+                              className="p-1.5 text-slate-400 hover:text-white disabled:opacity-20 disabled:hover:text-slate-400 hover:bg-slate-800 rounded-lg transition-colors"
+                              title="Mover para baixo"
+                            >
+                              <ChevronDown className="w-4 h-4" />
+                            </button>
+                            <div className="w-px h-4 bg-slate-800 mx-1" />
+                            <button
+                              type="button"
+                              onClick={() => handleRemovePromo(idx)}
+                              className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
+                              title="Remover pacote"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
 
-                        <div>
-                          <label className="text-[10px] text-slate-400 block mb-1 uppercase font-bold tracking-wider">Valor Total (R$)</label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0.01"
-                            placeholder="0.00"
-                            value={promo.valor !== undefined && promo.valor > 0 ? promo.valor : ''}
-                            onChange={e => {
-                              const arr = [...(form.promocoes || [])];
-                              arr[idx].valor = e.target.value === '' ? 0 : Number(e.target.value);
-                              setForm(prev => ({ ...prev, promocoes: arr }));
-                            }}
-                            className="w-full bg-slate-900 border border-slate-700/50 rounded-xl px-4 py-2.5 text-sm font-mono text-emerald-400 font-bold focus:outline-none focus:border-emerald-500 transition-colors shadow-inner"
-                          />
+                        {/* Grid de Campos */}
+                        <div className={`grid grid-cols-1 sm:grid-cols-2 ${promo.destaque ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-3`}>
+                          {/* Quantidade de Cotas */}
+                          <div>
+                            <label className="text-[10px] text-slate-400 block mb-1 uppercase font-bold tracking-wider">
+                              Qtd. de Cotas *
+                            </label>
+                            <input
+                              type="number"
+                              min="1"
+                              placeholder="Ex: 50"
+                              value={promo.quantidade !== undefined && promo.quantidade > 0 ? promo.quantidade : ''}
+                              onChange={e => {
+                                const valQtd = e.target.value === '' ? 0 : Number(e.target.value);
+                                const res = calcularValoresPacotePromo(valQtd, unitPrice, form.descontoPorValorTotal);
+                                const arr = [...(form.promocoes || [])];
+                                arr[idx].quantidade = valQtd;
+                                arr[idx].valor = res.valor;
+                                arr[idx].descontoPct = res.descontoPct;
+                                setForm(prev => ({ ...prev, promocoes: arr }));
+                              }}
+                              className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3.5 py-2 text-sm font-mono font-bold text-white focus:outline-none focus:border-emerald-500 transition-colors"
+                            />
+                          </div>
+
+                          {/* Preço Promocional */}
+                          <div>
+                            <label className="text-[10px] text-slate-400 block mb-1 uppercase font-bold tracking-wider flex items-center justify-between">
+                              <span>Preço do Pacote (R$) *</span>
+                              {regularTotal > 0 && (
+                                <span className="text-slate-500 font-normal text-[9px]">
+                                  Regular: R$ {regularTotal.toFixed(2).replace('.', ',')}
+                                </span>
+                              )}
+                            </label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0.01"
+                              placeholder="0.00"
+                              value={promo.valor !== undefined && promo.valor > 0 ? promo.valor : ''}
+                              onChange={e => {
+                                const valNum = e.target.value === '' ? 0 : Number(e.target.value);
+                                const res = calcularValoresPacotePromo(promo.quantidade, unitPrice, form.descontoPorValorTotal, valNum);
+                                const arr = [...(form.promocoes || [])];
+                                arr[idx].valor = valNum;
+                                arr[idx].descontoPct = res.descontoPct;
+                                setForm(prev => ({ ...prev, promocoes: arr }));
+                              }}
+                              className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3.5 py-2 text-sm font-mono text-emerald-400 font-bold focus:outline-none focus:border-emerald-500 transition-colors"
+                            />
+                          </div>
+
+                          {/* Selo de Desconto Automático (Não Editável) */}
+                          <div>
+                            <label className="text-[10px] text-slate-400 block mb-1 uppercase font-bold tracking-wider">
+                              Selo Desconto (%)
+                            </label>
+                            {descontoCalculadoPct !== undefined && descontoCalculadoPct > 0 ? (
+                              <div className="bg-slate-900 border border-emerald-500/40 rounded-xl px-3.5 py-2 text-xs font-bold text-emerald-400 flex items-center justify-between shadow-inner h-[38px]">
+                                <span className="flex items-center gap-1.5">
+                                  <Sparkles className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                  -{descontoCalculadoPct}% OFF
+                                </span>
+                                <span className="text-[9px] text-slate-500 font-normal">Automático</span>
+                              </div>
+                            ) : (
+                              <div className="bg-slate-900/60 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-500 font-medium flex items-center justify-between h-[38px]">
+                                <span>Sem desconto</span>
+                                <span className="text-[9px] text-slate-600 font-normal">Preço regular</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Rótulo de Destaque - APENAS SE DESTAQUE ESTIVER ATIVO */}
+                          {promo.destaque && (
+                            <div>
+                              <label className="text-[10px] text-slate-400 block mb-1 uppercase font-bold tracking-wider flex items-center justify-between">
+                                <span>Texto de Destaque</span>
+                                <span className="text-slate-500 font-normal text-[9px]">Ex: Mais popular</span>
+                              </label>
+                              <input
+                                type="text"
+                                placeholder="Ex: Mais popular"
+                                value={promo.rotulo || ''}
+                                onChange={e => {
+                                  const arr = [...(form.promocoes || [])];
+                                  arr[idx].rotulo = e.target.value;
+                                  setForm(prev => ({ ...prev, promocoes: arr }));
+                                }}
+                                className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors"
+                              />
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Opções adicionais do card */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 border-t border-slate-800/60">
+                          <label className="flex items-center gap-2 cursor-pointer group/label">
+                            <input
+                              type="checkbox"
+                              checked={!!promo.destaque}
+                              onChange={e => {
+                                const arr = [...(form.promocoes || [])];
+                                arr[idx].destaque = e.target.checked;
+                                if (e.target.checked && !arr[idx].rotulo) {
+                                  arr[idx].rotulo = 'Mais popular';
+                                }
+                                setForm(prev => ({ ...prev, promocoes: arr }));
+                              }}
+                              className="w-4 h-4 rounded text-emerald-500 bg-slate-900 border-slate-700 cursor-pointer focus:ring-emerald-500 focus:ring-offset-slate-950"
+                            />
+                            <span className="text-xs text-slate-300 font-medium group-hover/label:text-white transition-colors">
+                              Destacar este pacote (borda e selo popular)
+                            </span>
+                          </label>
+
+                          {regularTotal > 0 && promo.valor > 0 && promo.valor < regularTotal && (
+                            <span className="text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-lg border border-emerald-500/20 self-start sm:self-auto flex items-center gap-1">
+                              <Sparkles className="w-3 h-3 text-emerald-400" />
+                              Economia de R$ {(regularTotal - promo.valor).toFixed(2).replace('.', ',')}
+                            </span>
+                          )}
                         </div>
                       </div>
-
-                      <div className="flex items-center justify-between sm:justify-start w-full sm:w-auto gap-4 sm:gap-6 border-t border-slate-800/60 sm:border-t-0 pt-4 sm:pt-0">
-                        <label className="flex items-center gap-2 cursor-pointer group/label">
-                          <input
-                            type="checkbox"
-                            checked={!!promo.destaque}
-                            onChange={e => {
-                              const arr = [...(form.promocoes || [])];
-                              arr[idx].destaque = e.target.checked;
-                              setForm(prev => ({ ...prev, promocoes: arr }));
-                            }}
-                            className="w-4 h-4 rounded text-emerald-500 bg-slate-900 border-slate-700/50 cursor-pointer focus:ring-emerald-500 focus:ring-offset-slate-950"
-                          />
-                          <span className="text-xs text-slate-400 font-medium group-hover/label:text-slate-300 transition-colors">
-                            Selo "Mais Popular"
-                          </span>
-                        </label>
-
-                        <button
-                          type="button"
-                          onClick={() => handleRemovePromo(idx)}
-                          className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-colors"
-                          title="Remover pacote"
-                        >
-                          <Trash2 className="w-5 h-5" />
-                        </button>
-                      </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>

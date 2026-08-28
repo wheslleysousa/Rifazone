@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { QrCode, Copy, Check, Clock, AlertCircle, Sparkles, CheckCircle2, ArrowRight, Share2, Ticket, MessageCircle, Users, ExternalLink } from 'lucide-react';
-import confetti from 'canvas-confetti';
+import { dispararExplosaoConfetes, limparConfetes } from '../utils/confettiUtils';
 import QRCode from 'qrcode';
 import { formatarMoeda } from '../lib/money';
 import { ConfirmacaoCompraConfig } from '../types';
@@ -55,32 +55,20 @@ export const PixPaymentModal: React.FC<Props> = ({
   onSuccessRef.current = onSuccess;
 
   const triggerConfettiOnce = useCallback(() => {
-    if (confirmacaoConfig?.exibirConfetes === false) return;
+    if (confirmacaoConfig?.animacaoSucesso === 'nenhuma' || confirmacaoConfig?.exibirConfetes === false) return;
     if (confettiDisparadoRef.current) return;
     confettiDisparadoRef.current = true;
     try {
-      confetti({
-        particleCount: 80,
-        spread: 60,
-        origin: { y: 0.6 },
-        ticks: 200,
-        disableForReducedMotion: true
-      });
-      // Limpa os confetes após 2.5s para não poluir a tela
-      setTimeout(() => {
-        try { confetti.reset(); } catch (e) {}
-      }, 2500);
+      dispararExplosaoConfetes();
     } catch (e) {
       console.warn('Efeito confetti ignorado:', e);
     }
-  }, [confirmacaoConfig?.exibirConfetes]);
+  }, [confirmacaoConfig?.animacaoSucesso, confirmacaoConfig?.exibirConfetes]);
 
   // Limpa confetes ao desmontar
   useEffect(() => {
     return () => {
-      try {
-        confetti.reset();
-      } catch (e) {}
+      limparConfetes();
     };
   }, []);
 

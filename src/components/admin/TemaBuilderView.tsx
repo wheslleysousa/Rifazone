@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { CelebrationPreview } from './CelebrationPreview';
 import { Campanha, TemaCampanha, TEMA_PADRAO, EstiloSalvo, CheckoutConfig, DEFAULT_CHECKOUT_CONFIG, GOOGLE_FONTS_LIST } from '../../types';
 import { CampanhaPublicaView } from '../CampanhaPublicaView';
 import { ErrorBoundary } from '../ErrorBoundary';
@@ -96,10 +97,11 @@ export const TemaBuilderView: React.FC<Props> = ({
 }) => {
   const [visualizacaoMobile, setVisualizacaoMobile] = useState<'controles' | 'preview'>('controles');
   const [secaoEditor, setSecaoEditor] = useState<'menu' | 'geral' | 'tipografia' | 'blocos' | 'estilos'>('menu');
-  const [subAbaGeral, setSubAbaGeral] = useState<'cores' | 'botoes' | 'icones' | 'logo' | 'vendas' | null>(null);
-  const [subAbaBotao, setSubAbaBotao] = useState<'compra' | 'pacotes' | 'controles' | 'cotas' | 'cards' | null>(null);
+  const [subAbaGeral, setSubAbaGeral] = useState<'cores' | 'botoes' | 'icones' | 'logo' | null>(null);
+  const [subAbaBotao, setSubAbaBotao] = useState<'compra' | 'pacotes' | 'controles' | 'cotas' | 'progresso' | 'cards' | null>(null);
   const [secaoIconeAberta, setSecaoIconeAberta] = useState<string>('premios');
-  const [secaoCardAberta, setSecaoCardAberta] = useState<string | null>('premios');
+  const [secaoCardAberta, setSecaoCardAberta] = useState<string | null>(null);
+  const [previewAnimacao, setPreviewAnimacao] = useState<'confetes' | 'estrela' | 'fogo' | 'coracao' | 'moeda' | 'trofeu' | 'diamante' | 'raio' | 'coroa' | 'foguete' | null>(null);
 
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
 
@@ -708,7 +710,7 @@ export const TemaBuilderView: React.FC<Props> = ({
                   {
                     id: 'botoes',
                     label: 'Botões & Elementos',
-                    desc: 'Edite individualmente o Botão de Compra (CTA), Pacotes Promocionais, Controles (+/-), Cotas e Cards.',
+                    desc: 'Edite individualmente o Botão de Compra (CTA), Pacotes Promocionais, Controles (+/-), Cotas, Card de Progresso e Cards das Seções.',
                     icon: MousePointer,
                     color: 'text-blue-400 bg-blue-500/10 border-blue-500/20'
                   },
@@ -725,13 +727,6 @@ export const TemaBuilderView: React.FC<Props> = ({
                     desc: 'Alinhamento da logo no topo da página e link para a página do organizador.',
                     icon: User,
                     color: 'text-purple-400 bg-purple-500/10 border-purple-500/20'
-                  },
-                  {
-                    id: 'vendas',
-                    label: 'Vendas & Progresso',
-                    desc: 'Cores da barra de porcentagem vendida, preço unitário das cotas e selos informativos.',
-                    icon: Sliders,
-                    color: 'text-rose-400 bg-rose-500/10 border-rose-500/20'
                   },
                 ].map(item => {
                   const Icon = item.icon;
@@ -897,53 +892,7 @@ export const TemaBuilderView: React.FC<Props> = ({
                 </div>
               )}
 
-              {/* SUB-ABA 2: VENDAS & PROGRESSO */}
-              {subAbaGeral === 'vendas' && (
-                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-5 animate-in fade-in">
-                  <div className="border-b border-slate-800 pb-3">
-                    <h3 className="text-sm font-black text-white flex items-center gap-2">
-                      <Sliders className="w-4 h-4 text-emerald-400" />
-                      Barra de Vendas & Progresso
-                    </h3>
-                    <p className="text-xs text-slate-400">
-                      Cores da barra de porcentagem vendida, preço unitário e selos informativos.
-                    </p>
-                  </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                    {[
-                      { key: 'barraProgressoFundo', label: 'Fundo da Barra', desc: 'Track vazio' },
-                      { key: 'barraProgressoPreenchimento', label: 'Cor de Preenchimento', desc: 'Vendas realizadas' },
-                      { key: 'barraProgressoTexto', label: 'Texto do Progresso', desc: 'Ex: 45% vendido' },
-                      { key: 'cardBarraProgressoFundo', label: 'Fundo do Card', desc: 'Caixa externa' },
-                      { key: 'textoPrecoBarra', label: 'Preço no Card', desc: 'Valor unitário' },
-                      { key: 'seloBannerFundo', label: 'Fundo Selo Banner', desc: 'Tag sobre o banner' },
-                      { key: 'seloBannerTexto', label: 'Texto Selo Banner', desc: 'Cor do texto da tag' },
-                    ].map(item => {
-                      const val = (temaSeguro.cores as any)[item.key];
-                      return (
-                        <div key={item.key} className="p-3 bg-slate-950/80 border border-slate-800 rounded-xl space-y-2">
-                          <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">{item.label}</label>
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="color"
-                              value={val}
-                              onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [item.key]: e.target.value } })}
-                              className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
-                            />
-                            <input
-                              type="text"
-                              value={val}
-                              onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [item.key]: e.target.value } })}
-                              className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
 
               {/* SUB-ABA 3: ÍCONES DAS SEÇÕES */}
               {subAbaGeral === 'icones' && (
@@ -1177,56 +1126,86 @@ export const TemaBuilderView: React.FC<Props> = ({
               {/* SUB-ABA 5: BOTÕES & ELEMENTOS */}
               {subAbaGeral === 'botoes' && (
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-6 animate-in fade-in">
-                  <div className="border-b border-slate-800 pb-3">
-                    <div className="flex items-center justify-between">
+                  {subAbaBotao === null ? (
+                    <div className="border-b border-slate-800 pb-3">
                       <h3 className="text-sm font-black text-white flex items-center gap-2">
                         <MousePointer className="w-4 h-4 text-emerald-400" />
-                        Personalizador Completo de Botões & Elementos
+                        Personalização de Botões & Elementos
                       </h3>
-                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-bold border border-emerald-500/20">
-                        Sólido • Vidro • Transparente • 3D
+                      <p className="text-xs text-slate-400 mt-1">
+                        Selecione um dos elementos abaixo para abrir sua página dedicada de configuração e personalização.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-2 animate-in fade-in">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSubAbaBotao(null);
+                          setSecaoCardAberta(null);
+                        }}
+                        className="flex items-center gap-2 px-3 py-1.5 bg-slate-950 hover:bg-slate-800 text-slate-300 hover:text-white rounded-xl border border-slate-800 transition text-xs font-bold cursor-pointer"
+                      >
+                        <ArrowLeft className="w-4 h-4 text-emerald-400" />
+                        Voltar para Botões & Elementos
+                      </button>
+                      <span className="text-[10px] uppercase font-black tracking-wider px-2.5 py-1 rounded bg-slate-950 border border-slate-800 text-slate-400">
+                        {subAbaBotao === 'compra' ? 'CTA Principal' : subAbaBotao === 'pacotes' ? 'Pacotes' : subAbaBotao === 'controles' ? 'Quantidade' : subAbaBotao === 'cotas' ? 'Cotas' : subAbaBotao === 'progresso' ? 'Progresso de Vendas' : 'Cards das Seções'}
                       </span>
                     </div>
-                    <p className="text-xs text-slate-400 mt-1">
-                      Configure individualmente cada botão e card do aplicativo com estilo visual, cores, bordas e sombras.
-                    </p>
-                  </div>
+                  )}
 
-              {/* Lista Vertical de Menus Expansíveis (Acordeão) dos Botões & Elementos */}
-              <div className="space-y-3">
-                {/* 1. BOTÃO DE COMPRA PRINCIPAL (CTA) */}
-                <div className={`rounded-2xl border transition-all duration-200 overflow-hidden ${
-                  subAbaBotao === 'compra'
-                    ? 'bg-slate-950 border-emerald-500/50 ring-1 ring-emerald-500/20 shadow-lg'
-                    : 'bg-slate-950 border-slate-800 hover:border-slate-700'
-                }`}>
-                  <button
-                    type="button"
-                    onClick={() => setSubAbaBotao(subAbaBotao === 'compra' ? null : 'compra')}
-                    className="w-full p-4 flex items-center justify-between text-left gap-3 focus:outline-none cursor-pointer"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`p-2.5 rounded-xl transition-colors ${subAbaBotao === 'compra' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-900 text-slate-400'}`}>
-                        <ShoppingCart className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <h4 className="text-xs font-black text-white flex items-center gap-2">
-                          Botão de Compra Principal (CTA)
-                        </h4>
-                        <p className="text-[11px] text-slate-400 mt-0.5">Texto, ícones, estilo (Sólido, Vidro, 3D), cores e dimensões</p>
-                      </div>
+                  {subAbaBotao === null ? (
+                    <div className="grid grid-cols-1 gap-3 animate-in fade-in">
+                      {[
+                        { id: 'compra', titulo: 'Botão de Compra Principal (CTA)', desc: 'Texto, ícones, estilo (Sólido, Vidro, 3D), cores, bordas, dimensões e sombras.', icone: ShoppingCart, color: 'text-emerald-400 bg-emerald-500/10' },
+                        { id: 'pacotes', titulo: 'Botões dos Pacotes Promocionais', desc: 'Estilo visual dos combos de cotas, cores padrão, pacote em destaque e selos.', icone: Package, color: 'text-amber-400 bg-amber-500/10' },
+                        { id: 'controles', titulo: 'Controles de Quantidade (+ e -)', desc: 'Cores dos botões de adicionar/remover cotas, campo de quantidade e bordas.', icone: SlidersHorizontal, color: 'text-blue-400 bg-blue-500/10' },
+                        { id: 'cotas', titulo: 'Grade de Cotas Manuais', desc: 'Cores das cotas livres, selecionadas, pagas/reservadas e números.', icone: Ticket, color: 'text-pink-400 bg-pink-500/10' },
+                        { id: 'progresso', titulo: 'Card de Progresso de Vendas', desc: 'Personalize as cores do card de progresso, barra de progresso, preço unitário e selos.', icone: Sliders, color: 'text-rose-400 bg-rose-500/10' },
+                        { id: 'cards', titulo: 'Cards das Seções & Conteúdos', desc: 'Estilo visual dos quadros de Premiação, Banner, Cotas, Premiadas, Ranking, Regulamento e Ganhadores.', icone: Box, color: 'text-purple-400 bg-purple-500/10' }
+                      ].map(item => {
+                        const IconComponent = item.icone;
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => {
+                              setSubAbaBotao(item.id as any);
+                              setSecaoCardAberta(null);
+                            }}
+                            className="w-full text-left p-4 bg-slate-950 border border-slate-800 rounded-2xl hover:border-emerald-500/50 hover:bg-slate-900/60 transition-all duration-200 group flex items-center justify-between gap-4 cursor-pointer animate-in fade-in"
+                          >
+                            <div className="flex items-center gap-3.5">
+                              <div className={`p-3 rounded-xl ${item.color} group-hover:scale-105 transition-transform`}>
+                                <IconComponent className="w-5 h-5" />
+                              </div>
+                              <div>
+                                <h4 className="text-xs font-black text-white group-hover:text-emerald-400 transition-colors">
+                                  {item.titulo}
+                                </h4>
+                                <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">{item.desc}</p>
+                              </div>
+                            </div>
+                            <ChevronRight className="w-5 h-5 text-slate-500 group-hover:text-emerald-400 group-hover:translate-x-1 transition-all shrink-0" />
+                          </button>
+                        );
+                      })}
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      {subAbaBotao === 'compra' ? (
-                        <ChevronUp className="w-5 h-5 text-emerald-400" />
-                      ) : (
-                        <ChevronDown className="w-5 h-5 text-slate-400" />
-                      )}
-                    </div>
-                  </button>
-
-                  {subAbaBotao === 'compra' && (
-                    <div className="p-4 pt-2 border-t border-slate-800/80 bg-slate-900/40 space-y-5 animate-in fade-in">
+                  ) : (
+                    <div className="space-y-4">
+                      {/* 1. BOTÃO DE COMPRA PRINCIPAL (CTA) */}
+                      {subAbaBotao === 'compra' && (
+                        <div className="space-y-5 animate-in fade-in duration-200">
+                          <div className="space-y-1">
+                            <h4 className="text-sm font-black text-white flex items-center gap-2">
+                              <ShoppingCart className="w-4 h-4 text-emerald-400" />
+                              Botão de Compra Principal (CTA)
+                            </h4>
+                            <p className="text-xs text-slate-400">
+                              Configure o texto do botão principal, ícones, cores, estilo visual (Sólido, Vidro, 3D), arredondamento de bordas e sombras.
+                            </p>
+                          </div>
                   {/* Seletor de Estilo Visual com Exemplo Real */}
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-slate-300 block">
@@ -1479,6 +1458,7 @@ export const TemaBuilderView: React.FC<Props> = ({
                         className="w-full accent-emerald-500 bg-slate-950 cursor-pointer"
                       />
                     </div>
+                  </div>
 
                     {temaSeguro.botao.estilo === '3d' && (
                       <>
@@ -1513,44 +1493,21 @@ export const TemaBuilderView: React.FC<Props> = ({
                         </div>
                       </>
                     )}
-                  </div>
-                </div>
-              )}
-            </div>
-
-                {/* 2. BOTÕES DE PACOTES PROMOCIONAIS */}
-                <div className={`rounded-2xl border transition-all duration-200 overflow-hidden ${
-                  subAbaBotao === 'pacotes'
-                    ? 'bg-slate-950 border-emerald-500/50 ring-1 ring-emerald-500/20 shadow-lg'
-                    : 'bg-slate-950 border-slate-800 hover:border-slate-700'
-                }`}>
-                  <button
-                    type="button"
-                    onClick={() => setSubAbaBotao(subAbaBotao === 'pacotes' ? null : 'pacotes')}
-                    className="w-full p-4 flex items-center justify-between text-left gap-3 focus:outline-none cursor-pointer"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`p-2.5 rounded-xl transition-colors ${subAbaBotao === 'pacotes' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-900 text-slate-400'}`}>
-                        <Package className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <h4 className="text-xs font-black text-white flex items-center gap-2">
-                          Botões de Pacotes Promocionais
-                        </h4>
-                        <p className="text-[11px] text-slate-400 mt-0.5">Estilo visual, cores dos pacotes e selo "Mais Popular"</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      {subAbaBotao === 'pacotes' ? (
-                        <ChevronUp className="w-5 h-5 text-emerald-400" />
-                      ) : (
-                        <ChevronDown className="w-5 h-5 text-slate-400" />
+                        </div>
                       )}
-                    </div>
-                  </button>
 
-                  {subAbaBotao === 'pacotes' && (
-                    <div className="p-4 pt-2 border-t border-slate-800/80 bg-slate-900/40 space-y-5 animate-in fade-in">
+                      {/* 2. BOTÕES DE PACOTES PROMOCIONAIS */}
+                      {subAbaBotao === 'pacotes' && (
+                        <div className="space-y-5 animate-in fade-in duration-200">
+                          <div className="space-y-1">
+                            <h4 className="text-sm font-black text-white flex items-center gap-2">
+                              <Package className="w-4 h-4 text-amber-400" />
+                              Botões dos Pacotes Promocionais
+                            </h4>
+                            <p className="text-xs text-slate-400">
+                              Personalize os botões das ofertas rápidas e combos de cotas em lote, incluindo cores padrão, destaque e o selo de Popularidade.
+                            </p>
+                          </div>
                   {/* Seletor de Estilo Visual para Pacotes */}
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-slate-300 block">
@@ -1663,7 +1620,7 @@ export const TemaBuilderView: React.FC<Props> = ({
 
                   {/* Cores Específicas dos Botões de Pacotes Padrão */}
                   <div className="space-y-3">
-                    <label className="text-xs font-bold text-slate-300 block">Cres dos Pacotes Padrão:</label>
+                    <label className="text-xs font-bold text-slate-300 block">Cores dos Pacotes Padrão:</label>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
                         <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Fundo do Pacote</label>
@@ -1841,41 +1798,19 @@ export const TemaBuilderView: React.FC<Props> = ({
                   </div>
                 </div>
               )}
-            </div>
 
-                {/* 3. CONTROLES DE QUANTIDADE (+ / -) */}
-                <div className={`rounded-2xl border transition-all duration-200 overflow-hidden ${
-                  subAbaBotao === 'controles'
-                    ? 'bg-slate-950 border-emerald-500/50 ring-1 ring-emerald-500/20 shadow-lg'
-                    : 'bg-slate-950 border-slate-800 hover:border-slate-700'
-                }`}>
-                  <button
-                    type="button"
-                    onClick={() => setSubAbaBotao(subAbaBotao === 'controles' ? null : 'controles')}
-                    className="w-full p-4 flex items-center justify-between text-left gap-3 focus:outline-none cursor-pointer"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`p-2.5 rounded-xl transition-colors ${subAbaBotao === 'controles' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-900 text-slate-400'}`}>
-                        <SlidersHorizontal className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <h4 className="text-xs font-black text-white flex items-center gap-2">
-                          Controles de Quantidade (+ / -)
-                        </h4>
-                        <p className="text-[11px] text-slate-400 mt-0.5">Estilo e cores dos botões de diminuir (-) e aumentar (+)</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      {subAbaBotao === 'controles' ? (
-                        <ChevronUp className="w-5 h-5 text-emerald-400" />
-                      ) : (
-                        <ChevronDown className="w-5 h-5 text-slate-400" />
-                      )}
-                    </div>
-                  </button>
-
-                  {subAbaBotao === 'controles' && (
-                    <div className="p-4 pt-2 border-t border-slate-800/80 bg-slate-900/40 space-y-5 animate-in fade-in">
+                      {/* 3. CONTROLES DE QUANTIDADE (+ / -) */}
+                      {subAbaBotao === 'controles' && (
+                        <div className="space-y-5 animate-in fade-in duration-200">
+                          <div className="space-y-1">
+                            <h4 className="text-sm font-black text-white flex items-center gap-2">
+                              <SlidersHorizontal className="w-4 h-4 text-blue-400" />
+                              Controles de Quantidade (+ / -)
+                            </h4>
+                            <p className="text-xs text-slate-400">
+                              Altere o efeito visual, arredondamento e as cores dos botões de incrementar e decrementar a quantidade de cotas.
+                            </p>
+                          </div>
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-slate-300 block">
                       Efeito Visual dos Botões de Diminuir (-) e Aumentar (+):
@@ -2001,41 +1936,19 @@ export const TemaBuilderView: React.FC<Props> = ({
                   </div>
                 </div>
               )}
-            </div>
 
-                {/* 4. GRADE DE COTAS MANUAIS */}
-                <div className={`rounded-2xl border transition-all duration-200 overflow-hidden ${
-                  subAbaBotao === 'cotas'
-                    ? 'bg-slate-950 border-emerald-500/50 ring-1 ring-emerald-500/20 shadow-lg'
-                    : 'bg-slate-950 border-slate-800 hover:border-slate-700'
-                }`}>
-                  <button
-                    type="button"
-                    onClick={() => setSubAbaBotao(subAbaBotao === 'cotas' ? null : 'cotas')}
-                    className="w-full p-4 flex items-center justify-between text-left gap-3 focus:outline-none cursor-pointer"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`p-2.5 rounded-xl transition-colors ${subAbaBotao === 'cotas' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-900 text-slate-400'}`}>
-                        <Ticket className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <h4 className="text-xs font-black text-white flex items-center gap-2">
-                          Grade de Cotas Manuais
-                        </h4>
-                        <p className="text-[11px] text-slate-400 mt-0.5">Efeito visual (Sólido, Vidro, 3D) e arredondamento dos bloquinhos</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      {subAbaBotao === 'cotas' ? (
-                        <ChevronUp className="w-5 h-5 text-emerald-400" />
-                      ) : (
-                        <ChevronDown className="w-5 h-5 text-slate-400" />
-                      )}
-                    </div>
-                  </button>
-
-                  {subAbaBotao === 'cotas' && (
-                    <div className="p-4 pt-2 border-t border-slate-800/80 bg-slate-900/40 space-y-5 animate-in fade-in">
+                      {/* 4. GRADE DE COTAS MANUAIS */}
+                      {subAbaBotao === 'cotas' && (
+                        <div className="space-y-5 animate-in fade-in duration-200">
+                          <div className="space-y-1">
+                            <h4 className="text-sm font-black text-white flex items-center gap-2">
+                              <Ticket className="w-4 h-4 text-pink-400" />
+                              Grade de Cotas Manuais
+                            </h4>
+                            <p className="text-xs text-slate-400">
+                              Defina o estilo visual e o arredondamento dos bloquinhos de cotas manuais que os usuários selecionam de forma individual no grid.
+                            </p>
+                          </div>
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-slate-300 block">
                       Efeito Visual das Cotas na Grade de Seleção:
@@ -2088,41 +2001,76 @@ export const TemaBuilderView: React.FC<Props> = ({
                   </div>
                 </div>
               )}
-            </div>
 
-                {/* 5. CARDS DAS SEÇÕES (PREMIAÇÃO, REGULAMENTO, ETC) */}
-                <div className={`rounded-2xl border transition-all duration-200 overflow-hidden ${
-                  subAbaBotao === 'cards'
-                    ? 'bg-slate-950 border-emerald-500/50 ring-1 ring-emerald-500/20 shadow-lg'
-                    : 'bg-slate-950 border-slate-800 hover:border-slate-700'
-                }`}>
-                  <button
-                    type="button"
-                    onClick={() => setSubAbaBotao(subAbaBotao === 'cards' ? null : 'cards')}
-                    className="w-full p-4 flex items-center justify-between text-left gap-3 focus:outline-none cursor-pointer"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`p-2.5 rounded-xl transition-colors ${subAbaBotao === 'cards' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-900 text-slate-400'}`}>
-                        <Box className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <h4 className="text-xs font-black text-white flex items-center gap-2">
-                          Cards das Seções & Conteúdos
-                        </h4>
-                        <p className="text-[11px] text-slate-400 mt-0.5">Cores de fundo e borda para cada card da campanha</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      {subAbaBotao === 'cards' ? (
-                        <ChevronUp className="w-5 h-5 text-emerald-400" />
-                      ) : (
-                        <ChevronDown className="w-5 h-5 text-slate-400" />
+                      {/* 4.5. CARD DE PROGRESSO DE VENDAS */}
+                      {subAbaBotao === 'progresso' && (
+                        <div className="space-y-6 animate-in fade-in duration-200">
+                          <div className="space-y-1">
+                            <h4 className="text-sm font-black text-white flex items-center gap-2">
+                              <Sliders className="w-4 h-4 text-rose-400" />
+                              Card de Progresso de Vendas
+                            </h4>
+                            <p className="text-xs text-slate-400">
+                              Personalize as cores e detalhes da barra de progresso, preços unitários e selos informativos da campanha.
+                            </p>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                            {[
+                              { key: 'cardBarraProgressoFundo', label: 'Fundo do Card de Progresso', desc: 'Caixa externa que envolve a barra e o preço' },
+                              { key: 'barraProgressoFundo', label: 'Trilho Vazio da Barra', desc: 'Fundo do indicador de progresso' },
+                              { key: 'barraProgressoPreenchimento', label: 'Preenchimento da Barra', desc: 'Indicação de cotas vendidas' },
+                              { key: 'barraProgressoTexto', label: 'Texto do Progresso', desc: 'Indicador textual (ex: 45% vendido)' },
+                              { key: 'textoPrecoBarra', label: 'Preço no Card', desc: 'Cor do preço unitário exibido' },
+                              { key: 'seloBannerFundo', label: 'Fundo do Selo do Banner', desc: 'Tag de destaque no banner principal' },
+                              { key: 'seloBannerTexto', label: 'Texto do Selo do Banner', desc: 'Cor do texto da tag de destaque' },
+                            ].map(item => {
+                              const val = (temaSeguro.cores as any)[item.key] || '#10b981';
+                              return (
+                                <div key={item.key} className="p-3.5 bg-slate-950 border border-slate-800 rounded-2xl space-y-2">
+                                  <div className="space-y-0.5">
+                                    <label className="text-xs font-black text-slate-300 block">{item.label}</label>
+                                    <span className="text-[10px] text-slate-500 block leading-tight">{item.desc}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="color"
+                                      value={val}
+                                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [item.key]: e.target.value } })}
+                                      className="w-10 h-10 rounded-xl cursor-pointer bg-transparent border-0 p-0"
+                                    />
+                                    <input
+                                      type="text"
+                                      value={val}
+                                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [item.key]: e.target.value } })}
+                                      className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-white uppercase focus:outline-none focus:border-emerald-500"
+                                    />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
                       )}
-                    </div>
-                  </button>
 
-                  {subAbaBotao === 'cards' && (
-                    <div className="p-4 pt-2 border-t border-slate-800/80 bg-slate-900/40 space-y-6 animate-in fade-in">
+                      {/* 5. CARDS DAS SEÇÕES & CONTEÚDOS */}
+                      {subAbaBotao === 'cards' && (
+                        <div className="space-y-6 animate-in fade-in duration-200">
+                          
+                          {/* Cabeçalho de Cards */}
+                          {secaoCardAberta === null ? (
+                            <div className="space-y-1">
+                              <h4 className="text-sm font-black text-white flex items-center gap-2">
+                                <Box className="w-4 h-4 text-purple-400" />
+                                Cards das Seções & Conteúdos
+                              </h4>
+                              <p className="text-xs text-slate-400">
+                                Personalize o estilo visual padrão de todos os cards da campanha e configure cores exclusivas para cada seção específica.
+                              </p>
+                            </div>
+                          ) : null}
+
+                          <div className="space-y-6 animate-in fade-in">
                   {/* Estilo Global dos Cards */}
                   <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-4">
                     <h4 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
@@ -2232,8 +2180,9 @@ export const TemaBuilderView: React.FC<Props> = ({
                         </p>
                       </div>
                     </div>
+                  </div>
 
-                    <div className="space-y-2.5">
+                    <div className={secaoCardAberta === null ? "grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-2 border-t border-slate-800/50" : "space-y-4 pt-2 border-t border-slate-800/50"}>
                       {[
                         {
                           id: 'banner',
@@ -2274,69 +2223,6 @@ export const TemaBuilderView: React.FC<Props> = ({
                                     type="text"
                                     value={temaSeguro.cores.seloBannerTexto || '#022c22'}
                                     onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, seloBannerTexto: e.target.value } })}
-                                    className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                          )
-                        },
-                        {
-                          id: 'progresso',
-                          titulo: 'Card de Progresso de Vendas',
-                          desc: 'Cores da caixa de porcentagem vendida e barra de progresso',
-                          icone: '📊',
-                          corFundoKey: 'cardProgressoFundo',
-                          corBordaKey: 'cardProgressoBorda',
-                          extras: (
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-                              <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
-                                <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Fundo do Trilho</label>
-                                <div className="flex items-center gap-2">
-                                  <input
-                                    type="color"
-                                    value={temaSeguro.cores.barraProgressoFundo}
-                                    onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, barraProgressoFundo: e.target.value } })}
-                                    className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
-                                  />
-                                  <input
-                                    type="text"
-                                    value={temaSeguro.cores.barraProgressoFundo}
-                                    onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, barraProgressoFundo: e.target.value } })}
-                                    className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
-                                  />
-                                </div>
-                              </div>
-                              <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
-                                <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Preenchimento Barra</label>
-                                <div className="flex items-center gap-2">
-                                  <input
-                                    type="color"
-                                    value={temaSeguro.cores.barraProgressoPreenchimento}
-                                    onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, barraProgressoPreenchimento: e.target.value } })}
-                                    className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
-                                  />
-                                  <input
-                                    type="text"
-                                    value={temaSeguro.cores.barraProgressoPreenchimento}
-                                    onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, barraProgressoPreenchimento: e.target.value } })}
-                                    className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
-                                  />
-                                </div>
-                              </div>
-                              <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
-                                <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Texto do Progresso</label>
-                                <div className="flex items-center gap-2">
-                                  <input
-                                    type="color"
-                                    value={temaSeguro.cores.barraProgressoTexto}
-                                    onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, barraProgressoTexto: e.target.value } })}
-                                    className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
-                                  />
-                                  <input
-                                    type="text"
-                                    value={temaSeguro.cores.barraProgressoTexto}
-                                    onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, barraProgressoTexto: e.target.value } })}
                                     className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
                                   />
                                 </div>
@@ -2450,6 +2336,23 @@ export const TemaBuilderView: React.FC<Props> = ({
                                     />
                                   </div>
                                 </div>
+                                <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2 sm:col-span-2">
+                                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Cor da Borda dos Itens de Prêmios</label>
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="color"
+                                      value={(temaSeguro.cores as any).premioBorda || 'rgba(51, 65, 85, 0.6)'}
+                                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, premioBorda: e.target.value } })}
+                                      className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                                    />
+                                    <input
+                                      type="text"
+                                      value={(temaSeguro.cores as any).premioBorda || 'rgba(51, 65, 85, 0.6)'}
+                                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, premioBorda: e.target.value } })}
+                                      className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                                    />
+                                  </div>
+                                </div>
                               </div>
                             </div>
                           )
@@ -2460,7 +2363,116 @@ export const TemaBuilderView: React.FC<Props> = ({
                           desc: 'Container dos bilhetes contemplados na hora',
                           icone: '⚡',
                           corFundoKey: 'cardCotasPremiadasFundo',
-                          corBordaKey: 'cardCotasPremiadasBorda'
+                          corBordaKey: 'cardCotasPremiadasBorda',
+                          extras: (
+                            <div className="space-y-3 pt-2">
+                              <h5 className="text-[11px] font-black text-amber-400 uppercase tracking-wider block">Cores das Cotas Individuais na Grade</h5>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Fundo da Cota Disponível</label>
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="color"
+                                      value={(temaSeguro.cores as any).cotaPremiadaLivreFundo || 'rgba(16, 185, 129, 0.1)'}
+                                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cotaPremiadaLivreFundo: e.target.value } })}
+                                      className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                                    />
+                                    <input
+                                      type="text"
+                                      value={(temaSeguro.cores as any).cotaPremiadaLivreFundo || 'rgba(16, 185, 129, 0.1)'}
+                                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cotaPremiadaLivreFundo: e.target.value } })}
+                                      className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Borda da Cota Disponível</label>
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="color"
+                                      value={(temaSeguro.cores as any).cotaPremiadaLivreBorda || 'rgba(16, 185, 129, 0.3)'}
+                                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cotaPremiadaLivreBorda: e.target.value } })}
+                                      className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                                    />
+                                    <input
+                                      type="text"
+                                      value={(temaSeguro.cores as any).cotaPremiadaLivreBorda || 'rgba(16, 185, 129, 0.3)'}
+                                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cotaPremiadaLivreBorda: e.target.value } })}
+                                      className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Número da Cota Disponível</label>
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="color"
+                                      value={(temaSeguro.cores as any).cotaPremiadaLivreTexto || temaSeguro.cores.primaria}
+                                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cotaPremiadaLivreTexto: e.target.value } })}
+                                      className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                                    />
+                                    <input
+                                      type="text"
+                                      value={(temaSeguro.cores as any).cotaPremiadaLivreTexto || temaSeguro.cores.primaria}
+                                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cotaPremiadaLivreTexto: e.target.value } })}
+                                      className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Fundo da Cota Encontrada/Ganha</label>
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="color"
+                                      value={(temaSeguro.cores as any).cotaPremiadaAchadaFundo || 'rgba(30, 41, 59, 0.3)'}
+                                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cotaPremiadaAchadaFundo: e.target.value } })}
+                                      className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                                    />
+                                    <input
+                                      type="text"
+                                      value={(temaSeguro.cores as any).cotaPremiadaAchadaFundo || 'rgba(30, 41, 59, 0.3)'}
+                                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cotaPremiadaAchadaFundo: e.target.value } })}
+                                      className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Borda da Cota Encontrada/Ganha</label>
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="color"
+                                      value={(temaSeguro.cores as any).cotaPremiadaAchadaBorda || 'rgba(30, 41, 59, 0.5)'}
+                                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cotaPremiadaAchadaBorda: e.target.value } })}
+                                      className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                                    />
+                                    <input
+                                      type="text"
+                                      value={(temaSeguro.cores as any).cotaPremiadaAchadaBorda || 'rgba(30, 41, 59, 0.5)'}
+                                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cotaPremiadaAchadaBorda: e.target.value } })}
+                                      className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Texto da Cota Encontrada/Ganha</label>
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="color"
+                                      value={(temaSeguro.cores as any).cotaPremiadaAchadaTexto || '#94a3b8'}
+                                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cotaPremiadaAchadaTexto: e.target.value } })}
+                                      className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                                    />
+                                    <input
+                                      type="text"
+                                      value={(temaSeguro.cores as any).cotaPremiadaAchadaTexto || '#94a3b8'}
+                                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cotaPremiadaAchadaTexto: e.target.value } })}
+                                      className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          )
                         },
                         {
                           id: 'ranking',
@@ -2468,7 +2480,116 @@ export const TemaBuilderView: React.FC<Props> = ({
                           desc: 'Container dos líderes de compra da campanha',
                           icone: '👑',
                           corFundoKey: 'cardRankingFundo',
-                          corBordaKey: 'cardRankingBorda'
+                          corBordaKey: 'cardRankingBorda',
+                          extras: (
+                            <div className="space-y-3 pt-2">
+                              <h5 className="text-[11px] font-black text-amber-400 uppercase tracking-wider block">Cores dos Itens do Ranking e Podio</h5>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Fundo dos Itens da Lista</label>
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="color"
+                                      value={(temaSeguro.cores as any).rankingItemFundo || temaSeguro.cores.controlesFundo}
+                                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, rankingItemFundo: e.target.value } })}
+                                      className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                                    />
+                                    <input
+                                      type="text"
+                                      value={(temaSeguro.cores as any).rankingItemFundo || temaSeguro.cores.controlesFundo}
+                                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, rankingItemFundo: e.target.value } })}
+                                      className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Cor da Quantidade de Cotas</label>
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="color"
+                                      value={(temaSeguro.cores as any).rankingQtdCotasTexto || temaSeguro.cores.primaria}
+                                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, rankingQtdCotasTexto: e.target.value } })}
+                                      className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                                    />
+                                    <input
+                                      type="text"
+                                      value={(temaSeguro.cores as any).rankingQtdCotasTexto || temaSeguro.cores.primaria}
+                                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, rankingQtdCotasTexto: e.target.value } })}
+                                      className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Fundo do Badge de 1º Lugar</label>
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="color"
+                                      value={(temaSeguro.cores as any).ranking1Fundo || '#fbbf24'}
+                                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, ranking1Fundo: e.target.value } })}
+                                      className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                                    />
+                                    <input
+                                      type="text"
+                                      value={(temaSeguro.cores as any).ranking1Fundo || '#fbbf24'}
+                                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, ranking1Fundo: e.target.value } })}
+                                      className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Texto do Badge de 1º Lugar</label>
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="color"
+                                      value={(temaSeguro.cores as any).ranking1Texto || '#020617'}
+                                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, ranking1Texto: e.target.value } })}
+                                      className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                                    />
+                                    <input
+                                      type="text"
+                                      value={(temaSeguro.cores as any).ranking1Texto || '#020617'}
+                                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, ranking1Texto: e.target.value } })}
+                                      className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Fundo Outras Posições (2º, 3º...)</label>
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="color"
+                                      value={(temaSeguro.cores as any).rankingOutroFundo || '#334155'}
+                                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, rankingOutroFundo: e.target.value } })}
+                                      className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                                    />
+                                    <input
+                                      type="text"
+                                      value={(temaSeguro.cores as any).rankingOutroFundo || '#334155'}
+                                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, rankingOutroFundo: e.target.value } })}
+                                      className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Texto Outras Posições (2º, 3º...)</label>
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="color"
+                                      value={(temaSeguro.cores as any).rankingOutroTexto || '#cbd5e1'}
+                                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, rankingOutroTexto: e.target.value } })}
+                                      className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                                    />
+                                    <input
+                                      type="text"
+                                      value={(temaSeguro.cores as any).rankingOutroTexto || '#cbd5e1'}
+                                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, rankingOutroTexto: e.target.value } })}
+                                      className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          )
                         },
                         {
                           id: 'regulamento',
@@ -2478,21 +2599,40 @@ export const TemaBuilderView: React.FC<Props> = ({
                           corFundoKey: 'cardRegulamentoFundo',
                           corBordaKey: 'cardRegulamentoBorda',
                           extras: (
-                            <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2 pt-2">
-                              <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Cor do Texto do Regulamento</label>
-                              <div className="flex items-center gap-2">
-                                <input
-                                  type="color"
-                                  value={(temaSeguro.cores as any).cardRegulamentoTexto || '#cbd5e1'}
-                                  onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cardRegulamentoTexto: e.target.value } })}
-                                  className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
-                                />
-                                <input
-                                  type="text"
-                                  value={(temaSeguro.cores as any).cardRegulamentoTexto || '#cbd5e1'}
-                                  onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cardRegulamentoTexto: e.target.value } })}
-                                  className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
-                                />
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                              <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                                <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Cor do Texto do Regulamento</label>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="color"
+                                    value={(temaSeguro.cores as any).cardRegulamentoTexto || '#cbd5e1'}
+                                    onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cardRegulamentoTexto: e.target.value } })}
+                                    className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                                  />
+                                  <input
+                                    type="text"
+                                    value={(temaSeguro.cores as any).cardRegulamentoTexto || '#cbd5e1'}
+                                    onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cardRegulamentoTexto: e.target.value } })}
+                                    className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                                  />
+                                </div>
+                              </div>
+                              <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                                <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Cor do Título do Regulamento</label>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="color"
+                                    value={(temaSeguro.cores as any).cardRegulamentoTituloCor || temaSeguro.cores.titulos}
+                                    onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cardRegulamentoTituloCor: e.target.value } })}
+                                    className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                                  />
+                                  <input
+                                    type="text"
+                                    value={(temaSeguro.cores as any).cardRegulamentoTituloCor || temaSeguro.cores.titulos}
+                                    onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cardRegulamentoTituloCor: e.target.value } })}
+                                    className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                                  />
+                                </div>
                               </div>
                             </div>
                           )
@@ -2503,30 +2643,130 @@ export const TemaBuilderView: React.FC<Props> = ({
                           desc: 'Exibição do ganhador contemplado',
                           icone: '🎉',
                           corFundoKey: 'cardGanhadoresFundo',
-                          corBordaKey: 'cardGanhadoresBorda'
+                          corBordaKey: 'cardGanhadoresBorda',
+                          extras: (
+                            <div className="space-y-3 pt-2">
+                              <h5 className="text-[11px] font-black text-amber-400 uppercase tracking-wider block">Cores do Bloco do Ganhador</h5>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Fundo do Bloco de Destaque</label>
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="color"
+                                      value={(temaSeguro.cores as any).ganhadorBlocoFundo || 'rgba(16, 185, 129, 0.1)'}
+                                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, ganhadorBlocoFundo: e.target.value } })}
+                                      className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                                    />
+                                    <input
+                                      type="text"
+                                      value={(temaSeguro.cores as any).ganhadorBlocoFundo || 'rgba(16, 185, 129, 0.1)'}
+                                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, ganhadorBlocoFundo: e.target.value } })}
+                                      className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Borda do Bloco de Destaque</label>
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="color"
+                                      value={(temaSeguro.cores as any).ganhadorBlocoBorda || 'rgba(16, 185, 129, 0.3)'}
+                                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, ganhadorBlocoBorda: e.target.value } })}
+                                      className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                                    />
+                                    <input
+                                      type="text"
+                                      value={(temaSeguro.cores as any).ganhadorBlocoBorda || 'rgba(16, 185, 129, 0.3)'}
+                                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, ganhadorBlocoBorda: e.target.value } })}
+                                      className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Texto da Cota Contemplada</label>
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="color"
+                                      value={(temaSeguro.cores as any).ganhadorCotaTexto || temaSeguro.cores.primaria}
+                                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, ganhadorCotaTexto: e.target.value } })}
+                                      className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                                    />
+                                    <input
+                                      type="text"
+                                      value={(temaSeguro.cores as any).ganhadorCotaTexto || temaSeguro.cores.primaria}
+                                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, ganhadorCotaTexto: e.target.value } })}
+                                      className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Fundo do Troféu</label>
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="color"
+                                      value={(temaSeguro.cores as any).ganhadorTrofeuFundo || temaSeguro.cores.primaria}
+                                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, ganhadorTrofeuFundo: e.target.value } })}
+                                      className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                                    />
+                                    <input
+                                      type="text"
+                                      value={(temaSeguro.cores as any).ganhadorTrofeuFundo || temaSeguro.cores.primaria}
+                                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, ganhadorTrofeuFundo: e.target.value } })}
+                                      className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          )
                         }
                       ].map(sec => {
                         const isExpanded = secaoCardAberta === sec.id;
                         const fundoVal = (temaSeguro.cores as any)[sec.corFundoKey] || temaSeguro.cores.cardFundo;
                         const bordaVal = (temaSeguro.cores as any)[sec.corBordaKey] || temaSeguro.cores.cardBorda;
 
+                        if (secaoCardAberta !== null && !isExpanded) {
+                          return null;
+                        }
+
+                        if (secaoCardAberta === null) {
+                          return (
+                            <button
+                              key={sec.id}
+                              type="button"
+                              onClick={() => setSecaoCardAberta(sec.id)}
+                              className="w-full text-left p-4 bg-slate-950/40 border border-slate-800/80 rounded-2xl hover:border-purple-500/50 hover:bg-slate-900/40 transition flex items-center justify-between gap-3 group cursor-pointer animate-in fade-in duration-200"
+                            >
+                              <div className="flex items-center gap-3">
+                                <span className="text-xl group-hover:scale-110 transition-transform">{sec.icone}</span>
+                                <div>
+                                  <h5 className="text-xs font-bold text-white group-hover:text-purple-400 transition-colors">
+                                    {sec.titulo}
+                                  </h5>
+                                  <p className="text-[10px] text-slate-400 mt-0.5">{sec.desc}</p>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2 shrink-0">
+                                <div className="flex items-center gap-1.5 px-2 py-0.5 bg-slate-900 rounded border border-slate-800 text-[9px] font-mono">
+                                  <span className="w-2 h-2 rounded-full border border-white/10" style={{ backgroundColor: fundoVal }} />
+                                  <span className="text-slate-400 font-semibold">{fundoVal}</span>
+                                </div>
+                                <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-purple-400 transition" />
+                              </div>
+                            </button>
+                          );
+                        }
+
                         return (
                           <div
                             key={sec.id}
-                            className={`rounded-xl border transition-all duration-200 overflow-hidden ${
-                              isExpanded
-                                ? 'bg-slate-950 border-emerald-500/50 ring-1 ring-emerald-500/20 shadow-lg'
-                                : 'bg-slate-950 border-slate-800 hover:border-slate-700'
-                            }`}
+                            className="space-y-5 p-5 bg-slate-950 border border-slate-800 rounded-2xl animate-in fade-in duration-200 w-full"
                           >
-                            {/* Cabeçalho do Card (Clicável para expandir) */}
-                            <button
-                              type="button"
-                              onClick={() => setSecaoCardAberta(isExpanded ? null : sec.id)}
-                              className="w-full p-3.5 flex items-center justify-between text-left gap-3 focus:outline-none"
-                            >
-                              <div className="flex items-center gap-3">
-                                <span className="text-lg">{sec.icone}</span>
+                            {/* Cabeçalho Dedicado com Voltar */}
+                            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                              <div className="flex items-center gap-2.5">
+                                <span className="text-2xl">{sec.icone}</span>
                                 <div>
                                   <h5 className="text-xs font-black text-white flex items-center gap-2">
                                     {sec.titulo}
@@ -2535,61 +2775,63 @@ export const TemaBuilderView: React.FC<Props> = ({
                                 </div>
                               </div>
 
-                              <div className="flex items-center gap-2 shrink-0">
-                                {/* Pequeno indicador visual de cor */}
-                                <div className="flex items-center gap-1.5 px-2 py-1 bg-slate-900 rounded-lg border border-slate-800 text-[10px] font-mono">
-                                  <span className="w-2.5 h-2.5 rounded-full border border-white/20" style={{ backgroundColor: fundoVal }} />
-                                  <span className="text-slate-400 font-semibold">{fundoVal}</span>
+                              <button
+                                type="button"
+                                onClick={() => setSecaoCardAberta(null)}
+                                className="text-[10px] text-slate-300 hover:text-white px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl transition font-black flex items-center gap-1.5 cursor-pointer"
+                              >
+                                <ArrowLeft className="w-3.5 h-3.5 text-purple-400" />
+                                Voltar para Lista
+                              </button>
+                            </div>
+
+                            {/* Configuração de cores */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
+                                <div className="flex justify-between items-center">
+                                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Cor de Fundo</label>
+                                  <span className="text-[10px] text-slate-500 font-mono uppercase">{fundoVal}</span>
                                 </div>
-                                {isExpanded ? (
-                                  <ChevronUp className="w-4 h-4 text-emerald-400" />
-                                ) : (
-                                  <ChevronDown className="w-4 h-4 text-slate-400" />
-                                )}
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="color"
+                                    value={fundoVal}
+                                    onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [sec.corFundoKey]: e.target.value } })}
+                                    className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                                  />
+                                  <input
+                                    type="text"
+                                    value={fundoVal}
+                                    onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [sec.corFundoKey]: e.target.value } })}
+                                    className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                                  />
+                                </div>
                               </div>
-                            </button>
 
-                            {/* Conteúdo Expandido */}
-                            {isExpanded && (
-                              <div className="p-4 pt-2 border-t border-slate-800/80 bg-slate-900/40 space-y-3 animate-in fade-in">
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                  <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
-                                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Fundo deste Card</label>
-                                    <div className="flex items-center gap-2">
-                                      <input
-                                        type="color"
-                                        value={fundoVal}
-                                        onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [sec.corFundoKey]: e.target.value } })}
-                                        className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
-                                      />
-                                      <input
-                                        type="text"
-                                        value={fundoVal}
-                                        onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [sec.corFundoKey]: e.target.value } })}
-                                        className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
-                                      />
-                                    </div>
-                                  </div>
-
-                                  <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
-                                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Borda deste Card</label>
-                                    <div className="flex items-center gap-2">
-                                      <input
-                                        type="color"
-                                        value={bordaVal}
-                                        onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [sec.corBordaKey]: e.target.value } })}
-                                        className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
-                                      />
-                                      <input
-                                        type="text"
-                                        value={bordaVal}
-                                        onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [sec.corBordaKey]: e.target.value } })}
-                                        className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
-                                      />
-                                    </div>
-                                  </div>
+                              <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
+                                <div className="flex justify-between items-center">
+                                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Cor de Borda</label>
+                                  <span className="text-[10px] text-slate-500 font-mono uppercase">{bordaVal}</span>
                                 </div>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="color"
+                                    value={bordaVal}
+                                    onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [sec.corBordaKey]: e.target.value } })}
+                                    className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                                  />
+                                  <input
+                                    type="text"
+                                    value={bordaVal}
+                                    onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [sec.corBordaKey]: e.target.value } })}
+                                    className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                                  />
+                                </div>
+                              </div>
+                            </div>
 
+                            {sec.extras && (
+                              <div className="pt-3 border-t border-slate-800">
                                 {sec.extras}
                               </div>
                             )}
@@ -2598,87 +2840,45 @@ export const TemaBuilderView: React.FC<Props> = ({
                       })}
                     </div>
                   </div>
-                    </div>
-                  )}
                 </div>
-              </div>
+              )}
             </div>
           )}
 
-          {/* 3. SEÇÃO TIPOGRAFIA */}
-          {secaoEditor === 'tipografia' && (
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-6 animate-in fade-in">
-              <div className="border-b border-slate-800 pb-3">
-                <h3 className="text-sm font-black text-white flex items-center gap-2">
-                  <Type className="w-4 h-4 text-emerald-400" />
-                  Fontes e Cores de Texto
-                </h3>
-                <p className="text-xs text-slate-400">
-                  Clique nas fontes para visualizar o estilo real e selecione as cores dos textos.
-                </p>
-              </div>
-
-              {/* Cores de Texto */}
-              <div className="space-y-3">
-                <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Cores dos Textos</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                  {[
-                    { key: 'titulos', label: 'Cor dos Títulos', desc: 'Cabeçalhos e títulos' },
-                    { key: 'texto', label: 'Cor do Texto Geral', desc: 'Parágrafos principais' },
-                    { key: 'descricoes', label: 'Cor das Descrições', desc: 'Textos secundários' },
-                    { key: 'subtituloCor', label: 'Cor do Subtítulo', desc: 'Abaixo do título' },
-                  ].map(item => {
-                    const val = (temaSeguro.cores as any)[item.key];
-                    return (
-                      <div key={item.key} className="p-3 bg-slate-950/80 border border-slate-800 rounded-xl space-y-2">
-                        <div className="flex items-center justify-between">
-                          <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider">{item.label}</label>
-                          <span className="text-[10px] text-slate-500 font-mono uppercase">{val}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="color"
-                            value={val}
-                            onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [item.key]: e.target.value } })}
-                            className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
-                          />
-                          <input
-                            type="text"
-                            value={val}
-                            onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [item.key]: e.target.value } })}
-                            className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       )}
 
-      {/* 2. SEÇÃO FONTES (TIPOGRAFIA) */}
+            </div>
+          )}
+
+      {/* SEÇÃO TIPOGRAFIA & FONTES UNIFICADA */}
       {secaoEditor === 'tipografia' && (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-5 animate-in fade-in">
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-6 animate-in fade-in">
           <div className="border-b border-slate-800 pb-3">
             <h3 className="text-sm font-black text-white flex items-center gap-2">
               <Type className="w-4 h-4 text-emerald-400" />
-              Tipografia & Fontes
+              Fontes, Tipografia & Cores de Texto
             </h3>
             <p className="text-xs text-slate-400">
-              Escolha as fontes dos títulos e textos, além do tamanho das letras.
+              Escolha as fontes dos títulos e textos do Google Fonts, ajuste os tamanhos base e selecione as respectivas cores.
             </p>
           </div>
 
-          {/* Seletor Visual de Fonte de Títulos (2 Colunas) */}
-          <div className="space-y-3 pt-2">
-            <div className="flex justify-between items-center">
-              <label className="text-xs font-bold text-slate-300 block">Fonte dos Títulos</label>
-              <span className="text-[10px] text-emerald-400 font-mono font-bold">Selecionada: {temaSeguro.tipografia.fonteTitulo}</span>
-            </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto pr-1 custom-scrollbar">
+          {/* 1. SELETOR DE FONTES */}
+          <div className="space-y-4">
+            <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+              <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full" />
+              Famílias de Fontes (Google Fonts)
+            </h4>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Fonte de Títulos */}
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <label className="text-xs font-bold text-slate-300 block">Fonte dos Títulos</label>
+                  <span className="text-[10px] text-emerald-400 font-mono font-bold">Selecionada: {temaSeguro.tipografia.fonteTitulo}</span>
+                </div>
+                <div className="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto pr-1 custom-scrollbar bg-slate-950/40 p-2 rounded-xl border border-slate-800/80">
                   {GOOGLE_FONTS_LIST.map(f => {
                     const selecionada = temaSeguro.tipografia.fonteTitulo === f;
                     return (
@@ -2686,15 +2886,14 @@ export const TemaBuilderView: React.FC<Props> = ({
                         key={f}
                         type="button"
                         onClick={() => atualizarTema({ tipografia: { ...temaSeguro.tipografia, fonteTitulo: f } })}
-                        className={`p-3 text-left border rounded-xl transition flex flex-col justify-between ${
+                        className={`p-3 text-left border rounded-xl transition flex flex-col justify-center cursor-pointer min-h-[44px] ${
                           selecionada
                             ? 'bg-emerald-500/15 border-emerald-500 text-white shadow-sm ring-1 ring-emerald-500'
                             : 'bg-slate-950/60 border-slate-800 text-slate-300 hover:border-slate-700 hover:bg-slate-950'
                         }`}
                       >
-                        <span className="text-[10px] font-mono text-slate-400 mb-1">{f}</span>
-                        <span className="text-sm font-bold tracking-wide truncate" style={{ fontFamily: f }}>
-                          RifaZone 123
+                        <span className="text-base font-bold tracking-wide truncate" style={{ fontFamily: f }}>
+                          {f}
                         </span>
                       </button>
                     );
@@ -2702,13 +2901,13 @@ export const TemaBuilderView: React.FC<Props> = ({
                 </div>
               </div>
 
-              {/* Seletor Visual de Fonte de Textos (2 Colunas) */}
-              <div className="space-y-3 pt-4 border-t border-slate-800">
+              {/* Fonte de Textos */}
+              <div className="space-y-3">
                 <div className="flex justify-between items-center">
                   <label className="text-xs font-bold text-slate-300 block">Fonte dos Textos</label>
-                  <span className="text-[10px] text-emerald-400 font-mono">Selecionada: {temaSeguro.tipografia.fonteTexto}</span>
+                  <span className="text-[10px] text-emerald-400 font-mono font-bold">Selecionada: {temaSeguro.tipografia.fonteTexto}</span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto pr-1 custom-scrollbar">
+                <div className="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto pr-1 custom-scrollbar bg-slate-950/40 p-2 rounded-xl border border-slate-800/80">
                   {GOOGLE_FONTS_LIST.map(f => {
                     const selecionada = temaSeguro.tipografia.fonteTexto === f;
                     return (
@@ -2716,56 +2915,103 @@ export const TemaBuilderView: React.FC<Props> = ({
                         key={f}
                         type="button"
                         onClick={() => atualizarTema({ tipografia: { ...temaSeguro.tipografia, fonteTexto: f } })}
-                        className={`p-3 text-left border rounded-xl transition flex flex-col justify-between ${
+                        className={`p-3 text-left border rounded-xl transition flex flex-col justify-center cursor-pointer min-h-[44px] ${
                           selecionada
                             ? 'bg-emerald-500/15 border-emerald-500 text-white shadow-sm ring-1 ring-emerald-500'
                             : 'bg-slate-950/60 border-slate-800 text-slate-300 hover:border-slate-700 hover:bg-slate-950'
                         }`}
                       >
-                        <span className="text-[10px] font-mono text-slate-400 mb-1">{f}</span>
-                        <span className="text-xs tracking-wide truncate" style={{ fontFamily: f }}>
-                          Garanta já seus números e concorra aos prêmios.
+                        <span className="text-sm tracking-wide truncate" style={{ fontFamily: f }}>
+                          {f}
                         </span>
                       </button>
                     );
                   })}
                 </div>
               </div>
+            </div>
+          </div>
 
-              {/* Tamanhos de Fonte */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-slate-800">
-                <div className="space-y-1.5">
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="font-bold text-slate-300">Tamanho Base Títulos</span>
-                    <span className="font-mono text-emerald-400">{temaSeguro.tipografia.tamanhoTitulo}px</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="18"
-                    max="36"
-                    value={temaSeguro.tipografia.tamanhoTitulo}
-                    onChange={e => atualizarTema({ tipografia: { ...temaSeguro.tipografia, tamanhoTitulo: Number(e.target.value) } })}
-                    className="w-full accent-emerald-500 bg-slate-950 cursor-pointer"
-                  />
+          {/* 2. TAMANHOS DE FONTE */}
+          <div className="space-y-4 pt-4 border-t border-slate-800">
+            <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+              <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full" />
+              Tamanhos das Fontes
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5 p-3 bg-slate-950/50 border border-slate-800/60 rounded-xl">
+                <div className="flex justify-between items-center text-xs mb-1.5">
+                  <span className="font-bold text-slate-300">Tamanho Base Títulos</span>
+                  <span className="font-mono text-emerald-400 font-bold">{temaSeguro.tipografia.tamanhoTitulo}px</span>
                 </div>
+                <input
+                  type="range"
+                  min="18"
+                  max="36"
+                  value={temaSeguro.tipografia.tamanhoTitulo}
+                  onChange={e => atualizarTema({ tipografia: { ...temaSeguro.tipografia, tamanhoTitulo: Number(e.target.value) } })}
+                  className="w-full accent-emerald-500 bg-slate-950 cursor-pointer"
+                />
+              </div>
 
-                <div className="space-y-1.5">
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="font-bold text-slate-300">Tamanho Base Textos</span>
-                    <span className="font-mono text-emerald-400">{temaSeguro.tipografia.tamanhoTexto}px</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="12"
-                    max="20"
-                    value={temaSeguro.tipografia.tamanhoTexto}
-                    onChange={e => atualizarTema({ tipografia: { ...temaSeguro.tipografia, tamanhoTexto: Number(e.target.value) } })}
-                    className="w-full accent-emerald-500 bg-slate-950 cursor-pointer"
-                  />
+              <div className="space-y-1.5 p-3 bg-slate-950/50 border border-slate-800/60 rounded-xl">
+                <div className="flex justify-between items-center text-xs mb-1.5">
+                  <span className="font-bold text-slate-300">Tamanho Base Textos</span>
+                  <span className="font-mono text-emerald-400 font-bold">{temaSeguro.tipografia.tamanhoTexto}px</span>
                 </div>
+                <input
+                  type="range"
+                  min="12"
+                  max="20"
+                  value={temaSeguro.tipografia.tamanhoTexto}
+                  onChange={e => atualizarTema({ tipografia: { ...temaSeguro.tipografia, tamanhoTexto: Number(e.target.value) } })}
+                  className="w-full accent-emerald-500 bg-slate-950 cursor-pointer"
+                />
               </div>
             </div>
-          )}
+          </div>
+
+          {/* 3. CORES DE TEXTO */}
+          <div className="space-y-4 pt-4 border-t border-slate-800">
+            <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+              <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full" />
+              Cores dos Textos
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              {[
+                { key: 'titulos', label: 'Cor dos Títulos', desc: 'Cabeçalhos e títulos' },
+                { key: 'texto', label: 'Cor do Texto Geral', desc: 'Parágrafos principais' },
+                { key: 'descricoes', label: 'Cor das Descrições', desc: 'Textos secundários' },
+                { key: 'subtituloCor', label: 'Cor do Subtítulo', desc: 'Abaixo do título' },
+              ].map(item => {
+                const val = (temaSeguro.cores as any)[item.key];
+                return (
+                  <div key={item.key} className="p-3 bg-slate-950/80 border border-slate-800 rounded-xl space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider">{item.label}</label>
+                      <span className="text-[10px] text-slate-500 font-mono uppercase">{val}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={val}
+                        onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [item.key]: e.target.value } })}
+                        className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                      />
+                      <input
+                        type="text"
+                        value={val}
+                        onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [item.key]: e.target.value } })}
+                        className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
           {/* 4. SEÇÃO BLOCOS E FUNDO */}
           {secaoEditor === 'blocos' && (
@@ -2789,8 +3035,8 @@ export const TemaBuilderView: React.FC<Props> = ({
                 <div className="grid grid-cols-3 gap-2">
                   {[
                     { id: 'cor', label: 'Cor Sólida' },
-                    { id: 'imagem', label: 'Imagem URL' },
-                    { id: 'video', label: 'Vídeo Loop (MP4)' },
+                    { id: 'imagem', label: 'Imagem de Fundo' },
+                    { id: 'video', label: 'Vídeo de Fundo' },
                   ].map(m => (
                     <button
                       key={m.id}
@@ -2808,29 +3054,132 @@ export const TemaBuilderView: React.FC<Props> = ({
                 </div>
 
                 {temaSeguro.fundoMidia?.tipo !== 'cor' && (
-                  <div className="space-y-1 pt-1">
-                    <label className="text-[11px] text-slate-400 block">
-                      URL da {temaSeguro.fundoMidia?.tipo === 'video' ? 'Vídeo (MP4/WebM)' : 'Imagem de Fundo'}
+                  <div className="space-y-1.5 pt-1">
+                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">
+                      Fazer Upload de {temaSeguro.fundoMidia?.tipo === 'video' ? 'Vídeo (MP4/WebM)' : 'Imagem de Fundo'}
                     </label>
-                    <input
-                      type="url"
-                      value={temaSeguro.fundoMidia?.url || ''}
-                      onChange={e => atualizarTema({ fundoMidia: { ...temaSeguro.fundoMidia, url: e.target.value } })}
-                      placeholder={temaSeguro.fundoMidia?.tipo === 'video' ? 'https://.../video.mp4' : 'https://.../background.jpg'}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
-                    />
+
+                    {temaSeguro.fundoMidia?.url ? (
+                      <div className="relative rounded-2xl overflow-hidden border border-slate-700 bg-slate-900 group">
+                        {temaSeguro.fundoMidia?.tipo === 'video' ? (
+                          <video
+                            src={temaSeguro.fundoMidia?.url}
+                            autoPlay
+                            muted
+                            loop
+                            className="w-full h-32 object-cover"
+                          />
+                        ) : (
+                          <img
+                            src={temaSeguro.fundoMidia?.url}
+                            alt="Background Preview"
+                            referrerPolicy="no-referrer"
+                            className="w-full h-32 object-cover"
+                          />
+                        )}
+                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => atualizarTema({ fundoMidia: { ...temaSeguro.fundoMidia, url: '' } })}
+                            className="p-2 bg-red-500/80 hover:bg-red-600 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-lg"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            Remover Mídia
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        id="background-upload-dropzone"
+                        onDragOver={e => {
+                          e.preventDefault();
+                          e.currentTarget.classList.add('border-emerald-500', 'bg-emerald-500/5');
+                        }}
+                        onDragLeave={e => {
+                          e.preventDefault();
+                          e.currentTarget.classList.remove('border-emerald-500', 'bg-emerald-500/5');
+                        }}
+                        onDrop={e => {
+                          e.preventDefault();
+                          e.currentTarget.classList.remove('border-emerald-500', 'bg-emerald-500/5');
+                          const file = e.dataTransfer.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onload = () => {
+                              if (typeof reader.result === 'string') {
+                                atualizarTema({ fundoMidia: { ...temaSeguro.fundoMidia, url: reader.result } });
+                              }
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                        onClick={() => {
+                          const input = document.getElementById('background-file-input');
+                          if (input) input.click();
+                        }}
+                        className="border-2 border-dashed border-slate-800 hover:border-slate-700 bg-slate-900/40 hover:bg-slate-900/60 transition rounded-2xl p-6 flex flex-col items-center justify-center text-center cursor-pointer gap-2 group min-h-[140px]"
+                      >
+                        <input
+                          id="background-file-input"
+                          type="file"
+                          accept={temaSeguro.fundoMidia?.tipo === 'video' ? 'video/*' : 'image/*'}
+                          className="hidden"
+                          onChange={e => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onload = () => {
+                                if (typeof reader.result === 'string') {
+                                  atualizarTema({ fundoMidia: { ...temaSeguro.fundoMidia, url: reader.result } });
+                                }
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                        />
+                        <div className="w-10 h-10 rounded-xl bg-slate-950 flex items-center justify-center group-hover:scale-110 transition-transform">
+                          {temaSeguro.fundoMidia?.tipo === 'video' ? (
+                            <Video className="w-5 h-5 text-emerald-400" />
+                          ) : (
+                            <ImageIcon className="w-5 h-5 text-emerald-400" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-white">Arrastar e soltar arquivo aqui</p>
+                          <p className="text-[10px] text-slate-400 mt-1">ou clique para selecionar do seu dispositivo</p>
+                          <p className="text-[9px] text-emerald-400/80 mt-2 max-w-[240px] mx-auto leading-relaxed font-medium">
+                            {temaSeguro.fundoMidia?.tipo === 'video' 
+                              ? 'Sugestão: Formato MP4 de até 5MB, proporção de tela cheia para encaixe ideal' 
+                              : 'Sugestão: 1920x1080 px ou proporção vertical de celular para encaixe perfeito'}
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
 
               {/* Estilo de Celebração de Ganhadores */}
               <div className="space-y-2 p-3.5 bg-slate-950/80 border border-slate-800 rounded-xl">
-                <label className="text-xs font-bold text-white block">
-                  Estilo de Comemoração de Ganhadores / Cotas Premiadas
-                </label>
+                <div className="flex justify-between items-center">
+                  <label className="text-xs font-bold text-white block">
+                    Estilo de Comemoração de Ganhadores / Cotas Premiadas
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewAnimacao(temaSeguro.ganhadorCelebracaoEstilo || 'confetes')}
+                    className="text-[10px] bg-purple-500/15 hover:bg-purple-500/35 text-purple-300 font-black border border-purple-500/30 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                  >
+                    ⚡ Testar Efeito
+                  </button>
+                </div>
                 <select
                   value={temaSeguro.ganhadorCelebracaoEstilo || 'confetes'}
-                  onChange={e => atualizarTema({ ganhadorCelebracaoEstilo: e.target.value as any })}
+                  onChange={e => {
+                    const val = e.target.value as any;
+                    atualizarTema({ ganhadorCelebracaoEstilo: val });
+                    setPreviewAnimacao(val);
+                  }}
                   className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
                 >
                   <option value="confetes">🎉 Chuva de Confetes</option>
@@ -2880,15 +3229,35 @@ export const TemaBuilderView: React.FC<Props> = ({
                   {ordemAtual.map((blocoId, idx) => {
                     const info = BLOCOS_DISPONIVEIS.find(b => b.id === blocoId) || { nome: blocoId, descricao: '', icone: '📦' };
                     const visivel = temaSeguro.layout.visivel[blocoId] !== false;
+                    const isDragging = draggedIdx === idx;
 
                     return (
                       <div 
                         key={blocoId}
-                        className={`p-3 rounded-xl border flex items-center justify-between gap-3 transition ${
-                          visivel ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-950/30 border-slate-900 opacity-60'
+                        draggable={true}
+                        onDragStart={() => setDraggedIdx(idx)}
+                        onDragOver={e => e.preventDefault()}
+                        onDragEnter={() => {
+                          if (draggedIdx !== null && draggedIdx !== idx) {
+                            const novaOrdem = [...ordemAtual];
+                            const draggedItem = novaOrdem[draggedIdx];
+                            novaOrdem.splice(draggedIdx, 1);
+                            novaOrdem.splice(idx, 0, draggedItem);
+                            setDraggedIdx(idx);
+                            atualizarTema({ layout: { ...temaSeguro.layout, ordem: novaOrdem } });
+                          }
+                        }}
+                        onDragEnd={() => setDraggedIdx(null)}
+                        className={`p-3 rounded-xl border flex items-center justify-between gap-3 transition cursor-grab active:cursor-grabbing ${
+                          isDragging 
+                            ? 'bg-slate-900 border-emerald-500/50 opacity-40 scale-[0.98]' 
+                            : visivel 
+                              ? 'bg-slate-950/80 border-slate-800 hover:border-slate-700/80 hover:bg-slate-900/60' 
+                              : 'bg-slate-950/30 border-slate-900 opacity-60'
                         }`}
                       >
                         <div className="flex items-center gap-3">
+                          <GripVertical className="w-4 h-4 text-slate-500 pointer-events-none" />
                           <span className="text-lg">{info.icone}</span>
                           <div>
                             <span className="text-xs font-bold text-white block">{info.nome}</span>
@@ -2904,83 +3273,16 @@ export const TemaBuilderView: React.FC<Props> = ({
                               v[blocoId] = !visivel;
                               atualizarTema({ layout: { ...temaSeguro.layout, visivel: v } });
                             }}
-                            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition ${
+                            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition cursor-pointer ${
                               visivel ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-slate-800 text-slate-400'
                             }`}
                           >
                             {visivel ? 'Visível' : 'Oculto'}
                           </button>
-
-                          <button
-                            type="button"
-                            disabled={idx === 0}
-                            onClick={() => moverBloco(idx, 'cima')}
-                            className="p-1.5 bg-slate-900 hover:bg-slate-800 disabled:opacity-30 rounded-lg text-slate-300"
-                            title="Mover para cima"
-                          >
-                            <ArrowUp className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            disabled={idx === ordemAtual.length - 1}
-                            onClick={() => moverBloco(idx, 'baixo')}
-                            className="p-1.5 bg-slate-900 hover:bg-slate-800 disabled:opacity-30 rounded-lg text-slate-300"
-                            title="Mover para baixo"
-                          >
-                            <ArrowDown className="w-3.5 h-3.5" />
-                          </button>
                         </div>
                       </div>
                     );
                   })}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* 5. SEÇÃO ORGANIZADOR / LOGO */}
-          {secaoEditor === 'organizador' && (
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-5 animate-in fade-in">
-              <div className="border-b border-slate-800 pb-3">
-                <h3 className="text-sm font-black text-white flex items-center gap-2">
-                  <User className="w-4 h-4 text-emerald-400" />
-                  Configuração da Logo e Cabeçalho
-                </h3>
-                <p className="text-xs text-slate-400">
-                  Defina o tamanho, alinhamento e o comportamento do clique na logo do organizador.
-                </p>
-              </div>
-
-              <div className="space-y-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-300 block">Alinhamento da Logo no Topo</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {[
-                      { id: 'esquerda', label: 'Esquerda' },
-                      { id: 'centro', label: 'Centro' },
-                      { id: 'direita', label: 'Direita' },
-                    ].map(al => (
-                      <button
-                        key={al.id}
-                        type="button"
-                        onClick={() => atualizarTema({ organizadorCabecalho: { ...temaSeguro.organizadorCabecalho, logoAlinhamento: al.id as any } })}
-                        className={`py-2 px-2 text-xs font-bold border rounded-xl transition ${
-                          temaSeguro.organizadorCabecalho?.logoAlinhamento === al.id
-                            ? 'border-emerald-500 bg-emerald-500/15 text-emerald-300'
-                            : 'border-slate-800 bg-slate-950 text-slate-400'
-                        }`}
-                      >
-                        {al.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-xl space-y-2">
-                  <h4 className="text-xs font-bold text-white">Página de Campanhas do Organizador</h4>
-                  <p className="text-[11px] text-slate-400">
-                    Quando o usuário clica na logo do organizador no topo da página, abre-se automaticamente uma página dedicada listando todas as campanhas ativas e redes sociais da conta.
-                  </p>
                 </div>
               </div>
             </div>
@@ -3156,6 +3458,13 @@ export const TemaBuilderView: React.FC<Props> = ({
             </form>
           </div>
         </div>
+      )}
+
+      {previewAnimacao && (
+        <CelebrationPreview
+          estilo={previewAnimacao}
+          onClose={() => setPreviewAnimacao(null)}
+        />
       )}
     </div>
   );

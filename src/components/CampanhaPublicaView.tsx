@@ -1474,33 +1474,47 @@ export const CampanhaPublicaView: React.FC<Props> = ({
           </h3>
         </div>
         <div className="grid grid-cols-2 gap-2">
-          {campanha.cotasPremiadas.map((cp, idx) => (
-            <div
-              key={idx}
-              className={`p-3 rounded-xl border text-xs ${
-                cp.status === 'encontrada'
-                  ? 'bg-slate-800/30 border-slate-800 text-slate-500 opacity-60'
-                  : 'bg-emerald-500/10 border-emerald-500/30'
-              }`}
-            >
-              <div className="flex items-center justify-between mb-1">
-                <span
-                  className="font-mono font-black text-sm"
-                  style={{ color: cp.status === 'encontrada' ? undefined : tema.cores.primaria }}
-                >
-                  {cp.numero}
-                </span>
-                <span className={`text-[10px] font-bold uppercase px-1.5 py-0.2 rounded ${
-                  cp.status === 'encontrada' ? 'bg-slate-800 text-slate-400' : 'bg-emerald-500/20 text-emerald-300'
-                }`}>
-                  {cp.status === 'encontrada' ? 'Ganha' : 'Disponível'}
+          {campanha.cotasPremiadas.map((cp, idx) => {
+            const isEncontrada = cp.status === 'encontrada';
+            const bg = isEncontrada
+              ? ((tema.cores as any).cotaPremiadaAchadaFundo || 'rgba(30, 41, 59, 0.3)')
+              : ((tema.cores as any).cotaPremiadaLivreFundo || 'rgba(16, 185, 129, 0.1)');
+            const border = isEncontrada
+              ? ((tema.cores as any).cotaPremiadaAchadaBorda || 'rgba(30, 41, 59, 0.5)')
+              : ((tema.cores as any).cotaPremiadaLivreBorda || 'rgba(16, 185, 129, 0.3)');
+            const textNum = isEncontrada
+              ? ((tema.cores as any).cotaPremiadaAchadaTexto || '#94a3b8')
+              : ((tema.cores as any).cotaPremiadaLivreTexto || tema.cores.primaria);
+
+            return (
+              <div
+                key={idx}
+                className={`p-3 rounded-xl border text-xs ${isEncontrada ? 'opacity-60' : ''}`}
+                style={{ backgroundColor: bg, borderColor: border }}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span
+                    className="font-mono font-black text-sm"
+                    style={{ color: textNum }}
+                  >
+                    {cp.numero}
+                  </span>
+                  <span 
+                    className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded"
+                    style={{ 
+                      backgroundColor: isEncontrada ? 'rgba(30, 41, 59, 0.6)' : 'rgba(16, 185, 129, 0.2)',
+                      color: isEncontrada ? '#94a3b8' : '#6ee7b7'
+                    }}
+                  >
+                    {isEncontrada ? 'Ganha' : 'Disponível'}
+                  </span>
+                </div>
+                <span className="block font-medium text-[11px] truncate opacity-80" style={{ color: tema.cores.texto }}>
+                  {cp.premio}
                 </span>
               </div>
-              <span className="block font-medium text-[11px] truncate opacity-80">
-                {cp.premio}
-              </span>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     );
@@ -1525,30 +1539,43 @@ export const CampanhaPublicaView: React.FC<Props> = ({
           Top Compradores
         </h3>
         <div className="space-y-2">
-          {ranking.map((item) => (
-            <div
-              key={item.posicao}
-              className="flex items-center justify-between p-2.5 rounded-xl border border-slate-700/40 text-xs"
-              style={{ backgroundColor: tema.cores.controlesFundo }}
-            >
-              <div className="flex items-center gap-2.5">
-                <span className={`w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] ${
-                  item.posicao === 1 ? 'bg-amber-400 text-slate-950' : 'bg-slate-700 text-slate-300'
-                }`}>
-                  {item.posicao}
-                </span>
-                <span className="font-semibold truncate max-w-[150px]">
-                  {item.nome}
+          {ranking.map((item) => {
+            const is1st = item.posicao === 1;
+            const itemBg = (tema.cores as any).rankingItemFundo || tema.cores.controlesFundo;
+            const badgeBg = is1st
+              ? ((tema.cores as any).ranking1Fundo || '#fbbf24')
+              : ((tema.cores as any).rankingOutroFundo || '#334155');
+            const badgeText = is1st
+              ? ((tema.cores as any).ranking1Texto || '#020617')
+              : ((tema.cores as any).rankingOutroTexto || '#cbd5e1');
+            const qtyTextCol = (tema.cores as any).rankingQtdCotasTexto || tema.cores.primaria;
+
+            return (
+              <div
+                key={item.posicao}
+                className="flex items-center justify-between p-2.5 rounded-xl border border-slate-700/40 text-xs"
+                style={{ backgroundColor: itemBg }}
+              >
+                <div className="flex items-center gap-2.5">
+                  <span 
+                    className="w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px]"
+                    style={{ backgroundColor: badgeBg, color: badgeText }}
+                  >
+                    {item.posicao}
+                  </span>
+                  <span className="font-semibold truncate max-w-[150px]" style={{ color: tema.cores.texto }}>
+                    {item.nome}
+                  </span>
+                </div>
+                <span
+                  className="font-extrabold font-mono"
+                  style={{ color: qtyTextCol }}
+                >
+                  {item.quantidadeCotas} cotas
                 </span>
               </div>
-              <span
-                className="font-extrabold font-mono"
-                style={{ color: tema.cores.primaria }}
-              >
-                {item.quantidadeCotas} cotas
-              </span>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     );
@@ -1610,20 +1637,29 @@ export const CampanhaPublicaView: React.FC<Props> = ({
         </h3>
 
         {campanha.ganhador ? (
-          <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center gap-3">
+          <div 
+            className="p-4 rounded-xl flex items-center gap-3 border"
+            style={{
+              backgroundColor: (tema.cores as any).ganhadorBlocoFundo || 'rgba(16, 185, 129, 0.1)',
+              borderColor: (tema.cores as any).ganhadorBlocoBorda || 'rgba(16, 185, 129, 0.3)',
+            }}
+          >
             <div
               className="w-10 h-10 rounded-full flex items-center justify-center font-black text-lg shadow"
-              style={{ backgroundColor: 'var(--brand)', color: 'var(--btn-txt)' }}
+              style={{ 
+                backgroundColor: (tema.cores as any).ganhadorTrofeuFundo || tema.cores.primaria, 
+                color: '#ffffff' 
+              }}
             >
               🏆
             </div>
             <div>
-              <h4 className="text-sm font-extrabold text-white">
+              <h4 className="text-sm font-extrabold" style={{ color: tema.cores.texto }}>
                 {campanha.ganhador.nome}
               </h4>
               <p
                 className="text-xs font-mono font-bold"
-                style={{ color: 'var(--brand)' }}
+                style={{ color: (tema.cores as any).ganhadorCotaTexto || tema.cores.primaria }}
               >
                 Cota Contemplada: #{campanha.ganhador.cota}
               </p>

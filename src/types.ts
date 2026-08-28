@@ -115,6 +115,23 @@ export interface TemaCampanha {
     cardRegulamentoTexto?: string;
     cardGanhadoresFundo?: string;
     cardGanhadoresBorda?: string;
+    rankingQtdCotasTexto?: string;
+    rankingItemFundo?: string;
+    ranking1Fundo?: string;
+    ranking1Texto?: string;
+    rankingOutroFundo?: string;
+    rankingOutroTexto?: string;
+    cardRegulamentoTituloCor?: string;
+    ganhadorBlocoFundo?: string;
+    ganhadorBlocoBorda?: string;
+    ganhadorCotaTexto?: string;
+    ganhadorTrofeuFundo?: string;
+    cotaPremiadaLivreFundo?: string;
+    cotaPremiadaLivreBorda?: string;
+    cotaPremiadaLivreTexto?: string;
+    cotaPremiadaAchadaFundo?: string;
+    cotaPremiadaAchadaBorda?: string;
+    cotaPremiadaAchadaTexto?: string;
   };
   secaoIcones: {
     premios: string;

@@ -769,7 +769,7 @@ export const TemaBuilderView: React.FC<Props> = ({
 
               {/* SUB-ABA 1: CORES & FUNDO */}
               {subAbaGeral === 'cores' && (
-                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-5 animate-in fade-in">
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 sm:p-5 shadow-sm space-y-5 animate-in fade-in">
                   <div className="border-b border-slate-800 pb-3">
                     <h3 className="text-sm font-black text-white flex items-center gap-2">
                       <Palette className="w-4 h-4 text-emerald-400" />
@@ -821,7 +821,7 @@ export const TemaBuilderView: React.FC<Props> = ({
 
               {/* SUB-ABA 3: ÍCONES DAS SEÇÕES */}
               {subAbaGeral === 'icones' && (
-                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-6 animate-in fade-in">
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 sm:p-5 shadow-sm space-y-6 animate-in fade-in">
                   <div className="border-b border-slate-800 pb-3">
                     <div className="flex items-center justify-between">
                       <h3 className="text-sm font-black text-white flex items-center gap-2">
@@ -1002,7 +1002,7 @@ export const TemaBuilderView: React.FC<Props> = ({
 
               {/* SUB-ABA 4: LOGO & CABEÇALHO */}
               {subAbaGeral === 'logo' && (
-                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-5 animate-in fade-in">
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 sm:p-5 shadow-sm space-y-5 animate-in fade-in">
                   <div className="border-b border-slate-800 pb-3">
                     <h3 className="text-sm font-black text-white flex items-center gap-2">
                       <User className="w-4 h-4 text-emerald-400" />
@@ -1050,7 +1050,7 @@ export const TemaBuilderView: React.FC<Props> = ({
 
               {/* SUB-ABA 5: BOTÕES & ELEMENTOS */}
               {subAbaGeral === 'botoes' && (
-                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-6 animate-in fade-in">
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 sm:p-5 shadow-sm space-y-6 animate-in fade-in">
                   {subAbaBotao === null ? (
                     <div className="border-b border-slate-800 pb-3">
                       <h3 className="text-sm font-black text-white flex items-center gap-2">
@@ -2686,7 +2686,7 @@ export const TemaBuilderView: React.FC<Props> = ({
                         return (
                           <div
                             key={sec.id}
-                            className="space-y-5 p-5 bg-slate-950 border border-slate-800 rounded-2xl animate-in fade-in duration-200 w-full"
+                            className="space-y-5 p-3 sm:p-5 bg-slate-950 border border-slate-800 rounded-2xl animate-in fade-in duration-200 w-full"
                           >
                             {/* Cabeçalho Dedicado com Voltar */}
                             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
@@ -2778,7 +2778,7 @@ export const TemaBuilderView: React.FC<Props> = ({
 
       {/* SEÇÃO TIPOGRAFIA & FONTES UNIFICADA */}
       {secaoEditor === 'tipografia' && (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-6 animate-in fade-in">
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 sm:p-5 shadow-sm space-y-6 animate-in fade-in">
           <div className="border-b border-slate-800 pb-3">
             <h3 className="text-sm font-black text-white flex items-center gap-2">
               <Type className="w-4 h-4 text-emerald-400" />
@@ -2940,7 +2940,7 @@ export const TemaBuilderView: React.FC<Props> = ({
 
           {/* 4. SEÇÃO BLOCOS E FUNDO */}
           {secaoEditor === 'blocos' && (
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-5 animate-in fade-in">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 sm:p-5 shadow-sm space-y-5 animate-in fade-in">
               <div className="border-b border-slate-800 pb-3">
                 <h3 className="text-sm font-black text-white flex items-center gap-2">
                   <Layout className="w-4 h-4 text-emerald-400" />
@@ -3217,7 +3217,7 @@ export const TemaBuilderView: React.FC<Props> = ({
           {/* SEÇÃO ESTILOS SALVOS E PRESETS */}
           {secaoEditor === 'estilos' && (
             <div className="space-y-4">
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-5 animate-in fade-in">
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 sm:p-5 shadow-sm space-y-5 animate-in fade-in">
                 <div className="border-b border-slate-800 pb-3">
                   <h3 className="text-sm font-black text-white flex items-center gap-2">
                     <Sparkles className="w-4 h-4 text-emerald-400" />
@@ -3245,7 +3245,7 @@ export const TemaBuilderView: React.FC<Props> = ({
               </div>
 
 
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-5 animate-in fade-in">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 sm:p-5 shadow-sm space-y-5 animate-in fade-in">
               <div className="border-b border-slate-800 pb-3 flex items-center justify-between">
                 <div>
                   <h3 className="text-sm font-black text-white flex items-center gap-2">

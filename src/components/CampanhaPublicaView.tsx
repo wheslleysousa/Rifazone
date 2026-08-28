@@ -1326,7 +1326,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
             <div className="flex items-center justify-between text-xs">
               {tituloText ? <span className="font-bold text-white opacity-90">{tituloText}</span> : <span />}
               {textoBarra && (
-                <span className="font-extrabold text-xs ml-auto" style={{ color: tema.cores.barraProgressoPreenchimento || 'var(--brand)' }}>
+                <span className="font-extrabold text-xs ml-auto" style={{ fontFamily: tema.tipografia.fonteProgressoInterno || tema.tipografia.fonteCardProgresso || 'Inter', color: tema.cores.barraProgressoPreenchimento || 'var(--brand)' }}>
                   {textoBarra}
                 </span>
               )}
@@ -1360,11 +1360,11 @@ export const CampanhaPublicaView: React.FC<Props> = ({
 
         {/* Rodapé customizado ou padrão */}
         {rodapeText ? (
-          <div className="text-[11px] mt-2 text-center opacity-80" style={{ color: tema.cores.barraProgressoTexto }}>
+          <div className="text-[11px] mt-2 text-center opacity-80" style={{ fontFamily: tema.tipografia.fonteProgressoRodape || tema.tipografia.fonteCardProgresso || 'Inter', color: tema.cores.barraProgressoTexto }}>
             {rodapeText.replace('{vendidas}', estatisticas.vendidas.toLocaleString('pt-BR')).replace('{disponiveis}', estatisticas.disponiveis.toLocaleString('pt-BR'))}
           </div>
         ) : (campanha.exibirQtdCotas ?? true) ? (
-          <div className="flex justify-between text-[11px] mt-2 opacity-60">
+          <div className="flex justify-between text-[11px] mt-2 opacity-60" style={{ fontFamily: tema.tipografia.fonteProgressoRodape || tema.tipografia.fonteCardProgresso || 'Inter' }}>
             <span style={{ color: tema.cores.barraProgressoTexto }}>{estatisticas.vendidas.toLocaleString('pt-BR')} cotas vendidas</span>
             <span style={{ color: tema.cores.barraProgressoTexto }}>{estatisticas.disponiveis.toLocaleString('pt-BR')} disponíveis</span>
           </div>

@@ -6,7 +6,7 @@ import {
   LayoutGrid, HelpCircle, Flame, Lock, Eye, Star, Info, Rocket,
   Upload, Camera, User, Link as LinkIcon, RefreshCw, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, ArrowUp, ArrowDown,
   DollarSign, Clock, MapPin, Tag, Check, Sparkle, GripVertical, Palette, Loader2, CreditCard, ShieldCheck,
-  Instagram, MessageSquare, Music, Share2
+  Instagram, MessageSquare, Music, Share2, Type
 } from 'lucide-react';
 import { WhatsAppIcon, TikTokIcon, InstagramIcon } from '../BrandIcons';
 import { Campanha, Premio, CotaPremiada, Promocao, OfertaRelampago, TEMA_PADRAO, CheckoutSalvo } from '../../types';
@@ -27,7 +27,7 @@ interface Props {
   authFetch?: (url: string, options?: RequestInit) => Promise<Response>;
 }
 
-type TabType = 'basico' | 'midia' | 'premios' | 'promocoes' | 'upsell' | 'extras' | 'checkout';
+type TabType = 'basico' | 'midia' | 'premios' | 'promocoes' | 'upsell' | 'extras' | 'textos' | 'checkout';
 
 
 export const gerarSlugCampanha = (texto: string): string => {
@@ -177,7 +177,8 @@ export const CampanhasFormView: React.FC<Props> = ({
     { id: 'promocoes', label: '4. Pacotes & Descontos', icon: Zap, iconColor: 'text-purple-400', desc: 'Combos de cotas promocionais' },
     { id: 'upsell', label: '5. Ofertas Relâmpago', icon: Flame, iconColor: 'text-orange-400', desc: 'Aumente o ticket no checkout' },
     { id: 'extras', label: '6. Brindes & Roleta', icon: Gift, iconColor: 'text-pink-400', desc: 'E-book digital e roleta bônus' },
-    { id: 'checkout', label: '7. Modelo de Checkout', icon: CreditCard, iconColor: 'text-indigo-400', desc: 'Selecione a experiência de pagamento' }
+    { id: 'textos', label: '7. Textos das Seções', icon: Type, iconColor: 'text-cyan-400', desc: 'Títulos e subtítulos de cada bloco' },
+    { id: 'checkout', label: '8. Modelo de Checkout', icon: CreditCard, iconColor: 'text-indigo-400', desc: 'Selecione a experiência de pagamento' }
   ];
 
   // Upload handlers
@@ -518,7 +519,7 @@ export const CampanhasFormView: React.FC<Props> = ({
   const valorCotaNum = Number(form.valorCota || 0);
   const arrecadacaoEstimada = totalCotasNum * valorCotaNum;
 
-  const tabKeys: TabType[] = ['basico', 'midia', 'premios', 'promocoes', 'upsell', 'extras', 'checkout'];
+  const tabKeys: TabType[] = ['basico', 'midia', 'premios', 'promocoes', 'upsell', 'extras', 'textos', 'checkout'];
   const currentIndex = secaoAberta ? tabKeys.indexOf(secaoAberta) : 0;
   const isUltimaEtapa = currentIndex === tabKeys.length - 1;
   const isEdicao = !!(form.id);
@@ -2223,22 +2224,7 @@ export const CampanhasFormView: React.FC<Props> = ({
               </div>
             )}
 
-            {/* Campo Editável: Título do Card de Seleção de Cotas */}
-            <div className="p-4 bg-slate-950/40 border border-slate-800 rounded-2xl space-y-2">
-              <label className="text-xs font-bold text-slate-300 uppercase tracking-wider block">
-                Título do Card de Seleção de Cotas
-              </label>
-              <input
-                type="text"
-                placeholder="Selecione a quantidade de cotas"
-                value={form.tituloSelecaoCotas || ''}
-                onChange={e => setForm(prev => ({ ...prev, tituloSelecaoCotas: e.target.value }))}
-                className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-4 py-3 text-sm font-semibold text-white focus:outline-none focus:border-emerald-500 transition shadow-inner"
-              />
-              <p className="text-[11px] text-slate-400">
-                Personalize o título exibido no topo do card de escolha de cotas na página pública. (Padrão: "Selecione a quantidade de cotas")
-              </p>
-            </div>
+            {/* O título do card de cotas agora fica em "7. Textos das Seções" (junto dos demais). */}
 
             {/* PACOTES PROMOCIONAIS */}
             <div className="space-y-4">
@@ -2995,10 +2981,83 @@ export const CampanhasFormView: React.FC<Props> = ({
           </div>
         </AcordeaoSecao>
 
-        {/* ABA 7: MODELO DE CHECKOUT DA CAMPANHA */}
-        <AcordeaoSecao 
-          titulo="7. Modelo de Checkout" 
-          isAberto={secaoAberta === 'checkout'} 
+        {/* ABA 7: TEXTOS DAS SEÇÕES (título/subtítulo de cada bloco) */}
+        <AcordeaoSecao
+          titulo="7. Textos das Seções"
+          isAberto={secaoAberta === 'textos'}
+          onToggle={() => setSecaoAberta(secaoAberta === 'textos' ? null : 'textos')}
+        >
+          <div className="bg-slate-900/60 border border-slate-800/60 backdrop-blur-xl rounded-3xl p-6 md:p-8 shadow-2xl space-y-6 animate-in fade-in">
+            <div>
+              <h3 className="text-sm font-black text-white flex items-center gap-2 uppercase tracking-wider mb-1">
+                <Type className="w-4 h-4 text-cyan-400" />
+                Títulos e subtítulos de cada seção
+              </h3>
+              <p className="text-xs text-slate-400">
+                Aqui você edita o <b className="text-slate-300">texto</b> que aparece acima de cada bloco na página.
+                A <b className="text-slate-300">fonte</b> e a <b className="text-slate-300">cor</b> desses textos você ajusta no
+                editor de <b className="text-slate-300">Tema &amp; Cores</b>. Deixe em branco para não exibir o cabeçalho.
+              </p>
+            </div>
+
+            {([
+              { key: 'tituloCompra', subKey: 'subtituloCompra', label: 'Botão de Compra', ph: 'Ex: Garanta suas cotas' },
+              { key: 'tituloPacotes', subKey: 'subtituloPacotes', label: 'Pacotes Promocionais', ph: 'Ex: Escolha seu pacote' },
+              { key: 'tituloControles', subKey: 'subtituloControles', label: 'Controles de Quantidade (+ / −)', ph: 'Ex: Quantas cotas você quer?' },
+              { key: 'tituloCotas', subKey: 'subtituloCotas', label: 'Seleção de Cotas', ph: 'Ex: Selecione a quantidade de cotas' },
+              { key: 'tituloPremiado', subKey: 'subtituloPremiado', label: 'Cotas Premiadas', ph: 'Ex: Cotas Premiadas (Ganhe no Pix na hora)' },
+            ] as { key: string; subKey: string; label: string; ph: string }[]).map(sec => {
+              const temaAtual = form.tema || TEMA_PADRAO;
+              const botaoAtual: any = (temaAtual as any).botao || (TEMA_PADRAO as any).botao || {};
+              return (
+                <div key={sec.key} className="p-4 bg-slate-950/60 border border-slate-800 rounded-2xl space-y-3">
+                  <span className="text-[11px] font-black text-cyan-400 uppercase tracking-wider">{sec.label}</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] text-slate-400 font-bold mb-1">Título</label>
+                      <input
+                        type="text"
+                        value={botaoAtual[sec.key] || ''}
+                        onChange={e => setForm(prev => {
+                          const base = prev.tema || TEMA_PADRAO;
+                          const bBase: any = (base as any).botao || (TEMA_PADRAO as any).botao || {};
+                          return { ...prev, tema: { ...base, botao: { ...bBase, [sec.key]: e.target.value } } as any };
+                        })}
+                        placeholder={sec.ph}
+                        className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-slate-400 font-bold mb-1">Subtítulo</label>
+                      <input
+                        type="text"
+                        value={botaoAtual[sec.subKey] || ''}
+                        onChange={e => setForm(prev => {
+                          const base = prev.tema || TEMA_PADRAO;
+                          const bBase: any = (base as any).botao || (TEMA_PADRAO as any).botao || {};
+                          return { ...prev, tema: { ...base, botao: { ...bBase, [sec.subKey]: e.target.value } } as any };
+                        })}
+                        placeholder="Opcional"
+                        className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+
+            <p className="text-[11px] text-slate-500 leading-snug">
+              O título/subtítulo da <b className="text-slate-400">Barra de Progresso</b> continua no editor de Tema
+              (junto com as fontes de cada texto: fora, dentro e rodapé), porque usam variáveis como
+              &#123;pct&#125;, &#123;vendidas&#125; e &#123;disponiveis&#125;.
+            </p>
+          </div>
+        </AcordeaoSecao>
+
+        {/* ABA 8: MODELO DE CHECKOUT DA CAMPANHA */}
+        <AcordeaoSecao
+          titulo="8. Modelo de Checkout"
+          isAberto={secaoAberta === 'checkout'}
           onToggle={() => setSecaoAberta(secaoAberta === 'checkout' ? null : 'checkout')}
         >
           <div className="bg-slate-900/60 border border-slate-800/60 backdrop-blur-xl rounded-3xl p-6 md:p-8 shadow-2xl space-y-6 animate-in fade-in">

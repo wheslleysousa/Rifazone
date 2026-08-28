@@ -286,6 +286,9 @@ export interface TemaCampanha {
     fonteCardBannerSubtitulo?: string;
     fonteCardProgresso?: string;
     fonteCardProgressoSubtitulo?: string;
+    // Barra de progresso: fontes separadas do texto DENTRO da barra e do RODAPÉ
+    fonteProgressoInterno?: string;
+    fonteProgressoRodape?: string;
     fonteCardCotas?: string;
     fonteCardPremios?: string;
     fonteCardCotasPremiadas?: string;
@@ -580,6 +583,8 @@ export const TEMA_PADRAO: TemaCampanha = {
     fonteCotasSubtitulo: 'Inter',
     fonteCardProgresso: 'Inter',
     fonteCardProgressoSubtitulo: 'Inter',
+    fonteProgressoInterno: 'Inter',
+    fonteProgressoRodape: 'Inter',
     fonteCardCotasPremiadas: 'Inter',
     fonteCardCotasPremiadasSubtitulo: 'Inter',
     fonteCardBanner: 'Inter',

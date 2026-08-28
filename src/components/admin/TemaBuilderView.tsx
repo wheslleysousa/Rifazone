@@ -136,33 +136,20 @@ const SectionTextConfig = ({
   placeholderTitulo?: string;
   placeholderSubtitulo?: string;
 }) => (
-  <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-4">
-    <h4 className="text-xs font-black text-white uppercase tracking-wider">Textos e Fontes da Seção</h4>
-    
+  <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-3">
+    <div className="flex items-center gap-2">
+      <Type className="w-4 h-4 text-purple-400 shrink-0" />
+      <h4 className="text-xs font-black text-white uppercase tracking-wider">Fontes deste bloco</h4>
+    </div>
+    <p className="text-[10.5px] text-slate-500 leading-snug">
+      Escolha a fonte do título e do subtítulo. O <b className="text-slate-400">texto</b> em si você edita
+      na aba <b className="text-slate-400">Campanha › Textos das seções</b>.
+    </p>
+
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-      <div className="space-y-1.5">
-        <label className="text-[11px] font-bold text-slate-400">Título da Seção</label>
-        <input
-          type="text"
-          value={titulo || ''}
-          onChange={e => onTituloChange(e.target.value)}
-          placeholder={placeholderTitulo}
-          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none font-bold"
-        />
-      </div>
       <div className="space-y-1.5">
         <label className="text-[11px] font-bold text-slate-400">Fonte do Título</label>
         <SeletorFonteCard valor={fonteTitulo} onChange={onFonteTituloChange} />
-      </div>
-      <div className="space-y-1.5">
-        <label className="text-[11px] font-bold text-slate-400">Subtítulo da Seção</label>
-        <input
-          type="text"
-          value={subtitulo || ''}
-          onChange={e => onSubtituloChange(e.target.value)}
-          placeholder={placeholderSubtitulo}
-          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
-        />
       </div>
       <div className="space-y-1.5">
         <label className="text-[11px] font-bold text-slate-400">Fonte do Subtítulo</label>
@@ -2849,27 +2836,16 @@ export const TemaBuilderView: React.FC<Props> = ({
                             </p>
                           </div>
 
-                          {/* Textos da Seção */}
-                          <SectionTextConfig
-                            titulo={temaSeguro.barraProgresso?.titulo || ''}
-                            subtitulo={temaSeguro.barraProgresso?.subtitulo || ''}
-                            fonteTitulo={temaSeguro.tipografia.fonteCardProgresso || ''}
-                            fonteSubtitulo={temaSeguro.tipografia.fonteCardProgressoSubtitulo || ''}
-                            onTituloChange={val => atualizarTema({ barraProgresso: { ...temaSeguro.barraProgresso, titulo: val } })}
-                            onSubtituloChange={val => atualizarTema({ barraProgresso: { ...temaSeguro.barraProgresso, subtitulo: val } })}
-                            onFonteTituloChange={val => atualizarTema({ tipografia: { ...temaSeguro.tipografia, fonteCardProgresso: val } })}
-                            onFonteSubtituloChange={val => atualizarTema({ tipografia: { ...temaSeguro.tipografia, fonteCardProgressoSubtitulo: val } })}
-                          />
-
-                          {/* Seção 1: Textos & Placeholders */}
+                          {/* Textos, Rótulos e FONTES da Barra (cada texto com sua própria fonte) */}
                           <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-4">
                             <h5 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
-                              <Type className="w-3.5 h-3.5 text-emerald-400" /> Textos & Rótulos da Barra
+                              <Type className="w-3.5 h-3.5 text-emerald-400" /> Textos &amp; Fontes da Barra
                             </h5>
-                            <div className="grid grid-cols-1 gap-3.5 text-xs">
+                            <div className="grid grid-cols-1 gap-4 text-xs">
+                              {/* Título (Fora / Acima da barra) */}
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
-                                  <label className="block text-slate-300 font-bold mb-1">Título (Acima da Barra)</label>
+                                  <label className="block text-slate-300 font-bold mb-1">Título (fora, acima da barra)</label>
                                   <input
                                     type="text"
                                     value={temaSeguro.barraProgresso?.titulo ?? 'Progresso do sorteio'}
@@ -2879,50 +2855,76 @@ export const TemaBuilderView: React.FC<Props> = ({
                                   />
                                 </div>
                                 <div>
-                                  <label className="block text-slate-300 font-bold mb-1">Unidade / Tipo de Contador</label>
-                                  <select
-                                    value={temaSeguro.barraProgresso?.mostrarTipo ?? 'porcentagem'}
-                                    onChange={e => atualizarTema({ barraProgresso: { ...temaSeguro.barraProgresso, mostrarTipo: e.target.value as any } })}
-                                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none"
-                                  >
-                                    <option value="porcentagem">Percentual vendido (%)</option>
-                                    <option value="horas">Tempo restante (Horas)</option>
-                                  </select>
+                                  <label className="block text-slate-400 font-bold mb-1">Fonte do título (fora)</label>
+                                  <SeletorFonteCard valor={temaSeguro.tipografia.fonteCardProgresso || ''} onChange={val => atualizarTema({ tipografia: { ...temaSeguro.tipografia, fonteCardProgresso: val } })} />
                                 </div>
                               </div>
-                              <div>
-                                <label className="block text-slate-300 font-bold mb-1">Subtítulo / Descrição</label>
-                                <input
-                                  type="text"
-                                  value={temaSeguro.barraProgresso?.subtitulo ?? ''}
-                                  onChange={e => atualizarTema({ barraProgresso: { ...temaSeguro.barraProgresso, subtitulo: e.target.value } })}
-                                  placeholder="Ex: Acompanhe a arrecadação em tempo real"
-                                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500"
-                                />
+                              {/* Subtítulo */}
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                  <label className="block text-slate-300 font-bold mb-1">Subtítulo / Descrição</label>
+                                  <input
+                                    type="text"
+                                    value={temaSeguro.barraProgresso?.subtitulo ?? ''}
+                                    onChange={e => atualizarTema({ barraProgresso: { ...temaSeguro.barraProgresso, subtitulo: e.target.value } })}
+                                    placeholder="Ex: Acompanhe a arrecadação em tempo real"
+                                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-slate-400 font-bold mb-1">Fonte do subtítulo</label>
+                                  <SeletorFonteCard valor={temaSeguro.tipografia.fonteCardProgressoSubtitulo || ''} onChange={val => atualizarTema({ tipografia: { ...temaSeguro.tipografia, fonteCardProgressoSubtitulo: val } })} />
+                                </div>
                               </div>
-                              <div>
-                                <label className="block text-slate-300 font-bold mb-1">
-                                  Texto Interno/Alinhado <span className="text-slate-500 font-normal">(use &#123;pct&#125; para a % vendida)</span>
-                                </label>
-                                <input
-                                  type="text"
-                                  value={temaSeguro.barraProgresso?.textoInterno ?? '{pct}% vendido'}
-                                  onChange={e => atualizarTema({ barraProgresso: { ...temaSeguro.barraProgresso, textoInterno: e.target.value } })}
-                                  placeholder="Ex: {pct}% vendido"
-                                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500"
-                                />
+                              {/* Texto interno (dentro da barra) */}
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                  <label className="block text-slate-300 font-bold mb-1">
+                                    Texto dentro da barra <span className="text-slate-500 font-normal">(use &#123;pct&#125;)</span>
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={temaSeguro.barraProgresso?.textoInterno ?? '{pct}% vendido'}
+                                    onChange={e => atualizarTema({ barraProgresso: { ...temaSeguro.barraProgresso, textoInterno: e.target.value } })}
+                                    placeholder="Ex: {pct}% vendido"
+                                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-slate-400 font-bold mb-1">Fonte do texto de dentro</label>
+                                  <SeletorFonteCard valor={temaSeguro.tipografia.fonteProgressoInterno || ''} onChange={val => atualizarTema({ tipografia: { ...temaSeguro.tipografia, fonteProgressoInterno: val } })} />
+                                </div>
                               </div>
-                              <div>
-                                <label className="block text-slate-300 font-bold mb-1">
-                                  Texto do Rodapé <span className="text-slate-500 font-normal">(use &#123;vendidas&#125; e &#123;disponiveis&#125; ou deixe em branco para padrão)</span>
-                                </label>
-                                <input
-                                  type="text"
-                                  value={temaSeguro.barraProgresso?.rodape ?? ''}
-                                  onChange={e => atualizarTema({ barraProgresso: { ...temaSeguro.barraProgresso, rodape: e.target.value } })}
-                                  placeholder="Ex: {vendidas} cotas vendidas • {disponiveis} disponíveis"
-                                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500"
-                                />
+                              {/* Rodapé */}
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                  <label className="block text-slate-300 font-bold mb-1">
+                                    Texto do rodapé <span className="text-slate-500 font-normal">(use &#123;vendidas&#125; e &#123;disponiveis&#125;)</span>
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={temaSeguro.barraProgresso?.rodape ?? ''}
+                                    onChange={e => atualizarTema({ barraProgresso: { ...temaSeguro.barraProgresso, rodape: e.target.value } })}
+                                    placeholder="Ex: {vendidas} cotas vendidas • {disponiveis} disponíveis"
+                                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-slate-400 font-bold mb-1">Fonte do rodapé</label>
+                                  <SeletorFonteCard valor={temaSeguro.tipografia.fonteProgressoRodape || ''} onChange={val => atualizarTema({ tipografia: { ...temaSeguro.tipografia, fonteProgressoRodape: val } })} />
+                                </div>
+                              </div>
+                              {/* Tipo de contador */}
+                              <div className="sm:max-w-[50%]">
+                                <label className="block text-slate-300 font-bold mb-1">Unidade / Tipo de Contador</label>
+                                <select
+                                  value={temaSeguro.barraProgresso?.mostrarTipo ?? 'porcentagem'}
+                                  onChange={e => atualizarTema({ barraProgresso: { ...temaSeguro.barraProgresso, mostrarTipo: e.target.value as any } })}
+                                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none"
+                                >
+                                  <option value="porcentagem">Percentual vendido (%)</option>
+                                  <option value="horas">Tempo restante (Horas)</option>
+                                </select>
                               </div>
                             </div>
                           </div>

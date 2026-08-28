@@ -1153,13 +1153,17 @@ export const CampanhaPublicaView: React.FC<Props> = ({
 
     return (
       <div 
-        className={`relative overflow-hidden border shadow-2xl group ${bannerCardStyle.className} ${
-          isFullWidth ? '-mx-4 sm:mx-0 sm:rounded-2xl border-x-0 sm:border-x' : ''
+        className={`relative overflow-hidden group shadow-2xl ${
+          isFullWidth ? '-mx-4 sm:mx-0 sm:rounded-2xl' : `border ${bannerCardStyle.className}`
         }`}
-        style={{
-          ...bannerCardStyle.style,
-          borderRadius: isFullWidth ? '0px' : `${tema.botao?.raioBordaCards ?? 16}px`
-        }}
+        style={
+          isFullWidth
+            ? { borderRadius: '0px' }
+            : {
+                ...bannerCardStyle.style,
+                borderRadius: `${tema.botao?.raioBordaCards ?? 16}px`
+              }
+        }
       >
         <div className="relative aspect-[16/10] sm:aspect-[16/9] w-full overflow-hidden bg-slate-950">
           <AnimatePresence initial={false} mode="wait">
@@ -1396,6 +1400,34 @@ export const CampanhaPublicaView: React.FC<Props> = ({
     // Melhor promoção para exibir no destaque
     const melhorPromo = listaBotoes.slice().sort((a, b) => (b.descontoPct || 0) - (a.descontoPct || 0))[0];
 
+    const cotasCfg = tema.cotasConfig || {};
+    const textoPorApenas = cotasCfg.textoPorApenas || 'Por apenas';
+    const porApenasFundo = cotasCfg.porApenasFundo || 'rgba(16, 185, 129, 0.15)';
+    const porApenasTexto = cotasCfg.porApenasTexto || tema.cores.primaria || '#10b981';
+    const porApenasBorda = cotasCfg.porApenasBorda || 'rgba(16, 185, 129, 0.3)';
+
+    const exibirPromo = (cotasCfg.exibirBlocoPromocao !== false) && (campanha.promocoes && campanha.promocoes.length > 0);
+    const promoTitulo = cotasCfg.promoTituloDestaque || '📢 Promoção';
+    const promoSubtitulo = cotasCfg.promoSubtituloDestaque || 'Compre mais barato!';
+    const promoTexto = cotasCfg.promoTextoInformativo || 'Quanto mais títulos, mais chances de ganhar!';
+    const promoTituloCor = cotasCfg.promoTituloCor || '#fbbf24';
+    const promoSubtituloCor = cotasCfg.promoSubtituloCor || '#ffffff';
+    const promoTextoCor = cotasCfg.promoTextoCor || '#94a3b8';
+
+    const colMobile = Number(tema.botao?.colunasPacotesMobile) || 2;
+    const colDesktop = Number(tema.botao?.colunasPacotesDesktop) || 4;
+
+    const colMobileClass = 
+      colMobile === 1 ? 'grid-cols-1' :
+      colMobile === 3 ? 'grid-cols-3' :
+      colMobile === 4 ? 'grid-cols-4' : 'grid-cols-2';
+
+    const colDesktopClass = 
+      colDesktop === 1 ? 'sm:grid-cols-1' :
+      colDesktop === 2 ? 'sm:grid-cols-2' :
+      colDesktop === 3 ? 'sm:grid-cols-3' :
+      colDesktop === 6 ? 'sm:grid-cols-6' : 'sm:grid-cols-4';
+
     return (
       <div 
         className={`border rounded-2xl p-4 sm:p-5 shadow-sm space-y-4 ${cotasCardStyle.className}`}
@@ -1409,12 +1441,13 @@ export const CampanhaPublicaView: React.FC<Props> = ({
           <div className="space-y-2 pb-1 border-b border-slate-800/60">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <span className="text-sm font-black text-slate-300 flex items-center gap-1.5 uppercase tracking-wide">
-                Por apenas
+                {textoPorApenas}
                 <span 
-                  className="px-2.5 py-1 rounded-lg font-black text-base sm:text-lg shadow-sm border border-emerald-500/30 font-mono tracking-tight"
+                  className="px-2.5 py-1 rounded-lg font-black text-base sm:text-lg shadow-sm border font-mono tracking-tight"
                   style={{
-                    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                    color: tema.cores.primaria || '#10b981'
+                    ...obterFundoCss(porApenasFundo, 'rgba(16, 185, 129, 0.15)'),
+                    color: porApenasTexto,
+                    borderColor: porApenasBorda
                   }}
                 >
                   {formatarMoeda(campanha.valorCota)}
@@ -1429,12 +1462,12 @@ export const CampanhaPublicaView: React.FC<Props> = ({
             </div>
 
             {/* Cabeçalho da Promoção Compre Mais Barato */}
-            {campanha.promocoes && campanha.promocoes.length > 0 && (
+            {exibirPromo && (
               <div className="pt-2">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <div className="flex items-center gap-1.5 text-xs font-black text-amber-400">
-                    <span>📢 Promoção</span>
-                    <span className="text-white font-extrabold">Compre mais barato!</span>
+                  <div className="flex items-center gap-1.5 text-xs font-black">
+                    <span style={{ color: promoTituloCor }}>{promoTitulo}</span>
+                    <span className="font-extrabold" style={{ color: promoSubtituloCor }}>{promoSubtitulo}</span>
                   </div>
 
                   {melhorPromo && melhorPromo.descontoPct && melhorPromo.descontoPct > 0 && (
@@ -1445,8 +1478,8 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                   )}
                 </div>
 
-                <p className="text-[11px] text-slate-400 mt-0.5">
-                  Quanto mais títulos, mais chances de ganhar!
+                <p className="text-[11px] mt-0.5" style={{ color: promoTextoCor }}>
+                  {promoTexto}
                 </p>
               </div>
             )}
@@ -1478,7 +1511,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
         ) : (
           <>
             {/* Botões de Pacotes de Cotas */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <div className={`grid ${colMobileClass} ${colDesktopClass} gap-2.5`}>
               {listaBotoes.map((item, idx: number) => {
                 const rotuloTexto = item.rotulo || (item.destaque ? 'Mais popular' : undefined);
                 const isDestaque = item.destaque || !!item.rotulo;

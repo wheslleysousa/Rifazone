@@ -185,6 +185,8 @@ export interface TemaCampanha {
     iconeCompra?: string;
     // Botões dos pacotes promocionais
     estiloPacotes?: 'solido' | 'vidro' | 'transparente' | '3d' | 'gradiente' | 'neon' | 'outline' | 'soft';
+    colunasPacotesMobile?: 1 | 2 | 3 | 4; // 1, 2, 3 ou 4 colunas lado a lado
+    colunasPacotesDesktop?: 1 | 2 | 3 | 4 | 6;
     raioBordaPacotes?: number; // 0 a 30
     tamanhoAlturaPacotes?: number; // slider px
     tamanhoTextoPacotes?: number;
@@ -261,6 +263,19 @@ export interface TemaCampanha {
     seloPosicao?: 'topo-esquerda' | 'topo-direita' | 'sobre-titulo';
   };
   ganhadorCelebracaoEstilo?: 'confetes' | 'nenhuma' | string;
+  cotasConfig?: {
+    textoPorApenas?: string;
+    porApenasFundo?: string;
+    porApenasTexto?: string;
+    porApenasBorda?: string;
+    exibirBlocoPromocao?: boolean;
+    promoTituloDestaque?: string;
+    promoSubtituloDestaque?: string;
+    promoTextoInformativo?: string;
+    promoTituloCor?: string;
+    promoSubtituloCor?: string;
+    promoTextoCor?: string;
+  };
   layout: {
     ordem: string[]; // ex: ['banner', 'barraProgresso', 'cotas', 'premios', 'premiadas', 'ranking', 'regulamento', 'ganhadores']
     visivel: Record<string, boolean>;
@@ -412,6 +427,8 @@ export const TEMA_PADRAO: TemaCampanha = {
     estilo: 'solido',
     iconeCompra: 'Sparkles',
     estiloPacotes: 'solido',
+    colunasPacotesMobile: 2,
+    colunasPacotesDesktop: 4,
     estiloControles: 'solido',
     estiloCotas: 'solido',
     estiloCards: 'solido',
@@ -459,6 +476,19 @@ export const TEMA_PADRAO: TemaCampanha = {
     seloPosicao: 'topo-esquerda'
   },
   ganhadorCelebracaoEstilo: 'confetes',
+  cotasConfig: {
+    textoPorApenas: 'POR APENAS',
+    porApenasFundo: 'rgba(16, 185, 129, 0.15)',
+    porApenasTexto: '#10b981',
+    porApenasBorda: 'rgba(16, 185, 129, 0.3)',
+    exibirBlocoPromocao: true,
+    promoTituloDestaque: '📢 Promoção',
+    promoSubtituloDestaque: 'Compre mais barato!',
+    promoTextoInformativo: 'Quanto mais títulos, mais chances de ganhar!',
+    promoTituloCor: '#fbbf24',
+    promoSubtituloCor: '#ffffff',
+    promoTextoCor: '#94a3b8'
+  },
   layout: {
     ordem: ['banner', 'barraProgresso', 'cotas', 'premios', 'premiadas', 'ranking', 'regulamento', 'ganhadores'],
     visivel: {

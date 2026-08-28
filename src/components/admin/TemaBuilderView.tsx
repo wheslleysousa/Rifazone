@@ -232,6 +232,8 @@ export const TemaBuilderView: React.FC<Props> = ({
       corBorda: tema?.botao?.corBorda || tema?.cores?.cardBorda || '#334155',
       // Pacotes
       estiloPacotes: tema?.botao?.estiloPacotes || TEMA_PADRAO.botao.estiloPacotes || 'solido',
+      colunasPacotesMobile: tema?.botao?.colunasPacotesMobile ?? (TEMA_PADRAO.botao?.colunasPacotesMobile ?? 2),
+      colunasPacotesDesktop: tema?.botao?.colunasPacotesDesktop ?? (TEMA_PADRAO.botao?.colunasPacotesDesktop ?? 4),
       raioBordaPacotes: tema?.botao?.raioBordaPacotes ?? TEMA_PADRAO.botao.raioBordaPacotes ?? 12,
       tamanhoAlturaPacotes: tema?.botao?.tamanhoAlturaPacotes ?? TEMA_PADRAO.botao.tamanhoAlturaPacotes ?? 12,
       sombraAlturaPacotes: tema?.botao?.sombraAlturaPacotes ?? TEMA_PADRAO.botao.sombraAlturaPacotes ?? 3,
@@ -286,6 +288,19 @@ export const TemaBuilderView: React.FC<Props> = ({
       logoAlinhamento: tema?.organizadorCabecalho?.logoAlinhamento || TEMA_PADRAO.organizadorCabecalho?.logoAlinhamento || 'centro',
     },
     ganhadorCelebracaoEstilo: tema?.ganhadorCelebracaoEstilo || TEMA_PADRAO.ganhadorCelebracaoEstilo || 'confetes',
+    cotasConfig: {
+      textoPorApenas: tema?.cotasConfig?.textoPorApenas || TEMA_PADRAO.cotasConfig?.textoPorApenas || 'Por apenas',
+      porApenasFundo: tema?.cotasConfig?.porApenasFundo || TEMA_PADRAO.cotasConfig?.porApenasFundo || 'rgba(16, 185, 129, 0.15)',
+      porApenasTexto: tema?.cotasConfig?.porApenasTexto || TEMA_PADRAO.cotasConfig?.porApenasTexto || '#10b981',
+      porApenasBorda: tema?.cotasConfig?.porApenasBorda || TEMA_PADRAO.cotasConfig?.porApenasBorda || 'rgba(16, 185, 129, 0.3)',
+      exibirBlocoPromocao: tema?.cotasConfig?.exibirBlocoPromocao ?? (TEMA_PADRAO.cotasConfig?.exibirBlocoPromocao ?? true),
+      promoTituloDestaque: tema?.cotasConfig?.promoTituloDestaque || TEMA_PADRAO.cotasConfig?.promoTituloDestaque || '📢 Promoção',
+      promoSubtituloDestaque: tema?.cotasConfig?.promoSubtituloDestaque || TEMA_PADRAO.cotasConfig?.promoSubtituloDestaque || 'Compre mais barato!',
+      promoTextoInformativo: tema?.cotasConfig?.promoTextoInformativo || TEMA_PADRAO.cotasConfig?.promoTextoInformativo || 'Quanto mais títulos, mais chances de ganhar!',
+      promoTituloCor: tema?.cotasConfig?.promoTituloCor || TEMA_PADRAO.cotasConfig?.promoTituloCor || '#fbbf24',
+      promoSubtituloCor: tema?.cotasConfig?.promoSubtituloCor || TEMA_PADRAO.cotasConfig?.promoSubtituloCor || '#ffffff',
+      promoTextoCor: tema?.cotasConfig?.promoTextoCor || TEMA_PADRAO.cotasConfig?.promoTextoCor || '#94a3b8',
+    },
     layout: {
       ordem: (tema?.layout?.ordem && tema.layout.ordem.length > 0)
         ? tema.layout.ordem
@@ -1854,6 +1869,242 @@ export const TemaBuilderView: React.FC<Props> = ({
                         className="w-full accent-emerald-500 bg-slate-950 cursor-pointer"
                       />
                     </div>
+                  </div>
+
+                  {/* Quantidade de Colunas de Pacotes (Mobile e Desktop) */}
+                  <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl space-y-3 pt-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-black text-white uppercase tracking-wider block">
+                        Disposição dos Pacotes (Quantidade por Linha):
+                      </label>
+                      <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded font-mono font-bold">
+                        1, 2, 3 ou 4 Colunas
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Colunas no Celular */}
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-bold text-slate-300 block">
+                          No Celular (Mobile):
+                        </label>
+                        <div className="grid grid-cols-4 gap-1.5">
+                          {[1, 2, 3, 4].map(num => {
+                            const isSelected = (temaSeguro.botao.colunasPacotesMobile ?? 2) === num;
+                            return (
+                              <button
+                                key={num}
+                                type="button"
+                                onClick={() => atualizarTema({ botao: { ...temaSeguro.botao, colunasPacotesMobile: num as any } })}
+                                className={`py-2 px-1 text-center rounded-lg text-xs font-black transition border ${
+                                  isSelected
+                                    ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-md'
+                                    : 'bg-slate-900 text-slate-300 border-slate-800 hover:border-slate-700'
+                                }`}
+                              >
+                                {num} {num === 1 ? 'col' : 'cols'}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Colunas no Desktop */}
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-bold text-slate-300 block">
+                          No Computador (Desktop):
+                        </label>
+                        <div className="grid grid-cols-5 gap-1.5">
+                          {[1, 2, 3, 4, 6].map(num => {
+                            const isSelected = (temaSeguro.botao.colunasPacotesDesktop ?? 4) === num;
+                            return (
+                              <button
+                                key={num}
+                                type="button"
+                                onClick={() => atualizarTema({ botao: { ...temaSeguro.botao, colunasPacotesDesktop: num as any } })}
+                                className={`py-2 px-1 text-center rounded-lg text-xs font-black transition border ${
+                                  isSelected
+                                    ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-md'
+                                    : 'bg-slate-900 text-slate-300 border-slate-800 hover:border-slate-700'
+                                }`}
+                              >
+                                {num} {num === 1 ? 'col' : 'cols'}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Personalização do Preço Unitário ("Por apenas" e Tag de Valor) */}
+                  <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl space-y-4 pt-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-black text-white uppercase tracking-wider block">
+                        Texto e Estilo do "Por apenas" (Preço Unitário):
+                      </label>
+                      <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded font-mono font-bold">
+                        Valor por Cota
+                      </span>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[11px] font-bold text-slate-300 block">Texto do Rótulo:</label>
+                      <input
+                        type="text"
+                        value={temaSeguro.cotasConfig?.textoPorApenas || 'Por apenas'}
+                        onChange={e => atualizarTema({ 
+                          cotasConfig: { 
+                            ...temaSeguro.cotasConfig, 
+                            textoPorApenas: e.target.value 
+                          } 
+                        })}
+                        placeholder="Ex: Por apenas, Valor unitário, Apenas..."
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+
+                    <div className="p-3 bg-slate-900 border border-slate-800 rounded-lg">
+                      <SeletorCorOuDegrade
+                        label="Fundo / Degradê da Tag de Valor (R$)"
+                        valor={temaSeguro.cotasConfig?.porApenasFundo || 'rgba(16, 185, 129, 0.15)'}
+                        onChange={novo => atualizarTema({
+                          cotasConfig: {
+                            ...temaSeguro.cotasConfig,
+                            porApenasFundo: novo
+                          }
+                        })}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="p-2.5 bg-slate-900 border border-slate-800 rounded-lg space-y-1.5">
+                        <label className="text-[10px] font-bold text-slate-400 block">Cor do Texto do Valor (R$ 0,50)</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={temaSeguro.cotasConfig?.porApenasTexto?.startsWith('#') ? temaSeguro.cotasConfig?.porApenasTexto : '#10b981'}
+                            onChange={e => atualizarTema({ cotasConfig: { ...temaSeguro.cotasConfig, porApenasTexto: e.target.value } })}
+                            className="w-7 h-7 rounded cursor-pointer bg-transparent border-0 p-0"
+                          />
+                          <input
+                            type="text"
+                            value={temaSeguro.cotasConfig?.porApenasTexto || '#10b981'}
+                            onChange={e => atualizarTema({ cotasConfig: { ...temaSeguro.cotasConfig, porApenasTexto: e.target.value } })}
+                            className="flex-1 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-[10px] font-mono text-white uppercase focus:outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="p-2.5 bg-slate-900 border border-slate-800 rounded-lg space-y-1.5">
+                        <label className="text-[10px] font-bold text-slate-400 block">Cor da Borda da Tag de Valor</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={temaSeguro.cotasConfig?.porApenasBorda?.startsWith('#') ? temaSeguro.cotasConfig?.porApenasBorda : '#059669'}
+                            onChange={e => atualizarTema({ cotasConfig: { ...temaSeguro.cotasConfig, porApenasBorda: e.target.value } })}
+                            className="w-7 h-7 rounded cursor-pointer bg-transparent border-0 p-0"
+                          />
+                          <input
+                            type="text"
+                            value={temaSeguro.cotasConfig?.porApenasBorda || 'rgba(16, 185, 129, 0.3)'}
+                            onChange={e => atualizarTema({ cotasConfig: { ...temaSeguro.cotasConfig, porApenasBorda: e.target.value } })}
+                            className="flex-1 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-[10px] font-mono text-white uppercase focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Personalização do Cabeçalho da Promoção (Compre mais barato!) */}
+                  <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl space-y-4 pt-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <label className="text-xs font-black text-white uppercase tracking-wider block">
+                          Cabeçalho da Promoção (Compre Mais Barato):
+                        </label>
+                        <p className="text-[10px] text-slate-400">Personalize o texto e cores do aviso promocional acima dos pacotes</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => atualizarTema({ 
+                          cotasConfig: { 
+                            ...temaSeguro.cotasConfig, 
+                            exibirBlocoPromocao: !(temaSeguro.cotasConfig?.exibirBlocoPromocao ?? true) 
+                          } 
+                        })}
+                        className={`px-2.5 py-1 rounded text-xs font-black uppercase transition ${
+                          (temaSeguro.cotasConfig?.exibirBlocoPromocao ?? true)
+                            ? 'bg-amber-500 text-slate-950'
+                            : 'bg-slate-800 text-slate-400'
+                        }`}
+                      >
+                        {(temaSeguro.cotasConfig?.exibirBlocoPromocao ?? true) ? 'Visível' : 'Oculto'}
+                      </button>
+                    </div>
+
+                    {(temaSeguro.cotasConfig?.exibirBlocoPromocao ?? true) && (
+                      <div className="space-y-3 pt-2 border-t border-slate-800">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-slate-400 block">Título do Destaque:</label>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="text"
+                                value={temaSeguro.cotasConfig?.promoTituloDestaque || '📢 Promoção'}
+                                onChange={e => atualizarTema({ cotasConfig: { ...temaSeguro.cotasConfig, promoTituloDestaque: e.target.value } })}
+                                className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none"
+                              />
+                              <input
+                                type="color"
+                                value={temaSeguro.cotasConfig?.promoTituloCor?.startsWith('#') ? temaSeguro.cotasConfig?.promoTituloCor : '#fbbf24'}
+                                onChange={e => atualizarTema({ cotasConfig: { ...temaSeguro.cotasConfig, promoTituloCor: e.target.value } })}
+                                className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                                title="Cor do Título"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-slate-400 block">Subtítulo do Destaque:</label>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="text"
+                                value={temaSeguro.cotasConfig?.promoSubtituloDestaque || 'Compre mais barato!'}
+                                onChange={e => atualizarTema({ cotasConfig: { ...temaSeguro.cotasConfig, promoSubtituloDestaque: e.target.value } })}
+                                className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none"
+                              />
+                              <input
+                                type="color"
+                                value={temaSeguro.cotasConfig?.promoSubtituloCor?.startsWith('#') ? temaSeguro.cotasConfig?.promoSubtituloCor : '#ffffff'}
+                                onChange={e => atualizarTema({ cotasConfig: { ...temaSeguro.cotasConfig, promoSubtituloCor: e.target.value } })}
+                                className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                                title="Cor do Subtítulo"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-400 block">Texto Informativo:</label>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={temaSeguro.cotasConfig?.promoTextoInformativo || 'Quanto mais títulos, mais chances de ganhar!'}
+                              onChange={e => atualizarTema({ cotasConfig: { ...temaSeguro.cotasConfig, promoTextoInformativo: e.target.value } })}
+                              className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none"
+                            />
+                            <input
+                              type="color"
+                              value={temaSeguro.cotasConfig?.promoTextoCor?.startsWith('#') ? temaSeguro.cotasConfig?.promoTextoCor : '#94a3b8'}
+                              onChange={e => atualizarTema({ cotasConfig: { ...temaSeguro.cotasConfig, promoTextoCor: e.target.value } })}
+                              className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                              title="Cor do Texto Informativo"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

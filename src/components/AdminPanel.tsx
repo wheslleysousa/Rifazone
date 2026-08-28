@@ -15,6 +15,7 @@ import {
   enviarResetSenha, traduzErroAuth, type User
 } from '../lib/firebase';
 import { toReais } from '../lib/money';
+import { uploadImageToStorage } from '../lib/image-upload';
 import { lazyWithRetry } from '../lib/lazy-retry';
 
 // Sub-components lazy loaded
@@ -22,7 +23,6 @@ const DashboardView = lazyWithRetry(() => import('./admin/DashboardView').then(m
 const AnalyticsView = lazyWithRetry(() => import('./admin/AnalyticsView').then(m => ({ default: m.AnalyticsView })));
 const RemarketingView = lazyWithRetry(() => import('./admin/RemarketingView').then(m => ({ default: m.RemarketingView })));
 const HistoricoView = lazyWithRetry(() => import('./admin/HistoricoView').then(m => ({ default: m.HistoricoView })));
-const ClientesView = lazyWithRetry(() => import('./admin/ClientesView').then(m => ({ default: m.ClientesView })));
 const SorteadorView = lazyWithRetry(() => import('./admin/SorteadorView').then(m => ({ default: m.SorteadorView })));
 const BuscarGanhadorView = lazyWithRetry(() => import('./admin/BuscarGanhadorView').then(m => ({ default: m.BuscarGanhadorView })));
 const CampanhasFormView = lazyWithRetry(() => import('./admin/CampanhasFormView').then(m => ({ default: m.CampanhasFormView })));
@@ -218,28 +218,28 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
     }
   }, [user, configPagamento]);
 
-  const handleFotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      if (evt.target?.result) {
-        setPerfilFoto(evt.target.result as string);
-      }
-    };
-    reader.readAsDataURL(file);
+    try {
+      // Mesma pipeline do resto do app: comprime e envia p/ storage (Cloudinary),
+      // evitando base64 gigante embutido na config.
+      const url = await uploadImageToStorage(file, 'organizadores', 400, 400, 0.85);
+      setPerfilFoto(url);
+    } catch (err: any) {
+      setConfigErro(err?.message || 'Não foi possível enviar a foto. Tente outra imagem.');
+    }
   };
 
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      if (evt.target?.result) {
-        setPerfilLogo(evt.target.result as string);
-      }
-    };
-    reader.readAsDataURL(file);
+    try {
+      const url = await uploadImageToStorage(file, 'logoscabecalho', 600, 600, 0.9);
+      setPerfilLogo(url);
+    } catch (err: any) {
+      setConfigErro(err?.message || 'Não foi possível enviar a logo. Tente outra imagem.');
+    }
   };
 
   const handleSalvarPerfil = async (e: React.FormEvent) => {
@@ -1485,76 +1485,8 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
             />
           )}
 
-          {/* 10. PEDIDOS & TRANSAÇÕES */}
-          {abaAtiva === 'pedidos' && (
-            <div className="space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <h1 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
-                    <Ticket className="w-5 h-5 text-emerald-400" />
-                    Pedidos e Transações Pix ({pedidos.length})
-                  </h1>
-                  <p className="text-slate-400 text-xs mt-0.5">
-                    Histórico detalhado de reservas (aguardando), pagamentos efetuados e pedidos expirados.
-                  </p>
-                </div>
-
-                <button
-                  onClick={carregarTudo}
-                  className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold border border-slate-700 flex items-center gap-1.5 self-start sm:self-auto"
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                  Atualizar
-                </button>
-              </div>
-
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-x-auto shadow-lg">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-950 text-slate-400 uppercase font-bold border-b border-slate-800">
-                    <tr>
-                      <th className="p-3.5">Comprador</th>
-                      <th className="p-3.5">WhatsApp</th>
-                      <th className="p-3.5">Cotas</th>
-                      <th className="p-3.5">Total</th>
-                      <th className="p-3.5">Status</th>
-                      <th className="p-3.5">Data</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800/60">
-                    {pedidos.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="p-8 text-center text-slate-500">
-                          Nenhum pedido registrado ainda.
-                        </td>
-                      </tr>
-                    ) : (
-                      pedidos.map(p => (
-                        <tr key={p.id} className="hover:bg-slate-800/40">
-                          <td className="p-3.5 font-bold text-white">{p.comprador?.nome}</td>
-                          <td className="p-3.5 font-mono text-emerald-400">{p.comprador?.whatsapp}</td>
-                          <td className="p-3.5 font-extrabold text-white">{p.quantidade} cotas</td>
-                          <td className="p-3.5 font-bold text-emerald-400">R$ {p.valorTotal.toFixed(2).replace('.', ',')}</td>
-                          <td className="p-3.5">
-                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase border ${
-                              p.status === 'pago' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' :
-                              p.status === 'expirado' ? 'bg-rose-500/20 text-rose-300 border-rose-500/30' :
-                              p.status === 'cancelado' ? 'bg-slate-500/20 text-slate-400 border-slate-500/30' :
-                              'bg-amber-500/20 text-amber-300 border-amber-500/30'
-                            }`}>
-                              {p.status === 'pendente' ? 'AGUARDANDO' : p.status}
-                            </span>
-                          </td>
-                          <td className="p-3.5 text-slate-400">
-                            {new Date(p.criadoEm).toLocaleDateString('pt-BR')}
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
+          {/* Pedidos & transações agora ficam no Histórico (sub-aba "Pedidos"),
+              evitando uma aba solta e inalcançável. */}
 
           {/* 11. CONFIGURAÇÕES */}
           {abaAtiva === 'configuracoes' && (

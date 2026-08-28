@@ -133,7 +133,11 @@ export const DashboardView: React.FC<Props> = ({
       }
     });
 
-    return Object.values(dataMap).sort((a, b) => a.date.localeCompare(b.date)); // simplified sort
+    // Ordena pela CHAVE real (yyyy-MM-dd), não pelo rótulo 'dd/MM' — senão a
+    // ordem quebra ao cruzar o mês (ex.: 30/11 apareceria depois de 01/12).
+    return Object.entries(dataMap)
+      .sort(([chaveA], [chaveB]) => chaveA.localeCompare(chaveB))
+      .map(([, valor]) => valor);
   }, [pedidosPagos, periodo]);
 
   // Ranking de compradores no período
@@ -169,7 +173,7 @@ export const DashboardView: React.FC<Props> = ({
 
   const campanhaSelecionadaLabel = campanhaSelecionada === 'todas' 
     ? 'Todas as Campanhas' 
-    : campanhas.find(c => c.id === campanhaSelecionada)?.nome || 'Desconhecida';
+    : campanhas.find(c => c.id === campanhaSelecionada)?.titulo || 'Desconhecida';
 
   return (
     <div className="space-y-6">
@@ -258,7 +262,7 @@ export const DashboardView: React.FC<Props> = ({
                     onClick={() => { setCampanhaSelecionada(c.id); setCampanhaDropdownOpen(false); }}
                     className={`w-full text-left px-4 py-2.5 text-xs hover:bg-slate-700 transition border-t border-slate-700/50 truncate ${campanhaSelecionada === c.id ? 'text-emerald-400 font-bold bg-slate-700/50' : 'text-slate-300'}`}
                   >
-                    {c.nome}
+                    {c.titulo}
                   </button>
                 ))}
               </div>

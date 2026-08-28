@@ -256,13 +256,15 @@ export function escurecerCor(hex?: string, percent: number = 30): string {
   return `#${rHex}${gHex}${bHex}`;
 }
 
-export type TipoEstiloBotao = 'solido' | 'vidro' | 'transparente' | '3d';
+export type TipoEstiloBotao = 'solido' | 'vidro' | 'transparente' | '3d' | 'gradiente' | 'neon' | 'outline' | 'soft';
 
 export interface ParametrosEstiloBotao {
   estilo?: TipoEstiloBotao | string;
   corFundo?: string;
   corTexto?: string;
   corBorda?: string;
+  larguraBorda?: number;
+  possuirBorda?: boolean;
   raioBorda?: number;
   tamanhoAltura?: number;
   tamanhoTexto?: number;
@@ -273,8 +275,20 @@ export interface ParametrosEstiloBotao {
 }
 
 /**
+ * Função utilitária para aplicar uma cor ou degradê como background CSS
+ */
+export function obterFundoCss(fundo: string | undefined, fallback = '#10b981'): React.CSSProperties {
+  if (!fundo) return { background: fallback };
+  const val = fundo.trim();
+  if (val.startsWith('linear-gradient(') || val.startsWith('radial-gradient(')) {
+    return { background: val };
+  }
+  return { backgroundColor: val };
+}
+
+/**
  * Retorna os estilos inline e classes exatas para renderizar qualquer botão
- * com distinção visual real entre Sólido, Vidro, Transparente e Sombra 3D.
+ * com suporte completo a cores sólidas, degradês, bordas customizadas e estilos visuais.
  */
 export function calcularEstiloBotao(params: ParametrosEstiloBotao): { style: React.CSSProperties; className: string } {
   const {
@@ -282,6 +296,8 @@ export function calcularEstiloBotao(params: ParametrosEstiloBotao): { style: Rea
     corFundo = '#10b981',
     corTexto = '#ffffff',
     corBorda,
+    larguraBorda,
+    possuirBorda,
     raioBorda = 12,
     tamanhoAltura = 16,
     tamanhoTexto = 15,
@@ -292,8 +308,15 @@ export function calcularEstiloBotao(params: ParametrosEstiloBotao): { style: Rea
   } = params;
 
   const bordaRaioPx = `${raioBorda}px`;
-  const sombraCorFinal = corSombra || escurecerCor(corFundo, 35);
-  const bordaPadrao = corBorda || hexToRgba(corFundo, 0.6);
+  const isGradient = corFundo.trim().startsWith('linear-gradient(') || corFundo.trim().startsWith('radial-gradient(');
+  const sombraCorFinal = corSombra || (isGradient ? '#064e3b' : escurecerCor(corFundo, 35));
+  
+  // Tratamento de borda customizada
+  const temBorda = possuirBorda !== undefined ? possuirBorda : true;
+  const espessuraBorda = temBorda ? (larguraBorda !== undefined ? `${larguraBorda}px` : '1px') : '0px';
+  const bordaFinal = temBorda
+    ? `${espessuraBorda} solid ${corBorda || (isGradient ? 'rgba(255,255,255,0.25)' : hexToRgba(corFundo, 0.4))}`
+    : 'none';
 
   let style: React.CSSProperties = {
     borderRadius: bordaRaioPx,
@@ -309,11 +332,13 @@ export function calcularEstiloBotao(params: ParametrosEstiloBotao): { style: Rea
     case 'vidro':
       style = {
         ...style,
-        background: `linear-gradient(135deg, ${hexToRgba(corFundo, 0.35)} 0%, ${hexToRgba(corFundo, 0.15)} 100%)`,
+        background: isGradient
+          ? corFundo
+          : `linear-gradient(135deg, ${hexToRgba(corFundo, 0.35)} 0%, ${hexToRgba(corFundo, 0.15)} 100%)`,
         backdropFilter: 'blur(12px)',
         WebkitBackdropFilter: 'blur(12px)',
-        border: `1px solid ${hexToRgba('#ffffff', 0.25)}`,
-        boxShadow: `0 8px 24px 0 ${hexToRgba(corFundo, 0.25)}, inset 0 1px 1px 0 rgba(255, 255, 255, 0.45)`,
+        border: temBorda ? (corBorda ? `${espessuraBorda} solid ${corBorda}` : `1px solid ${hexToRgba('#ffffff', 0.25)}`) : 'none',
+        boxShadow: `0 8px 24px 0 ${isGradient ? 'rgba(0,0,0,0.3)' : hexToRgba(corFundo, 0.25)}, inset 0 1px 1px 0 rgba(255, 255, 255, 0.45)`,
         color: corTexto,
       };
       className += 'hover:brightness-110 active:scale-[0.98]';
@@ -323,9 +348,9 @@ export function calcularEstiloBotao(params: ParametrosEstiloBotao): { style: Rea
       style = {
         ...style,
         backgroundColor: 'transparent',
-        border: `2px solid ${corFundo}`,
-        color: corTexto === '#022c22' || corTexto === '#000000' ? corFundo : corTexto,
-        boxShadow: `0 0 12px ${hexToRgba(corFundo, 0.15)}`,
+        border: temBorda ? `${espessuraBorda || '2px'} solid ${corBorda || (isGradient ? '#10b981' : corFundo)}` : 'none',
+        color: corTexto === '#022c22' || corTexto === '#000000' ? (isGradient ? '#ffffff' : corFundo) : corTexto,
+        boxShadow: isGradient ? 'none' : `0 0 12px ${hexToRgba(corFundo, 0.15)}`,
       };
       className += 'hover:bg-white/10 active:scale-[0.98]';
       break;
@@ -335,9 +360,9 @@ export function calcularEstiloBotao(params: ParametrosEstiloBotao): { style: Rea
       const largura = Math.max(2, sombraLargura || 4);
       style = {
         ...style,
-        backgroundColor: corFundo,
+        ...(isGradient ? { background: corFundo } : { backgroundColor: corFundo }),
         color: corTexto,
-        border: `1px solid ${hexToRgba('#ffffff', 0.2)}`,
+        border: temBorda ? bordaFinal : 'none',
         boxShadow: isPressionado
           ? `0px 1px 0px ${sombraCorFinal}, 0px 2px 4px rgba(0, 0, 0, 0.3)`
           : `0px ${altura}px 0px ${sombraCorFinal}, 0px ${altura + 2}px ${largura}px rgba(0, 0, 0, 0.4)`,
@@ -350,10 +375,10 @@ export function calcularEstiloBotao(params: ParametrosEstiloBotao): { style: Rea
     default:
       style = {
         ...style,
-        backgroundColor: corFundo,
+        ...(isGradient ? { background: corFundo } : { backgroundColor: corFundo }),
         color: corTexto,
-        border: `1px solid ${hexToRgba('#ffffff', 0.15)}`,
-        boxShadow: `0 4px 14px 0 ${hexToRgba(corFundo, 0.35)}`,
+        border: temBorda ? bordaFinal : 'none',
+        boxShadow: `0 4px 14px 0 ${isGradient ? 'rgba(0,0,0,0.35)' : hexToRgba(corFundo, 0.35)}`,
       };
       className += 'hover:brightness-105 active:scale-[0.98]';
       break;
@@ -369,6 +394,8 @@ export function calcularEstiloCard(params: {
   estilo?: TipoEstiloBotao | string;
   corFundo?: string;
   corBorda?: string;
+  larguraBorda?: number;
+  possuirBorda?: boolean;
   raioBorda?: number;
   sombraAltura?: number;
   corSombra?: string;
@@ -377,10 +404,17 @@ export function calcularEstiloCard(params: {
     estilo = 'solido',
     corFundo = '#1e293b',
     corBorda = '#334155',
+    larguraBorda,
+    possuirBorda,
     raioBorda = 16,
     sombraAltura = 4,
     corSombra
   } = params;
+
+  const isGradient = corFundo.trim().startsWith('linear-gradient(') || corFundo.trim().startsWith('radial-gradient(');
+  const temBorda = possuirBorda !== undefined ? possuirBorda : true;
+  const espessuraBorda = temBorda ? (larguraBorda !== undefined ? `${larguraBorda}px` : '1px') : '0px';
+  const bordaFinal = temBorda ? `${espessuraBorda} solid ${corBorda}` : 'none';
 
   let style: React.CSSProperties = {
     borderRadius: `${raioBorda}px`,
@@ -393,10 +427,12 @@ export function calcularEstiloCard(params: {
     case 'vidro':
       style = {
         ...style,
-        background: `linear-gradient(135deg, ${hexToRgba(corFundo, 0.65)} 0%, ${hexToRgba(corFundo, 0.35)} 100%)`,
+        background: isGradient
+          ? corFundo
+          : `linear-gradient(135deg, ${hexToRgba(corFundo, 0.65)} 0%, ${hexToRgba(corFundo, 0.35)} 100%)`,
         backdropFilter: 'blur(16px)',
         WebkitBackdropFilter: 'blur(16px)',
-        border: `1px solid ${hexToRgba('#ffffff', 0.15)}`,
+        border: temBorda ? (corBorda ? `${espessuraBorda} solid ${corBorda}` : `1px solid ${hexToRgba('#ffffff', 0.15)}`) : 'none',
         boxShadow: `0 12px 32px 0 rgba(0, 0, 0, 0.35), inset 0 1px 1px 0 rgba(255, 255, 255, 0.25)`,
       };
       break;
@@ -405,18 +441,18 @@ export function calcularEstiloCard(params: {
       style = {
         ...style,
         backgroundColor: 'transparent',
-        border: `2px solid ${corBorda}`,
+        border: temBorda ? `${espessuraBorda || '2px'} solid ${corBorda}` : 'none',
         boxShadow: 'none',
       };
       break;
 
     case '3d':
       const altura = Math.max(2, sombraAltura || 4);
-      const sombraCor = corSombra || escurecerCor(corFundo, 40);
+      const sombraCor = corSombra || (isGradient ? '#090d16' : escurecerCor(corFundo, 40));
       style = {
         ...style,
-        backgroundColor: corFundo,
-        border: `1px solid ${corBorda}`,
+        ...(isGradient ? { background: corFundo } : { backgroundColor: corFundo }),
+        border: temBorda ? bordaFinal : 'none',
         boxShadow: `0px ${altura}px 0px ${sombraCor}, 0px ${altura + 4}px 12px rgba(0, 0, 0, 0.45)`,
       };
       break;
@@ -425,8 +461,8 @@ export function calcularEstiloCard(params: {
     default:
       style = {
         ...style,
-        backgroundColor: corFundo,
-        border: `1px solid ${corBorda}`,
+        ...(isGradient ? { background: corFundo } : { backgroundColor: corFundo }),
+        border: temBorda ? bordaFinal : 'none',
         boxShadow: '0 4px 16px 0 rgba(0, 0, 0, 0.25)',
       };
       break;

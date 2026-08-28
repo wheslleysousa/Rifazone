@@ -249,6 +249,17 @@ export interface TemaCampanha {
   organizadorCabecalho?: {
     logoAlinhamento: 'esquerda' | 'centro' | 'direita';
   };
+  bannerConfig?: {
+    fullWidth?: boolean;
+    overlayDegradeAtivo?: boolean;
+    overlayDegrade?: string;
+    overlayAltura?: number;
+    seloAnimado?: boolean;
+    seloEstilo?: 'pulso' | 'estatico';
+    seloFundo?: string;
+    seloTexto?: string;
+    seloPosicao?: 'topo-esquerda' | 'topo-direita' | 'sobre-titulo';
+  };
   ganhadorCelebracaoEstilo?: 'confetes' | 'nenhuma' | string;
   layout: {
     ordem: string[]; // ex: ['banner', 'barraProgresso', 'cotas', 'premios', 'premiadas', 'ranking', 'regulamento', 'ganhadores']
@@ -435,6 +446,17 @@ export const TEMA_PADRAO: TemaCampanha = {
   },
   organizadorCabecalho: {
     logoAlinhamento: 'centro',
+  },
+  bannerConfig: {
+    fullWidth: true,
+    overlayDegradeAtivo: true,
+    overlayDegrade: 'linear-gradient(to top, rgba(0, 0, 0, 0.92) 0%, rgba(0, 0, 0, 0.6) 60%, transparent 100%)',
+    overlayAltura: 100,
+    seloAnimado: false,
+    seloEstilo: 'estatico',
+    seloFundo: '#f59e0b',
+    seloTexto: '#022c22',
+    seloPosicao: 'topo-esquerda'
   },
   ganhadorCelebracaoEstilo: 'confetes',
   layout: {

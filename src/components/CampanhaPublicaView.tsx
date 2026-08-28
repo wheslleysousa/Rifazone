@@ -20,7 +20,7 @@ import { SocialNotifications } from './SocialNotifications';
 import { ExitPopup } from './ExitPopup';
 import { WhatsAppIcon, TikTokIcon, InstagramIcon } from './BrandIcons';
 import { formatarMoeda, toCents, toReais } from '../lib/money';
-import { getSectionIcon, calcularEstiloBotao, calcularEstiloCard } from '../lib/temaHelpers';
+import { getSectionIcon, calcularEstiloBotao, calcularEstiloCard, obterFundoCss } from '../lib/temaHelpers';
 import { 
   initMetaPixel, 
   trackViewContent, 
@@ -1122,12 +1122,22 @@ export const CampanhaPublicaView: React.FC<Props> = ({
     const imagens = [campanha.bannerUrl, ...(campanha.fotosCarrossel || [])].filter(Boolean);
     const [index, setIndex] = useState(0);
 
+    const bannerConfig = tema.bannerConfig || {};
+    const isFullWidth = bannerConfig.fullWidth !== false;
+    const isSeloPulsando = bannerConfig.seloEstilo === 'pulso' || bannerConfig.seloAnimado === true;
+
     const bannerCardStyle = calcularEstiloCard({
       estilo: tema.botao?.estiloCards,
       corFundo: (tema.cores as any).cardBannerFundo || tema.cores.cardFundo,
       corBorda: (tema.cores as any).cardBannerBorda || tema.cores.cardBorda,
-      raioBorda: tema.botao?.raioBordaCards ?? 16,
+      raioBorda: isFullWidth ? 0 : (tema.botao?.raioBordaCards ?? 16),
+      possuirBorda: tema.botao?.possuirBordaCards,
+      larguraBorda: tema.botao?.larguraBordaCards,
     });
+
+    const overlayDegradeEstilo = bannerConfig.overlayDegradeAtivo !== false
+      ? (bannerConfig.overlayDegrade || 'linear-gradient(to top, rgba(10, 15, 29, 0.95) 0%, rgba(10, 15, 29, 0.75) 45%, rgba(10, 15, 29, 0.2) 80%, transparent 100%)')
+      : 'none';
 
     // Auto-play opcional
     useEffect(() => {
@@ -1143,29 +1153,31 @@ export const CampanhaPublicaView: React.FC<Props> = ({
 
     return (
       <div 
-        className={`relative overflow-hidden border shadow-2xl group ${bannerCardStyle.className}`}
+        className={`relative overflow-hidden border shadow-2xl group ${bannerCardStyle.className} ${
+          isFullWidth ? '-mx-4 sm:mx-0 sm:rounded-2xl border-x-0 sm:border-x' : ''
+        }`}
         style={{
           ...bannerCardStyle.style,
-          borderRadius: `${tema.botao?.raioBordaCards ?? 16}px`
+          borderRadius: isFullWidth ? '0px' : `${tema.botao?.raioBordaCards ?? 16}px`
         }}
       >
-        <div className="relative aspect-[16/9] overflow-hidden">
+        <div className="relative aspect-[16/10] sm:aspect-[16/9] w-full overflow-hidden bg-slate-950">
           <AnimatePresence initial={false} mode="wait">
             <div key={index} className="absolute inset-0 bg-slate-950">
-              {/* Fundo Desfocado para preencher espaços se a imagem for menor/proporção diferente */}
+              {/* Fundo Desfocado para preenchimento de borda caso a proporção varie */}
               <img 
                 src={imagens[index]} 
-                className="absolute inset-0 w-full h-full object-cover blur-3xl opacity-20 scale-110" 
+                className="absolute inset-0 w-full h-full object-cover blur-2xl opacity-30 scale-110" 
                 alt="" 
               />
               <motion.img
                 src={imagens[index]}
                 alt={`${campanha.titulo} - Foto ${index + 1}`}
-                initial={{ opacity: 0, scale: 1.1 }}
+                initial={{ opacity: 0, scale: 1.05 }}
                 animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                transition={{ duration: 0.5 }}
-                className="relative z-10 w-full h-full object-contain cursor-grab active:cursor-grabbing"
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.4 }}
+                className="relative z-10 w-full h-full object-cover cursor-grab active:cursor-grabbing"
                 drag="x"
                 dragConstraints={{ left: 0, right: 0 }}
                 onDragEnd={(_, info) => {
@@ -1179,28 +1191,70 @@ export const CampanhaPublicaView: React.FC<Props> = ({
             </div>
           </AnimatePresence>
 
+          {/* Selo de Destaque no Banner */}
+          {campanha.selo && (campanha.exibirSelo ?? true) && (
+            <div 
+              style={{
+                ...obterFundoCss(bannerConfig.seloFundo || tema.cores.seloBannerFundo || '#f59e0b', '#f59e0b'),
+                color: bannerConfig.seloTexto || tema.cores.seloBannerTexto || '#022c22'
+              }}
+              className={`absolute top-3 left-3 px-3 py-1 font-black text-[10px] uppercase tracking-wider rounded-full shadow-xl flex items-center gap-1.5 z-20 select-none ${
+                isSeloPulsando ? 'animate-pulse ring-2 ring-white/30' : ''
+              }`}
+            >
+              {!(/^\s*[\p{Extended_Pictographic}\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u.test(campanha.selo.trim())) && (
+                <Flame className="w-3 h-3 fill-current" />
+              )}
+              <span>{campanha.selo}</span>
+            </div>
+          )}
+
+          {/* Overlay com Degradê do Título sobreposto na imagem */}
+          <div 
+            className="absolute inset-x-0 bottom-0 pt-16 pb-4 px-4 sm:px-5 flex flex-col justify-end z-20"
+            style={{ background: overlayDegradeEstilo }}
+          >
+            {campanha.exibirSeloOficial !== false && (
+              <div
+                className="flex items-center gap-1.5 text-[10px] font-black mb-1 uppercase tracking-widest text-emerald-400 drop-shadow"
+                style={{ color: 'var(--brand)' }}
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>Sorteio oficial: {campanha.localSorteio || 'Loteria Federal'}</span>
+              </div>
+            )}
+            <h1 
+              className={`font-black leading-tight drop-shadow-md ${getTitleSizeClass(tema.tipografia.tamanhoTitulo)}`}
+              style={{ color: tema.cores.titulos, fontFamily: tema.tipografia.fonteTitulo }}
+            >
+              {campanha.titulo}
+            </h1>
+            {campanha.subtitulo && (
+              <p 
+                className="text-[12px] sm:text-xs mt-1 line-clamp-2 opacity-95 uppercase font-medium tracking-tight text-slate-200 drop-shadow"
+                style={{ color: tema.cores.subtituloCor || '#e2e8f0', fontFamily: tema.tipografia.fonteTexto }}
+              >
+                {campanha.subtitulo}
+              </p>
+            )}
+          </div>
+
           {imagens.length > 1 && (
             <>
               {/* Indicadores de Paginação */}
-              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-10">
-                {imagens.map((_, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setIndex(i)}
-                    className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
-                      index === i ? 'bg-emerald-400 w-4 shadow-[0_0_8px_rgba(52,211,153,0.5)]' : 'bg-white/30 hover:bg-white/50'
-                    }`}
-                  />
-                ))}
+              <div className="absolute top-3 right-3 flex items-center gap-1.5 z-20 bg-black/50 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/10">
+                <span className="text-[10px] font-mono font-bold text-white">
+                  {index + 1}/{imagens.length}
+                </span>
               </div>
 
-              {/* Botões de Navegação (Visíveis em hover ou Desktop) */}
+              {/* Botões de Navegação */}
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   setIndex(prev => (prev - 1 + imagens.length) % imagens.length);
                 }}
-                className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/50 backdrop-blur-md border border-white/20 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity z-20 cursor-pointer"
               >
                 <ChevronLeft className="w-5 h-5" />
               </button>
@@ -1209,52 +1263,11 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                   e.stopPropagation();
                   setIndex(prev => (prev + 1) % imagens.length);
                 }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/50 backdrop-blur-md border border-white/20 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity z-20 cursor-pointer"
               >
                 <ChevronRight className="w-5 h-5" />
               </button>
             </>
-          )}
-        </div>
-        
-        {campanha.selo && (campanha.exibirSelo ?? true) && (
-          <div 
-            style={{
-              backgroundColor: tema.cores.seloBannerFundo || '#f59e0b',
-              color: tema.cores.seloBannerTexto || '#022c22'
-            }}
-            className="absolute top-3 left-3 px-3 py-1 font-black text-[10px] uppercase tracking-wider rounded-full shadow-lg flex items-center gap-1.5 z-20"
-          >
-            {!(/^\s*[\p{Extended_Pictographic}\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u.test(campanha.selo.trim())) && (
-              <Flame className="w-3 h-3 fill-current" />
-            )}
-            <span>{campanha.selo}</span>
-          </div>
-        )}
-
-        <div className="p-4 bg-gradient-to-t from-slate-950 via-slate-900/80 to-transparent relative z-10">
-          {campanha.exibirSeloOficial !== false && (
-            <div
-              className="flex items-center gap-2 text-[10px] font-bold mb-1 uppercase tracking-widest"
-              style={{ color: 'var(--brand)' }}
-            >
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>Sorteio oficial: {campanha.localSorteio}</span>
-            </div>
-          )}
-          <h1 
-            className={`font-black leading-tight ${getTitleSizeClass(tema.tipografia.tamanhoTitulo)}`}
-            style={{ color: tema.cores.titulos, fontFamily: tema.tipografia.fonteTitulo }}
-          >
-            {campanha.titulo}
-          </h1>
-          {campanha.subtitulo && (
-            <p 
-              className="text-[11px] mt-1 line-clamp-1 opacity-80 uppercase tracking-tighter"
-              style={{ color: tema.cores.subtituloCor, fontFamily: tema.tipografia.fonteTexto }}
-            >
-              {campanha.subtitulo}
-            </p>
           )}
         </div>
       </div>
@@ -1345,28 +1358,100 @@ export const CampanhaPublicaView: React.FC<Props> = ({
       corFundo: (tema.cores as any).cardCotasFundo || tema.cores.cardFundo,
       corBorda: (tema.cores as any).cardCotasBorda || tema.cores.cardBorda,
       raioBorda: tema.botao?.raioBordaCards ?? 16,
+      possuirBorda: tema.botao?.possuirBordaCards,
+      larguraBorda: tema.botao?.larguraBordaCards,
     });
     const corTextoCotas = (tema.cores as any).cardCotasTexto || tema.cores.texto || '#ffffff';
 
+    const unitPrice = Number(campanha.valorCota) || 0.01;
+    const listaBotoes: Array<{ quantidade: number; valor: number; destaque: boolean; descontoPct?: number; rotulo?: string }> = (campanha.promocoes && campanha.promocoes.length > 0)
+      ? campanha.promocoes.map(p => {
+          const q = Number(p.quantidade) || 1;
+          const regularTotal = Number((q * unitPrice).toFixed(2));
+          const promoVal = Number(p.valor);
+          const valorFinal = (promoVal > 0 && promoVal <= regularTotal) ? promoVal : regularTotal;
+          
+          let pct = p.descontoPct;
+          if (pct === undefined && regularTotal > 0 && valorFinal > 0 && valorFinal < regularTotal) {
+            pct = Math.round((1 - (valorFinal / regularTotal)) * 100);
+          }
+
+          return {
+            quantidade: q,
+            valor: valorFinal,
+            destaque: !!p.destaque,
+            descontoPct: pct && pct > 0 ? pct : undefined,
+            rotulo: p.rotulo || (p.destaque ? 'Mais popular' : undefined)
+          };
+        })
+      : [
+          { quantidade: 10, valor: Number((10 * unitPrice).toFixed(2)), destaque: false },
+          { quantidade: 25, valor: Number((25 * unitPrice).toFixed(2)), destaque: false },
+          { quantidade: 50, valor: Number((50 * unitPrice).toFixed(2)), destaque: true, rotulo: 'Mais popular' },
+          { quantidade: 100, valor: Number((100 * unitPrice).toFixed(2)), destaque: false },
+          { quantidade: 250, valor: Number((250 * unitPrice).toFixed(2)), destaque: false },
+          { quantidade: 500, valor: Number((500 * unitPrice).toFixed(2)), destaque: false }
+        ];
+
+    // Melhor promoção para exibir no destaque
+    const melhorPromo = listaBotoes.slice().sort((a, b) => (b.descontoPct || 0) - (a.descontoPct || 0))[0];
+
     return (
       <div 
-        className={`border rounded-2xl p-5 shadow-sm space-y-4 ${cotasCardStyle.className}`}
+        className={`border rounded-2xl p-4 sm:p-5 shadow-sm space-y-4 ${cotasCardStyle.className}`}
         style={{
           ...cotasCardStyle.style,
           color: corTextoCotas
         }}
       >
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-black text-white">
-            {campanha.tituloSelecaoCotas || 'Selecione a quantidade de cotas'}
-          </h2>
-          <div className="text-right">
-            <span className="text-[11px] text-slate-400 block">{campanha.modalidade === 'gratis' ? 'Inscrição' : 'Por apenas'}</span>
-            <span className="text-sm font-extrabold" style={{ color: 'var(--brand)' }}>
-              {campanha.modalidade === 'gratis' ? 'GRÁTIS (R$ 0,00)' : `${formatarMoeda(campanha.valorCota)} / cota`}
-            </span>
+        {/* BLOCO DE PREÇO UNITÁRIO E PROMOÇÃO (Logo abaixo da Barra de Progresso) */}
+        {campanha.modalidade !== 'gratis' && (
+          <div className="space-y-2 pb-1 border-b border-slate-800/60">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <span className="text-sm font-black text-slate-300 flex items-center gap-1.5 uppercase tracking-wide">
+                Por apenas
+                <span 
+                  className="px-2.5 py-1 rounded-lg font-black text-base sm:text-lg shadow-sm border border-emerald-500/30 font-mono tracking-tight"
+                  style={{
+                    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                    color: tema.cores.primaria || '#10b981'
+                  }}
+                >
+                  {formatarMoeda(campanha.valorCota)}
+                </span>
+              </span>
+
+              {campanha.tituloSelecaoCotas && (
+                <span className="text-[11px] font-bold text-slate-400">
+                  {campanha.tituloSelecaoCotas}
+                </span>
+              )}
+            </div>
+
+            {/* Cabeçalho da Promoção Compre Mais Barato */}
+            {campanha.promocoes && campanha.promocoes.length > 0 && (
+              <div className="pt-2">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-1.5 text-xs font-black text-amber-400">
+                    <span>📢 Promoção</span>
+                    <span className="text-white font-extrabold">Compre mais barato!</span>
+                  </div>
+
+                  {melhorPromo && melhorPromo.descontoPct && melhorPromo.descontoPct > 0 && (
+                    <div className="flex items-center gap-1.5 bg-emerald-500/20 border border-emerald-500/40 px-2 py-0.5 rounded-md text-[11px] font-black text-emerald-300">
+                      <span>{melhorPromo.quantidade} POR {formatarMoeda(melhorPromo.valor)}</span>
+                      <span className="bg-emerald-500 text-slate-950 px-1 rounded text-[9px] font-black">-{melhorPromo.descontoPct}%</span>
+                    </div>
+                  )}
+                </div>
+
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Quanto mais títulos, mais chances de ganhar!
+                </p>
+              </div>
+            )}
           </div>
-        </div>
+        )}
 
         {campanha.modalidade === 'gratis' ? (
           <div className="p-4 bg-purple-500/10 border border-purple-500/30 rounded-2xl text-center space-y-3">
@@ -1393,113 +1478,81 @@ export const CampanhaPublicaView: React.FC<Props> = ({
         ) : (
           <>
             {/* Botões de Pacotes de Cotas */}
-            {(() => {
-              const unitPrice = Number(campanha.valorCota) || 0.01;
-              const listaBotoes = (campanha.promocoes && campanha.promocoes.length > 0)
-                ? campanha.promocoes.map(p => {
-                    const q = Number(p.quantidade) || 1;
-                    const regularTotal = Number((q * unitPrice).toFixed(2));
-                    const promoVal = Number(p.valor);
-                    const valorFinal = (promoVal > 0 && promoVal <= regularTotal) ? promoVal : regularTotal;
-                    
-                    let pct = p.descontoPct;
-                    if (pct === undefined && regularTotal > 0 && valorFinal > 0 && valorFinal < regularTotal) {
-                      pct = Math.round((1 - (valorFinal / regularTotal)) * 100);
-                    }
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              {listaBotoes.map((item, idx: number) => {
+                const rotuloTexto = item.rotulo || (item.destaque ? 'Mais popular' : undefined);
+                const isDestaque = item.destaque || !!item.rotulo;
+                const corFundoPacote = isDestaque ? (tema.cores.botaoDestaqueFundo || tema.cores.primaria) : tema.cores.botaoCotasFundo;
+                const corTextoPacote = isDestaque ? (tema.cores.botaoDestaqueTexto || '#022c22') : tema.cores.botaoCotasTexto;
+                const corNumeroPacote = isDestaque ? (tema.cores.botaoDestaqueTexto || '#022c22') : tema.cores.botaoCotasNumero;
+                const corSeloPopularFundo = tema.cores.seloPopularFundo || '#f59e0b';
+                const corSeloPopularTexto = tema.cores.seloPopularTexto || '#022c22';
 
-                    return {
-                      quantidade: q,
-                      valor: valorFinal,
-                      destaque: !!p.destaque,
-                      descontoPct: pct && pct > 0 ? pct : undefined,
-                      rotulo: p.rotulo || (p.destaque ? 'Mais popular' : undefined)
-                    };
-                  })
-                : [
-                    { quantidade: 10, valor: Number((10 * unitPrice).toFixed(2)), destaque: false },
-                    { quantidade: 25, valor: Number((25 * unitPrice).toFixed(2)), destaque: false },
-                    { quantidade: 50, valor: Number((50 * unitPrice).toFixed(2)), destaque: true, rotulo: 'Mais popular' },
-                    { quantidade: 100, valor: Number((100 * unitPrice).toFixed(2)), destaque: false },
-                    { quantidade: 250, valor: Number((250 * unitPrice).toFixed(2)), destaque: false },
-                    { quantidade: 500, valor: Number((500 * unitPrice).toFixed(2)), destaque: false }
-                  ];
-
-              return (
-                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                  {listaBotoes.map((item, idx: number) => {
-                    const rotuloTexto = item.rotulo || (item.destaque ? 'Mais popular' : undefined);
-                    const isDestaque = item.destaque || !!item.rotulo;
-                    const corFundoPacote = isDestaque ? (tema.cores.botaoDestaqueFundo || tema.cores.primaria) : tema.cores.botaoCotasFundo;
-                    const corTextoPacote = isDestaque ? (tema.cores.botaoDestaqueTexto || '#022c22') : tema.cores.botaoCotasTexto;
-                    const corNumeroPacote = isDestaque ? (tema.cores.botaoDestaqueTexto || '#022c22') : tema.cores.botaoCotasNumero;
-                    const corSeloPopularFundo = tema.cores.seloPopularFundo || '#f59e0b';
-                    const corSeloPopularTexto = tema.cores.seloPopularTexto || '#022c22';
-
-                    return (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => {
-                          setQuantidade((prev: number) => {
-                            const max = campanha.maxPorCompra || 500000;
-                            const min = campanha.minPorCompra || 1;
-                            const atual = Number(prev) || 0;
-                            const novaQtd = atual + item.quantidade;
-                            return Math.min(max, Math.max(min, novaQtd));
-                          });
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      setQuantidade((prev: number) => {
+                        const max = campanha.maxPorCompra || 500000;
+                        const min = campanha.minPorCompra || 1;
+                        const atual = Number(prev) || 0;
+                        const novaQtd = atual + item.quantidade;
+                        return Math.min(max, Math.max(min, novaQtd));
+                      });
+                    }}
+                    style={calcularEstiloBotao({
+                      estilo: tema.botao?.estiloPacotes || 'solido',
+                      corFundo: corFundoPacote,
+                      corTexto: corTextoPacote,
+                      corBorda: tema.botao?.corBordaPacotes || tema.cores.botaoCotasBorda || tema.cores.cardBorda,
+                      larguraBorda: tema.botao?.larguraBordaPacotes,
+                      possuirBorda: tema.botao?.possuirBordaPacotes,
+                      raioBorda: tema.botao?.raioBordaPacotes ?? 12,
+                      tamanhoAltura: tema.botao?.tamanhoAlturaPacotes ?? 12,
+                      sombraAltura: tema.botao?.sombraAlturaPacotes ?? 3,
+                      corSombra: tema.botao?.corSombraPacotes,
+                    }).style}
+                    className={`${
+                      calcularEstiloBotao({
+                        estilo: tema.botao?.estiloPacotes || 'solido',
+                        corFundo: corFundoPacote,
+                        corTexto: corTextoPacote,
+                        raioBorda: tema.botao?.raioBordaPacotes ?? 12,
+                      }).className
+                    } relative py-3 px-2 border text-center transition flex flex-col items-center justify-center gap-1 group active:scale-95 cursor-pointer min-h-[70px] shadow-sm`}
+                  >
+                    {rotuloTexto && (
+                      <span 
+                        style={{
+                          backgroundColor: corSeloPopularFundo,
+                          color: corSeloPopularTexto,
                         }}
-                        style={calcularEstiloBotao({
-                          estilo: tema.botao?.estiloPacotes || 'solido',
-                          corFundo: corFundoPacote,
-                          corTexto: corTextoPacote,
-                          corBorda: tema.cores.botaoCotasBorda || tema.cores.cardBorda,
-                          raioBorda: tema.botao?.raioBordaPacotes ?? 12,
-                          tamanhoAltura: tema.botao?.tamanhoAlturaPacotes ?? 12,
-                          sombraAltura: tema.botao?.sombraAlturaPacotes ?? 3,
-                          corSombra: tema.botao?.corSombraPacotes,
-                        }).style}
-                        className={`${
-                          calcularEstiloBotao({
-                            estilo: tema.botao?.estiloPacotes || 'solido',
-                            corFundo: corFundoPacote,
-                            corTexto: corTextoPacote,
-                            raioBorda: tema.botao?.raioBordaPacotes ?? 12,
-                          }).className
-                        } relative py-3 px-2 border text-center transition flex flex-col items-center justify-center gap-0.5 group active:scale-95 cursor-pointer min-h-[64px]`}
+                        className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 py-0.5 font-black text-[8px] uppercase tracking-wider rounded-full shadow-md whitespace-nowrap z-10"
                       >
-                        {rotuloTexto && (
-                          <span 
-                            style={{
-                              backgroundColor: corSeloPopularFundo,
-                              color: corSeloPopularTexto,
-                            }}
-                            className="absolute -top-2 left-1/2 -translate-x-1/2 px-1.5 py-0.5 font-black text-[8px] uppercase tracking-wider rounded shadow whitespace-nowrap z-10"
-                          >
-                            {rotuloTexto}
-                          </span>
-                        )}
-                        <span className="block text-sm font-black group-hover:opacity-80 transition-opacity" style={{ color: corNumeroPacote }}>
-                          +{item.quantidade}
+                        {rotuloTexto}
+                      </span>
+                    )}
+                    <span className="block text-base font-black group-hover:opacity-80 transition-opacity leading-tight" style={{ color: corNumeroPacote }}>
+                      +{item.quantidade}
+                    </span>
+                    <div className="flex items-center gap-1 flex-wrap justify-center">
+                      <span
+                        className="block text-xs font-black font-mono"
+                        style={{ color: corTextoPacote }}
+                      >
+                        {formatarMoeda(item.valor)}
+                      </span>
+                      {item.descontoPct !== undefined && (
+                        <span className="px-1 py-0.2 bg-emerald-500 text-slate-950 font-black text-[9px] rounded leading-none">
+                          -{item.descontoPct}%
                         </span>
-                        <div className="flex items-center gap-1 flex-wrap justify-center">
-                          <span
-                            className="block text-[11px] font-extrabold"
-                            style={{ color: corTextoPacote }}
-                          >
-                            {formatarMoeda(item.valor)}
-                          </span>
-                          {item.descontoPct !== undefined && (
-                            <span className="px-1 py-0.2 bg-emerald-500 text-slate-950 font-black text-[9px] rounded leading-none">
-                              -{item.descontoPct}%
-                            </span>
-                          )}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              );
-            })()}
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
 
             {/* Seletor Manual (+1 / -1 e Input Direto) */}
             {(() => {
@@ -1514,8 +1567,11 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                 estilo: tema.botao?.estiloControles || 'solido',
                 corFundo: tema.cores.controlesFundo,
                 corTexto: tema.cores.controlesTexto,
+                corBorda: tema.botao?.corBordaControles,
+                larguraBorda: tema.botao?.larguraBordaControles,
+                possuirBorda: tema.botao?.possuirBordaControles,
                 raioBorda: tema.botao?.raioBordaControles ?? 12,
-                tamanhoAltura: 10,
+                tamanhoAltura: tema.botao?.tamanhoControles ? Math.floor(tema.botao.tamanhoControles / 4) : 10,
                 sombraAltura: tema.botao?.sombraAlturaControles ?? 3,
                 corSombra: tema.botao?.corSombraControles,
               });
@@ -1530,7 +1586,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                     <button
                       type="button"
                       onClick={() => setQuantidade((q: number) => Math.max(campanha.minPorCompra || 1, (Number(q) || 1) - 1))}
-                      className={`w-11 h-11 active:scale-95 flex items-center justify-center font-black transition shrink-0 ${btnCtrlStyle.className}`}
+                      className={`w-11 h-11 active:scale-95 flex items-center justify-center font-black transition shrink-0 cursor-pointer ${btnCtrlStyle.className}`}
                       style={btnCtrlStyle.style}
                       aria-label="Diminuir 1 cota"
                       title="Diminuir 1 cota"

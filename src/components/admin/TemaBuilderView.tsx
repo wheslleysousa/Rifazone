@@ -22,6 +22,7 @@ import {
   TipoEstiloBotao,
   hexToRgba
 } from '../../lib/temaHelpers';
+import { SeletorCorOuDegrade } from './SeletorCorOuDegrade';
 
 const PRESETS = [
   {
@@ -226,18 +227,27 @@ export const TemaBuilderView: React.FC<Props> = ({
       corSombra: tema?.botao?.corSombra || TEMA_PADRAO.botao.corSombra || '#047857',
       textoCompra: tema?.botao?.textoCompra || TEMA_PADRAO.botao.textoCompra,
       iconeCompra: tema?.botao?.iconeCompra || tema?.secaoIcones?.botaoCompra || TEMA_PADRAO.botao?.iconeCompra || 'Sparkles',
+      possuirBorda: tema?.botao?.possuirBorda ?? false,
+      larguraBorda: tema?.botao?.larguraBorda ?? 1,
+      corBorda: tema?.botao?.corBorda || tema?.cores?.cardBorda || '#334155',
       // Pacotes
       estiloPacotes: tema?.botao?.estiloPacotes || TEMA_PADRAO.botao.estiloPacotes || 'solido',
       raioBordaPacotes: tema?.botao?.raioBordaPacotes ?? TEMA_PADRAO.botao.raioBordaPacotes ?? 12,
       tamanhoAlturaPacotes: tema?.botao?.tamanhoAlturaPacotes ?? TEMA_PADRAO.botao.tamanhoAlturaPacotes ?? 12,
       sombraAlturaPacotes: tema?.botao?.sombraAlturaPacotes ?? TEMA_PADRAO.botao.sombraAlturaPacotes ?? 3,
       corSombraPacotes: tema?.botao?.corSombraPacotes || TEMA_PADRAO.botao.corSombraPacotes || '#047857',
+      possuirBordaPacotes: tema?.botao?.possuirBordaPacotes ?? false,
+      larguraBordaPacotes: tema?.botao?.larguraBordaPacotes ?? 1,
+      corBordaPacotes: tema?.botao?.corBordaPacotes || tema?.cores?.botaoCotasBorda || '#334155',
       // Controles
       estiloControles: tema?.botao?.estiloControles || TEMA_PADRAO.botao.estiloControles || 'solido',
       raioBordaControles: tema?.botao?.raioBordaControles ?? TEMA_PADRAO.botao.raioBordaControles ?? 12,
       tamanhoControles: tema?.botao?.tamanhoControles ?? TEMA_PADRAO.botao.tamanhoControles ?? 44,
       sombraAlturaControles: tema?.botao?.sombraAlturaControles ?? TEMA_PADRAO.botao.sombraAlturaControles ?? 3,
       corSombraControles: tema?.botao?.corSombraControles || TEMA_PADRAO.botao.corSombraControles || '#047857',
+      possuirBordaControles: tema?.botao?.possuirBordaControles ?? false,
+      larguraBordaControles: tema?.botao?.larguraBordaControles ?? 1,
+      corBordaControles: tema?.botao?.corBordaControles || tema?.cores?.controlesBorda || '#334155',
       // Cotas
       estiloCotas: tema?.botao?.estiloCotas || TEMA_PADRAO.botao.estiloCotas || 'solido',
       raioBordaCotas: tema?.botao?.raioBordaCotas ?? TEMA_PADRAO.botao.raioBordaCotas ?? 8,
@@ -248,6 +258,19 @@ export const TemaBuilderView: React.FC<Props> = ({
       raioBordaCards: tema?.botao?.raioBordaCards ?? TEMA_PADRAO.botao.raioBordaCards ?? 16,
       sombraAlturaCards: tema?.botao?.sombraAlturaCards ?? TEMA_PADRAO.botao.sombraAlturaCards ?? 4,
       corSombraCards: tema?.botao?.corSombraCards || TEMA_PADRAO.botao.corSombraCards || '#0f172a',
+      possuirBordaCards: tema?.botao?.possuirBordaCards ?? true,
+      larguraBordaCards: tema?.botao?.larguraBordaCards ?? 1,
+    },
+    bannerConfig: {
+      fullWidth: tema?.bannerConfig?.fullWidth ?? true,
+      overlayDegradeAtivo: tema?.bannerConfig?.overlayDegradeAtivo ?? true,
+      overlayDegrade: tema?.bannerConfig?.overlayDegrade || 'linear-gradient(to top, rgba(0, 0, 0, 0.92) 0%, rgba(0, 0, 0, 0.6) 60%, transparent 100%)',
+      overlayAltura: tema?.bannerConfig?.overlayAltura ?? 100,
+      seloAnimado: tema?.bannerConfig?.seloAnimado ?? false,
+      seloEstilo: tema?.bannerConfig?.seloEstilo || 'estatico',
+      seloFundo: tema?.bannerConfig?.seloFundo || tema?.cores?.seloBannerFundo || '#f59e0b',
+      seloTexto: tema?.bannerConfig?.seloTexto || tema?.cores?.seloBannerTexto || '#022c22',
+      seloPosicao: tema?.bannerConfig?.seloPosicao || 'topo-esquerda'
     },
     tipografia: {
       fonteTitulo: tema?.tipografia?.fonteTitulo || TEMA_PADRAO.tipografia.fonteTitulo,
@@ -306,6 +329,7 @@ export const TemaBuilderView: React.FC<Props> = ({
       ...parcial,
       cores: { ...temaSeguro.cores, ...(parcial.cores || {}) },
       botao: { ...temaSeguro.botao, ...(parcial.botao || {}) },
+      bannerConfig: { ...temaSeguro.bannerConfig, ...(parcial.bannerConfig || {}) },
       tipografia: { ...temaSeguro.tipografia, ...(parcial.tipografia || {}) },
       fundoMidia: { ...temaSeguro.fundoMidia, ...(parcial.fundoMidia || {}) },
       organizadorCabecalho: { ...temaSeguro.organizadorCabecalho, ...(parcial.organizadorCabecalho || {}) },
@@ -804,39 +828,48 @@ export const TemaBuilderView: React.FC<Props> = ({
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                    {[
-                      { key: 'primaria', label: 'Cor Primária', desc: 'Destaques e badges' },
-                      { key: 'destaque', label: 'Cor de Destaque', desc: 'Alertas e brilhos' },
-                      { key: 'fundo', label: 'Fundo da Página', desc: 'Cor principal da tela' },
-                      { key: 'texto', label: 'Texto Geral', desc: 'Cor dos parágrafos' },
-                      { key: 'titulos', label: 'Títulos', desc: 'Cor dos cabeçalhos' },
-                      { key: 'descricoes', label: 'Descrições', desc: 'Textos secundários' },
-                    ].map(item => {
-                      const val = (temaSeguro.cores as any)[item.key];
-                      return (
-                        <div key={item.key} className="p-3 bg-slate-950/80 border border-slate-800 rounded-xl space-y-2">
-                          <div className="flex items-center justify-between">
-                            <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider">{item.label}</label>
-                            <span className="text-[10px] text-slate-500 font-mono uppercase">{val}</span>
+                  <div className="space-y-4">
+                    <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl">
+                      <SeletorCorOuDegrade
+                        label="Fundo da Página (Cor Única ou Degradê)"
+                        valor={temaSeguro.cores.fundo}
+                        onChange={novo => atualizarTema({ cores: { ...temaSeguro.cores, fundo: novo } })}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                      {[
+                        { key: 'primaria', label: 'Cor Primária', desc: 'Destaques e badges' },
+                        { key: 'destaque', label: 'Cor de Destaque', desc: 'Alertas e brilhos' },
+                        { key: 'texto', label: 'Texto Geral', desc: 'Cor dos parágrafos' },
+                        { key: 'titulos', label: 'Títulos', desc: 'Cor dos cabeçalhos' },
+                        { key: 'descricoes', label: 'Descrições', desc: 'Textos secundários' },
+                      ].map(item => {
+                        const val = (temaSeguro.cores as any)[item.key];
+                        return (
+                          <div key={item.key} className="p-3 bg-slate-950/80 border border-slate-800 rounded-xl space-y-2">
+                            <div className="flex items-center justify-between">
+                              <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider">{item.label}</label>
+                              <span className="text-[10px] text-slate-500 font-mono uppercase">{val}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="color"
+                                value={val?.startsWith('#') ? val : '#10b981'}
+                                onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [item.key]: e.target.value } })}
+                                className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                              />
+                              <input
+                                type="text"
+                                value={val}
+                                onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [item.key]: e.target.value } })}
+                                className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                              />
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="color"
-                              value={val}
-                              onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [item.key]: e.target.value } })}
-                              className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
-                            />
-                            <input
-                              type="text"
-                              value={val}
-                              onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [item.key]: e.target.value } })}
-                              className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               )}
@@ -1305,22 +1338,12 @@ export const TemaBuilderView: React.FC<Props> = ({
                       </div>
                     </div>
 
-                    <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
-                      <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Cor de Fundo</label>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="color"
-                          value={temaSeguro.cores.botao}
-                          onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, botao: e.target.value } })}
-                          className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
-                        />
-                        <input
-                          type="text"
-                          value={temaSeguro.cores.botao}
-                          onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, botao: e.target.value } })}
-                          className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
-                        />
-                      </div>
+                    <div className="sm:col-span-3">
+                      <SeletorCorOuDegrade
+                        label="Cor ou Degradê de Fundo do Botão"
+                        valor={temaSeguro.cores.botao}
+                        onChange={novo => atualizarTema({ cores: { ...temaSeguro.cores, botao: novo } })}
+                      />
                     </div>
 
                     <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
@@ -1328,7 +1351,7 @@ export const TemaBuilderView: React.FC<Props> = ({
                       <div className="flex items-center gap-2">
                         <input
                           type="color"
-                          value={temaSeguro.cores.textoBotao}
+                          value={temaSeguro.cores.textoBotao?.startsWith('#') ? temaSeguro.cores.textoBotao : '#ffffff'}
                           onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, textoBotao: e.target.value } })}
                           className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
                         />
@@ -1339,6 +1362,56 @@ export const TemaBuilderView: React.FC<Props> = ({
                           className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
                         />
                       </div>
+                    </div>
+
+                    {/* Controles de Borda do Botão de Compra */}
+                    <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Borda do Botão</label>
+                        <button
+                          type="button"
+                          onClick={() => atualizarTema({ botao: { ...temaSeguro.botao, possuirBorda: !temaSeguro.botao.possuirBorda } })}
+                          className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase transition ${
+                            temaSeguro.botao.possuirBorda
+                              ? 'bg-emerald-500 text-slate-950 font-black'
+                              : 'bg-slate-800 text-slate-400'
+                          }`}
+                        >
+                          {temaSeguro.botao.possuirBorda ? 'Ativa' : 'Desativada'}
+                        </button>
+                      </div>
+
+                      {temaSeguro.botao.possuirBorda && (
+                        <div className="space-y-2 pt-1">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="color"
+                              value={temaSeguro.botao.corBorda?.startsWith('#') ? temaSeguro.botao.corBorda : '#ffffff'}
+                              onChange={e => atualizarTema({ botao: { ...temaSeguro.botao, corBorda: e.target.value } })}
+                              className="w-7 h-7 rounded cursor-pointer bg-transparent border-0 p-0"
+                            />
+                            <input
+                              type="text"
+                              value={temaSeguro.botao.corBorda}
+                              onChange={e => atualizarTema({ botao: { ...temaSeguro.botao, corBorda: e.target.value } })}
+                              placeholder="#ffffff"
+                              className="flex-1 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-[10px] font-mono text-white uppercase focus:outline-none"
+                            />
+                          </div>
+                          <div className="flex justify-between items-center text-[10px] pt-1">
+                            <span className="text-slate-400">Espessura:</span>
+                            <span className="font-mono text-emerald-400 font-bold">{temaSeguro.botao.larguraBorda ?? 1}px</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="1"
+                            max="8"
+                            value={temaSeguro.botao.larguraBorda ?? 1}
+                            onChange={e => atualizarTema({ botao: { ...temaSeguro.botao, larguraBorda: Number(e.target.value) } })}
+                            className="w-full accent-emerald-500 bg-slate-900 cursor-pointer"
+                          />
+                        </div>
+                      )}
                     </div>
 
                     {temaSeguro.botao.estilo === '3d' && (
@@ -1570,32 +1643,23 @@ export const TemaBuilderView: React.FC<Props> = ({
 
                   {/* Cores Específicas dos Botões de Pacotes Padrão */}
                   <div className="space-y-3">
-                    <label className="text-xs font-bold text-slate-300 block">Cores dos Pacotes Padrão:</label>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
-                        <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Fundo do Pacote</label>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="color"
-                            value={temaSeguro.cores.botaoCotasFundo}
-                            onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, botaoCotasFundo: e.target.value } })}
-                            className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
-                          />
-                          <input
-                            type="text"
-                            value={temaSeguro.cores.botaoCotasFundo}
-                            onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, botaoCotasFundo: e.target.value } })}
-                            className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
-                          />
-                        </div>
-                      </div>
+                    <label className="text-xs font-bold text-slate-300 block">Cores e Degradê dos Pacotes Padrão:</label>
+                    
+                    <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl">
+                      <SeletorCorOuDegrade
+                        label="Fundo do Pacote Padrão"
+                        valor={temaSeguro.cores.botaoCotasFundo}
+                        onChange={novo => atualizarTema({ cores: { ...temaSeguro.cores, botaoCotasFundo: novo } })}
+                      />
+                    </div>
 
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
                         <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Número (+10, +50)</label>
                         <div className="flex items-center gap-2">
                           <input
                             type="color"
-                            value={temaSeguro.cores.botaoCotasNumero}
+                            value={temaSeguro.cores.botaoCotasNumero?.startsWith('#') ? temaSeguro.cores.botaoCotasNumero : '#10b981'}
                             onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, botaoCotasNumero: e.target.value } })}
                             className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
                           />
@@ -1613,7 +1677,7 @@ export const TemaBuilderView: React.FC<Props> = ({
                         <div className="flex items-center gap-2">
                           <input
                             type="color"
-                            value={temaSeguro.cores.botaoCotasTexto}
+                            value={temaSeguro.cores.botaoCotasTexto?.startsWith('#') ? temaSeguro.cores.botaoCotasTexto : '#94a3b8'}
                             onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, botaoCotasTexto: e.target.value } })}
                             className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
                           />
@@ -1639,31 +1703,21 @@ export const TemaBuilderView: React.FC<Props> = ({
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                      <div className="p-2.5 bg-slate-900 border border-slate-800 rounded-lg space-y-1.5">
-                        <label className="text-[10px] font-bold text-slate-400 block">Fundo do Botão Destaque</label>
-                        <div className="flex items-center gap-1.5">
-                          <input
-                            type="color"
-                            value={temaSeguro.cores.botaoDestaqueFundo}
-                            onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, botaoDestaqueFundo: e.target.value } })}
-                            className="w-7 h-7 rounded cursor-pointer bg-transparent border-0 p-0"
-                          />
-                          <input
-                            type="text"
-                            value={temaSeguro.cores.botaoDestaqueFundo}
-                            onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, botaoDestaqueFundo: e.target.value } })}
-                            className="flex-1 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-[10px] font-mono text-white uppercase focus:outline-none"
-                          />
-                        </div>
-                      </div>
+                    <div className="p-3 bg-slate-900 border border-slate-800 rounded-lg">
+                      <SeletorCorOuDegrade
+                        label="Fundo do Botão Destaque"
+                        valor={temaSeguro.cores.botaoDestaqueFundo}
+                        onChange={novo => atualizarTema({ cores: { ...temaSeguro.cores, botaoDestaqueFundo: novo } })}
+                      />
+                    </div>
 
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div className="p-2.5 bg-slate-900 border border-slate-800 rounded-lg space-y-1.5">
                         <label className="text-[10px] font-bold text-slate-400 block">Texto do Botão Destaque</label>
                         <div className="flex items-center gap-1.5">
                           <input
                             type="color"
-                            value={temaSeguro.cores.botaoDestaqueTexto}
+                            value={temaSeguro.cores.botaoDestaqueTexto?.startsWith('#') ? temaSeguro.cores.botaoDestaqueTexto : '#ffffff'}
                             onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, botaoDestaqueTexto: e.target.value } })}
                             className="w-7 h-7 rounded cursor-pointer bg-transparent border-0 p-0"
                           />
@@ -1681,7 +1735,7 @@ export const TemaBuilderView: React.FC<Props> = ({
                         <div className="flex items-center gap-1.5">
                           <input
                             type="color"
-                            value={temaSeguro.cores.seloPopularFundo}
+                            value={temaSeguro.cores.seloPopularFundo?.startsWith('#') ? temaSeguro.cores.seloPopularFundo : '#f59e0b'}
                             onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, seloPopularFundo: e.target.value } })}
                             className="w-7 h-7 rounded cursor-pointer bg-transparent border-0 p-0"
                           />
@@ -1699,7 +1753,7 @@ export const TemaBuilderView: React.FC<Props> = ({
                         <div className="flex items-center gap-1.5">
                           <input
                             type="color"
-                            value={temaSeguro.cores.seloPopularTexto}
+                            value={temaSeguro.cores.seloPopularTexto?.startsWith('#') ? temaSeguro.cores.seloPopularTexto : '#000000'}
                             onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, seloPopularTexto: e.target.value } })}
                             className="w-7 h-7 rounded cursor-pointer bg-transparent border-0 p-0"
                           />
@@ -1714,8 +1768,63 @@ export const TemaBuilderView: React.FC<Props> = ({
                     </div>
                   </div>
 
-                  {/* Arredondamento e Sombras dos Pacotes */}
+                  {/* Arredondamento, Borda e Sombras dos Pacotes */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-800">
+                    <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Borda dos Pacotes</label>
+                        <button
+                          type="button"
+                          onClick={() => atualizarTema({ botao: { ...temaSeguro.botao, possuirBordaPacotes: !temaSeguro.botao.possuirBordaPacotes } })}
+                          className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase transition ${
+                            temaSeguro.botao.possuirBordaPacotes
+                              ? 'bg-emerald-500 text-slate-950 font-black'
+                              : 'bg-slate-800 text-slate-400'
+                          }`}
+                        >
+                          {temaSeguro.botao.possuirBordaPacotes ? 'Ativa' : 'Desativada'}
+                        </button>
+                      </div>
+
+                      {temaSeguro.botao.possuirBordaPacotes && (
+                        <div className="space-y-2 pt-1">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="color"
+                              value={temaSeguro.botao.corBordaPacotes?.startsWith('#') ? temaSeguro.botao.corBordaPacotes : '#334155'}
+                              onChange={e => atualizarTema({ 
+                                botao: { ...temaSeguro.botao, corBordaPacotes: e.target.value },
+                                cores: { ...temaSeguro.cores, botaoCotasBorda: e.target.value }
+                              })}
+                              className="w-7 h-7 rounded cursor-pointer bg-transparent border-0 p-0"
+                            />
+                            <input
+                              type="text"
+                              value={temaSeguro.botao.corBordaPacotes || temaSeguro.cores.botaoCotasBorda || ''}
+                              onChange={e => atualizarTema({ 
+                                botao: { ...temaSeguro.botao, corBordaPacotes: e.target.value },
+                                cores: { ...temaSeguro.cores, botaoCotasBorda: e.target.value }
+                              })}
+                              placeholder="#334155"
+                              className="flex-1 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-[10px] font-mono text-white uppercase focus:outline-none"
+                            />
+                          </div>
+                          <div className="flex justify-between items-center text-[10px] pt-1">
+                            <span className="text-slate-400">Espessura:</span>
+                            <span className="font-mono text-emerald-400 font-bold">{temaSeguro.botao.larguraBordaPacotes ?? 1}px</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="1"
+                            max="8"
+                            value={temaSeguro.botao.larguraBordaPacotes ?? 1}
+                            onChange={e => atualizarTema({ botao: { ...temaSeguro.botao, larguraBordaPacotes: Number(e.target.value) } })}
+                            className="w-full accent-emerald-500 bg-slate-900 cursor-pointer"
+                          />
+                        </div>
+                      )}
+                    </div>
+
                     <div className="space-y-1.5">
                       <div className="flex justify-between items-center text-xs">
                         <span className="font-bold text-slate-300">Arredondamento dos Pacotes</span>
@@ -1846,41 +1955,88 @@ export const TemaBuilderView: React.FC<Props> = ({
                     </div>
                   </div>
 
-                  {/* Cores dos Controles */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
-                      <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Fundo dos Botões + e -</label>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="color"
-                          value={temaSeguro.cores.controlesFundo}
-                          onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, controlesFundo: e.target.value } })}
-                          className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
-                        />
-                        <input
-                          type="text"
-                          value={temaSeguro.cores.controlesFundo}
-                          onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, controlesFundo: e.target.value } })}
-                          className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
-                        />
-                      </div>
+                  {/* Cores e Borda dos Controles */}
+                  <div className="space-y-3">
+                    <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl">
+                      <SeletorCorOuDegrade
+                        label="Fundo dos Botões + e -"
+                        valor={temaSeguro.cores.controlesFundo}
+                        onChange={novo => atualizarTema({ cores: { ...temaSeguro.cores, controlesFundo: novo } })}
+                      />
                     </div>
 
-                    <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
-                      <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Ícones dos Botões + e -</label>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="color"
-                          value={temaSeguro.cores.controlesTexto}
-                          onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, controlesTexto: e.target.value } })}
-                          className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
-                        />
-                        <input
-                          type="text"
-                          value={temaSeguro.cores.controlesTexto}
-                          onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, controlesTexto: e.target.value } })}
-                          className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
-                        />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                        <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Ícones dos Botões + e -</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={temaSeguro.cores.controlesTexto?.startsWith('#') ? temaSeguro.cores.controlesTexto : '#ffffff'}
+                            onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, controlesTexto: e.target.value } })}
+                            className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                          />
+                          <input
+                            type="text"
+                            value={temaSeguro.cores.controlesTexto}
+                            onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, controlesTexto: e.target.value } })}
+                            className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Borda dos Botões + e -</label>
+                          <button
+                            type="button"
+                            onClick={() => atualizarTema({ botao: { ...temaSeguro.botao, possuirBordaControles: !temaSeguro.botao.possuirBordaControles } })}
+                            className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase transition ${
+                              temaSeguro.botao.possuirBordaControles
+                                ? 'bg-emerald-500 text-slate-950 font-black'
+                                : 'bg-slate-800 text-slate-400'
+                            }`}
+                          >
+                            {temaSeguro.botao.possuirBordaControles ? 'Ativa' : 'Desativada'}
+                          </button>
+                        </div>
+
+                        {temaSeguro.botao.possuirBordaControles && (
+                          <div className="space-y-2 pt-1">
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="color"
+                                value={temaSeguro.botao.corBordaControles?.startsWith('#') ? temaSeguro.botao.corBordaControles : '#334155'}
+                                onChange={e => atualizarTema({ 
+                                  botao: { ...temaSeguro.botao, corBordaControles: e.target.value },
+                                  cores: { ...temaSeguro.cores, controlesBorda: e.target.value }
+                                })}
+                                className="w-7 h-7 rounded cursor-pointer bg-transparent border-0 p-0"
+                              />
+                              <input
+                                type="text"
+                                value={temaSeguro.botao.corBordaControles || (temaSeguro.cores as any).controlesBorda || ''}
+                                onChange={e => atualizarTema({ 
+                                  botao: { ...temaSeguro.botao, corBordaControles: e.target.value },
+                                  cores: { ...temaSeguro.cores, controlesBorda: e.target.value }
+                                })}
+                                placeholder="#334155"
+                                className="flex-1 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-[10px] font-mono text-white uppercase focus:outline-none"
+                              />
+                            </div>
+                            <div className="flex justify-between items-center text-[10px] pt-1">
+                              <span className="text-slate-400">Espessura:</span>
+                              <span className="font-mono text-emerald-400 font-bold">{temaSeguro.botao.larguraBordaControles ?? 1}px</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="1"
+                              max="8"
+                              value={temaSeguro.botao.larguraBordaControles ?? 1}
+                              onChange={e => atualizarTema({ botao: { ...temaSeguro.botao, larguraBordaControles: Number(e.target.value) } })}
+                              className="w-full accent-emerald-500 bg-slate-900 cursor-pointer"
+                            />
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -2318,41 +2474,74 @@ export const TemaBuilderView: React.FC<Props> = ({
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
-                        <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Fundo Global dos Cards</label>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="color"
-                            value={temaSeguro.cores.cardFundo}
-                            onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cardFundo: e.target.value } })}
-                            className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
-                          />
-                          <input
-                            type="text"
-                            value={temaSeguro.cores.cardFundo}
-                            onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cardFundo: e.target.value } })}
-                            className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
-                          />
-                        </div>
+                    <div className="space-y-4">
+                      <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl">
+                        <SeletorCorOuDegrade
+                          label="Fundo Global dos Cards"
+                          valor={temaSeguro.cores.cardFundo}
+                          onChange={novo => atualizarTema({ cores: { ...temaSeguro.cores, cardFundo: novo } })}
+                        />
                       </div>
 
-                      <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
-                        <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Borda Global dos Cards</label>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="color"
-                            value={temaSeguro.cores.cardBorda}
-                            onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cardBorda: e.target.value } })}
-                            className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
-                          />
-                          <input
-                            type="text"
-                            value={temaSeguro.cores.cardBorda}
-                            onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cardBorda: e.target.value } })}
-                            className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
-                          />
+                      {/* Controles de Borda Global dos Cards */}
+                      <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-3">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Borda Global dos Cards</label>
+                          <button
+                            type="button"
+                            onClick={() => atualizarTema({ botao: { ...temaSeguro.botao, possuirBordaCards: !temaSeguro.botao.possuirBordaCards } })}
+                            className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase transition ${
+                              temaSeguro.botao.possuirBordaCards
+                                ? 'bg-emerald-500 text-slate-950 font-black'
+                                : 'bg-slate-800 text-slate-400'
+                            }`}
+                          >
+                            {temaSeguro.botao.possuirBordaCards ? 'Ativa' : 'Desativada'}
+                          </button>
                         </div>
+
+                        {temaSeguro.botao.possuirBordaCards && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                            <div className="space-y-1.5">
+                              <label className="text-[10px] text-slate-400 font-bold block">Cor da Borda:</label>
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="color"
+                                  value={temaSeguro.cores.cardBorda?.startsWith('#') ? temaSeguro.cores.cardBorda : '#334155'}
+                                  onChange={e => atualizarTema({ 
+                                    cores: { ...temaSeguro.cores, cardBorda: e.target.value },
+                                    botao: { ...temaSeguro.botao, corBordaCards: e.target.value }
+                                  })}
+                                  className="w-7 h-7 rounded cursor-pointer bg-transparent border-0 p-0"
+                                />
+                                <input
+                                  type="text"
+                                  value={temaSeguro.cores.cardBorda}
+                                  onChange={e => atualizarTema({ 
+                                    cores: { ...temaSeguro.cores, cardBorda: e.target.value },
+                                    botao: { ...temaSeguro.botao, corBordaCards: e.target.value }
+                                  })}
+                                  className="flex-1 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-[10px] font-mono text-white uppercase focus:outline-none"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <div className="flex justify-between items-center text-[10px]">
+                                <span className="text-slate-400">Espessura:</span>
+                                <span className="font-mono text-emerald-400 font-bold">{temaSeguro.botao.larguraBordaCards ?? 1}px</span>
+                              </div>
+                              <input
+                                type="range"
+                                min="1"
+                                max="8"
+                                value={temaSeguro.botao.larguraBordaCards ?? 1}
+                                onChange={e => atualizarTema({ botao: { ...temaSeguro.botao, larguraBordaCards: Number(e.target.value) } })}
+                                className="w-full accent-emerald-500 bg-slate-950 cursor-pointer"
+                              />
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -2391,44 +2580,166 @@ export const TemaBuilderView: React.FC<Props> = ({
                         {
                           id: 'banner',
                           titulo: 'Card do Banner & Carrossel',
-                          desc: 'Cores do container da galeria principal e selos',
+                          desc: 'Cores, degradê do título, formato borda a borda e selos',
                           icone: '🖼️',
                           corFundoKey: 'cardBannerFundo',
                           corBordaKey: 'cardBannerBorda',
                           extras: (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                            <div className="space-y-4 pt-2">
+                              {/* Formato de Largura Total / Borda a Borda */}
                               <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
-                                <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Fundo do Selo no Banner</label>
-                                <div className="flex items-center gap-2">
-                                  <input
-                                    type="color"
-                                    value={temaSeguro.cores.seloBannerFundo || '#f59e0b'}
-                                    onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, seloBannerFundo: e.target.value } })}
-                                    className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
-                                  />
-                                  <input
-                                    type="text"
-                                    value={temaSeguro.cores.seloBannerFundo || '#f59e0b'}
-                                    onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, seloBannerFundo: e.target.value } })}
-                                    className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
-                                  />
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <label className="text-xs font-black text-white block">Banner Borda a Borda da Tela</label>
+                                    <p className="text-[10px] text-slate-400">A imagem ocupa 100% da largura, sem recuo ou espaço nas laterais</p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => atualizarTema({ 
+                                      bannerConfig: { 
+                                        ...temaSeguro.bannerConfig, 
+                                        fullWidth: !(temaSeguro.bannerConfig?.fullWidth ?? true) 
+                                      } 
+                                    })}
+                                    className={`px-3 py-1 rounded text-xs font-black uppercase transition ${
+                                      (temaSeguro.bannerConfig?.fullWidth ?? true)
+                                        ? 'bg-emerald-500 text-slate-950'
+                                        : 'bg-slate-800 text-slate-400'
+                                    }`}
+                                  >
+                                    {(temaSeguro.bannerConfig?.fullWidth ?? true) ? 'Borda a Borda' : 'Com Margem'}
+                                  </button>
                                 </div>
                               </div>
-                              <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
-                                <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Texto do Selo no Banner</label>
-                                <div className="flex items-center gap-2">
-                                  <input
-                                    type="color"
-                                    value={temaSeguro.cores.seloBannerTexto || '#022c22'}
-                                    onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, seloBannerTexto: e.target.value } })}
-                                    className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+
+                              {/* Degradê de Fundo do Título / Sombra no Banner */}
+                              <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <label className="text-xs font-black text-white block">Degradê de Fundo no Título / Banner</label>
+                                    <p className="text-[10px] text-slate-400">Adicione uma sombra ou degradê sob o título para dar legibilidade máxima</p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => atualizarTema({ 
+                                      bannerConfig: { 
+                                        ...temaSeguro.bannerConfig, 
+                                        overlayDegradeAtivo: !(temaSeguro.bannerConfig?.overlayDegradeAtivo ?? true) 
+                                      } 
+                                    })}
+                                    className={`px-3 py-1 rounded text-xs font-black uppercase transition ${
+                                      (temaSeguro.bannerConfig?.overlayDegradeAtivo ?? true)
+                                        ? 'bg-purple-500 text-white'
+                                        : 'bg-slate-800 text-slate-400'
+                                    }`}
+                                  >
+                                    {(temaSeguro.bannerConfig?.overlayDegradeAtivo ?? true) ? 'Ativo' : 'Desativado'}
+                                  </button>
+                                </div>
+
+                                {(temaSeguro.bannerConfig?.overlayDegradeAtivo ?? true) && (
+                                  <div className="space-y-3 pt-2 border-t border-slate-800">
+                                    <SeletorCorOuDegrade
+                                      label="Degradê de Fundo do Título"
+                                      valor={temaSeguro.bannerConfig?.overlayDegrade || 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 50%, transparent 100%)'}
+                                      onChange={novo => atualizarTema({
+                                        bannerConfig: {
+                                          ...temaSeguro.bannerConfig,
+                                          overlayDegrade: novo
+                                        }
+                                      })}
+                                    />
+
+                                    <div className="space-y-1.5">
+                                      <div className="flex justify-between items-center text-[10px]">
+                                        <span className="text-slate-400">Altura de Cobertura do Degradê:</span>
+                                        <span className="font-mono text-purple-400 font-bold">{temaSeguro.bannerConfig?.overlayAltura ?? 60}%</span>
+                                      </div>
+                                      <input
+                                        type="range"
+                                        min="20"
+                                        max="100"
+                                        value={temaSeguro.bannerConfig?.overlayAltura ?? 60}
+                                        onChange={e => atualizarTema({
+                                          bannerConfig: {
+                                            ...temaSeguro.bannerConfig,
+                                            overlayAltura: Number(e.target.value)
+                                          }
+                                        })}
+                                        className="w-full accent-purple-500 bg-slate-900 cursor-pointer"
+                                      />
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Selo de Destaque no Banner */}
+                              <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-3">
+                                <label className="text-[11px] font-black text-amber-400 uppercase tracking-wider block">Selo de Destaque do Banner</label>
+                                
+                                <div className="space-y-3">
+                                  <SeletorCorOuDegrade
+                                    label="Fundo do Selo"
+                                    valor={temaSeguro.cores.seloBannerFundo || temaSeguro.bannerConfig?.seloFundo || '#f59e0b'}
+                                    onChange={novo => atualizarTema({ 
+                                      cores: { ...temaSeguro.cores, seloBannerFundo: novo },
+                                      bannerConfig: { ...temaSeguro.bannerConfig, seloFundo: novo }
+                                    })}
                                   />
-                                  <input
-                                    type="text"
-                                    value={temaSeguro.cores.seloBannerTexto || '#022c22'}
-                                    onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, seloBannerTexto: e.target.value } })}
-                                    className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
-                                  />
+
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div className="space-y-1.5">
+                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Texto do Selo</label>
+                                      <div className="flex items-center gap-2">
+                                        <input
+                                          type="color"
+                                          value={temaSeguro.cores.seloBannerTexto?.startsWith('#') ? temaSeguro.cores.seloBannerTexto : '#022c22'}
+                                          onChange={e => atualizarTema({ 
+                                            cores: { ...temaSeguro.cores, seloBannerTexto: e.target.value },
+                                            bannerConfig: { ...temaSeguro.bannerConfig, seloTexto: e.target.value }
+                                          })}
+                                          className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                                        />
+                                        <input
+                                          type="text"
+                                          value={temaSeguro.cores.seloBannerTexto || '#022c22'}
+                                          onChange={e => atualizarTema({ 
+                                            cores: { ...temaSeguro.cores, seloBannerTexto: e.target.value },
+                                            bannerConfig: { ...temaSeguro.bannerConfig, seloTexto: e.target.value }
+                                          })}
+                                          className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                                        />
+                                      </div>
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Animação do Selo</label>
+                                      <div className="flex gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => atualizarTema({ bannerConfig: { ...temaSeguro.bannerConfig, seloAnimado: true } })}
+                                          className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition ${
+                                            (temaSeguro.bannerConfig?.seloAnimado ?? true)
+                                              ? 'bg-amber-500 text-slate-950'
+                                              : 'bg-slate-900 text-slate-400 border border-slate-800'
+                                          }`}
+                                        >
+                                          Pulsante
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => atualizarTema({ bannerConfig: { ...temaSeguro.bannerConfig, seloAnimado: false } })}
+                                          className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition ${
+                                            !(temaSeguro.bannerConfig?.seloAnimado ?? true)
+                                              ? 'bg-amber-500 text-slate-950'
+                                              : 'bg-slate-900 text-slate-400 border border-slate-800'
+                                          }`}
+                                        >
+                                          Estático
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
                                 </div>
                               </div>
                             </div>
@@ -2989,38 +3300,25 @@ export const TemaBuilderView: React.FC<Props> = ({
                               </button>
                             </div>
 
-                            {/* Configuração de cores */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                              <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
-                                <div className="flex justify-between items-center">
-                                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Cor de Fundo</label>
-                                  <span className="text-[10px] text-slate-500 font-mono uppercase">{fundoVal}</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <input
-                                    type="color"
-                                    value={fundoVal}
-                                    onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [sec.corFundoKey]: e.target.value } })}
-                                    className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
-                                  />
-                                  <input
-                                    type="text"
-                                    value={fundoVal}
-                                    onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [sec.corFundoKey]: e.target.value } })}
-                                    className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
-                                  />
-                                </div>
+                            {/* Configuração de cores com suporte a Degradê */}
+                            <div className="space-y-4">
+                              <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl">
+                                <SeletorCorOuDegrade
+                                  label={`Cor ou Degradê de Fundo (${sec.titulo})`}
+                                  valor={fundoVal}
+                                  onChange={novo => atualizarTema({ cores: { ...temaSeguro.cores, [sec.corFundoKey]: novo } })}
+                                />
                               </div>
 
                               <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
                                 <div className="flex justify-between items-center">
-                                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Cor de Borda</label>
+                                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Cor da Borda</label>
                                   <span className="text-[10px] text-slate-500 font-mono uppercase">{bordaVal}</span>
                                 </div>
                                 <div className="flex items-center gap-2">
                                   <input
                                     type="color"
-                                    value={bordaVal}
+                                    value={bordaVal?.startsWith('#') ? bordaVal : '#334155'}
                                     onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, [sec.corBordaKey]: e.target.value } })}
                                     className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
                                   />

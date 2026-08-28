@@ -223,6 +223,7 @@ export const TemaBuilderView: React.FC<Props> = ({
   mostrarPreview = true
 }) => {
   const [visualizacaoMobile, setVisualizacaoMobile] = useState<'controles' | 'preview'>('controles');
+  const [previewDispositivo, setPreviewDispositivo] = useState<'mobile' | 'desktop'>('mobile');
   const [secaoEditor, setSecaoEditor] = useState<'menu' | 'geral' | 'tipografia' | 'blocos' | 'estilos'>('menu');
   const [subAbaGeral, setSubAbaGeral] = useState<'cores' | 'botoes' | 'icones' | 'logo' | null>(null);
   const [subAbaBotao, setSubAbaBotao] = useState<'compra' | 'pacotes' | 'controles' | 'cotas' | 'progresso' | 'cards' | null>(null);
@@ -5213,18 +5214,34 @@ export const TemaBuilderView: React.FC<Props> = ({
                     Visualização da Página
                   </span>
                 </div>
-                <span className="text-[11px] text-slate-500 font-mono">
-                  Full Page Mode
-                </span>
+                {/* Toggle Mobile / Desktop da prévia */}
+                <div className="flex bg-slate-950 border border-slate-800 rounded-lg p-0.5 gap-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewDispositivo('mobile')}
+                    title="Ver como celular"
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider transition ${previewDispositivo === 'mobile' ? 'bg-emerald-500 text-slate-950' : 'text-slate-400 hover:text-white'}`}
+                  >
+                    <Smartphone className="w-3 h-3" /> Celular
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewDispositivo('desktop')}
+                    title="Ver como computador"
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider transition ${previewDispositivo === 'desktop' ? 'bg-emerald-500 text-slate-950' : 'text-slate-400 hover:text-white'}`}
+                  >
+                    <Eye className="w-3 h-3" /> Computador
+                  </button>
+                </div>
               </div>
 
-              <div 
+              <div
                 className="w-full h-[720px] bg-slate-950 rounded-2xl overflow-y-auto overflow-x-hidden relative border border-slate-800 shadow-inner custom-scrollbar"
                 style={{
                   backgroundColor: temaSeguro.cores.fundo || '#020617',
                 }}
               >
-                <div className="max-w-[480px] mx-auto min-h-full pb-20">
+                <div className={`${previewDispositivo === 'mobile' ? 'max-w-[430px]' : 'max-w-full'} mx-auto min-h-full pb-20 transition-all duration-300`}>
                   <ErrorBoundary titulo="Erro na prévia do tema" resetKey={temaSeguro}>
                     <CampanhaPublicaView
                       modoPreview={true}

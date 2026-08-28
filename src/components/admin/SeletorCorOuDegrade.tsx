@@ -138,20 +138,34 @@ export const SeletorCorOuDegrade: React.FC<SeletorCorOuDegradeProps> = ({
     }
   }, [valor]);
 
+  const normalizarCor = (input: string): string => {
+    const limpo = input.trim();
+    if (!limpo) return '#000000';
+    if (limpo.startsWith('#') || limpo.startsWith('rgb') || limpo.startsWith('hsl') || limpo === 'transparent') {
+      return limpo;
+    }
+    // Se for hex sem hash (ex: '10b981' ou 'fff')
+    if (/^[0-9A-Fa-f]{3,8}$/.test(limpo)) {
+      return `#${limpo}`;
+    }
+    return limpo;
+  };
+
   const aplicarSolida = (cor: string) => {
     setCorSolida(cor);
     setModo('solida');
-    onChange(cor);
+    onChange(normalizarCor(cor));
   };
 
   const aplicarDegrade = (novaDir: string, novasCores: string[]) => {
     setDirecao(novaDir);
-    setCoresDegrade(novasCores);
+    const coresNorm = novasCores.map(c => normalizarCor(c));
+    setCoresDegrade(coresNorm);
     setModo('degrade');
     const gradStr = buildGradientString({
       tipo: novaDir === 'radial' ? 'radial' : 'linear',
       direcao: novaDir,
-      cores: novasCores
+      cores: coresNorm
     });
     onChange(gradStr);
   };

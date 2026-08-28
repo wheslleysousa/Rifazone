@@ -642,7 +642,6 @@ export const TemaBuilderView: React.FC<Props> = ({
                           {subAbaGeral === 'cores' && 'Cores & Fundo'}
                           {subAbaGeral === 'botoes' && 'Botões & Elementos'}
                           {subAbaGeral === 'icones' && 'Ícones'}
-                          {subAbaGeral === 'logo' && 'Logo & Cabeçalho'}
                           {subAbaGeral === 'vendas' && 'Vendas & Progresso'}
                         </button>
                       </>
@@ -783,13 +782,6 @@ export const TemaBuilderView: React.FC<Props> = ({
                     desc: 'Personalize os 20 ícones por seção da rifa e suas cores exclusivas.',
                     icon: Sparkles,
                     color: 'text-amber-400 bg-amber-500/10 border-amber-500/20'
-                  },
-                  {
-                    id: 'logo',
-                    label: 'Logo & Cabeçalho',
-                    desc: 'Alinhamento da logo no topo da página e link para a página do organizador.',
-                    icon: User,
-                    color: 'text-purple-400 bg-purple-500/10 border-purple-500/20'
                   },
                 ].map(item => {
                   const Icon = item.icon;
@@ -2303,61 +2295,297 @@ export const TemaBuilderView: React.FC<Props> = ({
                               Grade de Cotas Manuais
                             </h4>
                             <p className="text-xs text-slate-400">
-                              Defina o estilo visual e o arredondamento dos bloquinhos de cotas manuais que os usuários selecionam de forma individual no grid.
+                              Defina o estilo visual, dimensões e cores para cada estado das cotas manuais que os compradores selecionam no grid.
                             </p>
                           </div>
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-300 block">
-                      Efeito Visual das Cotas na Grade de Seleção:
-                    </label>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                      {[
-                        { id: 'solido', label: 'Sólido', desc: 'Quadrados nítidos' },
-                        { id: 'vidro', label: 'Vidro (Glass)', desc: 'Translúcido' },
-                        { id: 'transparente', label: 'Transparente', desc: 'Apenas borda' },
-                        { id: '3d', label: 'Sombra 3D', desc: 'Bloquinhos 3D' },
-                      ].map(st => {
-                        const isSelected = (temaSeguro.botao.estiloCotas || 'solido') === st.id;
-                        return (
-                          <button
-                            key={st.id}
-                            type="button"
-                            onClick={() => atualizarTema({ botao: { ...temaSeguro.botao, estiloCotas: st.id as any } })}
-                            className={`p-3 rounded-xl border text-left transition flex flex-col justify-between gap-2 ${
-                              isSelected
-                                ? 'bg-emerald-500/10 border-emerald-500 ring-2 ring-emerald-500/40 shadow-lg shadow-emerald-500/10'
-                                : 'bg-slate-950 border-slate-800 hover:border-slate-700'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between w-full">
-                              <span className={`text-xs font-black ${isSelected ? 'text-emerald-400' : 'text-white'}`}>
-                                {st.label}
-                              </span>
-                              {isSelected && <Check className="w-3.5 h-3.5 text-emerald-400" />}
-                            </div>
-                            <span className="text-[10px] text-slate-500 block truncate">{st.desc}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
 
-                  <div className="space-y-1.5 pt-2 border-t border-slate-800">
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="font-bold text-slate-300">Arredondamento das Cotas</span>
-                      <span className="font-mono text-emerald-400 font-bold">{temaSeguro.botao.raioBordaCotas ?? 8}px</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="16"
-                      value={temaSeguro.botao.raioBordaCotas ?? 8}
-                      onChange={e => atualizarTema({ botao: { ...temaSeguro.botao, raioBordaCotas: Number(e.target.value) } })}
-                      className="w-full accent-emerald-500 bg-slate-950 cursor-pointer"
-                    />
-                  </div>
-                </div>
-              )}
+                          {/* Seletor de Efeito Visual */}
+                          <div className="space-y-2">
+                            <label className="text-xs font-bold text-slate-300 block">
+                              Efeito Visual das Cotas na Grade:
+                            </label>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                              {[
+                                { id: 'solido', label: 'Sólido', desc: 'Quadrados nítidos' },
+                                { id: 'vidro', label: 'Vidro (Glass)', desc: 'Translúcido com Blur' },
+                                { id: 'transparente', label: 'Transparente', desc: 'Apenas borda fina' },
+                                { id: '3d', label: 'Sombra 3D', desc: 'Bloquinhos em relevo' },
+                              ].map(st => {
+                                const isSelected = (temaSeguro.botao.estiloCotas || 'solido') === st.id;
+                                return (
+                                  <button
+                                    key={st.id}
+                                    type="button"
+                                    onClick={() => atualizarTema({ botao: { ...temaSeguro.botao, estiloCotas: st.id as any } })}
+                                    className={`p-3 rounded-xl border text-left transition flex flex-col justify-between gap-2 cursor-pointer ${
+                                      isSelected
+                                        ? 'bg-emerald-500/10 border-emerald-500 ring-2 ring-emerald-500/40 shadow-lg shadow-emerald-500/10'
+                                        : 'bg-slate-950 border-slate-800 hover:border-slate-700'
+                                    }`}
+                                  >
+                                    <div className="flex items-center justify-between w-full">
+                                      <span className={`text-xs font-black ${isSelected ? 'text-emerald-400' : 'text-white'}`}>
+                                        {st.label}
+                                      </span>
+                                      {isSelected && <Check className="w-3.5 h-3.5 text-emerald-400" />}
+                                    </div>
+                                    <div className="w-full py-1.5 flex items-center justify-center">
+                                      <div
+                                        className={`w-10 h-8 rounded flex items-center justify-center font-mono font-bold text-[11px] ${
+                                          st.id === 'solido'
+                                            ? 'bg-emerald-500 text-slate-950'
+                                            : st.id === 'vidro'
+                                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 backdrop-blur-sm'
+                                              : st.id === 'transparente'
+                                                ? 'bg-transparent text-emerald-400 border-2 border-emerald-500'
+                                                : 'bg-emerald-500 text-slate-950 shadow-[0_4px_0_#065f46]'
+                                        }`}
+                                      >
+                                        042
+                                      </div>
+                                    </div>
+                                    <span className="text-[10px] text-slate-500 block truncate">{st.desc}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* Prévia em Tempo Real dos 4 Estados das Cotas */}
+                          <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-3">
+                            <div className="flex items-center justify-between">
+                              <label className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
+                                <Sparkles className="w-3.5 h-3.5 text-pink-400" /> Prévia dos Estados da Cota em Tempo Real
+                              </label>
+                              <span className="text-[10px] text-slate-500 font-mono">Exemplo Interativo</span>
+                            </div>
+                            <p className="text-[11px] text-slate-400">
+                              Veja como cada cota será renderizada na grade conforme o status do bilhete:
+                            </p>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
+                              {/* 1. Disponível */}
+                              <div className="p-3 bg-slate-900/60 border border-slate-800 rounded-xl flex flex-col items-center gap-1.5 text-center">
+                                <div
+                                  className="w-12 h-10 flex items-center justify-center font-mono font-black text-xs transition-transform hover:scale-105"
+                                  style={{
+                                    backgroundColor: (temaSeguro.cores as any).cotaDisponivelFundo || temaSeguro.cores.cardFundo || '#0f172a',
+                                    color: (temaSeguro.cores as any).cotaDisponivelTexto || temaSeguro.cores.texto || '#ffffff',
+                                    borderRadius: `${temaSeguro.botao.raioBordaCotas ?? 8}px`,
+                                    border: `${temaSeguro.botao.larguraBordaCotas ?? 1}px solid ${(temaSeguro.cores as any).cotaDisponivelBorda || temaSeguro.cores.cardBorda || '#334155'}`,
+                                  }}
+                                >
+                                  0042
+                                </div>
+                                <div>
+                                  <span className="text-[11px] font-bold text-white block">Disponível</span>
+                                  <span className="text-[9px] text-slate-500">Livre p/ compra</span>
+                                </div>
+                              </div>
+
+                              {/* 2. Selecionada */}
+                              <div className="p-3 bg-slate-900/60 border border-slate-800 rounded-xl flex flex-col items-center gap-1.5 text-center">
+                                <div
+                                  className="w-12 h-10 flex items-center justify-center font-mono font-black text-xs ring-2 ring-emerald-500/50 shadow-md"
+                                  style={{
+                                    backgroundColor: (temaSeguro.cores as any).cotaSelecionadaFundo || temaSeguro.cores.primaria || '#10b981',
+                                    color: (temaSeguro.cores as any).cotaSelecionadaTexto || '#022c22',
+                                    borderRadius: `${temaSeguro.botao.raioBordaCotas ?? 8}px`,
+                                    border: `${temaSeguro.botao.larguraBordaCotas ?? 1}px solid ${(temaSeguro.cores as any).cotaSelecionadaBorda || temaSeguro.cores.primaria || '#10b981'}`,
+                                  }}
+                                >
+                                  ✓ 0087
+                                </div>
+                                <div>
+                                  <span className="text-[11px] font-bold text-emerald-400 block">Selecionada</span>
+                                  <span className="text-[9px] text-slate-500">No carrinho</span>
+                                </div>
+                              </div>
+
+                              {/* 3. Reservada */}
+                              <div className="p-3 bg-slate-900/60 border border-slate-800 rounded-xl flex flex-col items-center gap-1.5 text-center">
+                                <div
+                                  className="w-12 h-10 flex items-center justify-center font-mono font-black text-xs opacity-80"
+                                  style={{
+                                    backgroundColor: (temaSeguro.cores as any).cotaReservadaFundo || '#d97706',
+                                    color: (temaSeguro.cores as any).cotaReservadaTexto || '#ffffff',
+                                    borderRadius: `${temaSeguro.botao.raioBordaCotas ?? 8}px`,
+                                    border: `${temaSeguro.botao.larguraBordaCotas ?? 1}px solid ${(temaSeguro.cores as any).cotaReservadaBorda || '#b45309'}`,
+                                  }}
+                                >
+                                  ⏳ 0105
+                                </div>
+                                <div>
+                                  <span className="text-[11px] font-bold text-amber-400 block">Reservada</span>
+                                  <span className="text-[9px] text-slate-500">Aguardando Pix</span>
+                                </div>
+                              </div>
+
+                              {/* 4. Paga / Ganha */}
+                              <div className="p-3 bg-slate-900/60 border border-slate-800 rounded-xl flex flex-col items-center gap-1.5 text-center">
+                                <div
+                                  className="w-12 h-10 flex items-center justify-center font-mono font-black text-xs opacity-60 line-through"
+                                  style={{
+                                    backgroundColor: (temaSeguro.cores as any).cotaPagaFundo || '#1e293b',
+                                    color: (temaSeguro.cores as any).cotaPagaTexto || '#64748b',
+                                    borderRadius: `${temaSeguro.botao.raioBordaCotas ?? 8}px`,
+                                    border: `${temaSeguro.botao.larguraBordaCotas ?? 1}px solid ${(temaSeguro.cores as any).cotaPagaBorda || '#334155'}`,
+                                  }}
+                                >
+                                  0239
+                                </div>
+                                <div>
+                                  <span className="text-[11px] font-bold text-slate-400 block">Paga / Ocupada</span>
+                                  <span className="text-[9px] text-slate-500">Já vendida</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Dimensões & Borda */}
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 pt-2 border-t border-slate-800">
+                            <div className="space-y-1.5 p-3 bg-slate-950 border border-slate-800/80 rounded-xl">
+                              <div className="flex justify-between items-center text-xs">
+                                <span className="font-bold text-slate-300">Arredondamento</span>
+                                <span className="font-mono text-emerald-400 font-bold">{temaSeguro.botao.raioBordaCotas ?? 8}px</span>
+                              </div>
+                              <input
+                                type="range"
+                                min="0"
+                                max="24"
+                                value={temaSeguro.botao.raioBordaCotas ?? 8}
+                                onChange={e => atualizarTema({ botao: { ...temaSeguro.botao, raioBordaCotas: Number(e.target.value) } })}
+                                className="w-full accent-emerald-500 bg-slate-900 cursor-pointer"
+                              />
+                            </div>
+
+                            <div className="space-y-1.5 p-3 bg-slate-950 border border-slate-800/80 rounded-xl">
+                              <div className="flex justify-between items-center text-xs">
+                                <span className="font-bold text-slate-300">Espessura da Borda</span>
+                                <span className="font-mono text-emerald-400 font-bold">{temaSeguro.botao.larguraBordaCotas ?? 1}px</span>
+                              </div>
+                              <input
+                                type="range"
+                                min="0"
+                                max="4"
+                                value={temaSeguro.botao.larguraBordaCotas ?? 1}
+                                onChange={e => atualizarTema({ botao: { ...temaSeguro.botao, larguraBordaCotas: Number(e.target.value) } })}
+                                className="w-full accent-emerald-500 bg-slate-900 cursor-pointer"
+                              />
+                            </div>
+
+                            <div className="space-y-1.5 p-3 bg-slate-950 border border-slate-800/80 rounded-xl">
+                              <div className="flex justify-between items-center text-xs">
+                                <span className="font-bold text-slate-300">Tamanho da Fonte</span>
+                                <span className="font-mono text-emerald-400 font-bold">{temaSeguro.botao.tamanhoTextoCotas ?? 12}px</span>
+                              </div>
+                              <input
+                                type="range"
+                                min="10"
+                                max="18"
+                                value={temaSeguro.botao.tamanhoTextoCotas ?? 12}
+                                onChange={e => atualizarTema({ botao: { ...temaSeguro.botao, tamanhoTextoCotas: Number(e.target.value) } })}
+                                className="w-full accent-emerald-500 bg-slate-900 cursor-pointer"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Cores Específicas para Cada Estado */}
+                          <div className="space-y-3 pt-2 border-t border-slate-800">
+                            <h5 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
+                              <Palette className="w-3.5 h-3.5 text-emerald-400" /> Cores Individuais por Estado
+                            </h5>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              {/* Cota Selecionada Fundo */}
+                              <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                                <div className="flex justify-between items-center">
+                                  <label className="text-[11px] font-bold text-slate-300">Fundo Cota Selecionada</label>
+                                  <span className="text-[10px] text-slate-500 font-mono">{(temaSeguro.cores as any).cotaSelecionadaFundo || temaSeguro.cores.primaria}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="color"
+                                    value={converterParaHex((temaSeguro.cores as any).cotaSelecionadaFundo, temaSeguro.cores.primaria)}
+                                    onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cotaSelecionadaFundo: e.target.value } })}
+                                    className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                                  />
+                                  <input
+                                    type="text"
+                                    value={(temaSeguro.cores as any).cotaSelecionadaFundo || temaSeguro.cores.primaria}
+                                    onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cotaSelecionadaFundo: e.target.value } })}
+                                    className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none"
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Cota Selecionada Texto */}
+                              <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                                <div className="flex justify-between items-center">
+                                  <label className="text-[11px] font-bold text-slate-300">Texto Cota Selecionada</label>
+                                  <span className="text-[10px] text-slate-500 font-mono">{(temaSeguro.cores as any).cotaSelecionadaTexto || '#022c22'}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="color"
+                                    value={converterParaHex((temaSeguro.cores as any).cotaSelecionadaTexto, '#022c22')}
+                                    onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cotaSelecionadaTexto: e.target.value } })}
+                                    className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                                  />
+                                  <input
+                                    type="text"
+                                    value={(temaSeguro.cores as any).cotaSelecionadaTexto || '#022c22'}
+                                    onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cotaSelecionadaTexto: e.target.value } })}
+                                    className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none"
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Cota Reservada Fundo */}
+                              <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                                <div className="flex justify-between items-center">
+                                  <label className="text-[11px] font-bold text-slate-300">Fundo Cota Reservada</label>
+                                  <span className="text-[10px] text-slate-500 font-mono">{(temaSeguro.cores as any).cotaReservadaFundo || '#d97706'}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="color"
+                                    value={converterParaHex((temaSeguro.cores as any).cotaReservadaFundo, '#d97706')}
+                                    onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cotaReservadaFundo: e.target.value } })}
+                                    className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                                  />
+                                  <input
+                                    type="text"
+                                    value={(temaSeguro.cores as any).cotaReservadaFundo || '#d97706'}
+                                    onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cotaReservadaFundo: e.target.value } })}
+                                    className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none"
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Cota Paga Fundo */}
+                              <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                                <div className="flex justify-between items-center">
+                                  <label className="text-[11px] font-bold text-slate-300">Fundo Cota Paga / Ocupada</label>
+                                  <span className="text-[10px] text-slate-500 font-mono">{(temaSeguro.cores as any).cotaPagaFundo || '#1e293b'}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="color"
+                                    value={converterParaHex((temaSeguro.cores as any).cotaPagaFundo, '#1e293b')}
+                                    onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cotaPagaFundo: e.target.value } })}
+                                    className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                                  />
+                                  <input
+                                    type="text"
+                                    value={(temaSeguro.cores as any).cotaPagaFundo || '#1e293b'}
+                                    onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cotaPagaFundo: e.target.value } })}
+                                    className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
                       {/* 4.5. CARD DE PROGRESSO DE VENDAS */}
                       {subAbaBotao === 'progresso' && (

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { CheckoutConfig, CheckoutSalvo, DEFAULT_CHECKOUT_CONFIG, ConfirmacaoCompraConfig, CupomDesconto } from '../../types';
 import { dispararExplosaoConfetes } from '../../utils/confettiUtils';
 import {
@@ -6,7 +6,8 @@ import {
   Trash2, Edit3, Plus, Save, RefreshCw, Smartphone,
   Monitor, AlertTriangle, Clock, Zap, MessageSquare,
   Palette, Type, X, PartyPopper, Users, Sparkles, Copy,
-  Share2, Ticket, MessageCircle, ExternalLink, HelpCircle, Tag
+  Share2, Ticket, MessageCircle, ExternalLink, HelpCircle, Tag,
+  Upload, Image, Check, Flame, Sliders, ChevronDown, CheckCheck
 } from 'lucide-react';
 
 interface Props {
@@ -22,14 +23,20 @@ interface CheckoutConfigExtended extends CheckoutConfig {
   bannerUrl?: string;
   temporizadorAtivo?: boolean;
   temporizadorMinutos?: number;
+  temporizadorEstilo?: 'fogo' | 'alerta' | 'minimalista' | 'badge';
+  temporizadorTexto?: string;
   mensagemEscassez?: string;
   selosExtras?: string[];
+  posicaoSelos?: 'abaixo_botao' | 'abaixo_banner';
   confirmacao?: ConfirmacaoCompraConfig;
   exigirCpf?: boolean;
   exigirEmail?: boolean;
   cupomAtivo?: boolean;
   exibirCupom?: boolean;
   cupons?: CupomDesconto[];
+  notificacoesModoIntervalo?: 'fixo' | 'aleatorio';
+  notificacoesIntervaloMin?: number;
+  notificacoesIntervaloMax?: number;
 }
 
 const SELOS_DISPONIVEIS = [
@@ -44,11 +51,18 @@ const SELOS_DISPONIVEIS = [
 ];
 
 const FONTES = [
-  { value: 'Inter', label: 'Inter (Padrão)' },
-  { value: 'Montserrat', label: 'Montserrat' },
-  { value: 'Outfit', label: 'Outfit' },
-  { value: 'Roboto', label: 'Roboto' },
-  { value: 'Poppins', label: 'Poppins' },
+  { value: 'Inter', label: 'Inter', categoria: 'Moderna e Neutra', amostra: 'Aa Bb Gg 123' },
+  { value: 'Montserrat', label: 'Montserrat', categoria: 'Robusta e Marcante', amostra: 'Aa Bb Gg 123' },
+  { value: 'Outfit', label: 'Outfit', categoria: 'Geométrica e Tech', amostra: 'Aa Bb Gg 123' },
+  { value: 'Poppins', label: 'Poppins', categoria: 'Arredondada e Amigável', amostra: 'Aa Bb Gg 123' },
+  { value: 'Roboto', label: 'Roboto', categoria: 'Clássica e Legível', amostra: 'Aa Bb Gg 123' },
+  { value: 'Plus Jakarta Sans', label: 'Plus Jakarta Sans', categoria: 'Sofisticada e Fluida', amostra: 'Aa Bb Gg 123' },
+  { value: 'Space Grotesk', label: 'Space Grotesk', categoria: 'Moderna e Futurista', amostra: 'Aa Bb Gg 123' },
+  { value: 'Playfair Display', label: 'Playfair Display', categoria: 'Elegante e Editorial', amostra: 'Aa Bb Gg 123' },
+  { value: 'Syne', label: 'Syne', categoria: 'Criativa e Premium', amostra: 'Aa Bb Gg 123' },
+  { value: 'Cinzel', label: 'Cinzel', categoria: 'Luxo e Clássica', amostra: 'Aa Bb Gg 123' },
+  { value: 'Manrope', label: 'Manrope', categoria: 'Clean e Equilibrada', amostra: 'Aa Bb Gg 123' },
+  { value: 'Oswald', label: 'Oswald', categoria: 'Impactante e Condensada', amostra: 'Aa Bb Gg 123' },
 ];
 
 const defaultExtended: CheckoutConfigExtended = {
@@ -61,8 +75,14 @@ const defaultExtended: CheckoutConfigExtended = {
   bannerUrl: '',
   temporizadorAtivo: false,
   temporizadorMinutos: 10,
+  temporizadorEstilo: 'fogo',
+  temporizadorTexto: '⏱️ Sua reserva expira em',
+  posicaoSelos: 'abaixo_botao',
   mensagemEscassez: '',
   selosExtras: ['ssl', 'aprovacao'],
+  notificacoesModoIntervalo: 'fixo',
+  notificacoesIntervaloMin: 6,
+  notificacoesIntervaloMax: 18,
   confirmacao: {
     titulo: 'Pagamento Confirmado! 🎉',
     subtitulo: 'Seus números já estão salvos e vinculados ao seu WhatsApp!',
@@ -94,6 +114,13 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
   const [previewScreen, setPreviewScreen] = useState<'checkout' | 'sucesso'>('checkout');
   const [previewDevice, setPreviewDevice] = useState<'mobile' | 'desktop'>('mobile');
   const [modalAnimacaoAberto, setModalAnimacaoAberto] = useState(false);
+  const [copiadoPix, setCopiadoPix] = useState(false);
+  const [cartaoNumero, setCartaoNumero] = useState('4532 •••• •••• 8892');
+  const [cartaoNome, setCartaoNome] = useState('JOAO SILVA');
+  const [cartaoValidade, setCartaoValidade] = useState('11/29');
+  const [cartaoCVV, setCartaoCVV] = useState('823');
+  const [parcelaSelecionada, setParcelaSelecionada] = useState(1);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { carregarCheckouts(); }, []);
 
@@ -171,6 +198,28 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
     upd({ selosExtras: atual.includes(id) ? atual.filter(s => s !== id) : [...atual, id] });
   };
 
+  const handleUploadBanner = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      alert('A imagem deve ter no máximo 5MB.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        upd({ bannerUrl: reader.result });
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const copiarChavePix = () => {
+    navigator.clipboard?.writeText('00020126580014br.gov.bcb.pix0136123e4567-e89b-12d3-a456-426614174000520400005303986540525.005802BR5913RIFAZONE PAGAMENTOS6008BRASILIA62070503***6304E2CA');
+    setCopiadoPix(true);
+    setTimeout(() => setCopiadoPix(false), 2500);
+  };
+
   const primary = checkoutConfig.corPrimaria || '#10b981';
   const bgColor = checkoutConfig.corFundo || '#020617';
   const conf = checkoutConfig.confirmacao || defaultExtended.confirmacao!;
@@ -187,7 +236,7 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
           <p className="text-xs text-slate-400 mt-0.5">Crie experiências de pagamento e telas de compra concluída personalizadas para cada campanha.</p>
         </div>
         {!formAberto && (
-          <button onClick={handleNovo} className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black rounded-xl flex items-center gap-2 transition shadow-lg shadow-indigo-600/20 active:scale-95">
+          <button onClick={handleNovo} className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black rounded-xl flex items-center gap-2 transition shadow-lg shadow-indigo-600/20 active:scale-95 cursor-pointer">
             <Plus className="w-4 h-4" /> Criar Novo Checkout
           </button>
         )}
@@ -217,7 +266,7 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
               <h3 className="text-sm font-black text-white">Nenhum checkout criado ainda</h3>
               <p className="text-xs text-slate-400 mt-1">Crie seu primeiro modelo de checkout personalizado com tela de confirmação.</p>
             </div>
-            <button onClick={handleNovo} className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black rounded-xl inline-flex items-center gap-2 transition">
+            <button onClick={handleNovo} className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black rounded-xl inline-flex items-center gap-2 transition cursor-pointer">
               <Plus className="w-4 h-4" /> Criar Primeiro Checkout
             </button>
           </div>
@@ -252,10 +301,10 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
                     </div>
                   )}
                   <div className="flex gap-2 mt-auto">
-                    <button onClick={() => handleEditar(item)} className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-white text-[11px] font-black rounded-xl flex items-center justify-center gap-1.5 transition border border-slate-700">
+                    <button onClick={() => handleEditar(item)} className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-white text-[11px] font-black rounded-xl flex items-center justify-center gap-1.5 transition border border-slate-700 cursor-pointer">
                       <Edit3 className="w-3.5 h-3.5 text-indigo-400" /> Editar
                     </button>
-                    <button onClick={() => handleExcluir(item.id)} className="py-2.5 px-3 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl flex items-center justify-center transition border border-red-500/20">
+                    <button onClick={() => handleExcluir(item.id)} className="py-2.5 px-3 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl flex items-center justify-center transition border border-red-500/20 cursor-pointer">
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -268,13 +317,13 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
 
       {/* EDITOR */}
       {formAberto && (
-        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
           <div className="xl:col-span-7 space-y-5">
 
             {/* Voltar + Nome */}
             <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4">
               <div className="flex items-center justify-between">
-                <button onClick={() => { setFormAberto(false); setEditandoId(null); setFeedbackMsg(null); }} className="text-xs text-slate-400 hover:text-white transition">
+                <button onClick={() => { setFormAberto(false); setEditandoId(null); setFeedbackMsg(null); }} className="text-xs text-slate-400 hover:text-white transition cursor-pointer">
                   ← Voltar para lista
                 </button>
                 <span className="text-[10px] font-bold text-indigo-400 bg-indigo-500/10 px-2 py-1 rounded-lg border border-indigo-500/20">
@@ -287,15 +336,15 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
               </div>
             </div>
 
-            {/* 1. Visual */}
+            {/* 1. Visual & Tipografia */}
             <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4">
               <h2 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
-                <Palette className="w-4 h-4 text-pink-400" /> 1. Identidade Visual do Checkout
+                <Palette className="w-4 h-4 text-pink-400" /> 1. Identidade Visual & Tipografia
               </h2>
               <div className="grid grid-cols-2 gap-4">
                 {[
-                  { label: 'Cor Primária (Botões)', key: 'corPrimaria', def: '#10b981' },
-                  { label: 'Cor de Fundo', key: 'corFundo', def: '#020617' },
+                  { label: 'Cor Primária (Botões & Destaques)', key: 'corPrimaria', def: '#10b981' },
+                  { label: 'Cor de Fundo do Checkout', key: 'corFundo', def: '#020617' },
                 ].map(c => (
                   <div key={c.key}>
                     <label className="text-xs font-bold text-slate-300 block mb-1.5">{c.label}</label>
@@ -306,17 +355,96 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
                   </div>
                 ))}
               </div>
-              <div>
-                <label className="text-xs font-bold text-slate-300 block mb-1.5">
-                  <Type className="w-3 h-3 inline mr-1" />Tipografia
-                </label>
-                <select value={checkoutConfig.fonteFamilia || 'Inter'} onChange={e => upd({ fonteFamilia: e.target.value })} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none">
-                  {FONTES.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-                </select>
+
+              {/* Seletor Visual de Tipografia com Prévias */}
+              <div className="space-y-2 pt-2 border-t border-slate-800">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                    <Type className="w-3.5 h-3.5 text-indigo-400" /> Fonte Tipográfica do Checkout
+                  </label>
+                  <span className="text-[10px] text-indigo-400 font-mono font-bold bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">
+                    {checkoutConfig.fonteFamilia || 'Inter'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-56 overflow-y-auto pr-1">
+                  {FONTES.map(f => {
+                    const isSelected = (checkoutConfig.fonteFamilia || 'Inter') === f.value;
+                    return (
+                      <button
+                        key={f.value}
+                        type="button"
+                        onClick={() => upd({ fonteFamilia: f.value })}
+                        className={`p-3 rounded-xl border text-left transition flex items-center justify-between gap-3 cursor-pointer ${
+                          isSelected
+                            ? 'bg-indigo-500/15 border-indigo-500 ring-1 ring-indigo-500/40 text-white'
+                            : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700 hover:bg-slate-900'
+                        }`}
+                        style={{ fontFamily: f.value }}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-black">{f.label}</span>
+                            <span className="text-[9px] text-slate-500 font-sans">{f.categoria}</span>
+                          </div>
+                          <span className="text-sm font-semibold opacity-90 block mt-0.5 truncate" style={{ color: isSelected ? '#a5b4fc' : undefined }}>
+                            {f.amostra}
+                          </span>
+                        </div>
+                        {isSelected && <Check className="w-4 h-4 text-indigo-400 shrink-0" />}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              <div>
-                <label className="text-xs font-bold text-slate-300 block mb-1.5">Banner de Topo no Checkout (URL — opcional)</label>
-                <input type="url" value={checkoutConfig.bannerUrl || ''} onChange={e => upd({ bannerUrl: e.target.value })} placeholder="https://..." className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none" />
+
+              {/* Banner de Topo com Upload Direto ou URL */}
+              <div className="space-y-2 pt-2 border-t border-slate-800">
+                <label className="text-xs font-bold text-slate-300 block">
+                  Banner do Topo no Checkout (Upload ou URL)
+                </label>
+                
+                <div className="flex flex-col sm:flex-row items-center gap-3">
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleUploadBanner}
+                    accept="image/*"
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full sm:w-auto px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-black rounded-xl border border-slate-700 flex items-center justify-center gap-2 transition cursor-pointer shrink-0"
+                  >
+                    <Upload className="w-4 h-4 text-emerald-400" /> Escolher do Computador
+                  </button>
+                  <input
+                    type="url"
+                    value={checkoutConfig.bannerUrl || ''}
+                    onChange={e => upd({ bannerUrl: e.target.value })}
+                    placeholder="Ou cole a URL direta da imagem (https://...)"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-indigo-500 focus:outline-none"
+                  />
+                </div>
+
+                {checkoutConfig.bannerUrl && (
+                  <div className="relative mt-2 rounded-xl overflow-hidden border border-slate-700 max-h-28 group">
+                    <img
+                      src={checkoutConfig.bannerUrl}
+                      alt="Banner Preview"
+                      className="w-full h-24 object-cover"
+                      onError={e => (e.currentTarget.style.display = 'none')}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => upd({ bannerUrl: '' })}
+                      className="absolute top-2 right-2 bg-red-600/90 hover:bg-red-500 text-white p-1.5 rounded-lg text-xs font-bold transition shadow"
+                      title="Remover banner"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -453,56 +581,142 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
                 </div>
               </div>
             </div>
-            {/* 5. Temporizador */}
+
+            {/* 5. Temporizador de Urgência & Estilos */}
             <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4">
               <h2 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
-                <Clock className="w-4 h-4 text-amber-400" /> 5. Temporizador de Urgência
+                <Clock className="w-4 h-4 text-amber-400" /> 5. Temporizador de Urgência & Estilos
               </h2>
               <label className="flex items-center justify-between p-3 bg-slate-950/60 border border-slate-800 rounded-xl cursor-pointer">
                 <div>
                   <p className="text-xs font-bold text-white">Ativar Contador Regressivo</p>
-                  <p className="text-[11px] text-slate-400">Exibe "Reserva expira em..." no checkout</p>
+                  <p className="text-[11px] text-slate-400">Exibe tempo limite para efetuar o pagamento da reserva</p>
                 </div>
                 <div onClick={() => upd({ temporizadorAtivo: !checkoutConfig.temporizadorAtivo })} className={`relative w-11 h-6 rounded-full cursor-pointer transition-colors ${checkoutConfig.temporizadorAtivo ? 'bg-amber-500' : 'bg-slate-700'}`}>
                   <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${checkoutConfig.temporizadorAtivo ? 'translate-x-6' : 'translate-x-1'}`} />
                 </div>
               </label>
+
               {checkoutConfig.temporizadorAtivo && (
-                <div>
-                  <label className="text-[11px] text-slate-400 block mb-1">Duração (minutos)</label>
-                  <select value={checkoutConfig.temporizadorMinutos || 10} onChange={e => upd({ temporizadorMinutos: Number(e.target.value) })} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none">
-                    {[5,10,15,20,30].map(m => <option key={m} value={m}>{m} minutos</option>)}
-                  </select>
+                <div className="space-y-3 pt-1 animate-in fade-in">
+                  {/* Seletor de Estilo do Temporizador */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-300 block">Estilo Visual do Temporizador:</label>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {[
+                        { id: 'fogo', label: 'Destaque Fogo', icon: '🔥', desc: 'Gradiente quente' },
+                        { id: 'alerta', label: 'Alerta Vermelho', icon: '⚡', desc: 'Alta urgência' },
+                        { id: 'minimalista', label: 'Minimalista', icon: '⏱️', desc: 'Clean moderno' },
+                        { id: 'badge', label: 'Badge Escuro', icon: '⏳', desc: 'Mono digital' },
+                      ].map(st => {
+                        const isSel = (checkoutConfig.temporizadorEstilo || 'fogo') === st.id;
+                        return (
+                          <button
+                            key={st.id}
+                            type="button"
+                            onClick={() => upd({ temporizadorEstilo: st.id as any })}
+                            className={`p-2.5 rounded-xl border text-left transition cursor-pointer flex flex-col justify-between gap-1.5 ${
+                              isSel ? 'bg-amber-500/15 border-amber-500 ring-1 ring-amber-500/50 text-white' : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm">{st.icon}</span>
+                              {isSel && <Check className="w-3.5 h-3.5 text-amber-400" />}
+                            </div>
+                            <span className="text-xs font-black block leading-tight">{st.label}</span>
+                            <span className="text-[9px] text-slate-500">{st.desc}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[11px] text-slate-400 block mb-1">Duração (minutos)</label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={60}
+                        value={checkoutConfig.temporizadorMinutos || 10}
+                        onChange={e => upd({ temporizadorMinutos: Number(e.target.value) })}
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-slate-400 block mb-1">Texto do Rótulo</label>
+                      <input
+                        type="text"
+                        value={checkoutConfig.temporizadorTexto || '⏱️ Sua reserva expira em'}
+                        onChange={e => upd({ temporizadorTexto: e.target.value })}
+                        placeholder="⏱️ Sua reserva expira em"
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+                      />
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
 
-            {/* 6. Selos */}
+            {/* 6. Selos & Posição */}
             <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4">
               <h2 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-emerald-400" /> 6. Selos de Segurança
+                <ShieldCheck className="w-4 h-4 text-emerald-400" /> 6. Selos de Segurança & Posicionamento
               </h2>
               <label className="flex items-center justify-between p-3 bg-slate-950/60 border border-slate-800 rounded-xl cursor-pointer">
                 <div>
                   <p className="text-xs font-bold text-white">Exibir Selos de Confiança</p>
-                  <p className="text-[11px] text-slate-400">Badges que aumentam a conversão</p>
+                  <p className="text-[11px] text-slate-400">Badges e garantias que aumentam a conversão</p>
                 </div>
                 <div onClick={() => upd({ selosSeguranca: !checkoutConfig.selosSeguranca })} className={`relative w-11 h-6 rounded-full cursor-pointer transition-colors ${checkoutConfig.selosSeguranca ? 'bg-emerald-500' : 'bg-slate-700'}`}>
                   <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${checkoutConfig.selosSeguranca ? 'translate-x-6' : 'translate-x-1'}`} />
                 </div>
               </label>
+
               {checkoutConfig.selosSeguranca && (
-                <div className="grid grid-cols-2 gap-2">
-                  {SELOS_DISPONIVEIS.map(selo => {
-                    const ativo = (checkoutConfig.selosExtras || []).includes(selo.id);
-                    return (
-                      <div key={selo.id} onClick={() => toggleSelo(selo.id)} className={`p-2.5 rounded-xl border cursor-pointer transition flex items-center gap-2 ${ativo ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-300' : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'}`}>
-                        <span className="text-base">{selo.icon}</span>
-                        <span className="text-[10px] font-bold flex-1">{selo.label}</span>
-                        {ativo && <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />}
-                      </div>
-                    );
-                  })}
+                <div className="space-y-3 pt-1 animate-in fade-in">
+                  <div className="p-3 bg-slate-950/80 border border-slate-800 rounded-xl">
+                    <label className="text-xs font-bold text-slate-300 block mb-1.5">Posicionamento dos Selos:</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => upd({ posicaoSelos: 'abaixo_botao' })}
+                        className={`p-2.5 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+                          (checkoutConfig.posicaoSelos || 'abaixo_botao') === 'abaixo_botao'
+                            ? 'bg-emerald-500/15 border-emerald-500 text-emerald-400'
+                            : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
+                        }`}
+                      >
+                        <Check className={`w-3.5 h-3.5 ${(checkoutConfig.posicaoSelos || 'abaixo_botao') === 'abaixo_botao' ? 'opacity-100' : 'opacity-0'}`} />
+                        Abaixo do Botão de Pagamento
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => upd({ posicaoSelos: 'abaixo_banner' })}
+                        className={`p-2.5 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+                          checkoutConfig.posicaoSelos === 'abaixo_banner'
+                            ? 'bg-emerald-500/15 border-emerald-500 text-emerald-400'
+                            : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
+                        }`}
+                      >
+                        <Check className={`w-3.5 h-3.5 ${checkoutConfig.posicaoSelos === 'abaixo_banner' ? 'opacity-100' : 'opacity-0'}`} />
+                        Abaixo do Banner no Topo
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    {SELOS_DISPONIVEIS.map(selo => {
+                      const ativo = (checkoutConfig.selosExtras || []).includes(selo.id);
+                      return (
+                        <div key={selo.id} onClick={() => toggleSelo(selo.id)} className={`p-2.5 rounded-xl border cursor-pointer transition flex items-center gap-2 ${ativo ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-300' : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'}`}>
+                          <span className="text-base">{selo.icon}</span>
+                          <span className="text-[10px] font-bold flex-1">{selo.label}</span>
+                          {ativo && <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>
@@ -553,7 +767,7 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
                             const arr = (checkoutConfig.cupons || []).filter((_, idx) => idx !== i);
                             upd({ cupons: arr });
                           }}
-                          className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition"
+                          className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition cursor-pointer"
                           title="Remover cupom"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -640,7 +854,7 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
                       };
                       upd({ cupons: [...(checkoutConfig.cupons || []), novo] });
                     }}
-                    className="w-full flex items-center justify-center gap-2 p-2.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-bold rounded-xl border border-emerald-500/30 transition"
+                    className="w-full flex items-center justify-center gap-2 p-2.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-bold rounded-xl border border-emerald-500/30 transition cursor-pointer"
                   >
                     <Plus className="w-4 h-4" /> Adicionar cupom
                   </button>
@@ -648,7 +862,7 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
               )}
             </div>
 
-            {/* 8. NOVA SEÇÃO: Tela de Confirmação de Compra (Sucesso & Pós-Venda) */}
+            {/* 8. Tela de Compra Concluída (Sucesso & Pós-Venda) */}
             <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
@@ -657,7 +871,7 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
                 <button
                   type="button"
                   onClick={() => setPreviewScreen('sucesso')}
-                  className="text-[11px] font-bold text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-1 rounded-lg transition"
+                  className="text-[11px] font-bold text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-1 rounded-lg transition cursor-pointer"
                 >
                   Visualizar no Preview →
                 </button>
@@ -755,7 +969,6 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
 
               {/* Toggles da Tela de Sucesso */}
               <div className="space-y-2 pt-1">
-
                 <label className="flex items-center justify-between p-2.5 bg-slate-950/60 border border-slate-800 rounded-xl cursor-pointer">
                   <span className="text-xs text-slate-300 font-bold flex items-center gap-1.5">
                     <Ticket className="w-3.5 h-3.5 text-emerald-400" /> Exibir Lista de Números da Sorte
@@ -860,45 +1073,87 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
               </div>
             </div>
 
-            {/* Conversão & Retenção */}
+            {/* 9. Conversão & Retenção */}
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-4">
-              <h4 className="text-sm font-black text-white flex items-center gap-2">🔔 Conversão & Retenção</h4>
+              <h4 className="text-sm font-black text-white flex items-center gap-2">🔔 9. Conversão & Retenção</h4>
 
               {/* Notificações Sociais */}
-              <div className="rounded-xl border border-slate-800 bg-slate-950 p-3">
+              <div className="rounded-xl border border-slate-800 bg-slate-950 p-3 space-y-3">
                 <label className="flex items-center justify-between cursor-pointer">
-                  <span className="text-xs font-bold text-slate-200">Notificações sociais (toast "fulano comprou")</span>
+                  <div>
+                    <span className="text-xs font-bold text-slate-200 block">Notificações Sociais (Toast "Fulano comprou...")</span>
+                    <span className="text-[11px] text-slate-400 block">Aumenta prova social e conversão com compras em tempo real</span>
+                  </div>
                   <input
                     type="checkbox"
                     checked={!!checkoutConfig.notificacoesSociais?.ativo}
                     onChange={e => upd({ notificacoesSociais: { ...checkoutConfig.notificacoesSociais, ativo: e.target.checked } })}
-                    className="rounded border-slate-700 bg-slate-900 text-emerald-500 w-4 h-4"
+                    className="rounded border-slate-700 bg-slate-900 text-emerald-500 w-4 h-4 cursor-pointer"
                   />
                 </label>
+
                 {checkoutConfig.notificacoesSociais?.ativo && (
-                  <div className="grid grid-cols-2 gap-2 mt-3">
-                    <div>
-                      <label className="text-[10px] text-slate-400 block mb-1">Posição</label>
-                      <select
-                        value={checkoutConfig.notificacoesSociais?.posicao || 'base-esq'}
-                        onChange={e => upd({ notificacoesSociais: { ...checkoutConfig.notificacoesSociais, ativo: true, posicao: e.target.value as any } })}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white"
-                      >
-                        <option value="base-esq">Inferior esquerda</option>
-                        <option value="base-dir">Inferior direita</option>
-                        <option value="topo-esq">Superior esquerda</option>
-                        <option value="topo-dir">Superior direita</option>
-                      </select>
+                  <div className="space-y-3 pt-2 border-t border-slate-800 animate-in fade-in">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] text-slate-400 block mb-1">Posição na Tela</label>
+                        <select
+                          value={checkoutConfig.notificacoesSociais?.posicao || 'base-esq'}
+                          onChange={e => upd({ notificacoesSociais: { ...checkoutConfig.notificacoesSociais, ativo: true, posicao: e.target.value as any } })}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white"
+                        >
+                          <option value="base-esq">Inferior esquerda</option>
+                          <option value="base-dir">Inferior direita</option>
+                          <option value="topo-esq">Superior esquerda</option>
+                          <option value="topo-dir">Superior direita</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] text-slate-400 block mb-1">Modo de Intervalo</label>
+                        <select
+                          value={checkoutConfig.notificacoesModoIntervalo || 'fixo'}
+                          onChange={e => upd({ notificacoesModoIntervalo: e.target.value as any })}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white"
+                        >
+                          <option value="fixo">Intervalo Fixo</option>
+                          <option value="aleatorio">Faixa Aleatória (mais natural)</option>
+                        </select>
+                      </div>
                     </div>
-                    <div>
-                      <label className="text-[10px] text-slate-400 block mb-1">Intervalo (seg)</label>
-                      <input
-                        type="number" min={4}
-                        value={checkoutConfig.notificacoesSociais?.intervalo || 12}
-                        onChange={e => upd({ notificacoesSociais: { ...checkoutConfig.notificacoesSociais, ativo: true, intervalo: Number(e.target.value) } })}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white"
-                      />
-                    </div>
+
+                    {(checkoutConfig.notificacoesModoIntervalo || 'fixo') === 'fixo' ? (
+                      <div>
+                        <label className="text-[10px] text-slate-400 block mb-1">Disparar a cada (segundos)</label>
+                        <input
+                          type="number" min={3} max={120}
+                          value={checkoutConfig.notificacoesSociais?.intervalo || 12}
+                          onChange={e => upd({ notificacoesSociais: { ...checkoutConfig.notificacoesSociais, ativo: true, intervalo: Number(e.target.value) } })}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white"
+                        />
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] text-slate-400 block mb-1">Mínimo (seg)</label>
+                          <input
+                            type="number" min={2} max={60}
+                            value={checkoutConfig.notificacoesIntervaloMin || 6}
+                            onChange={e => upd({ notificacoesIntervaloMin: Number(e.target.value) })}
+                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-slate-400 block mb-1">Máximo (seg)</label>
+                          <input
+                            type="number" min={4} max={120}
+                            value={checkoutConfig.notificacoesIntervaloMax || 18}
+                            onChange={e => upd({ notificacoesIntervaloMax: Number(e.target.value) })}
+                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white"
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -911,7 +1166,7 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
                     type="checkbox"
                     checked={!!checkoutConfig.exitPopup?.ativo}
                     onChange={e => upd({ exitPopup: { ...checkoutConfig.exitPopup, ativo: e.target.checked } })}
-                    className="rounded border-slate-700 bg-slate-900 text-emerald-500 w-4 h-4"
+                    className="rounded border-slate-700 bg-slate-900 text-emerald-500 w-4 h-4 cursor-pointer"
                   />
                 </label>
                 {checkoutConfig.exitPopup?.ativo && (
@@ -943,17 +1198,17 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
 
             {/* Salvar */}
             <div className="flex items-center gap-3">
-              <button onClick={handleSalvar} disabled={salvando} className="flex-1 py-3.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-black rounded-xl flex items-center justify-center gap-2 transition shadow-lg disabled:opacity-60 active:scale-[0.98]">
+              <button onClick={handleSalvar} disabled={salvando} className="flex-1 py-3.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-black rounded-xl flex items-center justify-center gap-2 transition shadow-lg disabled:opacity-60 active:scale-[0.98] cursor-pointer">
                 <Save className="w-5 h-5" />
                 {salvando ? 'Salvando...' : editandoId ? 'Atualizar Checkout' : 'Salvar Checkout'}
               </button>
-              <button onClick={() => { setFormAberto(false); setEditandoId(null); }} className="py-3.5 px-5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl transition border border-slate-700">
+              <button onClick={() => { setFormAberto(false); setEditandoId(null); }} className="py-3.5 px-5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl transition border border-slate-700 cursor-pointer">
                 Cancelar
               </button>
             </div>
           </div>
 
-          {/* Preview */}
+          {/* Coluna de Preview Interativo em Tempo Real */}
           <div className="xl:col-span-5 space-y-4">
             <div className="sticky top-6 space-y-4">
               <div className="flex flex-col gap-2 bg-slate-900 border border-slate-800 p-3 rounded-2xl">
@@ -961,13 +1216,13 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
                 <div className="grid grid-cols-2 gap-1.5 bg-slate-950 p-1 rounded-xl">
                   <button
                     onClick={() => setPreviewScreen('checkout')}
-                    className={`py-1.5 px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${previewScreen === 'checkout' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
+                    className={`py-1.5 px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${previewScreen === 'checkout' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
                   >
                     <CreditCard className="w-3.5 h-3.5" /> Checkout
                   </button>
                   <button
                     onClick={() => setPreviewScreen('sucesso')}
-                    className={`py-1.5 px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${previewScreen === 'sucesso' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
+                    className={`py-1.5 px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${previewScreen === 'sucesso' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
                   >
                     <PartyPopper className="w-3.5 h-3.5" /> 🎉 Compra Concluída
                   </button>
@@ -976,7 +1231,7 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
                 <div className="flex items-center justify-between pt-1">
                   <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl">
                     {(['mobile', 'desktop'] as const).map(d => (
-                      <button key={d} onClick={() => setPreviewDevice(d)} className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition ${previewDevice === d ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-300'}`}>
+                      <button key={d} onClick={() => setPreviewDevice(d)} className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${previewDevice === d ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-300'}`}>
                         {d === 'mobile' ? <Smartphone className="w-3.5 h-3.5" /> : <Monitor className="w-3.5 h-3.5" />}
                         {d === 'mobile' ? 'Mobile' : 'Desktop'}
                       </button>
@@ -985,40 +1240,320 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
 
                   {previewScreen === 'checkout' && (
                     <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl">
-                      {checkoutConfig.metodos.pix !== false && <button onClick={() => setPreviewTab('pix')} className={`px-2 py-1 rounded-lg text-[10px] font-bold transition ${previewTab === 'pix' ? 'bg-emerald-600 text-white' : 'text-slate-500'}`}>Pix</button>}
-                      {checkoutConfig.metodos.cartao && <button onClick={() => setPreviewTab('cartao')} className={`px-2 py-1 rounded-lg text-[10px] font-bold transition ${previewTab === 'cartao' ? 'bg-blue-600 text-white' : 'text-slate-500'}`}>Cartão</button>}
-                      {checkoutConfig.metodos.boleto && <button onClick={() => setPreviewTab('boleto')} className={`px-2 py-1 rounded-lg text-[10px] font-bold transition ${previewTab === 'boleto' ? 'bg-amber-600 text-white' : 'text-slate-500'}`}>Boleto</button>}
+                      {checkoutConfig.metodos.pix !== false && (
+                        <button
+                          onClick={() => setPreviewTab('pix')}
+                          className={`px-2 py-1 rounded-lg text-[10px] font-bold transition cursor-pointer ${previewTab === 'pix' ? 'bg-emerald-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}
+                        >
+                          Pix
+                        </button>
+                      )}
+                      {checkoutConfig.metodos.cartao && (
+                        <button
+                          onClick={() => setPreviewTab('cartao')}
+                          className={`px-2 py-1 rounded-lg text-[10px] font-bold transition cursor-pointer ${previewTab === 'cartao' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}
+                        >
+                          Cartão
+                        </button>
+                      )}
+                      {checkoutConfig.metodos.boleto && (
+                        <button
+                          onClick={() => setPreviewTab('boleto')}
+                          className={`px-2 py-1 rounded-lg text-[10px] font-bold transition cursor-pointer ${previewTab === 'boleto' ? 'bg-amber-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}
+                        >
+                          Boleto
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* Card de Preview */}
-              <div className={`${previewDevice === 'mobile' ? 'max-w-[360px] mx-auto' : 'w-full'} rounded-2xl border border-slate-700 overflow-hidden shadow-2xl transition-all`} style={{ fontFamily: checkoutConfig.fonteFamilia || 'Inter', backgroundColor: bgColor }}>
-                
+              {/* Card de Preview Renderizado */}
+              <div
+                className={`${previewDevice === 'mobile' ? 'max-w-[360px] mx-auto' : 'w-full'} rounded-2xl border border-slate-700 overflow-hidden shadow-2xl transition-all`}
+                style={{ fontFamily: checkoutConfig.fonteFamilia || 'Inter', backgroundColor: bgColor }}
+              >
                 {previewScreen === 'checkout' ? (
                   /* Preview do Formulário de Checkout */
                   <>
                     <div className="px-4 py-3 flex items-center justify-between border-b" style={{ borderColor: `${primary}30` }}>
-                      <h3 className="text-sm font-black text-white">Finalizar Compra</h3>
-                      <div className="w-7 h-7 bg-slate-800 rounded-full flex items-center justify-center text-slate-400 text-xs">✕</div>
+                      <h3 className="text-sm font-black text-white flex items-center gap-2">
+                        <CreditCard className="w-4 h-4" style={{ color: primary }} /> Finalizar Compra
+                      </h3>
+                      <div className="w-7 h-7 bg-slate-800/80 rounded-full flex items-center justify-center text-slate-400 text-xs">✕</div>
                     </div>
-                    <div className="p-4 space-y-3 max-h-[520px] overflow-y-auto">
-                      {checkoutConfig.bannerUrl && <img src={checkoutConfig.bannerUrl} alt="banner" className="w-full h-20 object-cover rounded-xl" onError={e => (e.currentTarget.style.display = 'none')} />}
+
+                    <div className="p-4 space-y-3 max-h-[560px] overflow-y-auto">
+                      {/* Banner de Topo */}
+                      {checkoutConfig.bannerUrl && (
+                        <img
+                          src={checkoutConfig.bannerUrl}
+                          alt="Banner"
+                          className="w-full h-24 object-cover rounded-xl border border-slate-800 shadow"
+                          onError={e => (e.currentTarget.style.display = 'none')}
+                        />
+                      )}
+
+                      {/* Selos no topo se configurado */}
+                      {checkoutConfig.selosSeguranca && checkoutConfig.posicaoSelos === 'abaixo_banner' && (checkoutConfig.selosExtras || []).length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 justify-center py-1">
+                          {SELOS_DISPONIVEIS.filter(s => (checkoutConfig.selosExtras || []).includes(s.id)).map(s => (
+                            <span key={s.id} className="text-[9px] text-slate-400 flex items-center gap-1 bg-slate-900/80 border border-slate-800 px-2 py-0.5 rounded-lg shadow-sm">
+                              {s.icon} {s.label}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Mensagem de Urgência */}
                       {checkoutConfig.mensagens?.urgencia && (
                         <div className="p-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 animate-pulse" style={{ backgroundColor: `${primary}15`, border: `1px solid ${primary}40`, color: primary }}>
                           <Zap className="w-3.5 h-3.5 shrink-0" />{checkoutConfig.mensagens.urgencia}
                         </div>
                       )}
+
+                      {/* Temporizador com Estilos Visuais */}
                       {checkoutConfig.temporizadorAtivo && (
-                        <div className="p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-center justify-between">
-                          <span className="text-[11px] text-amber-300 font-bold">⏱️ Reserva expira em</span>
-                          <span className="text-sm font-black text-amber-400 font-mono">{String(checkoutConfig.temporizadorMinutos || 10).padStart(2,'0')}:00</span>
+                        <div
+                          className={`p-2.5 rounded-xl flex items-center justify-between ${
+                            (checkoutConfig.temporizadorEstilo || 'fogo') === 'fogo'
+                              ? 'bg-gradient-to-r from-amber-500/20 via-orange-500/20 to-red-500/20 border border-orange-500/40 text-amber-300'
+                              : checkoutConfig.temporizadorEstilo === 'alerta'
+                                ? 'bg-red-500/15 border border-red-500/40 text-red-400 animate-pulse'
+                                : checkoutConfig.temporizadorEstilo === 'minimalista'
+                                  ? 'bg-slate-900 border border-slate-700 text-slate-300'
+                                  : 'bg-slate-950 border border-amber-500/30 text-amber-400 font-mono'
+                          }`}
+                        >
+                          <span className="text-[11px] font-bold flex items-center gap-1">
+                            {(checkoutConfig.temporizadorEstilo || 'fogo') === 'fogo' && <Flame className="w-3.5 h-3.5 text-orange-400 animate-bounce" />}
+                            {checkoutConfig.temporizadorTexto || '⏱️ Sua reserva expira em'}
+                          </span>
+                          <span className="text-sm font-black font-mono">
+                            {String(checkoutConfig.temporizadorMinutos || 10).padStart(2,'0')}:00
+                          </span>
                         </div>
                       )}
+
+                      {/* Mensagem de Escassez */}
                       {checkoutConfig.mensagemEscassez && (
-                        <div className="p-2 bg-red-500/10 border border-red-500/20 rounded-xl text-[11px] font-bold text-red-400 text-center">{checkoutConfig.mensagemEscassez}</div>
+                        <div className="p-2 bg-red-500/10 border border-red-500/20 rounded-xl text-[11px] font-bold text-red-400 text-center">
+                          {checkoutConfig.mensagemEscassez}
+                        </div>
                       )}
+
+                      {/* Seletor Interativo das Abas de Pagamento no Preview */}
+                      <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-950 border border-slate-800 rounded-xl">
+                        {checkoutConfig.metodos.pix !== false && (
+                          <button
+                            type="button"
+                            onClick={() => setPreviewTab('pix')}
+                            className={`py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer ${
+                              previewTab === 'pix' ? 'bg-emerald-500 text-slate-950 shadow-sm' : 'text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            <QrCode className="w-3.5 h-3.5" /> Pix
+                          </button>
+                        )}
+                        {checkoutConfig.metodos.cartao && (
+                          <button
+                            type="button"
+                            onClick={() => setPreviewTab('cartao')}
+                            className={`py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer ${
+                              previewTab === 'cartao' ? 'bg-blue-500 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            <CreditCard className="w-3.5 h-3.5" /> Cartão
+                          </button>
+                        )}
+                        {checkoutConfig.metodos.boleto && (
+                          <button
+                            type="button"
+                            onClick={() => setPreviewTab('boleto')}
+                            className={`py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer ${
+                              previewTab === 'boleto' ? 'bg-amber-500 text-slate-950 shadow-sm' : 'text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            <FileText className="w-3.5 h-3.5" /> Boleto
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Prévia específica por método */}
+                      {previewTab === 'pix' && (
+                        <div className="p-3.5 bg-slate-950/90 border border-emerald-500/30 rounded-xl space-y-3 text-center">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-bold text-emerald-400 flex items-center gap-1">
+                              <QrCode className="w-4 h-4" /> Pagamento Instantâneo via Pix
+                            </span>
+                            <span className="text-white font-black font-mono">R$ 25,00</span>
+                          </div>
+
+                          {/* QR Code Simulado de Alta Fidelidade */}
+                          <div className="w-36 h-36 bg-white p-2 rounded-xl mx-auto flex items-center justify-center shadow-lg border border-slate-300">
+                            <svg viewBox="0 0 100 100" className="w-full h-full text-slate-950">
+                              <rect x="0" y="0" width="100" height="100" fill="#ffffff" />
+                              {/* Quadrados de canto (Finders) */}
+                              <rect x="5" y="5" width="26" height="26" fill="#000000" rx="3" />
+                              <rect x="9" y="9" width="18" height="18" fill="#ffffff" rx="2" />
+                              <rect x="13" y="13" width="10" height="10" fill="#000000" rx="1" />
+                              <rect x="69" y="5" width="26" height="26" fill="#000000" rx="3" />
+                              <rect x="73" y="9" width="18" height="18" fill="#ffffff" rx="2" />
+                              <rect x="77" y="13" width="10" height="10" fill="#000000" rx="1" />
+                              <rect x="5" y="69" width="26" height="26" fill="#000000" rx="3" />
+                              <rect x="9" y="73" width="18" height="18" fill="#ffffff" rx="2" />
+                              <rect x="13" y="77" width="10" height="10" fill="#000000" rx="1" />
+                              {/* Padrões internos do QR Code */}
+                              <rect x="36" y="8" width="6" height="6" fill="#000" />
+                              <rect x="48" y="14" width="8" height="8" fill="#000" />
+                              <rect x="36" y="24" width="12" height="6" fill="#000" />
+                              <rect x="10" y="38" width="8" height="8" fill="#000" />
+                              <rect x="24" y="44" width="8" height="6" fill="#000" />
+                              <rect x="38" y="38" width="24" height="24" fill="#000" />
+                              <rect x="44" y="44" width="12" height="12" fill="#fff" />
+                              <rect x="48" y="48" width="4" height="4" fill="#000" />
+                              <rect x="68" y="38" width="10" height="6" fill="#000" />
+                              <rect x="82" y="44" width="8" height="10" fill="#000" />
+                              <rect x="38" y="70" width="10" height="8" fill="#000" />
+                              <rect x="54" y="76" width="16" height="8" fill="#000" />
+                              <rect x="76" y="70" width="14" height="14" fill="#000" />
+                            </svg>
+                          </div>
+
+                          <p className="text-[11px] text-slate-300">
+                            {checkoutConfig.mensagens?.pix || 'Escaneie o QR Code acima no app do seu banco ou use a chave Copia e Cola.'}
+                          </p>
+
+                          <button
+                            type="button"
+                            onClick={copiarChavePix}
+                            className={`w-full py-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-2 transition cursor-pointer ${
+                              copiadoPix
+                                ? 'bg-emerald-500 text-slate-950 shadow-md'
+                                : 'bg-slate-800 hover:bg-slate-700 text-white border border-slate-700'
+                            }`}
+                          >
+                            {copiadoPix ? <CheckCheck className="w-4 h-4" /> : <Copy className="w-4 h-4 text-emerald-400" />}
+                            {copiadoPix ? 'Código Pix Copiado com Sucesso!' : 'Copiar Código Pix Copia e Cola'}
+                          </button>
+                        </div>
+                      )}
+
+                      {previewTab === 'cartao' && (
+                        <div className="space-y-3">
+                          {/* Cartão de Crédito Digital Holográfico Interativo */}
+                          <div className="relative rounded-2xl p-4 bg-gradient-to-tr from-slate-900 via-indigo-950 to-slate-900 border border-indigo-500/40 text-white shadow-xl space-y-3 overflow-hidden">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
+                            <div className="flex items-center justify-between">
+                              <div className="w-9 h-7 rounded bg-amber-400/80 border border-amber-300 shadow-sm" />
+                              <span className="font-mono text-xs font-black tracking-widest text-indigo-300">CREDIT CARD</span>
+                            </div>
+                            <p className="font-mono text-sm tracking-widest font-black text-center py-1 text-slate-200">
+                              {cartaoNumero}
+                            </p>
+                            <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono uppercase">
+                              <div>
+                                <span className="block text-[8px] text-slate-500">TITULAR</span>
+                                <span className="font-bold text-slate-200">{cartaoNome}</span>
+                              </div>
+                              <div>
+                                <span className="block text-[8px] text-slate-500">VALIDADE</span>
+                                <span className="font-bold text-slate-200">{cartaoValidade}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Campos do Cartão */}
+                          <div className="space-y-2">
+                            <input
+                              type="text"
+                              value={cartaoNumero}
+                              onChange={e => setCartaoNumero(e.target.value)}
+                              placeholder="Número do Cartão"
+                              className="w-full h-9 bg-slate-900/80 border border-slate-700/60 rounded-xl px-3 text-xs text-white focus:outline-none"
+                            />
+                            <div className="grid grid-cols-2 gap-2">
+                              <input
+                                type="text"
+                                value={cartaoValidade}
+                                onChange={e => setCartaoValidade(e.target.value)}
+                                placeholder="MM/AA"
+                                className="h-9 bg-slate-900/80 border border-slate-700/60 rounded-xl px-3 text-xs text-white focus:outline-none"
+                              />
+                              <input
+                                type="text"
+                                value={cartaoCVV}
+                                onChange={e => setCartaoCVV(e.target.value)}
+                                placeholder="CVV"
+                                className="h-9 bg-slate-900/80 border border-slate-700/60 rounded-xl px-3 text-xs text-white focus:outline-none"
+                              />
+                            </div>
+                            <input
+                              type="text"
+                              value={cartaoNome}
+                              onChange={e => setCartaoNome(e.target.value)}
+                              placeholder="Nome impresso no cartão"
+                              className="w-full h-9 bg-slate-900/80 border border-slate-700/60 rounded-xl px-3 text-xs text-white focus:outline-none uppercase"
+                            />
+                            {/* Parcelamento */}
+                            <div className="space-y-1">
+                              <label className="text-[10px] text-slate-400 block">Opção de Parcelamento:</label>
+                              <select
+                                value={parcelaSelecionada}
+                                onChange={e => setParcelaSelecionada(Number(e.target.value))}
+                                className="w-full h-9 bg-slate-900 border border-slate-700 rounded-xl px-3 text-xs text-white focus:outline-none"
+                              >
+                                {Array.from({ length: checkoutConfig.parcelasMax || 12 }, (_, i) => i + 1).map(p => (
+                                  <option key={p} value={p}>
+                                    {p}x de R$ {(25 / p).toFixed(2).replace('.', ',')} {checkoutConfig.taxaParcelamento === 'organizador' ? '(Sem Juros)' : ''}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {previewTab === 'boleto' && (
+                        <div className="p-3.5 bg-slate-950/90 border border-amber-500/30 rounded-xl space-y-3 text-center">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-bold text-amber-400 flex items-center gap-1">
+                              <FileText className="w-4 h-4" /> Boleto Bancário
+                            </span>
+                            <span className="text-white font-black font-mono">R$ 25,00</span>
+                          </div>
+                          
+                          {/* Código de barras simulado */}
+                          <div className="bg-white p-2.5 rounded-lg space-y-1">
+                            <div className="flex items-center justify-between h-8 gap-0.5 px-2">
+                              {Array.from({ length: 42 }).map((_, i) => (
+                                <div
+                                  key={i}
+                                  className="h-full bg-black"
+                                  style={{ width: i % 3 === 0 ? '3px' : i % 5 === 0 ? '4px' : '1.5px' }}
+                                />
+                              ))}
+                            </div>
+                            <span className="text-[9px] font-mono text-slate-700 block tracking-widest">
+                              34191.79001 01043.510047 91020.150008 5 91280000002500
+                            </span>
+                          </div>
+
+                          <p className="text-[11px] text-slate-400">
+                            Vencimento em 3 dias úteis. A confirmação do pagamento é realizada em até 24h a 48h.
+                          </p>
+
+                          <button
+                            type="button"
+                            className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold border border-slate-700 flex items-center justify-center gap-1.5 transition"
+                          >
+                            <Copy className="w-3.5 h-3.5 text-amber-400" /> Copiar Linha Digitável
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Campos do Comprador */}
                       <div className="space-y-2">
                         {['Nome completo', 'WhatsApp', 'Data de Nascimento'].map(f => (
                           <div key={f} className="h-9 bg-slate-900/80 border border-slate-700/50 rounded-xl px-3 flex items-center text-xs text-slate-500">{f}</div>
@@ -1027,6 +1562,7 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
                         {checkoutConfig.exigirEmail && <div className="h-9 bg-slate-900/80 border border-slate-700/50 rounded-xl px-3 flex items-center text-xs text-slate-500">E-mail (Obrigatório)</div>}
                       </div>
 
+                      {/* Cupom */}
                       {(checkoutConfig.cupomAtivo || checkoutConfig.exibirCupom) && (
                         <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
                           <div className="flex items-center justify-between text-[11px] text-slate-300 font-bold">
@@ -1055,16 +1591,22 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
                         </div>
                       )}
 
+                      {/* Botão de Compra Principal */}
                       <button className="w-full py-3.5 rounded-xl text-sm font-black text-slate-950 shadow-lg transition" style={{ backgroundColor: primary, boxShadow: `0 8px 20px ${primary}40` }}>
                         {checkoutConfig.textoBotao || 'Garantir Minha Cota Agora'} →
                       </button>
-                      {checkoutConfig.selosSeguranca && (checkoutConfig.selosExtras || []).length > 0 && (
+
+                      {/* Selos de Segurança abaixo do botão */}
+                      {checkoutConfig.selosSeguranca && (checkoutConfig.posicaoSelos || 'abaixo_botao') === 'abaixo_botao' && (checkoutConfig.selosExtras || []).length > 0 && (
                         <div className="flex flex-wrap gap-1.5 justify-center pt-1">
                           {SELOS_DISPONIVEIS.filter(s => (checkoutConfig.selosExtras || []).includes(s.id)).map(s => (
-                            <span key={s.id} className="text-[9px] text-slate-500 flex items-center gap-1 bg-slate-900/60 border border-slate-800 px-2 py-1 rounded-lg">{s.icon} {s.label}</span>
+                            <span key={s.id} className="text-[9px] text-slate-500 flex items-center gap-1 bg-slate-900/60 border border-slate-800 px-2 py-1 rounded-lg">
+                              {s.icon} {s.label}
+                            </span>
                           ))}
                         </div>
                       )}
+
                       {checkoutConfig.textoRodape && <p className="text-[10px] text-slate-600 text-center leading-snug">🔒 {checkoutConfig.textoRodape}</p>}
                     </div>
                   </>
@@ -1078,7 +1620,7 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
                       </div>
                       <div className="w-7 h-7 bg-slate-800 rounded-full flex items-center justify-center text-slate-400 text-xs">✕</div>
                     </div>
-                    <div className="p-4 space-y-3 max-h-[520px] overflow-y-auto text-center">
+                    <div className="p-4 space-y-3 max-h-[560px] overflow-y-auto text-center">
                       {conf.bannerSucessoUrl && (
                         <img src={conf.bannerSucessoUrl} alt="Sucesso" className="w-full h-24 object-cover rounded-xl border border-emerald-500/30 mb-2" onError={e => (e.currentTarget.style.display = 'none')} />
                       )}
@@ -1105,7 +1647,7 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
                               <Ticket className="w-3 h-3" /> Bilhetes da Sorte (3):
                             </span>
                             {conf.exibirBotaoCopiar !== false && (
-                              <span className="text-[10px] font-bold text-slate-300 bg-slate-800 px-2 py-0.5 rounded flex items-center gap-1">
+                              <span className="text-[10px] font-bold text-slate-300 bg-slate-800 px-2 py-0.5 rounded flex items-center gap-1 cursor-pointer">
                                 <Copy className="w-2.5 h-2.5" /> Copiar
                               </span>
                             )}
@@ -1170,7 +1712,7 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
               <button
                 type="button"
                 onClick={() => setModalAnimacaoAberto(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>

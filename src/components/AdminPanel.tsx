@@ -6,7 +6,8 @@ import {
   Eye, Edit3, Link2, Copy, CheckCircle2, AlertCircle, Menu, X, Mail, Lock, User as UserIcon, Key,
   ExternalLink, Zap, Unlink, ShieldCheck, HelpCircle, ChevronDown, ChevronUp, Info,
   Trophy, Trash2, Play, Pause, Camera, Sparkles, Palette, BarChart3,
-  ArrowLeft, Save, CreditCard, Wallet, Search
+  ArrowLeft, Save, CreditCard, Wallet, Search,
+  PanelLeftClose, PanelLeftOpen, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import {
   auth, observarAuth, cadastrarComEmail, entrarComEmail, entrarComGoogle, sair,
@@ -70,6 +71,23 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
   const [campanhaSelecionada, setCampanhaSelecionada] = useState<Campanha | null>(null);
   const [carregando, setCarregando] = useState(false);
   const [menuAberto, setMenuAberto] = useState(false);
+  const [sidebarModo, setSidebarModo] = useState<'compacto' | 'expandido'>(() => {
+    try {
+      const salvo = localStorage.getItem('rifazone_admin_sidebar');
+      if (salvo === 'compacto' || salvo === 'expandido') return salvo;
+    } catch {}
+    return 'expandido';
+  });
+
+  const alternarSidebarModo = () => {
+    setSidebarModo(prev => {
+      const novo = prev === 'compacto' ? 'expandido' : 'compacto';
+      try {
+        localStorage.setItem('rifazone_admin_sidebar', novo);
+      } catch {}
+      return novo;
+    });
+  };
 
   // Aba ativa: dashboard | planos | remarketing | premiacoes | campanhas | nova | clientes | ranking | pedidos | sorteador | afiliados | configuracoes
   const [abaAtiva, setAbaAtiva] = useState<string>('dashboard');
@@ -869,57 +887,98 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
 
       {/* SIDEBAR */}
       <aside
-        className={`fixed md:sticky top-0 left-0 z-40 h-screen w-64 shrink-0 bg-slate-900 border-r border-slate-800 flex flex-col transition-transform duration-200 ${
+        className={`fixed md:sticky top-0 left-0 z-40 h-screen shrink-0 bg-slate-900 border-r border-slate-800 flex flex-col transition-all duration-300 ease-in-out ${
           menuAberto ? 'translate-x-0' : '-translate-x-full'
-        } md:translate-x-0`}
+        } md:translate-x-0 ${
+          sidebarModo === 'compacto' ? 'w-20' : 'w-64'
+        }`}
       >
-        {/* Brand */}
-        <div className="flex items-center justify-between px-5 h-16 border-b border-slate-800 shrink-0">
-          <div className="flex items-center gap-2.5">
-            <img src={configPagamento?.marca?.logoUrl || "/logorifazone.png.jpeg"} alt="RifaZone" className="w-8 h-8 rounded-lg object-cover" />
-            <div>
-              <h2 className="text-base font-black text-white leading-none">RifaZone</h2>
-              <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">Painel Pro</span>
-            </div>
+        {/* Brand & Botão de Expansão/Recolhimento */}
+        <div className={`flex items-center ${sidebarModo === 'compacto' ? 'justify-center px-2' : 'justify-between px-4'} h-16 border-b border-slate-800 shrink-0`}>
+          <div
+            onClick={sidebarModo === 'compacto' ? alternarSidebarModo : undefined}
+            className={`flex items-center gap-2.5 overflow-hidden ${sidebarModo === 'compacto' ? 'cursor-pointer hover:opacity-80 transition' : ''}`}
+            title={sidebarModo === 'compacto' ? 'Clique para expandir o menu' : undefined}
+          >
+            <img src={configPagamento?.marca?.logoUrl || "/logorifazone.png.jpeg"} alt="RifaZone" className="w-8 h-8 rounded-lg object-cover shrink-0 shadow-sm" />
+            {sidebarModo !== 'compacto' && (
+              <div className="truncate">
+                <h2 className="text-base font-black text-white leading-none truncate">RifaZone</h2>
+                <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">Painel Pro</span>
+              </div>
+            )}
           </div>
+
+          {/* Botão de Toggle (1 clique expande, 1 clique recolhe) */}
+          <button
+            onClick={alternarSidebarModo}
+            title={sidebarModo === 'compacto' ? 'Expandir Menu' : 'Recolher Menu (Diminuir)'}
+            className={`hidden md:flex items-center justify-center p-2 rounded-xl transition cursor-pointer ${
+              sidebarModo === 'compacto'
+                ? 'text-slate-400 hover:text-emerald-400 hover:bg-emerald-500/10 border border-transparent hover:border-emerald-500/30'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-800 hover:border-slate-700'
+            }`}
+          >
+            {sidebarModo === 'compacto' ? (
+              <PanelLeftOpen className="w-4 h-4 text-emerald-400" />
+            ) : (
+              <PanelLeftClose className="w-4 h-4" />
+            )}
+          </button>
+
           <button
             onClick={() => setMenuAberto(false)}
-            className="md:hidden text-slate-400 hover:text-white"
+            className="md:hidden text-slate-400 hover:text-white p-1"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Links Navigation */}
-        <nav className="flex-1 overflow-y-auto p-3 space-y-4">
+        <nav className="flex-1 overflow-y-auto p-2.5 space-y-4 custom-scrollbar">
           {navSections.map((sec, idx) => (
             <div key={idx} className="space-y-1">
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 px-3 block">
-                {sec.titulo}
-              </span>
+              {sidebarModo !== 'compacto' && (
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 px-3 block">
+                  {sec.titulo}
+                </span>
+              )}
               {sec.itens.map(item => (
                 <button
                   key={item.id}
+                  title={sidebarModo === 'compacto' ? item.label : undefined}
                   onClick={() => {
                     if (item.onClick) item.onClick();
                     else setAbaAtiva(item.id);
                     setMenuAberto(false);
                   }}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-bold transition ${
+                  className={`w-full flex items-center gap-3 py-2.5 rounded-xl text-xs font-bold transition group relative cursor-pointer ${
+                    sidebarModo === 'compacto' ? 'justify-center px-0' : 'px-3'
+                  } ${
                     abaAtiva === item.id
-                      ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+                      ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 shadow-sm'
                       : 'text-slate-400 hover:text-white hover:bg-slate-800/80 border border-transparent'
                   }`}
                 >
-                  {item.icon}
-                  <span className="flex-1 text-left">{item.label}</span>
-                  {item.count !== undefined && (
-                    <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded-full font-mono">
-                      {item.count}
-                    </span>
+                  <div className="shrink-0">{item.icon}</div>
+                  {sidebarModo !== 'compacto' && (
+                    <>
+                      <span className="flex-1 text-left truncate">{item.label}</span>
+                      {item.count !== undefined && (
+                        <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded-full font-mono">
+                          {item.count}
+                        </span>
+                      )}
+                      {item.alerta && (
+                        <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" title="Configuração necessária" />
+                      )}
+                    </>
                   )}
-                  {item.alerta && (
-                    <span className="w-2 h-2 rounded-full bg-amber-400" title="Configuração necessária" />
+                  {sidebarModo === 'compacto' && (
+                    <div className="absolute left-full ml-2 px-2.5 py-1 bg-slate-800 text-white text-[11px] font-bold rounded-lg shadow-xl whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition z-50 border border-slate-700">
+                      {item.label}
+                      {item.count !== undefined && ` (${item.count})`}
+                    </div>
                   )}
                 </button>
               ))}
@@ -927,19 +986,51 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
           ))}
         </nav>
 
-        {/* Rodapé Usuário */}
-        <div className="border-t border-slate-800 p-3 shrink-0">
-          <div className="px-2 py-1 mb-2">
-            <p className="text-[10px] text-slate-500 uppercase font-bold">Organizador</p>
-            <p className="text-xs text-emerald-400 font-mono truncate">{user.email}</p>
-          </div>
+        {/* Rodapé Usuário & Botão Alternar Menu */}
+        <div className="border-t border-slate-800 p-2.5 shrink-0 space-y-2">
+          {/* Botão de Expansão/Recolhimento Rápido no Rodapé */}
           <button
-            onClick={handleLogout}
-            className="w-full flex items-center gap-2 px-3 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold rounded-xl border border-red-500/30 transition"
+            onClick={alternarSidebarModo}
+            title={sidebarModo === 'compacto' ? 'Expandir Menu' : 'Recolher Menu (Diminuir)'}
+            className={`w-full hidden md:flex items-center justify-center gap-2 py-2 px-2.5 rounded-xl text-xs font-bold transition cursor-pointer border ${
+              sidebarModo === 'compacto'
+                ? 'bg-slate-800/60 hover:bg-slate-800 text-slate-300 hover:text-emerald-400 border-slate-800 hover:border-slate-700'
+                : 'bg-slate-950/60 hover:bg-slate-950 text-slate-400 hover:text-white border-slate-800/80 hover:border-slate-700'
+            }`}
           >
-            <LogOut className="w-4 h-4" />
-            Sair da Conta
+            {sidebarModo === 'compacto' ? (
+              <PanelLeftOpen className="w-4 h-4 text-emerald-400" />
+            ) : (
+              <>
+                <PanelLeftClose className="w-4 h-4 text-slate-400" />
+                <span className="text-[11px]">Recolher Menu</span>
+              </>
+            )}
           </button>
+
+          {sidebarModo !== 'compacto' ? (
+            <>
+              <div className="px-2.5 py-1.5 bg-slate-950/60 rounded-xl border border-slate-800/60">
+                <p className="text-[9px] text-slate-500 uppercase font-bold">Organizador</p>
+                <p className="text-[11px] text-emerald-400 font-mono truncate">{user.email}</p>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold rounded-xl border border-red-500/30 transition cursor-pointer"
+              >
+                <LogOut className="w-4 h-4" />
+                Sair da Conta
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={handleLogout}
+              title="Sair da Conta"
+              className="w-full flex items-center justify-center p-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl border border-red-500/30 transition cursor-pointer"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </aside>
 
@@ -950,8 +1041,9 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
         <header className="md:hidden sticky top-0 z-20 bg-slate-900 border-b border-slate-800 h-14 flex items-center justify-between px-4">
           <div className="flex items-center gap-3">
             <button
-              onClick={() => setMenuAberto(true)}
-              className="text-slate-300 hover:text-white"
+              onClick={() => setMenuAberto(prev => !prev)}
+              className="text-slate-300 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition cursor-pointer"
+              title="Alternar Menu"
             >
               <Menu className="w-6 h-6" />
             </button>

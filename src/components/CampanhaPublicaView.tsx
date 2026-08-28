@@ -2170,8 +2170,8 @@ export const CampanhaPublicaView: React.FC<Props> = ({
             <button
               id="btn-abrir-menu-lateral"
               type="button"
-              onClick={() => setMenuAberto(true)}
-              className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 transition shadow"
+              onClick={() => setMenuAberto(prev => !prev)}
+              className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 transition shadow cursor-pointer"
             >
               <span className="font-extrabold text-sm" style={{ color: 'var(--brand)' }}>≡</span>
               <span>MENU</span>
@@ -2211,8 +2211,14 @@ export const CampanhaPublicaView: React.FC<Props> = ({
 
       {/* DRAWER MENU LATERAL */}
       {menuAberto && (
-        <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
-          <div className="w-full max-w-xs bg-slate-900 border-l border-slate-800 h-full p-5 flex flex-col justify-between shadow-2xl animate-in slide-in-from-right">
+        <div 
+          className="fixed inset-0 z-50 flex justify-end bg-slate-950/80 backdrop-blur-sm animate-in fade-in"
+          onClick={() => setMenuAberto(false)}
+        >
+          <div 
+            className="w-full max-w-xs bg-slate-900 border-l border-slate-800 h-full p-5 flex flex-col justify-between shadow-2xl animate-in slide-in-from-right"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="space-y-5">
               <div className="flex items-center justify-between pb-4 border-b border-slate-800">
                 <div className="flex items-center gap-3">

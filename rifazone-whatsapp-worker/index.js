@@ -1,5 +1,6 @@
 import 'dotenv/config'; // carrega variáveis do arquivo .env (útil no Termux/VM)
 import fs from 'fs';
+import path from 'path';
 import express from 'express';
 import qrcodeLib from 'qrcode';
 import pkg from 'whatsapp-web.js';
@@ -21,18 +22,55 @@ app.use(express.json());
 // ----------------------------------------------------------------------------
 // 1. CONFIGURAÇÕES & ENV
 // ----------------------------------------------------------------------------
-const PORT = Number(process.env.PORT) || 3001;
-const RIFAZONE_URL = (process.env.RIFAZONE_URL || 'http://localhost:3000').replace(/\/$/, '');
-const CRON_SECRET = process.env.CRON_SECRET;
-const WORKER_SECRET = process.env.WORKER_SECRET;
-const DATA_PATH = process.env.DATA_PATH || '/data';
-
-if (!CRON_SECRET || !CRON_SECRET.trim()) {
-  console.error('\x1b[31m%s\x1b[0m', '❌ [ERRO CRÍTICO NO WORKER] A variável de ambiente CRON_SECRET não está configurada!');
-  process.exit(1);
+function sanitizeEnv(val) {
+  if (!val) return '';
+  let s = String(val).trim();
+  // Remove aspas externas se existirem (ex: "#senha123" ou '#senha123')
+  if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
+    s = s.slice(1, -1).trim();
+  }
+  return s;
 }
+
+const PORT = Number(process.env.PORT) || 3001;
+const RIFAZONE_URL = (sanitizeEnv(process.env.RIFAZONE_URL || process.env.APP_URL) || 'http://localhost:3000').replace(/\/$/, '');
+const WORKER_SECRET = sanitizeEnv(process.env.WORKER_SECRET);
+const CRON_SECRET = sanitizeEnv(process.env.CRON_SECRET || process.env.WORKER_SECRET);
+
+// Diretório de sessão: Padrão ./session_data relativo à pasta do worker
+// (evita erro de permissão EACCES no Android/Termux e Linux)
+const rawDataPath = sanitizeEnv(process.env.DATA_PATH) || './session_data';
+const DATA_PATH = path.isAbsolute(rawDataPath) ? rawDataPath : path.resolve(process.cwd(), rawDataPath);
+
+try {
+  if (!fs.existsSync(DATA_PATH)) {
+    fs.mkdirSync(DATA_PATH, { recursive: true });
+  }
+} catch (e) {
+  console.warn('[WORKER] Aviso ao verificar diretório de sessão:', e.message);
+}
+
+// Auto-detecção inteligente do executável do Chromium (especialmente no Termux Android)
+let chromiumExecutable = sanitizeEnv(process.env.PUPPETEER_EXECUTABLE_PATH);
+if (!chromiumExecutable) {
+  const possiblePaths = [
+    '/data/data/com.termux/files/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/chromium',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/google-chrome'
+  ];
+  for (const p of possiblePaths) {
+    if (fs.existsSync(p)) {
+      chromiumExecutable = p;
+      break;
+    }
+  }
+}
+
 if (!WORKER_SECRET || !WORKER_SECRET.trim()) {
-  console.error('\x1b[31m%s\x1b[0m', '❌ [ERRO CRÍTICO NO WORKER] A variável de ambiente WORKER_SECRET não está configurada!');
+  console.error('\x1b[31m%s\x1b[0m', '❌ [ERRO CRÍTICO NO WORKER] A variável WORKER_SECRET não está configurada no seu arquivo .env!');
+  console.error('\x1b[33m%s\x1b[0m', 'ℹ️ Adicione WORKER_SECRET="sua_senha" no arquivo .env do worker.');
   process.exit(1);
 }
 
@@ -48,6 +86,7 @@ console.log('--------------------------------------------------');
 console.log('🤖 INICIANDO TRABALHADOR DE WHATSAPP (WORKER)');
 console.log(`🔗 URL RifaZone: ${RIFAZONE_URL}`);
 console.log(`📁 Diretório de Sessão: ${DATA_PATH}`);
+console.log(`🌐 Chromium: ${chromiumExecutable || 'Padrão do Puppeteer'}`);
 console.log(`🔌 Porta do Servidor QR/Status: ${PORT}`);
 console.log('--------------------------------------------------');
 
@@ -172,7 +211,7 @@ const client = new Client({
   }),
   puppeteer: {
     headless: true,
-    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+    executablePath: chromiumExecutable || undefined,
     // OBS: '--single-process' e '--no-zygote' foram REMOVIDOS de propósito.
     // Eles fazem o Chromium travar logo após autenticar (fica em 'authenticated'
     // e nunca chega em 'ready'), causando loop de reconexão. Sem eles fica estável.
@@ -314,12 +353,8 @@ let modoPareamento = false;
 let numeroPareamento = '';
 let codigoJaSolicitado = false;
 
-// Marcador de sessão REALMENTE conectada. A pasta session_data é criada logo na
-// inicialização (mesmo sem escanear), então não serve pra detectar conexão real.
-// Este arquivo só é escrito quando o WhatsApp fica pronto ('ready') e é apagado
-// no logout. Assim, se o worker reiniciar já conectado, ele reconecta sozinho;
-// se nunca conectou, ele ESPERA o comando "Conectar" (não gera QR à toa).
-const SESSION_MARKER = './.rz_session_ok';
+// Marcador de sessão REALMENTE conectada.
+const SESSION_MARKER = path.join(DATA_PATH, '.rz_session_ok');
 
 function sessaoWhatsappExiste() {
   try {
@@ -365,12 +400,14 @@ setInterval(async () => {
         inicializarCliente('solicitado pelo painel', data.metodo, data.numero);
       }
     }
-  } catch (e) { /* app pode estar offline; tenta de novo depois */ }
+  } catch (e) { /* app pode estar offline/dormindo; tenta de novo */ }
 }, 2000);
 
 // ----------------------------------------------------------------------------
 // 5. SINCRONIZAÇÃO DE STATUS COM O APP RIFAZONE
 // ----------------------------------------------------------------------------
+let lastSyncErrorLogTime = 0;
+
 async function syncStatusWithApp() {
   try {
     const response = await fetch(`${RIFAZONE_URL}/api/worker/status`, {
@@ -388,10 +425,15 @@ async function syncStatusWithApp() {
     if (response.ok) {
       console.log(`[WORKER] Status sincronizado com RifaZone: Conectado = ${isConnected}`);
     } else {
-      console.warn(`[WORKER] Falha ao sincronizar status. HTTP ${response.status}`);
+      console.warn(`[WORKER] ⚠️ Falha ao sincronizar status. HTTP ${response.status} (Verifique se WORKER_SECRET no app é igual a "${WORKER_SECRET}")`);
     }
   } catch (err) {
-    console.error('[WORKER] Falha de conexão ao sincronizar status com RifaZone:', err.message || err);
+    const now = Date.now();
+    // Limita log de falha de conexão a cada 30 segundos para não poluir o terminal
+    if (now - lastSyncErrorLogTime > 30000) {
+      lastSyncErrorLogTime = now;
+      console.warn(`[WORKER] ⚠️ Tentando conectar ao RifaZone em ${RIFAZONE_URL}... (se o app estiver no Render, ele pode estar acordando)`);
+    }
   }
 }
 

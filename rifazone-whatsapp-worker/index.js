@@ -3,6 +3,7 @@ import fs from 'fs';
 import express from 'express';
 import qrcodeLib from 'qrcode';
 import pkg from 'whatsapp-web.js';
+import readline from 'readline';
 const { Client, LocalAuth } = pkg;
 
 // Evita que erros internos do Puppeteer/whatsapp-web.js (ex: "Execution context
@@ -188,19 +189,42 @@ const client = new Client({
 
 // Evento de geração do QR Code
 client.on('qr', async (qr) => {
-  // Modo "conectar por número": pede o código de pareamento (uma vez só).
-  // NÃO retorna — o QR também é exibido, então dá pra escanear OU digitar o código.
-  if (modoPareamento && !codigoJaSolicitado) {
+  // Modo "conectar por número": pede o código de pareamento.
+  if (!codigoJaSolicitado) {
     codigoJaSolicitado = true;
-    try {
-      const codigo = await client.requestPairingCode(numeroPareamento);
-      console.log(`\n[WORKER] 🔢 Código de conexão para o número ${numeroPareamento}: ${codigo}`);
-      console.log('[WORKER] No WhatsApp: Aparelhos conectados > Conectar um aparelho > Conectar com número de telefone.\n');
-      enviarCodigoParaApp(codigo);
-      syncStatusWithApp();
-    } catch (e) {
-      console.error('[WORKER] Erro ao gerar código de pareamento:', e.message || e);
-      codigoJaSolicitado = false; // permite tentar de novo no próximo evento
+    
+    // Se não tivermos o número ainda, pede via terminal
+    if (!numeroPareamento) {
+      const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+      
+      // Promessa para pegar o número via terminal
+      const promptNumber = () => new Promise((resolve) => {
+        rl.question('\n[WORKER] 📱 Digite o número do WhatsApp com DDD (ex: 5511999999999) para pareamento (ou deixe vazio para pular): ', (num) => {
+          rl.close();
+          resolve(num.trim());
+        });
+      });
+
+      const inputNumber = await promptNumber();
+      if (inputNumber) {
+        numeroPareamento = inputNumber.replace(/\D/g, '');
+        modoPareamento = true;
+      } else {
+        console.log('[WORKER] ℹ️ Pulando pareamento por número.');
+      }
+    }
+
+    if (modoPareamento && numeroPareamento) {
+      try {
+        const codigo = await client.requestPairingCode(numeroPareamento);
+        console.log(`\n[WORKER] 🔢 Código de conexão para o número ${numeroPareamento}: ${codigo}`);
+        console.log('[WORKER] No WhatsApp: Aparelhos conectados > Conectar um aparelho > Conectar com número de telefone.\n');
+        enviarCodigoParaApp(codigo);
+        syncStatusWithApp();
+      } catch (e) {
+        console.error('[WORKER] Erro ao gerar código de pareamento:', e.message || e);
+        codigoJaSolicitado = false; // permite tentar de novo no próximo evento
+      }
     }
   }
 

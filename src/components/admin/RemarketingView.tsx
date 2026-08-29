@@ -357,7 +357,7 @@ export const RemarketingView: React.FC<Props> = ({
 
   // ---- PORTÃO: só libera a aba de Remarketing depois de conectar o WhatsApp ----
   if (!workerStatus?.conectado) {
-    const workerOffline = workerStatus ? workerStatus.online === false : false;
+    const workerOffline = workerStatus && workerStatus.online === false && !workerStatus.atualizadoEm;
     return (
       <div className="max-w-lg mx-auto mt-6">
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl text-center">

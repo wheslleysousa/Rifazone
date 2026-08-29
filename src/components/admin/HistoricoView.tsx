@@ -11,6 +11,7 @@ interface HistoricoViewProps {
 export const HistoricoView: React.FC<HistoricoViewProps> = ({ pedidos }) => {
   const [subAba, setSubAba] = useState<'clientes' | 'pedidos' | 'transacoes'>('clientes');
   const [busca, setBusca] = useState('');
+  const [limitePedidos, setLimitePedidos] = useState(50);
 
   // 1) Clientes Map
   const clientesMap: Record<string, {
@@ -222,7 +223,7 @@ export const HistoricoView: React.FC<HistoricoViewProps> = ({ pedidos }) => {
               </thead>
               <tbody className="divide-y divide-slate-800">
                 {pedidosFiltrados.length > 0 ? (
-                  pedidosFiltrados.map((p) => (
+                  pedidosFiltrados.slice(0, limitePedidos).map((p) => (
                     <tr key={p.id} className="hover:bg-slate-800/50 transition">
                       <td className="p-4 font-mono font-bold text-slate-300">#{p.id.slice(0, 8)}</td>
                       <td className="p-4">
@@ -255,6 +256,16 @@ export const HistoricoView: React.FC<HistoricoViewProps> = ({ pedidos }) => {
               </tbody>
             </table>
           </div>
+          {pedidosFiltrados.length > limitePedidos && (
+            <div className="p-4 border-t border-slate-800 flex items-center justify-center">
+              <button
+                onClick={() => setLimitePedidos(l => l + 50)}
+                className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 transition"
+              >
+                Ver mais ({pedidosFiltrados.length - limitePedidos} restantes)
+              </button>
+            </div>
+          )}
         </div>
       )}
 

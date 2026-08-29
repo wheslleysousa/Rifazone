@@ -52,6 +52,12 @@ try {
 
 // Auto-detecção inteligente do executável do Chromium (especialmente no Termux Android e Linux)
 let chromiumExecutable = sanitizeEnv(process.env.PUPPETEER_EXECUTABLE_PATH);
+
+if (chromiumExecutable && !fs.existsSync(chromiumExecutable)) {
+  console.warn(`[WORKER] O caminho configurado em PUPPETEER_EXECUTABLE_PATH (${chromiumExecutable}) não existe no dispositivo. Procurando alternativa...`);
+  chromiumExecutable = '';
+}
+
 if (!chromiumExecutable) {
   const prefix = process.env.PREFIX || '/data/data/com.termux/files/usr';
   const possiblePaths = [

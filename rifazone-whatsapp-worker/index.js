@@ -354,12 +354,20 @@ function sessaoWhatsappExiste() {
   }
 }
 
+function formatarNumeroParaPairing(num) {
+  let limpo = String(num).replace(/\D/g, '');
+  if (limpo.length === 10 || limpo.length === 11) {
+    limpo = '55' + limpo;
+  }
+  return limpo;
+}
+
 function inicializarCliente(motivo, metodo, numero) {
   if (clienteInicializado) return;
   clienteInicializado = true;
   if (metodo === 'code' && numero) {
     modoPareamento = true;
-    numeroPareamento = String(numero).replace(/\D/g, '');
+    numeroPareamento = formatarNumeroParaPairing(numero);
     codigoJaSolicitado = false;
   } else {
     modoPareamento = false;
@@ -377,9 +385,8 @@ if (sessaoWhatsappExiste()) {
   console.log('[WORKER] ⏳ Aguardando o comando "Conectar" na aba de Remarketing para gerar o QR Code...');
 }
 
-// Enquanto não inicializado, verifica a cada 2s se o admin pediu pra conectar.
+// Enquanto não inicializado ou se solicitar código por número, verifica a cada 2s
 setInterval(async () => {
-  if (clienteInicializado) return;
   try {
     const res = await fetch(`${RIFAZONE_URL}/api/worker/comando`, {
       headers: { 'x-worker-secret': WORKER_SECRET }
@@ -387,7 +394,26 @@ setInterval(async () => {
     if (res.ok) {
       const data = await res.json();
       if (data && data.conectar) {
-        inicializarCliente('solicitado pelo painel', data.metodo, data.numero);
+        if (!clienteInicializado) {
+          inicializarCliente('solicitado pelo painel', data.metodo, data.numero);
+        } else if (data.metodo === 'code' && data.numero) {
+          const numFormatado = formatarNumeroParaPairing(data.numero);
+          if (numeroPareamento !== numFormatado || !codigoJaSolicitado) {
+            modoPareamento = true;
+            numeroPareamento = numFormatado;
+            codigoJaSolicitado = true;
+            try {
+              console.log(`[WORKER] ⏳ Gerando código de pareamento para ${numeroPareamento}...`);
+              const codigo = await client.requestPairingCode(numeroPareamento);
+              console.log(`\n[WORKER] 🔢 Código de conexão para o número ${numeroPareamento}: ${codigo}`);
+              console.log('[WORKER] No WhatsApp: Aparelhos conectados > Conectar um aparelho > Conectar com número de telefone.\n');
+              await enviarCodigoParaApp(codigo);
+            } catch (e) {
+              console.error('[WORKER] Erro ao gerar código de pareamento:', e.message || e);
+              codigoJaSolicitado = false;
+            }
+          }
+        }
       }
     }
   } catch (e) { /* app pode estar offline/dormindo; tenta de novo */ }

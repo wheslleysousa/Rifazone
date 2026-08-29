@@ -29,7 +29,7 @@ interface Props {
   authFetch?: (url: string, options?: RequestInit) => Promise<Response>;
 }
 
-type TabType = 'basico' | 'midia' | 'premios' | 'promocoes' | 'upsell' | 'extras' | 'textos' | 'checkout';
+type TabType = 'basico' | 'midia' | 'premios' | 'promocoes' | 'upsell' | 'extras' | 'checkout';
 
 
 export const gerarSlugCampanha = (texto: string): string => {
@@ -179,8 +179,7 @@ export const CampanhasFormView: React.FC<Props> = ({
     { id: 'promocoes', label: '4. Pacotes & Descontos', icon: Zap, iconColor: 'text-purple-400', desc: 'Combos de cotas promocionais' },
     { id: 'upsell', label: '5. Ofertas Relâmpago', icon: Flame, iconColor: 'text-orange-400', desc: 'Aumente o ticket no checkout' },
     { id: 'extras', label: '6. Brindes & Roleta', icon: Gift, iconColor: 'text-pink-400', desc: 'E-book digital e roleta bônus' },
-    { id: 'textos', label: '7. Textos das Seções', icon: Type, iconColor: 'text-cyan-400', desc: 'Títulos e subtítulos de cada bloco' },
-    { id: 'checkout', label: '8. Modelo de Checkout', icon: CreditCard, iconColor: 'text-indigo-400', desc: 'Selecione a experiência de pagamento' }
+    { id: 'checkout', label: '7. Modelo de Checkout', icon: CreditCard, iconColor: 'text-indigo-400', desc: 'Selecione a experiência de pagamento' }
   ];
 
   // Upload handlers
@@ -521,7 +520,7 @@ export const CampanhasFormView: React.FC<Props> = ({
   const valorCotaNum = Number(form.valorCota || 0);
   const arrecadacaoEstimada = totalCotasNum * valorCotaNum;
 
-  const tabKeys: TabType[] = ['basico', 'midia', 'premios', 'promocoes', 'upsell', 'extras', 'textos', 'checkout'];
+  const tabKeys: TabType[] = ['basico', 'midia', 'premios', 'promocoes', 'upsell', 'extras', 'checkout'];
   const currentIndex = secaoAberta ? tabKeys.indexOf(secaoAberta) : 0;
   const isUltimaEtapa = currentIndex === tabKeys.length - 1;
   const isEdicao = !!(form.id);
@@ -3003,11 +3002,7 @@ export const CampanhasFormView: React.FC<Props> = ({
             </div>
 
             {([
-              { key: 'tituloCompra', subKey: 'subtituloCompra', label: 'Botão de Compra', ph: 'Ex: Garanta suas cotas' },
-              { key: 'tituloPacotes', subKey: 'subtituloPacotes', label: 'Pacotes Promocionais', ph: 'Ex: Escolha seu pacote' },
               { key: 'tituloControles', subKey: 'subtituloControles', label: 'Controles de Quantidade (+ / −)', ph: 'Ex: Quantas cotas você quer?' },
-              { key: 'tituloCotas', subKey: 'subtituloCotas', label: 'Seleção de Cotas', ph: 'Ex: Selecione a quantidade de cotas' },
-              { key: 'tituloPremiado', subKey: 'subtituloPremiado', label: 'Cotas Premiadas', ph: 'Ex: Cotas Premiadas (Ganhe no Pix na hora)' },
             ] as { key: string; subKey: string; label: string; ph: string }[]).map(sec => {
               const temaAtual = form.tema || TEMA_PADRAO;
               const botaoAtual: any = (temaAtual as any).botao || (TEMA_PADRAO as any).botao || {};

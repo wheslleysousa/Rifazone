@@ -1563,7 +1563,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
           fontFamily: tema.tipografia.fonteCardCotas
         }}
       >
-        {/* Títulos e Subtítulos - Grade de Cotas */}
+        {/* 
         {(tema.botao.tituloCotas || tema.botao.subtituloCotas || campanha.tituloSelecaoCotas) && (
           <div className="pb-1 border-b border-slate-800/60 text-center sm:text-left space-y-0.5 mb-2">
             {(tema.botao.tituloCotas || campanha.tituloSelecaoCotas) && (
@@ -1578,6 +1578,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
             )}
           </div>
         )}
+        */}
 
         {campanha.modalidade === 'gratis' ? (
           <div className="p-4 bg-purple-500/10 border border-purple-500/30 rounded-2xl text-center space-y-3">
@@ -1603,6 +1604,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
           </div>
         ) : (
           <>
+            {/* 
             {/* Títulos e Subtítulos - Pacotes */}
             {(tema.botao.tituloPacotes || tema.botao.subtituloPacotes) && (
               <div className="text-center sm:text-left space-y-0.5 pb-2">
@@ -1620,7 +1622,9 @@ export const CampanhaPublicaView: React.FC<Props> = ({
             )}
 
             {/* Botões de Pacotes de Cotas */}
+            {/*
             <div className={`grid ${colMobileClass} ${colDesktopClass} gap-2.5`}>
+
               {listaBotoes.map((item, idx: number) => {
                 const rotuloTexto = item.rotulo || (item.destaque ? 'Mais popular' : undefined);
                 const isDestaque = item.destaque || !!item.rotulo;

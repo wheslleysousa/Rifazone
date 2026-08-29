@@ -50,11 +50,16 @@ try {
   console.warn('[WORKER] Aviso ao verificar diretório de sessão:', e.message);
 }
 
-// Auto-detecção inteligente do executável do Chromium (especialmente no Termux Android)
+// Auto-detecção inteligente do executável do Chromium (especialmente no Termux Android e Linux)
 let chromiumExecutable = sanitizeEnv(process.env.PUPPETEER_EXECUTABLE_PATH);
 if (!chromiumExecutable) {
+  const prefix = process.env.PREFIX || '/data/data/com.termux/files/usr';
   const possiblePaths = [
+    `${prefix}/bin/chromium`,
+    `${prefix}/bin/chromium-browser`,
+    `${prefix}/bin/chrome`,
     '/data/data/com.termux/files/usr/bin/chromium',
+    '/data/data/com.termux/files/usr/bin/chromium-browser',
     '/usr/bin/chromium-browser',
     '/usr/bin/chromium',
     '/usr/bin/google-chrome-stable',

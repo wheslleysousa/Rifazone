@@ -258,18 +258,17 @@ client.on('qr', async (qr) => {
     console.error('[WORKER] Erro ao converter QR para dataURL:', err);
   }
 
-  // Se o modo for pareamento por número de telefone:
-  if (modoPareamento && numeroPareamento && !codigoJaSolicitado) {
-    codigoJaSolicitado = true;
+  // Se o modo for pareamento por número de telefone, gera/renova o código junto com o QR:
+  if (modoPareamento && numeroPareamento) {
     try {
-      console.log(`[WORKER] ⏳ Gerando código de pareamento para ${numeroPareamento}...`);
+      console.log(`[WORKER] ⏳ Gerando/renovando código de pareamento para ${numeroPareamento}...`);
       const codigo = await client.requestPairingCode(numeroPareamento);
       console.log(`\n[WORKER] 🔢 Código de conexão para o número ${numeroPareamento}: ${codigo}`);
       console.log('[WORKER] No WhatsApp: Aparelhos conectados > Conectar um aparelho > Conectar com número de telefone.\n');
       await enviarCodigoParaApp(codigo);
+      codigoJaSolicitado = true;
     } catch (e) {
       console.error('[WORKER] Erro ao gerar código de pareamento:', e.message || e);
-      codigoJaSolicitado = false; // permite tentar de novo no próximo evento
     }
   }
 

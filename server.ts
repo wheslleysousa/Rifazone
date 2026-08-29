@@ -3403,19 +3403,27 @@ app.post('/api/admin/fila-mensagens/limpar', firebaseAuthMiddleware, async (req,
 // ============================================================================
 
 // Middleware para verificar CRON_SECRET nos endpoints do cron/tarefas
+function cleanSecret(val: string | undefined): string {
+  if (!val) return '';
+  let s = val.trim();
+  if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
+    s = s.slice(1, -1).trim();
+  }
+  return s;
+}
+
 function verificarCronSecret(req: Request, res: Response, next: NextFunction) {
-  const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret || !cronSecret.trim()) {
+  const cronSecretVal = cleanSecret(process.env.CRON_SECRET);
+  if (!cronSecretVal) {
     return res.status(503).json({ error: 'CRON_SECRET não configurado' });
   }
 
-  const cronSecretVal = cronSecret.trim();
-  const secretRecebido = (
+  const secretRecebido = cleanSecret(
     (req.headers['x-cron-secret'] as string) ||
     (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : null) ||
     (req.query.secret as string) ||
     ''
-  ).trim();
+  );
 
   if (!secretRecebido || secretRecebido !== cronSecretVal) {
     return res.status(401).json({ error: 'Não autorizado. Chave secreta inválida.' });
@@ -3425,18 +3433,17 @@ function verificarCronSecret(req: Request, res: Response, next: NextFunction) {
 
 // Middleware para verificar WORKER_SECRET nos endpoints do worker de WhatsApp
 function verificarWorkerSecret(req: Request, res: Response, next: NextFunction) {
-  const workerSecret = process.env.WORKER_SECRET;
-  if (!workerSecret || !workerSecret.trim()) {
+  const workerSecretVal = cleanSecret(process.env.WORKER_SECRET);
+  if (!workerSecretVal) {
     return res.status(503).json({ error: 'WORKER_SECRET não configurado' });
   }
 
-  const workerSecretVal = workerSecret.trim();
-  const secretRecebido = (
+  const secretRecebido = cleanSecret(
     (req.headers['x-worker-secret'] as string) ||
     (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : null) ||
     (req.query.secret as string) ||
     ''
-  ).trim();
+  );
 
   if (!secretRecebido || secretRecebido !== workerSecretVal) {
     return res.status(401).json({ error: 'Não autorizado. Chave secreta de worker inválida.' });

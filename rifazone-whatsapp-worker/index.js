@@ -569,11 +569,12 @@ async function processQueue() {
 // Loop de fila a cada 15s
 setInterval(processQueue, 15000);
 
-// Sincroniza status a cada 30s como liveness check (SEMPRE, mesmo desconectado,
-// pra que o app saiba que o worker está ligado e mostre o QR).
+// Sincroniza status imediatamente no início e a cada 10s como liveness check (SEMPRE, mesmo desconectado,
+// pra que o app saiba imediatamente que o worker está ligado e online).
+syncStatusWithApp();
 setInterval(() => {
   syncStatusWithApp();
-}, 30000);
+}, 10000);
 
 // ----------------------------------------------------------------------------
 // 8. ESCUTA DO EXPRESS

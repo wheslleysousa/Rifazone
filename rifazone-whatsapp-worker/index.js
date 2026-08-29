@@ -228,47 +228,9 @@ const client = new Client({
 
 // Evento de geração do QR Code
 client.on('qr', async (qr) => {
-  // Modo "conectar por número": pede o código de pareamento.
-  if (!codigoJaSolicitado) {
-    codigoJaSolicitado = true;
-    
-    // Se não tivermos o número ainda, pede via terminal
-    if (!numeroPareamento) {
-      const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-      
-      // Promessa para pegar o número via terminal
-      const promptNumber = () => new Promise((resolve) => {
-        rl.question('\n[WORKER] 📱 Digite o número do WhatsApp com DDD (ex: 5511999999999) para pareamento (ou deixe vazio para pular): ', (num) => {
-          rl.close();
-          resolve(num.trim());
-        });
-      });
-
-      const inputNumber = await promptNumber();
-      if (inputNumber) {
-        numeroPareamento = inputNumber.replace(/\D/g, '');
-        modoPareamento = true;
-      } else {
-        console.log('[WORKER] ℹ️ Pulando pareamento por número.');
-      }
-    }
-
-    if (modoPareamento && numeroPareamento) {
-      try {
-        const codigo = await client.requestPairingCode(numeroPareamento);
-        console.log(`\n[WORKER] 🔢 Código de conexão para o número ${numeroPareamento}: ${codigo}`);
-        console.log('[WORKER] No WhatsApp: Aparelhos conectados > Conectar um aparelho > Conectar com número de telefone.\n');
-        enviarCodigoParaApp(codigo);
-        syncStatusWithApp();
-      } catch (e) {
-        console.error('[WORKER] Erro ao gerar código de pareamento:', e.message || e);
-        codigoJaSolicitado = false; // permite tentar de novo no próximo evento
-      }
-    }
-  }
-
   qrCodeRaw = qr;
   connectionStatusMessage = 'QR Code gerado. Aguardando escaneamento...';
+  
   try {
     qrCodeDataURL = await qrcodeLib.toDataURL(qr);
     // Também imprime o QR direto no terminal (útil no Termux, sem precisar de outra tela).
@@ -278,13 +240,30 @@ client.on('qr', async (qr) => {
       console.log(ascii);
     } catch (e) {}
     console.log('[WORKER] 📱 (ou acesse http://localhost:' + PORT + '/qr para escanear pela tela).');
+    
     // Envia o QR pro app, pra poder escanear direto da aba de Remarketing na web.
-    enviarQrParaApp(qrCodeDataURL);
-    // Avisa o app que o worker está VIVO (online) mesmo sem ter conectado ainda.
-    syncStatusWithApp();
+    await enviarQrParaApp(qrCodeDataURL);
   } catch (err) {
     console.error('[WORKER] Erro ao converter QR para dataURL:', err);
   }
+
+  // Se o modo for pareamento por número de telefone:
+  if (modoPareamento && numeroPareamento && !codigoJaSolicitado) {
+    codigoJaSolicitado = true;
+    try {
+      console.log(`[WORKER] ⏳ Gerando código de pareamento para ${numeroPareamento}...`);
+      const codigo = await client.requestPairingCode(numeroPareamento);
+      console.log(`\n[WORKER] 🔢 Código de conexão para o número ${numeroPareamento}: ${codigo}`);
+      console.log('[WORKER] No WhatsApp: Aparelhos conectados > Conectar um aparelho > Conectar com número de telefone.\n');
+      await enviarCodigoParaApp(codigo);
+    } catch (e) {
+      console.error('[WORKER] Erro ao gerar código de pareamento:', e.message || e);
+      codigoJaSolicitado = false; // permite tentar de novo no próximo evento
+    }
+  }
+
+  // Avisa o app que o worker está VIVO (online)
+  syncStatusWithApp();
 });
 
 // Evento de autenticação bem-sucedida

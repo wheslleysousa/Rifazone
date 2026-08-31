@@ -392,7 +392,24 @@ setInterval(async () => {
     });
     if (res.ok) {
       const data = await res.json();
-      if (data && data.conectar) {
+      if (data && data.desconectar) {
+        console.log('[WORKER] 🔌 Comando de desconexão recebido do painel admin!');
+        if (client) {
+          try {
+            await client.logout();
+            await client.destroy();
+          } catch (err) {
+            console.error('[WORKER] Erro ao deslogar cliente:', err.message);
+          }
+        }
+        removerPastaSessao();
+        clienteInicializado = false;
+        conectado = false;
+        modoPareamento = false;
+        numeroPareamento = '';
+        codigoJaSolicitado = false;
+        await syncStatusWithApp();
+      } else if (data && data.conectar) {
         if (!clienteInicializado) {
           inicializarCliente('solicitado pelo painel', data.metodo, data.numero);
         } else if (data.metodo === 'code' && data.numero) {

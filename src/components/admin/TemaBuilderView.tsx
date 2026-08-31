@@ -12,7 +12,7 @@ import {
   Sliders, X, RefreshCw, Bookmark, FolderHeart, CheckCircle2,
   CreditCard, QrCode, FileText, CheckCheck, AlertCircle, Shield, Image as ImageIcon, Video, User, ShoppingCart,
   Trophy, Gift, Ticket, Zap, TrendingUp, Users, Info, Plus, Minus, Package, Box, SlidersHorizontal, Maximize2, Slash,
-  ChevronUp, ChevronDown
+  ChevronUp, ChevronDown, AlignLeft, AlignCenter, AlignRight
 } from 'lucide-react';
 import { auth } from '../../lib/firebase';
 import { dispararExplosaoConfetes } from '../../utils/confettiUtils';
@@ -22,9 +22,20 @@ import {
   calcularEstiloBotao, 
   calcularEstiloCard,
   TipoEstiloBotao,
-  hexToRgba
+  hexToRgba,
+  obterFundoCss,
+  gerarGradientDegradeBanner
 } from '../../lib/temaHelpers';
 import { SeletorCorOuDegrade } from './SeletorCorOuDegrade';
+
+const MODELOS_PRONTOS_REGRA = [
+  { id: 'm1', label: 'Padrão Simples', modelo: 'A partir de {valor} cada cota fica por {desconto}' },
+  { id: 'm2', label: 'Compre Acima De', modelo: 'Leve cotas por apenas {desconto} comprando acima de {valor}' },
+  { id: 'm3', label: 'Aviso de Queda', modelo: 'Aviso: A partir de {valor} o valor da cota cai para {desconto}' },
+  { id: 'm4', label: 'Super Desconto', modelo: 'Super Desconto: A partir de {valor} cada cota sai por {desconto}' },
+  { id: 'm5', label: 'Economia Garantida', modelo: 'Economize! Cotas por apenas {desconto} a partir de {valor}' },
+  { id: 'custom', label: '✏️ Modelo Personalizado', modelo: '' },
+];
 
 const SeletorFonteCard = ({ valor, onChange }: { valor: string; onChange: (fonte: string) => void }) => {
   const [open, setOpen] = useState(false);
@@ -115,51 +126,388 @@ const PRESETS = [
 ];
 
 
+const SeletorAlinhamento = ({
+  valor = 'esquerda',
+  onChange,
+  label = 'Alinhamento do Texto na Página:'
+}: {
+  valor?: 'esquerda' | 'centro' | 'direita';
+  onChange: (val: 'esquerda' | 'centro' | 'direita') => void;
+  label?: string;
+}) => (
+  <div className="flex items-center justify-between pt-1 pb-1">
+    <label className="text-[11px] font-bold text-slate-300">{label}</label>
+    <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800">
+      {[
+        { id: 'esquerda', label: 'À Esquerda', Icon: AlignLeft },
+        { id: 'centro', label: 'Centralizado', Icon: AlignCenter },
+        { id: 'direita', label: 'À Direita', Icon: AlignRight },
+      ].map(opt => {
+        const active = (valor || 'esquerda') === opt.id;
+        const Icon = opt.Icon;
+        return (
+          <button
+            key={opt.id}
+            type="button"
+            title={opt.label}
+            onClick={() => onChange(opt.id as any)}
+            className={`p-1.5 rounded-lg transition flex items-center justify-center cursor-pointer ${
+              active
+                ? 'bg-purple-600 text-white shadow-md font-bold'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800'
+            }`}
+          >
+            <Icon className="w-4 h-4" />
+          </button>
+        );
+      })}
+    </div>
+  </div>
+);
+
 const SectionTextConfig = ({
   titulo,
   subtitulo,
   fonteTitulo,
   fonteSubtitulo,
+  tamanhoTitulo = 16,
+  tamanhoSubtitulo = 12,
+  alinhamento = 'esquerda',
+  alinhamentoTitulo,
+  alinhamentoSubtitulo,
   onTituloChange,
   onSubtituloChange,
   onFonteTituloChange,
   onFonteSubtituloChange,
-  placeholderTitulo = "Ex: Título da Seção",
-  placeholderSubtitulo = "Ex: Subtítulo descritivo..."
+  onTamanhoTituloChange,
+  onTamanhoSubtituloChange,
+  onAlinhamentoChange,
+  onAlinhamentoTituloChange,
+  onAlinhamentoSubtituloChange,
+  placeholderTitulo = "Digite o título do bloco...",
+  placeholderSubtitulo = "Digite o subtítulo do bloco..."
 }: {
   titulo: string;
   subtitulo: string;
   fonteTitulo: string;
   fonteSubtitulo: string;
+  tamanhoTitulo?: number;
+  tamanhoSubtitulo?: number;
+  alinhamento?: 'esquerda' | 'centro' | 'direita';
+  alinhamentoTitulo?: 'esquerda' | 'centro' | 'direita';
+  alinhamentoSubtitulo?: 'esquerda' | 'centro' | 'direita';
   onTituloChange: (val: string) => void;
   onSubtituloChange: (val: string) => void;
-  onFonteTituloChange: (val: string) => void;
-  onFonteSubtituloChange: (val: string) => void;
+  onFonteTituloChange?: (val: string) => void;
+  onFonteSubtituloChange?: (val: string) => void;
+  onTamanhoTituloChange?: (val: number) => void;
+  onTamanhoSubtituloChange?: (val: number) => void;
+  onAlinhamentoChange?: (val: 'esquerda' | 'centro' | 'direita') => void;
+  onAlinhamentoTituloChange?: (val: 'esquerda' | 'centro' | 'direita') => void;
+  onAlinhamentoSubtituloChange?: (val: 'esquerda' | 'centro' | 'direita') => void;
   placeholderTitulo?: string;
   placeholderSubtitulo?: string;
-}) => (
-  <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-3">
-    <div className="flex items-center gap-2">
-      <Type className="w-4 h-4 text-purple-400 shrink-0" />
-      <h4 className="text-xs font-black text-white uppercase tracking-wider">Fontes deste bloco</h4>
-    </div>
-    <p className="text-[10.5px] text-slate-500 leading-snug">
-      Escolha a fonte do título e do subtítulo. O <b className="text-slate-400">texto</b> em si você edita
-      na aba <b className="text-slate-400">Campanha › Textos das seções</b>.
-    </p>
+}) => {
+  const [tituloAtivo, setTituloAtivo] = useState(titulo.trim() !== '');
+  const [subtituloAtivo, setSubtituloAtivo] = useState(subtitulo.trim() !== '');
 
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-      <div className="space-y-1.5">
-        <label className="text-[11px] font-bold text-slate-400">Fonte do Título</label>
-        <SeletorFonteCard valor={fonteTitulo} onChange={onFonteTituloChange} />
+  const alinTit = alinhamentoTitulo || alinhamento;
+  const alinSub = alinhamentoSubtitulo || alinhamento;
+
+  return (
+    <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-4">
+      <div className="flex items-center justify-between border-b border-slate-800/80 pb-2.5">
+        <div className="flex items-center gap-2">
+          <Type className="w-4 h-4 text-purple-400 shrink-0" />
+          <h4 className="text-xs font-black text-white uppercase tracking-wider">Textos, Fontes e Alinhamento</h4>
+        </div>
+        <span className="text-[10px] text-slate-500 font-medium">Ative/desative títulos e edite a tipografia</span>
       </div>
-      <div className="space-y-1.5">
-        <label className="text-[11px] font-bold text-slate-400">Fonte do Subtítulo</label>
-        <SeletorFonteCard valor={fonteSubtitulo} onChange={onFonteSubtituloChange} />
+
+      {/* Textos & Toggles do Bloco */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* TÍTULO */}
+        <div className="p-3 bg-slate-900/60 border border-slate-800 rounded-xl space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-200">Título do Bloco</span>
+            <div className="flex items-center gap-1 bg-slate-950 p-0.5 rounded-lg border border-slate-800">
+              <button
+                type="button"
+                onClick={() => {
+                  setTituloAtivo(false);
+                  onTituloChange('');
+                }}
+                className={`px-2 py-0.5 text-[10px] font-bold rounded cursor-pointer transition ${
+                  !tituloAtivo && titulo.trim() === ''
+                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Desativado
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setTituloAtivo(true);
+                }}
+                className={`px-2 py-0.5 text-[10px] font-bold rounded cursor-pointer transition ${
+                  tituloAtivo || titulo.trim() !== ''
+                    ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Ativado
+              </button>
+            </div>
+          </div>
+
+          {(tituloAtivo || titulo.trim() !== '') ? (
+            <div className="space-y-2">
+              <input
+                type="text"
+                value={titulo}
+                onChange={e => onTituloChange(e.target.value)}
+                placeholder={placeholderTitulo}
+                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 transition"
+              />
+
+              {(onAlinhamentoTituloChange || onAlinhamentoChange) && (
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-[10.5px] font-medium text-slate-400">Alinhamento do Título:</span>
+                  <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
+                    {[
+                      { id: 'esquerda', label: 'À Esquerda', Icon: AlignLeft },
+                      { id: 'centro', label: 'Centralizado', Icon: AlignCenter },
+                      { id: 'direita', label: 'À Direita', Icon: AlignRight },
+                    ].map(opt => {
+                      const active = alinTit === opt.id;
+                      const Icon = opt.Icon;
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          title={opt.label}
+                          onClick={() => {
+                            if (onAlinhamentoTituloChange) onAlinhamentoTituloChange(opt.id as any);
+                            else if (onAlinhamentoChange) onAlinhamentoChange(opt.id as any);
+                          }}
+                          className={`p-1.5 rounded-lg transition flex items-center justify-center cursor-pointer ${
+                            active
+                              ? 'bg-purple-600 text-white shadow-md font-bold'
+                              : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                          }`}
+                        >
+                          <Icon className="w-3.5 h-3.5" />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="p-2.5 text-center bg-slate-950/60 rounded-xl border border-slate-800/80">
+              <p className="text-[11px] text-slate-500">Título desativado para este bloco.</p>
+            </div>
+          )}
+        </div>
+
+        {/* SUBTÍTULO */}
+        <div className="p-3 bg-slate-900/60 border border-slate-800 rounded-xl space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-200">Subtítulo do Bloco</span>
+            <div className="flex items-center gap-1 bg-slate-950 p-0.5 rounded-lg border border-slate-800">
+              <button
+                type="button"
+                onClick={() => {
+                  setSubtituloAtivo(false);
+                  onSubtituloChange('');
+                }}
+                className={`px-2 py-0.5 text-[10px] font-bold rounded cursor-pointer transition ${
+                  !subtituloAtivo && subtitulo.trim() === ''
+                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Desativado
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSubtituloAtivo(true);
+                }}
+                className={`px-2 py-0.5 text-[10px] font-bold rounded cursor-pointer transition ${
+                  subtituloAtivo || subtitulo.trim() !== ''
+                    ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Ativado
+              </button>
+            </div>
+          </div>
+
+          {(subtituloAtivo || subtitulo.trim() !== '') ? (
+            <div className="space-y-2">
+              <input
+                type="text"
+                value={subtitulo}
+                onChange={e => onSubtituloChange(e.target.value)}
+                placeholder={placeholderSubtitulo}
+                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 transition"
+              />
+
+              {(onAlinhamentoSubtituloChange || onAlinhamentoChange) && (
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-[10.5px] font-medium text-slate-400">Alinhamento do Subtítulo:</span>
+                  <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
+                    {[
+                      { id: 'esquerda', label: 'À Esquerda', Icon: AlignLeft },
+                      { id: 'centro', label: 'Centralizado', Icon: AlignCenter },
+                      { id: 'direita', label: 'À Direita', Icon: AlignRight },
+                    ].map(opt => {
+                      const active = alinSub === opt.id;
+                      const Icon = opt.Icon;
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          title={opt.label}
+                          onClick={() => {
+                            if (onAlinhamentoSubtituloChange) onAlinhamentoSubtituloChange(opt.id as any);
+                            else if (onAlinhamentoChange) onAlinhamentoChange(opt.id as any);
+                          }}
+                          className={`p-1.5 rounded-lg transition flex items-center justify-center cursor-pointer ${
+                            active
+                              ? 'bg-purple-600 text-white shadow-md font-bold'
+                              : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                          }`}
+                        >
+                          <Icon className="w-3.5 h-3.5" />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="p-2.5 text-center bg-slate-950/60 rounded-xl border border-slate-800/80">
+              <p className="text-[11px] text-slate-500">Subtítulo desativado para este bloco.</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Fontes e Tamanhos da Seção */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-800/80">
+        {/* Título */}
+        <div className="space-y-2.5 bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+          <div className="space-y-1">
+            <label className="text-[11px] font-bold text-slate-300 block">Fonte do Título</label>
+            {onFonteTituloChange && <SeletorFonteCard valor={fonteTitulo} onChange={onFonteTituloChange} />}
+          </div>
+
+          {onTamanhoTituloChange && (
+            <div className="space-y-1 pt-1 border-t border-slate-800/60">
+              <div className="flex justify-between items-center text-[11px]">
+                <span className="font-bold text-slate-400">Tamanho da Fonte (Título):</span>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => onTamanhoTituloChange(Math.max(10, tamanhoTitulo - 1))}
+                    className="w-5 h-5 bg-slate-800 hover:bg-slate-700 text-white rounded font-bold text-xs flex items-center justify-center"
+                  >
+                    -
+                  </button>
+                  <input
+                    type="number"
+                    min="10"
+                    max="48"
+                    value={tamanhoTitulo}
+                    onChange={e => onTamanhoTituloChange(Math.min(48, Math.max(10, Number(e.target.value) || 10)))}
+                    className="w-12 bg-slate-950 border border-slate-700 rounded px-1 py-0.5 text-center font-mono text-purple-400 font-bold text-xs focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => onTamanhoTituloChange(Math.min(48, tamanhoTitulo + 1))}
+                    className="w-5 h-5 bg-slate-800 hover:bg-slate-700 text-white rounded font-bold text-xs flex items-center justify-center"
+                  >
+                    +
+                  </button>
+                  <span className="text-slate-500 text-[10px] font-mono">px</span>
+                </div>
+              </div>
+              <input
+                type="range"
+                min="10"
+                max="36"
+                step="1"
+                value={tamanhoTitulo}
+                onPointerDown={e => e.stopPropagation()}
+                onTouchStart={e => e.stopPropagation()}
+                onChange={e => onTamanhoTituloChange(Number(e.target.value))}
+                className="w-full accent-purple-500 cursor-pointer h-2 bg-slate-950 rounded-lg"
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Subtítulo */}
+        <div className="space-y-2.5 bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+          <div className="space-y-1">
+            <label className="text-[11px] font-bold text-slate-300 block">Fonte do Subtítulo</label>
+            {onFonteSubtituloChange && <SeletorFonteCard valor={fonteSubtitulo} onChange={onFonteSubtituloChange} />}
+          </div>
+
+          {onTamanhoSubtituloChange && (
+            <div className="space-y-1 pt-1 border-t border-slate-800/60">
+              <div className="flex justify-between items-center text-[11px]">
+                <span className="font-bold text-slate-400">Tamanho da Fonte (Subtítulo):</span>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => onTamanhoSubtituloChange(Math.max(8, tamanhoSubtitulo - 1))}
+                    className="w-5 h-5 bg-slate-800 hover:bg-slate-700 text-white rounded font-bold text-xs flex items-center justify-center"
+                  >
+                    -
+                  </button>
+                  <input
+                    type="number"
+                    min="8"
+                    max="32"
+                    value={tamanhoSubtitulo}
+                    onChange={e => onTamanhoSubtituloChange(Math.min(32, Math.max(8, Number(e.target.value) || 8)))}
+                    className="w-12 bg-slate-950 border border-slate-700 rounded px-1 py-0.5 text-center font-mono text-purple-400 font-bold text-xs focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => onTamanhoSubtituloChange(Math.min(32, tamanhoSubtitulo + 1))}
+                    className="w-5 h-5 bg-slate-800 hover:bg-slate-700 text-white rounded font-bold text-xs flex items-center justify-center"
+                  >
+                    +
+                  </button>
+                  <span className="text-slate-500 text-[10px] font-mono">px</span>
+                </div>
+              </div>
+              <input
+                type="range"
+                min="8"
+                max="32"
+                step="1"
+                value={tamanhoSubtitulo}
+                onPointerDown={e => e.stopPropagation()}
+                onTouchStart={e => e.stopPropagation()}
+                onChange={e => onTamanhoSubtituloChange(Number(e.target.value))}
+                className="w-full accent-purple-500 cursor-pointer h-2 bg-slate-950 rounded-lg"
+              />
+            </div>
+          )}
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 
 interface Props {
@@ -226,7 +574,7 @@ export const TemaBuilderView: React.FC<Props> = ({
   const [previewDispositivo, setPreviewDispositivo] = useState<'mobile' | 'desktop'>('mobile');
   const [secaoEditor, setSecaoEditor] = useState<'menu' | 'geral' | 'tipografia' | 'blocos' | 'estilos'>('menu');
   const [subAbaGeral, setSubAbaGeral] = useState<'cores' | 'botoes' | 'icones' | 'logo' | null>(null);
-  const [subAbaBotao, setSubAbaBotao] = useState<'compra' | 'pacotes' | 'controles' | 'cotas' | 'progresso' | 'cards' | null>(null);
+  const [subAbaBotao, setSubAbaBotao] = useState<'compra' | 'pacotes' | 'controles' | 'cotas' | 'por_apenas' | 'progresso' | 'titulosPremiados' | 'cards' | null>(null);
   const [secaoIconeAberta, setSecaoIconeAberta] = useState<string>('premios');
   const [secaoCardAberta, setSecaoCardAberta] = useState<string | null>(null);
   const [previewAnimacao, setPreviewAnimacao] = useState<'confetes' | 'estrela' | 'fogo' | 'coracao' | 'moeda' | 'trofeu' | 'diamante' | 'raio' | 'coroa' | 'foguete' | null>(null);
@@ -238,6 +586,8 @@ export const TemaBuilderView: React.FC<Props> = ({
   const [salvandoEstilo, setSalvandoEstilo] = useState(false);
   const [nomeNovoEstilo, setNomeNovoEstilo] = useState('');
   const [modalNovoEstiloAberto, setModalNovoEstiloAberto] = useState(false);
+  const [painelModelosRegraAberto, setPainelModelosRegraAberto] = useState(false);
+  const [modoCustomRegra, setModoCustomRegra] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   // Garante valores seguros de tema com todos os novos campos
@@ -365,19 +715,19 @@ export const TemaBuilderView: React.FC<Props> = ({
       corSombraCards: tema?.botao?.corSombraCards || TEMA_PADRAO.botao.corSombraCards || '#0f172a',
       possuirBordaCards: tema?.botao?.possuirBordaCards ?? true,
       larguraBordaCards: tema?.botao?.larguraBordaCards ?? 1,
-      // Título e Subtítulos por módulo
-      tituloCompra: tema?.botao?.tituloCompra || TEMA_PADRAO.botao.tituloCompra,
-      subtituloCompra: tema?.botao?.subtituloCompra || TEMA_PADRAO.botao.subtituloCompra,
-      tituloPacotes: tema?.botao?.tituloPacotes || TEMA_PADRAO.botao.tituloPacotes,
-      subtituloPacotes: tema?.botao?.subtituloPacotes || TEMA_PADRAO.botao.subtituloPacotes,
-      tituloControles: tema?.botao?.tituloControles || TEMA_PADRAO.botao.tituloControles,
-      subtituloControles: tema?.botao?.subtituloControles || TEMA_PADRAO.botao.subtituloControles,
-      tituloCotas: tema?.botao?.tituloCotas || TEMA_PADRAO.botao.tituloCotas,
-      subtituloCotas: tema?.botao?.subtituloCotas || TEMA_PADRAO.botao.subtituloCotas,
-      tituloProgresso: tema?.botao?.tituloProgresso || TEMA_PADRAO.botao.tituloProgresso,
-      subtituloProgresso: tema?.botao?.subtituloProgresso || TEMA_PADRAO.botao.subtituloProgresso,
-      tituloPremiado: tema?.botao?.tituloPremiado || TEMA_PADRAO.botao.tituloPremiado,
-      subtituloPremiado: tema?.botao?.subtituloPremiado || TEMA_PADRAO.botao.subtituloPremiado,
+      // Título e Subtítulos por módulo (preserva string vazia para ocultar)
+      tituloCompra: tema?.botao?.tituloCompra ?? TEMA_PADRAO.botao.tituloCompra,
+      subtituloCompra: tema?.botao?.subtituloCompra ?? TEMA_PADRAO.botao.subtituloCompra,
+      tituloPacotes: tema?.botao?.tituloPacotes ?? TEMA_PADRAO.botao.tituloPacotes,
+      subtituloPacotes: tema?.botao?.subtituloPacotes ?? TEMA_PADRAO.botao.subtituloPacotes,
+      tituloControles: tema?.botao?.tituloControles ?? TEMA_PADRAO.botao.tituloControles,
+      subtituloControles: tema?.botao?.subtituloControles ?? TEMA_PADRAO.botao.subtituloControles,
+      tituloCotas: tema?.botao?.tituloCotas ?? TEMA_PADRAO.botao.tituloCotas,
+      subtituloCotas: tema?.botao?.subtituloCotas ?? TEMA_PADRAO.botao.subtituloCotas,
+      tituloProgresso: tema?.botao?.tituloProgresso ?? TEMA_PADRAO.botao.tituloProgresso,
+      subtituloProgresso: tema?.botao?.subtituloProgresso ?? TEMA_PADRAO.botao.subtituloProgresso,
+      tituloPremiado: tema?.botao?.tituloPremiado ?? TEMA_PADRAO.botao.tituloPremiado,
+      subtituloPremiado: tema?.botao?.subtituloPremiado ?? TEMA_PADRAO.botao.subtituloPremiado,
     },
     bannerConfig: {
       fullWidth: tema?.bannerConfig?.fullWidth ?? true,
@@ -391,6 +741,9 @@ export const TemaBuilderView: React.FC<Props> = ({
       seloEstilo: tema?.bannerConfig?.seloEstilo || 'estatico',
       seloFundo: tema?.bannerConfig?.seloFundo || tema?.cores?.seloBannerFundo || '#f59e0b',
       seloTexto: tema?.bannerConfig?.seloTexto || tema?.cores?.seloBannerTexto || '#022c22',
+      seloBordaAtiva: tema?.bannerConfig?.seloBordaAtiva ?? false,
+      seloBordaCor: tema?.bannerConfig?.seloBordaCor || '#ffffff',
+      seloBordaEspessura: tema?.bannerConfig?.seloBordaEspessura ?? 1,
       seloPosicao: tema?.bannerConfig?.seloPosicao || 'topo-esquerda'
     },
     tipografia: {
@@ -404,6 +757,10 @@ export const TemaBuilderView: React.FC<Props> = ({
       fontePacotesSubtitulo: tema?.tipografia?.fontePacotesSubtitulo || TEMA_PADRAO.tipografia.fontePacotesSubtitulo || 'Inter',
       fonteControlesTitulo: tema?.tipografia?.fonteControlesTitulo || TEMA_PADRAO.tipografia.fonteControlesTitulo || 'Inter',
       fonteControlesSubtitulo: tema?.tipografia?.fonteControlesSubtitulo || TEMA_PADRAO.tipografia.fonteControlesSubtitulo || 'Inter',
+      tamanhoPacotesTitulo: tema?.tipografia?.tamanhoPacotesTitulo ?? 16,
+      tamanhoPacotesSubtitulo: tema?.tipografia?.tamanhoPacotesSubtitulo ?? 12,
+      tamanhoControlesTitulo: tema?.tipografia?.tamanhoControlesTitulo ?? 16,
+      tamanhoControlesSubtitulo: tema?.tipografia?.tamanhoControlesSubtitulo ?? 12,
       fonteCotasTitulo: tema?.tipografia?.fonteCotasTitulo || TEMA_PADRAO.tipografia.fonteCotasTitulo || 'Inter',
       fonteCotasSubtitulo: tema?.tipografia?.fonteCotasSubtitulo || TEMA_PADRAO.tipografia.fonteCotasSubtitulo || 'Inter',
       fonteCardProgresso: tema?.tipografia?.fonteCardProgresso || TEMA_PADRAO.tipografia.fonteCardProgresso || 'Inter',
@@ -412,6 +769,23 @@ export const TemaBuilderView: React.FC<Props> = ({
       fonteCardCotasPremiadasSubtitulo: tema?.tipografia?.fonteCardCotasPremiadasSubtitulo || TEMA_PADRAO.tipografia.fonteCardCotasPremiadasSubtitulo || 'Inter',
       fonteCardBanner: tema?.tipografia?.fonteCardBanner || TEMA_PADRAO.tipografia.fonteCardBanner || 'Inter',
       fonteCardBannerSubtitulo: tema?.tipografia?.fonteCardBannerSubtitulo || TEMA_PADRAO.tipografia.fonteCardBannerSubtitulo || 'Inter',
+      alinhamentoPacotes: tema?.tipografia?.alinhamentoPacotes || 'esquerda',
+      alinhamentoControles: tema?.tipografia?.alinhamentoControles || 'esquerda',
+      alinhamentoCotas: tema?.tipografia?.alinhamentoCotas || 'esquerda',
+      alinhamentoProgresso: tema?.tipografia?.alinhamentoProgresso || 'esquerda',
+      alinhamentoCompra: tema?.tipografia?.alinhamentoCompra || 'centro',
+      alinhamentoPremiado: tema?.tipografia?.alinhamentoPremiado || 'esquerda',
+    },
+    barraProgresso: {
+      titulo: tema?.barraProgresso?.titulo ?? TEMA_PADRAO.barraProgresso?.titulo ?? 'Progresso do sorteio',
+      subtitulo: tema?.barraProgresso?.subtitulo ?? TEMA_PADRAO.barraProgresso?.subtitulo ?? '',
+      textoInterno: tema?.barraProgresso?.textoInterno ?? TEMA_PADRAO.barraProgresso?.textoInterno ?? '{pct}% vendido',
+      rodape: tema?.barraProgresso?.rodape ?? TEMA_PADRAO.barraProgresso?.rodape ?? '',
+      mostrarTipo: tema?.barraProgresso?.mostrarTipo ?? TEMA_PADRAO.barraProgresso?.mostrarTipo ?? 'porcentagem',
+      altura: tema?.barraProgresso?.altura ?? TEMA_PADRAO.barraProgresso?.altura ?? 16,
+      raioBorda: tema?.barraProgresso?.raioBorda ?? TEMA_PADRAO.barraProgresso?.raioBorda ?? 9999,
+      larguraMax: tema?.barraProgresso?.larguraMax ?? TEMA_PADRAO.barraProgresso?.larguraMax ?? '100%',
+      estiloProgresso: tema?.barraProgresso?.estiloProgresso ?? TEMA_PADRAO.barraProgresso?.estiloProgresso ?? 'solido',
     },
     fundoMidia: {
       tipo: tema?.fundoMidia?.tipo || TEMA_PADRAO.fundoMidia?.tipo || 'cor',
@@ -422,16 +796,24 @@ export const TemaBuilderView: React.FC<Props> = ({
     },
     ganhadorCelebracaoEstilo: tema?.ganhadorCelebracaoEstilo || TEMA_PADRAO.ganhadorCelebracaoEstilo || 'confetes',
     cotasConfig: {
-      textoPorApenas: tema?.cotasConfig?.textoPorApenas || TEMA_PADRAO.cotasConfig?.textoPorApenas || 'Por apenas',
+      ...TEMA_PADRAO.cotasConfig,
+      ...tema?.cotasConfig,
+      textoPorApenas: tema?.cotasConfig?.textoPorApenas ?? TEMA_PADRAO.cotasConfig?.textoPorApenas ?? 'Por apenas',
       porApenasFundo: tema?.cotasConfig?.porApenasFundo || TEMA_PADRAO.cotasConfig?.porApenasFundo || '#064e3b',
       porApenasTexto: tema?.cotasConfig?.porApenasTexto || TEMA_PADRAO.cotasConfig?.porApenasTexto || '#10b981',
       porApenasBorda: tema?.cotasConfig?.porApenasBorda || TEMA_PADRAO.cotasConfig?.porApenasBorda || '#059669',
+      porApenasLayout: tema?.cotasConfig?.porApenasLayout || TEMA_PADRAO.cotasConfig?.porApenasLayout || 'vertical',
+      posicaoExibicao: tema?.cotasConfig?.posicaoExibicao || 'proximo_cotas',
+      estiloContainer: tema?.cotasConfig?.estiloContainer || 'texto_e_botao',
+      porApenasAlinhamento: tema?.cotasConfig?.porApenasAlinhamento || 'centro',
+      porApenasTamanhoValor: tema?.cotasConfig?.porApenasTamanhoValor ?? TEMA_PADRAO.cotasConfig?.porApenasTamanhoValor ?? 24,
+      porApenasTamanhoTexto: tema?.cotasConfig?.porApenasTamanhoTexto ?? TEMA_PADRAO.cotasConfig?.porApenasTamanhoTexto ?? 14,
       exibirBlocoPromocao: tema?.cotasConfig?.exibirBlocoPromocao ?? (TEMA_PADRAO.cotasConfig?.exibirBlocoPromocao ?? true),
       promoBlocoFundo: tema?.cotasConfig?.promoBlocoFundo || TEMA_PADRAO.cotasConfig?.promoBlocoFundo || '#0f172a',
       promoBlocoBorda: tema?.cotasConfig?.promoBlocoBorda || TEMA_PADRAO.cotasConfig?.promoBlocoBorda || '#334155',
-      promoTituloDestaque: tema?.cotasConfig?.promoTituloDestaque || TEMA_PADRAO.cotasConfig?.promoTituloDestaque || '📢 Promoção',
-      promoSubtituloDestaque: tema?.cotasConfig?.promoSubtituloDestaque || TEMA_PADRAO.cotasConfig?.promoSubtituloDestaque || 'Compre mais barato!',
-      promoTextoInformativo: tema?.cotasConfig?.promoTextoInformativo || TEMA_PADRAO.cotasConfig?.promoTextoInformativo || 'Quanto mais títulos, mais chances de ganhar!',
+      promoTituloDestaque: tema?.cotasConfig?.promoTituloDestaque ?? TEMA_PADRAO.cotasConfig?.promoTituloDestaque ?? '📢 Promoção',
+      promoSubtituloDestaque: tema?.cotasConfig?.promoSubtituloDestaque ?? TEMA_PADRAO.cotasConfig?.promoSubtituloDestaque ?? 'Compre mais barato!',
+      promoTextoInformativo: tema?.cotasConfig?.promoTextoInformativo ?? TEMA_PADRAO.cotasConfig?.promoTextoInformativo ?? 'Quanto mais títulos, mais chances de ganhar!',
       promoTituloCor: tema?.cotasConfig?.promoTituloCor || TEMA_PADRAO.cotasConfig?.promoTituloCor || '#fbbf24',
       promoTituloFundo: tema?.cotasConfig?.promoTituloFundo || TEMA_PADRAO.cotasConfig?.promoTituloFundo || '#78350f',
       promoSubtituloCor: tema?.cotasConfig?.promoSubtituloCor || TEMA_PADRAO.cotasConfig?.promoSubtituloCor || '#ffffff',
@@ -441,6 +823,25 @@ export const TemaBuilderView: React.FC<Props> = ({
       promoBadgeBorda: tema?.cotasConfig?.promoBadgeBorda || TEMA_PADRAO.cotasConfig?.promoBadgeBorda || '#059669',
       promoTituloTamanho: tema?.cotasConfig?.promoTituloTamanho ?? (TEMA_PADRAO.cotasConfig?.promoTituloTamanho ?? 14),
       promoSubtituloTamanho: tema?.cotasConfig?.promoSubtituloTamanho ?? (TEMA_PADRAO.cotasConfig?.promoSubtituloTamanho ?? 12),
+      // Personalizações da Regra de Desconto
+      regraDescontoEstilo: tema?.cotasConfig?.regraDescontoEstilo || TEMA_PADRAO.cotasConfig?.regraDescontoEstilo || 'badge',
+      regraDescontoFundo: tema?.cotasConfig?.regraDescontoFundo || TEMA_PADRAO.cotasConfig?.regraDescontoFundo || 'rgba(16, 185, 129, 0.1)',
+      regraDescontoTextoCor: tema?.cotasConfig?.regraDescontoTextoCor || TEMA_PADRAO.cotasConfig?.regraDescontoTextoCor || '#34d399',
+      regraDescontoDestaqueCor: tema?.cotasConfig?.regraDescontoDestaqueCor || TEMA_PADRAO.cotasConfig?.regraDescontoDestaqueCor || '#ffffff',
+      regraDescontoBordaCor: tema?.cotasConfig?.regraDescontoBordaCor || TEMA_PADRAO.cotasConfig?.regraDescontoBordaCor || 'rgba(16, 185, 129, 0.3)',
+      regraDescontoTemBorda: tema?.cotasConfig?.regraDescontoTemBorda ?? TEMA_PADRAO.cotasConfig?.regraDescontoTemBorda ?? true,
+      regraDescontoEspessuraBorda: tema?.cotasConfig?.regraDescontoEspessuraBorda ?? TEMA_PADRAO.cotasConfig?.regraDescontoEspessuraBorda ?? 1,
+      regraDescontoRaioBorda: tema?.cotasConfig?.regraDescontoRaioBorda ?? TEMA_PADRAO.cotasConfig?.regraDescontoRaioBorda ?? 9999,
+      regraDescontoFonte: tema?.cotasConfig?.regraDescontoFonte || TEMA_PADRAO.cotasConfig?.regraDescontoFonte || 'Inter',
+      regraDescontoTamanhoFonte: tema?.cotasConfig?.regraDescontoTamanhoFonte ?? tema?.cotasConfig?.regraDescontoTamanhoTexto ?? TEMA_PADRAO.cotasConfig?.regraDescontoTamanhoFonte ?? 12,
+      regraDescontoTamanhoTexto: tema?.cotasConfig?.regraDescontoTamanhoTexto ?? tema?.cotasConfig?.regraDescontoTamanhoFonte ?? TEMA_PADRAO.cotasConfig?.regraDescontoTamanhoTexto ?? 12,
+      regraDescontoPadding: tema?.cotasConfig?.regraDescontoPadding ?? TEMA_PADRAO.cotasConfig?.regraDescontoPadding ?? 6,
+      regraDescontoPaddingY: tema?.cotasConfig?.regraDescontoPaddingY ?? TEMA_PADRAO.cotasConfig?.regraDescontoPaddingY ?? 4,
+      regraDescontoAlinhamento: tema?.cotasConfig?.regraDescontoAlinhamento || TEMA_PADRAO.cotasConfig?.regraDescontoAlinhamento || 'centro',
+      regraDescontoIconeAtivo: tema?.cotasConfig?.regraDescontoIconeAtivo ?? TEMA_PADRAO.cotasConfig?.regraDescontoIconeAtivo ?? true,
+      regraDescontoMostrarIcone: tema?.cotasConfig?.regraDescontoMostrarIcone ?? tema?.cotasConfig?.regraDescontoIconeAtivo ?? TEMA_PADRAO.cotasConfig?.regraDescontoMostrarIcone ?? true,
+      regraDescontoIcone: tema?.cotasConfig?.regraDescontoIcone || TEMA_PADRAO.cotasConfig?.regraDescontoIcone || 'Zap',
+      regraDescontoTextoModelo: tema?.cotasConfig?.regraDescontoTextoModelo || tema?.cotasConfig?.regraDescontoModeloTexto || TEMA_PADRAO.cotasConfig?.regraDescontoModeloTexto || 'A partir de {valor} cada cota fica por {desconto}',
     },
     layout: {
       ordem: (tema?.layout?.ordem && tema.layout.ordem.length > 0)
@@ -489,6 +890,7 @@ export const TemaBuilderView: React.FC<Props> = ({
       tipografia: { ...temaSeguro.tipografia, ...(parcial.tipografia || {}) },
       fundoMidia: { ...temaSeguro.fundoMidia, ...(parcial.fundoMidia || {}) },
       organizadorCabecalho: { ...temaSeguro.organizadorCabecalho, ...(parcial.organizadorCabecalho || {}) },
+      cotasConfig: { ...temaSeguro.cotasConfig, ...(parcial.cotasConfig || {}) },
       layout: {
         ordem: parcial.layout?.ordem || temaSeguro.layout.ordem,
         visivel: { ...temaSeguro.layout.visivel, ...(parcial.layout?.visivel || {}) }
@@ -619,6 +1021,9 @@ export const TemaBuilderView: React.FC<Props> = ({
       { quantidade: 10, valor: 4.50, destaque: false },
       { quantidade: 50, valor: 20.00, destaque: true },
       { quantidade: 100, valor: 35.00, destaque: false }
+    ],
+    descontoPorValorTotal: campanha.descontoPorValorTotal || [
+      { aPartirDeValor: 20, valorCotaComDesconto: 0.35 }
     ],
     ofertasRelampago: campanha.ofertasRelampago || [],
     checkout: (campanha as any).checkout || DEFAULT_CHECKOUT_CONFIG,
@@ -1053,6 +1458,7 @@ export const TemaBuilderView: React.FC<Props> = ({
                       { id: 'meusNumeros', label: 'Meus Números', iconKey: temaSeguro.secaoIcones.meusNumeros, corKey: 'iconeMeusNumeros' },
                       { id: 'sorteio', label: 'Data do Sorteio', iconKey: temaSeguro.secaoIcones.sorteio, corKey: 'iconeSorteio' },
                       { id: 'botaoCompra', label: 'Botão de Compra', iconKey: temaSeguro.botao.iconeCompra || temaSeguro.secaoIcones.botaoCompra || 'Sparkles', corKey: 'textoBotao' },
+                      { id: 'regraDesconto', label: 'Regra de Desconto', iconKey: temaSeguro.cotasConfig?.regraDescontoIcone || 'Zap', corKey: 'iconeCor' },
                     ].map(secao => {
                       const IconComp = getSectionIcon(secao.iconKey, Slash) || Slash;
                       const isAtiva = secaoIconeAberta === secao.id;
@@ -1100,11 +1506,14 @@ export const TemaBuilderView: React.FC<Props> = ({
                       meusNumeros: { label: 'Meus Números / Consulta', desc: 'Exibido nos botões e modais de busca de cotas', iconKey: 'meusNumeros', corKey: 'iconeMeusNumeros', iconListKey: 'meusNumeros' },
                       sorteio: { label: 'Data & Local do Sorteio', desc: 'Exibido no bloco de data e extração da Loteria Federal', iconKey: 'sorteio', corKey: 'iconeSorteio', iconListKey: 'sorteio' },
                       botaoCompra: { label: 'Botão de Compra (CTA Principal)', desc: 'Exibido no botão principal de compra ("Participar do Sorteio"). Selecione "Nenhum" para ocultar o ícone.', iconKey: 'botaoCompra', corKey: 'textoBotao', iconListKey: 'botaoCompra' },
+                      regraDesconto: { label: 'Card da Regra de Desconto (Evento)', desc: 'Exibido nos avisos de desconto progressivo de cotas. Selecione "Nenhum" para ocultar o ícone.', iconKey: 'regraDesconto', corKey: 'iconeCor', iconListKey: 'regraDesconto' },
                     };
 
                     const cfg = configMap[secaoIconeAberta] || configMap.premios;
                     const iconeSelecionado = cfg.iconKey === 'botaoCompra' 
                       ? (temaSeguro.botao.iconeCompra || temaSeguro.secaoIcones.botaoCompra || 'Sparkles') 
+                      : cfg.iconKey === 'regraDesconto'
+                      ? (temaSeguro.cotasConfig?.regraDescontoIcone || 'Zap')
                       : ((temaSeguro.secaoIcones as any)[cfg.iconKey] || 'Trophy');
                     const corAtual = (temaSeguro.cores as any)[cfg.corKey] || temaSeguro.cores.iconeCor || '#10b981';
                     const listaIcones = ICON_SETS[cfg.iconListKey] || ICON_SETS.premios;
@@ -1171,6 +1580,15 @@ export const TemaBuilderView: React.FC<Props> = ({
                                       atualizarTema({
                                         botao: { ...temaSeguro.botao, iconeCompra: op.id },
                                         secaoIcones: { ...temaSeguro.secaoIcones, botaoCompra: op.id }
+                                      });
+                                    } else if (cfg.iconKey === 'regraDesconto') {
+                                      const isNone = op.id === 'none';
+                                      atualizarTema({
+                                        cotasConfig: {
+                                          ...temaSeguro.cotasConfig,
+                                          regraDescontoIcone: op.id as any,
+                                          regraDescontoMostrarIcone: !isNone
+                                        }
                                       });
                                     } else {
                                       atualizarTema({ secaoIcones: { ...temaSeguro.secaoIcones, [cfg.iconKey]: op.id } });
@@ -1280,7 +1698,7 @@ export const TemaBuilderView: React.FC<Props> = ({
                         Voltar para Botões & Elementos
                       </button>
                       <span className="text-[10px] uppercase font-black tracking-wider px-2.5 py-1 rounded bg-slate-950 border border-slate-800 text-slate-400">
-                        {subAbaBotao === 'compra' ? 'CTA Principal' : subAbaBotao === 'pacotes' ? 'Pacotes' : subAbaBotao === 'controles' ? 'Quantidade' : subAbaBotao === 'cotas' ? 'Cotas' : subAbaBotao === 'progresso' ? 'Progresso de Vendas' : subAbaBotao === 'titulosPremiados' ? 'Títulos Premiados' : 'Cards das Seções'}
+                        {subAbaBotao === 'compra' ? 'CTA Principal' : subAbaBotao === 'pacotes' ? 'Pacotes' : subAbaBotao === 'controles' ? 'Quantidade' : subAbaBotao === 'por_apenas' ? 'Preço por Cota' : subAbaBotao === 'cotas' ? 'Cotas' : subAbaBotao === 'progresso' ? 'Progresso de Vendas' : subAbaBotao === 'titulosPremiados' ? 'Títulos Premiados' : 'Cards das Seções'}
                       </span>
                     </div>
                   )}
@@ -1289,6 +1707,7 @@ export const TemaBuilderView: React.FC<Props> = ({
                     <div className="grid grid-cols-1 gap-3 animate-in fade-in">
                       {[
                         { id: 'compra', titulo: 'Botão de Compra Principal (CTA)', desc: 'Texto, ícones, estilo (Sólido, Vidro, 3D), cores, bordas, dimensões e sombras.', icone: ShoppingCart, color: 'text-emerald-400 bg-emerald-500/10' },
+                        { id: 'por_apenas', titulo: 'Preço por Cota ("Por Apenas")', desc: 'Edite texto, fontes, formato (texto solto, botão ou card), layout, alinhamento e posição.', icone: Zap, color: 'text-emerald-400 bg-emerald-500/10' },
                         { id: 'pacotes', titulo: 'Botões dos Pacotes Promocionais', desc: 'Estilo visual dos combos de cotas, cores padrão, pacote em destaque e selos.', icone: Package, color: 'text-amber-400 bg-amber-500/10' },
                         { id: 'controles', titulo: 'Controles de Quantidade (+ e -)', desc: 'Cores dos botões de adicionar/remover cotas, campo de quantidade e bordas.', icone: SlidersHorizontal, color: 'text-blue-400 bg-blue-500/10' },
                         { id: 'cotas', titulo: 'Grade de Cotas Manuais', desc: 'Cores das cotas livres, selecionadas, pagas/reservadas e números.', icone: Ticket, color: 'text-pink-400 bg-pink-500/10' },
@@ -1343,10 +1762,14 @@ export const TemaBuilderView: React.FC<Props> = ({
                     subtitulo={temaSeguro.botao.subtituloCompra || ''}
                     fonteTitulo={temaSeguro.tipografia.fonteBotaoCompraTitulo || ''}
                     fonteSubtitulo={temaSeguro.tipografia.fonteBotaoCompraSubtitulo || ''}
+                    alinhamentoTitulo={temaSeguro.tipografia.alinhamentoCompraTitulo || temaSeguro.tipografia.alinhamentoCompra || 'esquerda'}
+                    alinhamentoSubtitulo={temaSeguro.tipografia.alinhamentoCompraSubtitulo || temaSeguro.tipografia.alinhamentoCompra || 'esquerda'}
                     onTituloChange={val => atualizarTema({ botao: { ...temaSeguro.botao, tituloCompra: val } })}
                     onSubtituloChange={val => atualizarTema({ botao: { ...temaSeguro.botao, subtituloCompra: val } })}
                     onFonteTituloChange={val => atualizarTema({ tipografia: { ...temaSeguro.tipografia, fonteBotaoCompraTitulo: val } })}
                     onFonteSubtituloChange={val => atualizarTema({ tipografia: { ...temaSeguro.tipografia, fonteBotaoCompraSubtitulo: val } })}
+                    onAlinhamentoTituloChange={val => atualizarTema({ tipografia: { ...temaSeguro.tipografia, alinhamentoCompraTitulo: val } })}
+                    onAlinhamentoSubtituloChange={val => atualizarTema({ tipografia: { ...temaSeguro.tipografia, alinhamentoCompraSubtitulo: val } })}
                   />
 
                   {/* Seletor de Estilo Visual com Exemplo Real */}
@@ -1679,6 +2102,770 @@ export const TemaBuilderView: React.FC<Props> = ({
                         </div>
                       )}
 
+                      {/* 1.5. PREÇO DA COTA ("POR APENAS") */}
+                      {subAbaBotao === 'por_apenas' && (
+                        <div className="space-y-6 animate-in fade-in duration-200">
+                          <div className="space-y-1">
+                            <h4 className="text-sm font-black text-white flex items-center gap-2">
+                              <Zap className="w-4 h-4 text-emerald-400" />
+                              Preço por Cota ("Por Apenas")
+                            </h4>
+                            <p className="text-xs text-slate-400">
+                              Personalize o texto, tamanho das fontes, formato visual do container com miniaturas em tempo real, estilos de botão, alinhamento e posição na página.
+                            </p>
+                          </div>
+
+                          {/* 1. TEXTOS E FONTES */}
+                          <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-4">
+                            <div className="flex items-center justify-between border-b border-slate-800/80 pb-2.5">
+                              <div className="flex items-center gap-2">
+                                <Type className="w-4 h-4 text-purple-400 shrink-0" />
+                                <h5 className="text-xs font-black text-white uppercase tracking-wider">Texto &amp; Rótulo</h5>
+                              </div>
+                              <span className="text-[10px] text-slate-500 font-medium">Apague o texto se quiser ocultar</span>
+                            </div>
+
+                            <div className="space-y-2">
+                              <label className="text-[11px] font-bold text-slate-300 block">Texto antes do valor:</label>
+                              <input
+                                type="text"
+                                value={temaSeguro.cotasConfig?.textoPorApenas ?? 'Por apenas'}
+                                onChange={e => atualizarTema({ cotasConfig: { ...temaSeguro.cotasConfig, textoPorApenas: e.target.value } })}
+                                placeholder="Ex: Por apenas, Por, Valor por cota..."
+                                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                              />
+                              {!(temaSeguro.cotasConfig?.textoPorApenas ?? 'Por apenas').trim() && (
+                                <p className="text-[10px] text-amber-400 font-medium">Texto oculto. Apenas o valor do preço será exibido.</p>
+                              )}
+                            </div>
+
+                            {/* Fonte do Preço por Cota */}
+                            <div className="space-y-1.5 pt-2 border-t border-slate-800/60">
+                              <label className="text-[11px] font-bold text-slate-300 block">Fonte do Preço por Cota:</label>
+                              <SeletorFonteCard
+                                valor={temaSeguro.cotasConfig?.porApenasFonte || ''}
+                                onChange={novaFonte => atualizarTema({ cotasConfig: { ...temaSeguro.cotasConfig, porApenasFonte: novaFonte } })}
+                              />
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-800/60">
+                              {/* Tamanho da Fonte do Texto */}
+                              <div className="space-y-1.5 p-3 bg-slate-900/60 rounded-xl border border-slate-800">
+                                <div className="flex justify-between items-center text-[11px]">
+                                  <span className="font-bold text-slate-300">Tamanho da Fonte (Texto):</span>
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => atualizarTema({ cotasConfig: { ...temaSeguro.cotasConfig, porApenasTamanhoTexto: Math.max(6, (temaSeguro.cotasConfig?.porApenasTamanhoTexto ?? 14) - 1) } })}
+                                      className="w-5 h-5 bg-slate-800 hover:bg-slate-700 text-white rounded font-bold text-xs flex items-center justify-center cursor-pointer"
+                                    >
+                                      -
+                                    </button>
+                                    <input
+                                      type="number"
+                                      min="6"
+                                      max="36"
+                                      value={temaSeguro.cotasConfig?.porApenasTamanhoTexto ?? 14}
+                                      onChange={e => atualizarTema({ cotasConfig: { ...temaSeguro.cotasConfig, porApenasTamanhoTexto: Math.min(36, Math.max(6, Number(e.target.value) || 6)) } })}
+                                      className="w-12 bg-slate-950 border border-slate-700 rounded px-1 py-0.5 text-center font-mono text-emerald-400 font-bold text-xs focus:outline-none"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => atualizarTema({ cotasConfig: { ...temaSeguro.cotasConfig, porApenasTamanhoTexto: Math.min(36, (temaSeguro.cotasConfig?.porApenasTamanhoTexto ?? 14) + 1) } })}
+                                      className="w-5 h-5 bg-slate-800 hover:bg-slate-700 text-white rounded font-bold text-xs flex items-center justify-center cursor-pointer"
+                                    >
+                                      +
+                                    </button>
+                                    <span className="text-slate-500 text-[10px] font-mono">px</span>
+                                  </div>
+                                </div>
+                                <input
+                                  type="range"
+                                  min="6"
+                                  max="36"
+                                  value={temaSeguro.cotasConfig?.porApenasTamanhoTexto ?? 14}
+                                  onPointerDown={e => e.stopPropagation()}
+                                  onTouchStart={e => e.stopPropagation()}
+                                  onChange={e => atualizarTema({ cotasConfig: { ...temaSeguro.cotasConfig, porApenasTamanhoTexto: Number(e.target.value) } })}
+                                  className="w-full accent-emerald-500 cursor-pointer h-2 bg-slate-950 rounded-lg"
+                                />
+                              </div>
+
+                              {/* Tamanho da Fonte do Valor */}
+                              <div className="space-y-1.5 p-3 bg-slate-900/60 rounded-xl border border-slate-800">
+                                <div className="flex justify-between items-center text-[11px]">
+                                  <span className="font-bold text-slate-300">Tamanho da Fonte (Preço/Valor):</span>
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => atualizarTema({ cotasConfig: { ...temaSeguro.cotasConfig, porApenasTamanhoValor: Math.max(6, (temaSeguro.cotasConfig?.porApenasTamanhoValor ?? 24) - 1) } })}
+                                      className="w-5 h-5 bg-slate-800 hover:bg-slate-700 text-white rounded font-bold text-xs flex items-center justify-center cursor-pointer"
+                                    >
+                                      -
+                                    </button>
+                                    <input
+                                      type="number"
+                                      min="6"
+                                      max="60"
+                                      value={temaSeguro.cotasConfig?.porApenasTamanhoValor ?? 24}
+                                      onChange={e => atualizarTema({ cotasConfig: { ...temaSeguro.cotasConfig, porApenasTamanhoValor: Math.min(60, Math.max(6, Number(e.target.value) || 6)) } })}
+                                      className="w-12 bg-slate-950 border border-slate-700 rounded px-1 py-0.5 text-center font-mono text-emerald-400 font-bold text-xs focus:outline-none"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => atualizarTema({ cotasConfig: { ...temaSeguro.cotasConfig, porApenasTamanhoValor: Math.min(60, (temaSeguro.cotasConfig?.porApenasTamanhoValor ?? 24) + 1) } })}
+                                      className="w-5 h-5 bg-slate-800 hover:bg-slate-700 text-white rounded font-bold text-xs flex items-center justify-center cursor-pointer"
+                                    >
+                                      +
+                                    </button>
+                                    <span className="text-slate-500 text-[10px] font-mono">px</span>
+                                  </div>
+                                </div>
+                                <input
+                                  type="range"
+                                  min="6"
+                                  max="60"
+                                  value={temaSeguro.cotasConfig?.porApenasTamanhoValor ?? 24}
+                                  onPointerDown={e => e.stopPropagation()}
+                                  onTouchStart={e => e.stopPropagation()}
+                                  onChange={e => atualizarTema({ cotasConfig: { ...temaSeguro.cotasConfig, porApenasTamanhoValor: Number(e.target.value) } })}
+                                  className="w-full accent-emerald-500 cursor-pointer h-2 bg-slate-950 rounded-lg"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* 2. FORMATO & CONTAINER DO ELEMENTO COM MINIATURAS REAIS */}
+                          <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-4">
+                            <div className="space-y-1">
+                              <h5 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
+                                <Box className="w-3.5 h-3.5 text-blue-400" /> Formato &amp; Estilo Visual do Container
+                              </h5>
+                              <p className="text-[11px] text-slate-400">
+                                Veja o exemplo visual de cada uma das 4 estruturas abaixo com as cores definidas:
+                              </p>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              {(() => {
+                                const corFundoAtual = temaSeguro.cotasConfig?.porApenasFundo || '#064e3b';
+                                const corTextoAtual = temaSeguro.cotasConfig?.porApenasTexto || '#10b981';
+                                const corBordaAtual = temaSeguro.cotasConfig?.porApenasBorda || '#059669';
+                                const estiloBtnAtual = temaSeguro.cotasConfig?.porApenasEstiloBotao || 'solido';
+                                const temBordaAtual = temaSeguro.cotasConfig?.porApenasTemBorda ?? true;
+                                const espBordaAtual = temaSeguro.cotasConfig?.porApenasEspessuraBorda ?? 1;
+                                const raioBordaAtual = temaSeguro.cotasConfig?.porApenasRaioBorda ?? 10;
+                                const txtLabel = (temaSeguro.cotasConfig?.textoPorApenas ?? 'Por apenas').trim() || 'Por apenas';
+
+                                // Estilização para tags nos previews
+                                const getMiniTagStyle = () => {
+                                  if (estiloBtnAtual === 'vidro') {
+                                    return {
+                                      backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                                      backdropFilter: 'blur(4px)',
+                                      border: temBordaAtual ? `${espBordaAtual}px solid ${corBordaAtual}` : 'none',
+                                      borderRadius: `${raioBordaAtual}px`,
+                                      color: corTextoAtual,
+                                    };
+                                  }
+                                  if (estiloBtnAtual === 'transparente') {
+                                    return {
+                                      backgroundColor: 'transparent',
+                                      border: temBordaAtual ? `${espBordaAtual}px solid ${corBordaAtual}` : '1px dashed #475569',
+                                      borderRadius: `${raioBordaAtual}px`,
+                                      color: corTextoAtual,
+                                    };
+                                  }
+                                  if (estiloBtnAtual === 'sombra') {
+                                    return {
+                                      ...obterFundoCss(corFundoAtual, '#064e3b'),
+                                      border: temBordaAtual ? `${espBordaAtual}px solid ${corBordaAtual}` : 'none',
+                                      borderRadius: `${raioBordaAtual}px`,
+                                      color: corTextoAtual,
+                                      boxShadow: `0 3px 0 ${corBordaAtual}`,
+                                    };
+                                  }
+                                  // Sólido
+                                  return {
+                                    ...obterFundoCss(corFundoAtual, '#064e3b'),
+                                    border: temBordaAtual ? `${espBordaAtual}px solid ${corBordaAtual}` : 'none',
+                                    borderRadius: `${raioBordaAtual}px`,
+                                    color: corTextoAtual,
+                                  };
+                                };
+
+                                return [
+                                  {
+                                    id: 'apenas_texto_preco',
+                                    label: 'Texto & Preço Soltos',
+                                    desc: 'Sem card ou moldura em volta, limpo e direto',
+                                    renderMini: () => (
+                                      <div className="py-2.5 px-3 bg-slate-900/90 rounded-lg flex flex-col items-center justify-center gap-0.5 w-full">
+                                        <span className="text-[10px] font-bold opacity-80" style={{ color: corTextoAtual }}>
+                                          {txtLabel}
+                                        </span>
+                                        <span className="text-xs font-mono font-black" style={{ color: corTextoAtual }}>
+                                          R$ 0,50
+                                        </span>
+                                      </div>
+                                    ),
+                                  },
+                                  {
+                                    id: 'texto_e_botao',
+                                    label: 'Texto Solto + Botão no Valor',
+                                    desc: 'Rótulo simples e o valor destacado em botão/tag',
+                                    renderMini: () => (
+                                      <div className="py-2 px-3 bg-slate-900/90 rounded-lg flex flex-col items-center justify-center gap-1 w-full">
+                                        <span className="text-[10px] font-bold opacity-80" style={{ color: corTextoAtual }}>
+                                          {txtLabel}
+                                        </span>
+                                        <div style={getMiniTagStyle()} className="px-2.5 py-0.5 text-xs font-mono font-black shadow-sm">
+                                          R$ 0,50
+                                        </div>
+                                      </div>
+                                    ),
+                                  },
+                                  {
+                                    id: 'botao_unico',
+                                    label: 'Botão Único Unificado',
+                                    desc: 'Texto e valor juntos em um único botão estilizado',
+                                    renderMini: () => (
+                                      <div className="py-2.5 px-3 bg-slate-900/90 rounded-lg flex items-center justify-center w-full">
+                                        <div style={getMiniTagStyle()} className="px-3 py-1 flex items-center gap-1.5 shadow-sm">
+                                          <span className="text-[10px] font-bold opacity-90">{txtLabel}</span>
+                                          <span className="text-xs font-mono font-black">R$ 0,50</span>
+                                        </div>
+                                      </div>
+                                    ),
+                                  },
+                                  {
+                                    id: 'card_destaque',
+                                    label: 'Card Destaque Tradicional',
+                                    desc: 'Moldura retangular clássica com fundo e borda',
+                                    renderMini: () => (
+                                      <div 
+                                        style={{
+                                          backgroundColor: '#090d16',
+                                          border: temBordaAtual ? `${espBordaAtual}px solid ${corBordaAtual}` : '1px solid #1e293b',
+                                          borderRadius: `${raioBordaAtual}px`,
+                                        }}
+                                        className="py-2 px-3 flex flex-col items-center justify-center gap-1 w-full shadow-sm"
+                                      >
+                                        <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
+                                          {txtLabel}
+                                        </span>
+                                        <div style={getMiniTagStyle()} className="px-2.5 py-0.5 text-xs font-mono font-black">
+                                          R$ 0,50
+                                        </div>
+                                      </div>
+                                    ),
+                                  },
+                                ].map(fmt => {
+                                  const isSel = (temaSeguro.cotasConfig?.estiloContainer || 'texto_e_botao') === fmt.id;
+                                  return (
+                                    <button
+                                      key={fmt.id}
+                                      type="button"
+                                      onClick={() => atualizarTema({ cotasConfig: { ...temaSeguro.cotasConfig, estiloContainer: fmt.id as any } })}
+                                      className={`p-3.5 rounded-xl border text-left transition flex flex-col justify-between gap-2.5 cursor-pointer ${
+                                        isSel
+                                          ? 'bg-emerald-500/10 border-emerald-500 ring-2 ring-emerald-500/40 shadow-lg shadow-emerald-500/10'
+                                          : 'bg-slate-900 border-slate-800 hover:border-slate-700'
+                                      }`}
+                                    >
+                                      <div className="flex items-center justify-between w-full">
+                                        <span className={`text-xs font-black ${isSel ? 'text-emerald-400' : 'text-white'}`}>{fmt.label}</span>
+                                        {isSel && <Check className="w-4 h-4 text-emerald-400" />}
+                                      </div>
+
+                                      {/* Miniatura do Exemplo Visual Real */}
+                                      <div className="w-full">
+                                        {fmt.renderMini()}
+                                      </div>
+
+                                      <p className="text-[10px] text-slate-400 leading-tight">{fmt.desc}</p>
+                                    </button>
+                                  );
+                                });
+                              })()}
+                            </div>
+                          </div>
+
+                          {/* 3. ESTILO VISUAL DO BOTÃO / TAG (SÓLIDO, VIDRO, TRANSPARENTE, 3D/SOMBRA) */}
+                          <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-4">
+                            <div className="space-y-1">
+                              <h5 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
+                                <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Estilo do Botão / Tag de Preço
+                              </h5>
+                              <p className="text-[11px] text-slate-400">
+                                Escolha o efeito visual aplicado à tag de valor:
+                              </p>
+                            </div>
+
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                              {(() => {
+                                const corFundoAtual = temaSeguro.cotasConfig?.porApenasFundo || '#064e3b';
+                                const corTextoAtual = temaSeguro.cotasConfig?.porApenasTexto || '#10b981';
+                                const corBordaAtual = temaSeguro.cotasConfig?.porApenasBorda || '#059669';
+                                const temBordaAtual = temaSeguro.cotasConfig?.porApenasTemBorda ?? true;
+                                const espBordaAtual = temaSeguro.cotasConfig?.porApenasEspessuraBorda ?? 1;
+                                const raioBordaAtual = temaSeguro.cotasConfig?.porApenasRaioBorda ?? 10;
+
+                                return [
+                                  {
+                                    id: 'solido',
+                                    label: 'Sólido',
+                                    desc: 'Fundo vibrante e preenchido',
+                                    style: {
+                                      ...obterFundoCss(corFundoAtual, '#064e3b'),
+                                      border: temBordaAtual ? `${espBordaAtual}px solid ${corBordaAtual}` : 'none',
+                                      borderRadius: `${raioBordaAtual}px`,
+                                      color: corTextoAtual,
+                                    },
+                                  },
+                                  {
+                                    id: 'vidro',
+                                    label: 'Vidro (Glass)',
+                                    desc: 'Translúcido com Blur suave',
+                                    style: {
+                                      backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                                      backdropFilter: 'blur(4px)',
+                                      border: temBordaAtual ? `${espBordaAtual}px solid ${corBordaAtual}` : 'none',
+                                      borderRadius: `${raioBordaAtual}px`,
+                                      color: corTextoAtual,
+                                    },
+                                  },
+                                  {
+                                    id: 'transparente',
+                                    label: 'Transparente',
+                                    desc: 'Fundo vazado com borda nítida',
+                                    style: {
+                                      backgroundColor: 'transparent',
+                                      border: temBordaAtual ? `${espBordaAtual}px solid ${corBordaAtual}` : '1px solid #475569',
+                                      borderRadius: `${raioBordaAtual}px`,
+                                      color: corTextoAtual,
+                                    },
+                                  },
+                                  {
+                                    id: 'sombra',
+                                    label: 'Sombra 3D',
+                                    desc: 'Efeito relevo físico moderno',
+                                    style: {
+                                      ...obterFundoCss(corFundoAtual, '#064e3b'),
+                                      border: temBordaAtual ? `${espBordaAtual}px solid ${corBordaAtual}` : 'none',
+                                      borderRadius: `${raioBordaAtual}px`,
+                                      color: corTextoAtual,
+                                      boxShadow: `0 3px 0 ${corBordaAtual}`,
+                                    },
+                                  },
+                                ].map(est => {
+                                  const isSel = (temaSeguro.cotasConfig?.porApenasEstiloBotao || 'solido') === est.id;
+                                  return (
+                                    <button
+                                      key={est.id}
+                                      type="button"
+                                      onClick={() => atualizarTema({ cotasConfig: { ...temaSeguro.cotasConfig, porApenasEstiloBotao: est.id as any } })}
+                                      className={`p-3 rounded-xl border text-left transition flex flex-col justify-between gap-2 cursor-pointer ${
+                                        isSel
+                                          ? 'bg-emerald-500/10 border-emerald-500 ring-2 ring-emerald-500/40 shadow-lg shadow-emerald-500/10'
+                                          : 'bg-slate-900 border-slate-800 hover:border-slate-700'
+                                      }`}
+                                    >
+                                      <div className="flex items-center justify-between w-full">
+                                        <span className={`text-xs font-black ${isSel ? 'text-emerald-400' : 'text-white'}`}>{est.label}</span>
+                                        {isSel && <Check className="w-3.5 h-3.5 text-emerald-400" />}
+                                      </div>
+
+                                      {/* Miniatura do Botão com Estilo */}
+                                      <div className="w-full py-1 flex items-center justify-center">
+                                        <div style={est.style} className="px-2.5 py-1 text-[11px] font-mono font-black">
+                                          R$ 0,50
+                                        </div>
+                                      </div>
+
+                                      <span className="text-[10px] text-slate-500 block truncate">{est.desc}</span>
+                                    </button>
+                                  );
+                                });
+                              })()}
+                            </div>
+                          </div>
+
+                          {/* 4. ALINHAMENTO */}
+                          <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-4">
+                            <h5 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
+                              <Layout className="w-3.5 h-3.5 text-amber-400" /> Alinhamento
+                            </h5>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              {/* Sub-item 1: Disposição do texto e valor */}
+                              <div className="space-y-2">
+                                <label className="text-[11px] font-bold text-slate-300 block">Disposição do Texto e Valor:</label>
+                                <div className="grid grid-cols-3 gap-2">
+                                  {[
+                                    { id: 'vertical', label: 'Vertical', desc: 'Texto em cima, Preço embaixo' },
+                                    { id: 'horizontal', label: 'Horizontal', desc: 'Texto à esq, Preço à dir' },
+                                    { id: 'inverso', label: 'Inverso', desc: 'Preço em cima, Texto embaixo' },
+                                  ].map(lay => {
+                                    const active = (temaSeguro.cotasConfig?.porApenasLayout || 'vertical') === lay.id;
+                                    return (
+                                      <button
+                                        key={lay.id}
+                                        type="button"
+                                        onClick={() => atualizarTema({ cotasConfig: { ...temaSeguro.cotasConfig, porApenasLayout: lay.id as any } })}
+                                        className={`p-2.5 rounded-xl border text-center transition cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
+                                          active
+                                            ? 'bg-purple-600 text-white border-purple-400 shadow-md font-black'
+                                            : 'bg-slate-900 text-slate-400 border-slate-800 hover:border-slate-700'
+                                        }`}
+                                      >
+                                        <span className="text-xs font-bold">{lay.label}</span>
+                                        <span className="text-[9px] opacity-75">{lay.desc}</span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+
+                              {/* Sub-item 2: Alinhamento na página */}
+                              <div className="space-y-2">
+                                <label className="text-[11px] font-bold text-slate-300 block">Alinhamento na Página:</label>
+                                <div className="flex items-center gap-2">
+                                  {[
+                                    { id: 'esquerda', label: 'À Esquerda', Icon: AlignLeft },
+                                    { id: 'centro', label: 'Centralizado', Icon: AlignCenter },
+                                    { id: 'direita', label: 'À Direita', Icon: AlignRight },
+                                  ].map(ali => {
+                                    const active = (temaSeguro.cotasConfig?.porApenasAlinhamento || 'centro') === ali.id;
+                                    const IconComp = ali.Icon;
+                                    return (
+                                      <button
+                                        key={ali.id}
+                                        type="button"
+                                        title={ali.label}
+                                        onClick={() => atualizarTema({ cotasConfig: { ...temaSeguro.cotasConfig, porApenasAlinhamento: ali.id as any } })}
+                                        className={`flex-1 py-2 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center cursor-pointer ${
+                                          active
+                                            ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-md font-black'
+                                            : 'bg-slate-900 text-slate-300 border-slate-800 hover:border-slate-700'
+                                        }`}
+                                      >
+                                        <IconComp className="w-4 h-4" />
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Posição no Layout Geral da Campanha */}
+                            <div className="space-y-2 pt-2 border-t border-slate-800/80">
+                              <label className="text-[11px] font-bold text-slate-300 block">Onde exibir o Preço ("Por Apenas") na página:</label>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                {[
+                                  { id: 'proximo_cotas', title: 'Próximo das Cotas & Pacotes', desc: 'Exibe logo acima da área de seleção de cotas' },
+                                  { id: 'abaixo_banner', title: 'Abaixo do Banner / Mídia Principal', desc: 'Exibe no topo da página, logo após a imagem do prêmio' },
+                                ].map(pos => {
+                                  const active = (temaSeguro.cotasConfig?.posicaoExibicao || 'proximo_cotas') === pos.id;
+                                  return (
+                                    <button
+                                      key={pos.id}
+                                      type="button"
+                                      onClick={() => atualizarTema({ cotasConfig: { ...temaSeguro.cotasConfig, posicaoExibicao: pos.id as any } })}
+                                      className={`p-3 rounded-xl border text-left transition flex flex-col gap-1 cursor-pointer ${
+                                        active
+                                          ? 'bg-emerald-500/10 border-emerald-500 ring-2 ring-emerald-500/40'
+                                          : 'bg-slate-900 border-slate-800 hover:border-slate-700'
+                                      }`}
+                                    >
+                                      <div className="flex items-center justify-between">
+                                        <span className={`text-xs font-black ${active ? 'text-emerald-400' : 'text-white'}`}>{pos.title}</span>
+                                        {active && <Check className="w-3.5 h-3.5 text-emerald-400" />}
+                                      </div>
+                                      <p className="text-[10px] text-slate-400">{pos.desc}</p>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* 5. CORES, BORDA E CONTROLES DE DIMENSÃO */}
+                          <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-4">
+                            <h5 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
+                              <Palette className="w-3.5 h-3.5 text-pink-400" /> Cores &amp; Borda do Elemento "Por Apenas"
+                            </h5>
+
+                            <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl">
+                              <SeletorCorOuDegrade
+                                label="Cor de Fundo da Tag / Botão / Card"
+                                valor={temaSeguro.cotasConfig?.porApenasFundo || '#064e3b'}
+                                onChange={novo => atualizarTema({ cotasConfig: { ...temaSeguro.cotasConfig, porApenasFundo: novo } })}
+                              />
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
+                                <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Cor do Texto e do Valor</label>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="color"
+                                    value={temaSeguro.cotasConfig?.porApenasTexto?.startsWith('#') ? temaSeguro.cotasConfig.porApenasTexto : '#10b981'}
+                                    onChange={e => atualizarTema({ cotasConfig: { ...temaSeguro.cotasConfig, porApenasTexto: e.target.value } })}
+                                    className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                                  />
+                                  <input
+                                    type="text"
+                                    value={temaSeguro.cotasConfig?.porApenasTexto || '#10b981'}
+                                    onChange={e => atualizarTema({ cotasConfig: { ...temaSeguro.cotasConfig, porApenasTexto: e.target.value } })}
+                                    className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Controle de Borda */}
+                              <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Borda do Elemento</label>
+                                  <button
+                                    type="button"
+                                    onClick={() => atualizarTema({ cotasConfig: { ...temaSeguro.cotasConfig, porApenasTemBorda: !(temaSeguro.cotasConfig?.porApenasTemBorda ?? true) } })}
+                                    className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase transition ${
+                                      (temaSeguro.cotasConfig?.porApenasTemBorda ?? true)
+                                        ? 'bg-emerald-500 text-slate-950 font-black'
+                                        : 'bg-slate-800 text-slate-400'
+                                    }`}
+                                  >
+                                    {(temaSeguro.cotasConfig?.porApenasTemBorda ?? true) ? 'Ativa' : 'Desativada'}
+                                  </button>
+                                </div>
+
+                                {(temaSeguro.cotasConfig?.porApenasTemBorda ?? true) && (
+                                  <div className="space-y-2 pt-1">
+                                    <div className="flex items-center gap-2">
+                                      <input
+                                        type="color"
+                                        value={temaSeguro.cotasConfig?.porApenasBorda?.startsWith('#') ? temaSeguro.cotasConfig.porApenasBorda : '#059669'}
+                                        onChange={e => atualizarTema({ cotasConfig: { ...temaSeguro.cotasConfig, porApenasBorda: e.target.value } })}
+                                        className="w-7 h-7 rounded cursor-pointer bg-transparent border-0 p-0"
+                                      />
+                                      <input
+                                        type="text"
+                                        value={temaSeguro.cotasConfig?.porApenasBorda || '#059669'}
+                                        onChange={e => atualizarTema({ cotasConfig: { ...temaSeguro.cotasConfig, porApenasBorda: e.target.value } })}
+                                        className="flex-1 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-[10px] font-mono text-white uppercase focus:outline-none"
+                                      />
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Sliders Geométricos de Espessura e Raio de Borda */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-800/80">
+                              <div className="space-y-1.5 p-3 bg-slate-900/60 rounded-xl border border-slate-800">
+                                <div className="flex justify-between items-center text-[11px]">
+                                  <span className="font-bold text-slate-300">Espessura da Borda:</span>
+                                  <span className="font-mono text-emerald-400 font-bold">{temaSeguro.cotasConfig?.porApenasEspessuraBorda ?? 1}px</span>
+                                </div>
+                                <input
+                                  type="range"
+                                  min="1"
+                                  max="8"
+                                  value={temaSeguro.cotasConfig?.porApenasEspessuraBorda ?? 1}
+                                  onPointerDown={e => e.stopPropagation()}
+                                  onTouchStart={e => e.stopPropagation()}
+                                  onChange={e => atualizarTema({ cotasConfig: { ...temaSeguro.cotasConfig, porApenasEspessuraBorda: Number(e.target.value) } })}
+                                  className="w-full accent-emerald-500 cursor-pointer h-2 bg-slate-950 rounded-lg"
+                                />
+                              </div>
+
+                              <div className="space-y-1.5 p-3 bg-slate-900/60 rounded-xl border border-slate-800">
+                                <div className="flex justify-between items-center text-[11px]">
+                                  <span className="font-bold text-slate-300">Arredondamento dos Cantos:</span>
+                                  <span className="font-mono text-emerald-400 font-bold">{temaSeguro.cotasConfig?.porApenasRaioBorda ?? 12}px</span>
+                                </div>
+                                <input
+                                  type="range"
+                                  min="0"
+                                  max="36"
+                                  value={temaSeguro.cotasConfig?.porApenasRaioBorda ?? 12}
+                                  onPointerDown={e => e.stopPropagation()}
+                                  onTouchStart={e => e.stopPropagation()}
+                                  onChange={e => atualizarTema({ cotasConfig: { ...temaSeguro.cotasConfig, porApenasRaioBorda: Number(e.target.value) } })}
+                                  className="w-full accent-emerald-500 cursor-pointer h-2 bg-slate-950 rounded-lg"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* 6. PRÉVIA REAL INTERATIVA DENTRO DA ABA DE CONFIGURAÇÃO */}
+                          <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-2">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                              Prévia em Tempo Real do "Por Apenas" (Como aparece na página):
+                            </label>
+                            <div className="py-6 px-4 flex items-center justify-center bg-slate-900/60 rounded-xl border border-slate-800">
+                              {(() => {
+                                const cotasCfg = temaSeguro.cotasConfig || {};
+                                const rawTexto = cotasCfg.textoPorApenas ?? 'Por apenas';
+                                const textoPorApenas = rawTexto.trim();
+                                const temTexto = textoPorApenas.length > 0;
+                                const porApenasFundo = cotasCfg.porApenasFundo || '#064e3b';
+                                const porApenasTexto = cotasCfg.porApenasTexto || '#10b981';
+                                const porApenasBorda = cotasCfg.porApenasBorda || '#059669';
+                                const porApenasTemBorda = cotasCfg.porApenasTemBorda ?? true;
+                                const porApenasEspessuraBorda = cotasCfg.porApenasEspessuraBorda ?? 1;
+                                const porApenasRaioBorda = cotasCfg.porApenasRaioBorda ?? 12;
+                                const porApenasEstiloBotao = cotasCfg.porApenasEstiloBotao || 'solido';
+                                const porApenasTamanhoValor = cotasCfg.porApenasTamanhoValor || 24;
+                                const porApenasTamanhoTexto = cotasCfg.porApenasTamanhoTexto || 14;
+                                const estiloContainer = cotasCfg.estiloContainer || 'texto_e_botao';
+                                const layout = cotasCfg.porApenasLayout || 'vertical';
+                                const alinhamento = cotasCfg.porApenasAlinhamento || 'centro';
+
+                                const alignWrapperClass = 
+                                  alinhamento === 'esquerda' ? 'justify-start text-left items-start' :
+                                  alinhamento === 'direita' ? 'justify-end text-right items-end' :
+                                  'justify-center text-center items-center';
+
+                                const justifyFlexClass =
+                                  alinhamento === 'esquerda' ? 'justify-start' :
+                                  alinhamento === 'direita' ? 'justify-end' :
+                                  'justify-center';
+
+                                const styleBotaoObj = (() => {
+                                  if (porApenasEstiloBotao === 'vidro') {
+                                    return {
+                                      backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                                      backdropFilter: 'blur(8px)',
+                                      border: porApenasTemBorda ? `${porApenasEspessuraBorda}px solid ${porApenasBorda}` : 'none',
+                                      borderRadius: `${porApenasRaioBorda}px`,
+                                      color: porApenasTexto,
+                                    };
+                                  }
+                                  if (porApenasEstiloBotao === 'transparente') {
+                                    return {
+                                      backgroundColor: 'transparent',
+                                      border: porApenasTemBorda ? `${porApenasEspessuraBorda}px solid ${porApenasBorda}` : 'none',
+                                      borderRadius: `${porApenasRaioBorda}px`,
+                                      color: porApenasTexto,
+                                    };
+                                  }
+                                  if (porApenasEstiloBotao === 'sombra') {
+                                    return {
+                                      ...obterFundoCss(porApenasFundo, '#064e3b'),
+                                      border: porApenasTemBorda ? `${porApenasEspessuraBorda}px solid ${porApenasBorda}` : 'none',
+                                      borderRadius: `${porApenasRaioBorda}px`,
+                                      color: porApenasTexto,
+                                      boxShadow: `0 4px 0 ${porApenasBorda}`,
+                                    };
+                                  }
+                                  return {
+                                    ...obterFundoCss(porApenasFundo, '#064e3b'),
+                                    border: porApenasTemBorda ? `${porApenasEspessuraBorda}px solid ${porApenasBorda}` : 'none',
+                                    borderRadius: `${porApenasRaioBorda}px`,
+                                    color: porApenasTexto,
+                                  };
+                                })();
+
+                                const renderTextoSolto = () => {
+                                  if (!temTexto) return null;
+                                  return (
+                                    <span style={{ fontSize: `${porApenasTamanhoTexto}px`, color: porApenasTexto }} className="font-bold tracking-tight inline-block opacity-90">
+                                      {textoPorApenas}
+                                    </span>
+                                  );
+                                };
+
+                                const renderValorSolto = () => (
+                                  <span style={{ fontSize: `${porApenasTamanhoValor}px`, color: porApenasTexto }} className="font-mono font-black tracking-tight inline-block">
+                                    R$ 0,50
+                                  </span>
+                                );
+
+                                const renderValorBotao = () => (
+                                  <div style={{ ...styleBotaoObj, fontSize: `${porApenasTamanhoValor}px` }} className="px-4 py-1.5 font-black shadow-sm font-mono tracking-tight inline-flex items-center justify-center">
+                                    R$ 0,50
+                                  </div>
+                                );
+
+                                const renderConteudo = (tipo: 'solto' | 'valor_botao') => {
+                                  const renderVal = tipo === 'solto' ? renderValorSolto() : renderValorBotao();
+                                  const renderTxt = renderTextoSolto();
+                                  if (layout === 'horizontal') {
+                                    return (
+                                      <div className={`flex flex-row flex-wrap items-center gap-2.5 ${justifyFlexClass}`}>
+                                        {renderTxt}
+                                        {renderVal}
+                                      </div>
+                                    );
+                                  }
+                                  if (layout === 'inverso') {
+                                    return (
+                                      <div className={`flex flex-col gap-1 ${alignWrapperClass}`}>
+                                        {renderVal}
+                                        {renderTxt}
+                                      </div>
+                                    );
+                                  }
+                                  return (
+                                    <div className={`flex flex-col gap-1 ${alignWrapperClass}`}>
+                                      {renderTxt}
+                                      {renderVal}
+                                    </div>
+                                  );
+                                };
+
+                                if (estiloContainer === 'apenas_texto_preco') {
+                                  return <div className={`w-full flex ${justifyFlexClass}`}>{renderConteudo('solto')}</div>;
+                                }
+                                if (estiloContainer === 'texto_e_botao') {
+                                  return <div className={`w-full flex ${justifyFlexClass}`}>{renderConteudo('valor_botao')}</div>;
+                                }
+                                if (estiloContainer === 'botao_unico') {
+                                  return (
+                                    <div className={`w-full flex ${justifyFlexClass}`}>
+                                      <div style={styleBotaoObj} className="px-5 py-2.5 shadow-md inline-flex items-center justify-center">
+                                        {layout === 'horizontal' ? (
+                                          <div className="flex flex-row flex-wrap items-center gap-2">
+                                            {temTexto && <span style={{ fontSize: `${porApenasTamanhoTexto}px` }} className="font-bold opacity-90">{textoPorApenas}</span>}
+                                            <span style={{ fontSize: `${porApenasTamanhoValor}px` }} className="font-mono font-black">R$ 0,50</span>
+                                          </div>
+                                        ) : layout === 'inverso' ? (
+                                          <div className="flex flex-col items-center gap-0.5">
+                                            <span style={{ fontSize: `${porApenasTamanhoValor}px` }} className="font-mono font-black">R$ 0,50</span>
+                                            {temTexto && <span style={{ fontSize: `${porApenasTamanhoTexto}px` }} className="font-bold opacity-90">{textoPorApenas}</span>}
+                                          </div>
+                                        ) : (
+                                          <div className="flex flex-col items-center gap-0.5">
+                                            {temTexto && <span style={{ fontSize: `${porApenasTamanhoTexto}px` }} className="font-bold opacity-90">{textoPorApenas}</span>}
+                                            <span style={{ fontSize: `${porApenasTamanhoValor}px` }} className="font-mono font-black">R$ 0,50</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                }
+                                return (
+                                  <div 
+                                    style={{
+                                      backgroundColor: '#090d16',
+                                      border: porApenasTemBorda ? `${porApenasEspessuraBorda}px solid ${porApenasBorda}` : 'none',
+                                      borderRadius: `${porApenasRaioBorda}px`,
+                                    }}
+                                    className="w-full p-4 shadow-sm"
+                                  >
+                                    <div className={`w-full flex ${justifyFlexClass}`}>
+                                      {renderConteudo('valor_botao')}
+                                    </div>
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
                       {/* 2. BOTÕES DE PACOTES PROMOCIONAIS */}
                       {subAbaBotao === 'pacotes' && (
                         <div className="space-y-5 animate-in fade-in duration-200">
@@ -1693,14 +2880,24 @@ export const TemaBuilderView: React.FC<Props> = ({
                           </div>
                   {/* Textos da Seção */}
                   <SectionTextConfig
-                    titulo={temaSeguro.botao.tituloPacotes || ''}
-                    subtitulo={temaSeguro.botao.subtituloPacotes || ''}
+                    titulo={temaSeguro.botao.tituloPacotes ?? '⚡ Pacotes Promocionais'}
+                    subtitulo={temaSeguro.botao.subtituloPacotes ?? 'Compre em pacotes e garanta super descontos!'}
                     fonteTitulo={temaSeguro.tipografia.fontePacotesTitulo || ''}
                     fonteSubtitulo={temaSeguro.tipografia.fontePacotesSubtitulo || ''}
+                    tamanhoTitulo={temaSeguro.tipografia.tamanhoPacotesTitulo ?? 16}
+                    tamanhoSubtitulo={temaSeguro.tipografia.tamanhoPacotesSubtitulo ?? 12}
+                    alinhamentoTitulo={temaSeguro.tipografia.alinhamentoPacotesTitulo || 'esquerda'}
+                    alinhamentoSubtitulo={temaSeguro.tipografia.alinhamentoPacotesSubtitulo || 'esquerda'}
                     onTituloChange={val => atualizarTema({ botao: { ...temaSeguro.botao, tituloPacotes: val } })}
                     onSubtituloChange={val => atualizarTema({ botao: { ...temaSeguro.botao, subtituloPacotes: val } })}
                     onFonteTituloChange={val => atualizarTema({ tipografia: { ...temaSeguro.tipografia, fontePacotesTitulo: val } })}
                     onFonteSubtituloChange={val => atualizarTema({ tipografia: { ...temaSeguro.tipografia, fontePacotesSubtitulo: val } })}
+                    onTamanhoTituloChange={val => atualizarTema({ tipografia: { ...temaSeguro.tipografia, tamanhoPacotesTitulo: val } })}
+                    onTamanhoSubtituloChange={val => atualizarTema({ tipografia: { ...temaSeguro.tipografia, tamanhoPacotesSubtitulo: val } })}
+                    onAlinhamentoTituloChange={val => atualizarTema({ tipografia: { ...temaSeguro.tipografia, alinhamentoPacotesTitulo: val } })}
+                    onAlinhamentoSubtituloChange={val => atualizarTema({ tipografia: { ...temaSeguro.tipografia, alinhamentoPacotesSubtitulo: val } })}
+                    placeholderTitulo="Deixe em branco para ocultar o título..."
+                    placeholderSubtitulo="Deixe em branco para ocultar o subtítulo..."
                   />
 
                   {/* Seletor de Estilo Visual para Pacotes */}
@@ -2108,6 +3305,454 @@ export const TemaBuilderView: React.FC<Props> = ({
                       </div>
                     </div>
                   </div>
+
+                  {/* Personalização do Card de Regra de Desconto / Regras de Evento */}
+                  <div className="p-4 bg-slate-950/90 border border-emerald-500/30 rounded-2xl space-y-4 pt-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <label className="text-xs font-black text-emerald-400 uppercase tracking-wider block flex items-center gap-1.5">
+                          <Zap className="w-3.5 h-3.5 text-emerald-400" />
+                          Card da Regra de Desconto / Desconto Progressivo:
+                        </label>
+                        <p className="text-[10px] text-slate-400">
+                          Personalize o aviso de desconto progressivo (ex: "A partir de R$ X cada cota sai por R$ Y") ativado na campanha.
+                        </p>
+                      </div>
+                      <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded font-mono font-bold">
+                        Regra de Evento
+                      </span>
+                    </div>
+
+                    <div className="space-y-4 pt-2 border-t border-slate-800">
+                      {/* Modelo de Texto da Regra */}
+                      <div className="space-y-2">
+                        <label className="text-[11px] font-bold text-slate-300 block">Modelo do Texto da Regra:</label>
+
+                        {/* Botão de Definir Modelo no local exato onde o texto fica */}
+                        <button
+                          type="button"
+                          onClick={() => setPainelModelosRegraAberto(!painelModelosRegraAberto)}
+                          className="w-full bg-slate-900 hover:bg-slate-800 border border-slate-700 hover:border-emerald-500/50 rounded-xl p-2.5 text-left transition flex items-center justify-between gap-2 cursor-pointer shadow-sm group"
+                        >
+                          <div className="flex items-center gap-2 overflow-hidden">
+                            <div className="p-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 group-hover:scale-105 transition shrink-0">
+                              <Sparkles className="w-4 h-4" />
+                            </div>
+                            <div className="flex flex-col min-w-0">
+                              <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">
+                                {(() => {
+                                  const val = temaSeguro.cotasConfig?.regraDescontoTextoModelo || '';
+                                  const preset = MODELOS_PRONTOS_REGRA.find(m => m.modelo && m.modelo === val);
+                                  return preset ? `Modelo: ${preset.label}` : '✏️ Modelo Personalizado';
+                                })()}
+                              </span>
+                              <span className="text-xs text-white truncate font-mono">
+                                {temaSeguro.cotasConfig?.regraDescontoTextoModelo || 'A partir de {valor} cada cota fica por {desconto}'}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="text-[10px] font-bold text-slate-300 bg-slate-800 px-2 py-1 rounded-lg group-hover:text-emerald-400 transition">
+                              {painelModelosRegraAberto ? 'Fechar Opções' : 'Selecionar Modelos'}
+                            </span>
+                            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${painelModelosRegraAberto ? 'rotate-180 text-emerald-400' : ''}`} />
+                          </div>
+                        </button>
+
+                        {/* Painel de Opções: 5 Modelos Prontos + 1 Personalizado */}
+                        {painelModelosRegraAberto && (
+                          <div className="p-3 bg-slate-900 border border-emerald-500/30 rounded-xl space-y-2 animate-in fade-in shadow-xl">
+                            <span className="text-[10px] font-bold text-emerald-400 block uppercase tracking-wider">
+                              Clique em um modelo para escolher ou selecione Personalizado:
+                            </span>
+                            <div className="grid grid-cols-1 gap-1.5">
+                              {MODELOS_PRONTOS_REGRA.map(m => {
+                                const textoAtual = temaSeguro.cotasConfig?.regraDescontoTextoModelo || '';
+                                const isPresetMatch = Boolean(m.modelo && textoAtual === m.modelo);
+                                const isCustomMatch = m.id === 'custom' && (!m.modelo || !MODELOS_PRONTOS_REGRA.some(p => p.modelo && p.modelo === textoAtual) || modoCustomRegra);
+                                const isSelected = isPresetMatch || isCustomMatch;
+
+                                return (
+                                  <button
+                                    key={m.id}
+                                    type="button"
+                                    onClick={() => {
+                                      if (m.id === 'custom') {
+                                        setModoCustomRegra(true);
+                                        setPainelModelosRegraAberto(false);
+                                      } else if (m.modelo) {
+                                        setModoCustomRegra(false);
+                                        atualizarTema({
+                                          cotasConfig: {
+                                            ...temaSeguro.cotasConfig,
+                                            regraDescontoTextoModelo: m.modelo
+                                          }
+                                        });
+                                        setPainelModelosRegraAberto(false);
+                                      }
+                                    }}
+                                    className={`p-2.5 rounded-lg border text-left transition flex items-center justify-between gap-2 cursor-pointer ${
+                                      isSelected
+                                        ? 'bg-emerald-500/20 border-emerald-500 text-white font-bold shadow-sm'
+                                        : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700 hover:bg-slate-900'
+                                    }`}
+                                  >
+                                    <div className="flex flex-col min-w-0">
+                                      <span className="text-[11px] font-black text-emerald-400">{m.label}</span>
+                                      <span className="text-[11px] font-mono text-slate-300 truncate">
+                                        {m.modelo || 'Permite que você mesmo digite qualquer texto de regra customizado.'}
+                                      </span>
+                                    </div>
+                                    {isSelected && <Check className="w-4 h-4 text-emerald-400 shrink-0" />}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Campo de Texto para Personalizado */}
+                        {(modoCustomRegra || !MODELOS_PRONTOS_REGRA.some(m => m.modelo && m.modelo === (temaSeguro.cotasConfig?.regraDescontoTextoModelo || ''))) && (
+                          <div className="p-3 bg-slate-950/80 border border-slate-800 rounded-xl space-y-1.5 animate-in fade-in">
+                            <label className="text-[10.5px] font-bold text-emerald-400 flex items-center gap-1 block">
+                              ✏️ Digite o seu texto personalizado da regra:
+                            </label>
+                            <input
+                              type="text"
+                              value={temaSeguro.cotasConfig?.regraDescontoTextoModelo || ''}
+                              onChange={e => {
+                                setModoCustomRegra(true);
+                                atualizarTema({
+                                  cotasConfig: {
+                                    ...temaSeguro.cotasConfig,
+                                    regraDescontoTextoModelo: e.target.value
+                                  }
+                                });
+                              }}
+                              placeholder="Ex: A partir de {valor} cada cota fica por {desconto}"
+                              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-mono"
+                            />
+                          </div>
+                        )}
+
+                        <p className="text-[9.5px] text-slate-400">
+                          Use <code className="text-emerald-400 font-bold">&#123;valor&#125;</code> para o valor total mínimo e <code className="text-emerald-400 font-bold">&#123;desconto&#125;</code> para o valor com desconto.
+                        </p>
+                      </div>
+
+                      {/* Escolher a Fonte e Tamanho da Fonte (Logo abaixo do Modelo de Texto) */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-400 block">Fonte do Texto da Regra:</label>
+                          <SeletorFonteCard
+                            valor={temaSeguro.cotasConfig?.regraDescontoFonte || ''}
+                            onChange={val => atualizarTema({ cotasConfig: { ...temaSeguro.cotasConfig, regraDescontoFonte: val } })}
+                          />
+                        </div>
+
+                        <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-1.5">
+                          <div className="flex justify-between items-center text-[10px]">
+                            <span className="font-bold text-slate-400">Tamanho da Fonte:</span>
+                            <span className="font-mono text-emerald-400 font-bold">
+                              {temaSeguro.cotasConfig?.regraDescontoTamanhoTexto ?? temaSeguro.cotasConfig?.regraDescontoTamanhoFonte ?? 12}px
+                            </span>
+                          </div>
+                          <input
+                            type="range"
+                            min="10"
+                            max="28"
+                            value={temaSeguro.cotasConfig?.regraDescontoTamanhoTexto ?? temaSeguro.cotasConfig?.regraDescontoTamanhoFonte ?? 12}
+                            onChange={e => {
+                              const val = Number(e.target.value);
+                              atualizarTema({
+                                cotasConfig: {
+                                  ...temaSeguro.cotasConfig,
+                                  regraDescontoTamanhoTexto: val,
+                                  regraDescontoTamanhoFonte: val
+                                }
+                              });
+                            }}
+                            className="w-full accent-emerald-500 bg-slate-950 cursor-pointer"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Alinhamento na Página (Mais abaixo) */}
+                      <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
+                        <SeletorAlinhamento
+                          label="Alinhamento do Card na Página:"
+                          valor={temaSeguro.cotasConfig?.regraDescontoAlinhamento || 'centro'}
+                          onChange={val => atualizarTema({ cotasConfig: { ...temaSeguro.cotasConfig, regraDescontoAlinhamento: val } })}
+                        />
+                      </div>
+
+                      {/* Estilo Visual do Card com Exemplo Visual Real */}
+                      <div className="space-y-2 pt-1">
+                        <label className="text-[11px] font-bold text-slate-300 block">Estilo Visual do Card (Exemplo Real):</label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                          {[
+                            { id: 'badge', label: 'Selo / Badge', desc: 'Sutil e arredondado' },
+                            { id: 'solido', label: 'Sólido', desc: 'Preenchimento nítido' },
+                            { id: 'vidro', label: 'Vidro (Glass)', desc: 'Translúcido com brilho' },
+                            { id: 'transparente', label: 'Transparente', desc: 'Apenas texto e borda' },
+                            { id: '3d', label: '3D Relevo', desc: 'Elevado com sombra' },
+                            { id: 'gradiente', label: 'Gradiente', desc: 'Degradê de cores' },
+                          ].map(st => {
+                            const isSelected = (temaSeguro.cotasConfig?.regraDescontoEstilo || 'badge') === st.id;
+                            const IconComponent = getSectionIcon(temaSeguro.cotasConfig?.regraDescontoIcone || 'Zap', Zap) || Zap;
+
+                            return (
+                              <button
+                                key={st.id}
+                                type="button"
+                                onClick={() => atualizarTema({ cotasConfig: { ...temaSeguro.cotasConfig, regraDescontoEstilo: st.id as any } })}
+                                className={`p-3 rounded-xl border text-left transition flex flex-col justify-between gap-2 cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-emerald-500/10 border-emerald-500 ring-2 ring-emerald-500/40 shadow'
+                                    : 'bg-slate-900 border-slate-800 hover:border-slate-700'
+                                }`}
+                              >
+                                <div className="flex items-center justify-between w-full">
+                                  <span className={`text-[11px] font-black ${isSelected ? 'text-emerald-400' : 'text-white'}`}>
+                                    {st.label}
+                                  </span>
+                                  {isSelected && <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
+                                </div>
+
+                                {/* Exemplo Visual do Card no Estilo */}
+                                <div className="w-full flex items-center justify-center p-2 bg-slate-950/80 rounded-lg border border-slate-800/80">
+                                  {st.id === 'badge' && (
+                                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-[10px] font-bold shadow-sm">
+                                      {(temaSeguro.cotasConfig?.regraDescontoMostrarIcone ?? true) && <IconComponent className="w-3 h-3 text-emerald-400" />}
+                                      <span>A partir de <strong className="text-white">R$ 50</strong> → <strong className="text-emerald-400 font-mono">R$ 0,10</strong></span>
+                                    </div>
+                                  )}
+                                  {st.id === 'solido' && (
+                                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-600 text-white text-[10px] font-extrabold shadow">
+                                      {(temaSeguro.cotasConfig?.regraDescontoMostrarIcone ?? true) && <IconComponent className="w-3 h-3 text-emerald-200" />}
+                                      <span>A partir de R$ 50 → R$ 0,10</span>
+                                    </div>
+                                  )}
+                                  {st.id === 'vidro' && (
+                                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-500/20 backdrop-blur-md border border-emerald-400/50 text-emerald-200 text-[10px] font-bold shadow">
+                                      {(temaSeguro.cotasConfig?.regraDescontoMostrarIcone ?? true) && <IconComponent className="w-3 h-3 text-emerald-300" />}
+                                      <span>A partir de <strong className="text-white">R$ 50</strong> → <strong className="text-emerald-300 font-mono">R$ 0,10</strong></span>
+                                    </div>
+                                  )}
+                                  {st.id === 'transparente' && (
+                                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-transparent border-2 border-emerald-400 text-emerald-400 text-[10px] font-black">
+                                      {(temaSeguro.cotasConfig?.regraDescontoMostrarIcone ?? true) && <IconComponent className="w-3 h-3 text-emerald-400" />}
+                                      <span>A partir de R$ 50 → R$ 0,10</span>
+                                    </div>
+                                  )}
+                                  {st.id === '3d' && (
+                                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-600 text-white text-[10px] font-bold shadow-[0_3px_0_#047857]">
+                                      {(temaSeguro.cotasConfig?.regraDescontoMostrarIcone ?? true) && <IconComponent className="w-3 h-3 text-emerald-200" />}
+                                      <span>A partir de R$ 50 → R$ 0,10</span>
+                                    </div>
+                                  )}
+                                  {st.id === 'gradiente' && (
+                                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-gradient-to-r from-emerald-500 via-teal-500 to-green-600 text-white text-[10px] font-black shadow">
+                                      {(temaSeguro.cotasConfig?.regraDescontoMostrarIcone ?? true) && <IconComponent className="w-3 h-3 text-yellow-300" />}
+                                      <span>A partir de R$ 50 → R$ 0,10</span>
+                                    </div>
+                                  )}
+                                </div>
+
+                                <span className="text-[9px] text-slate-400 block truncate">{st.desc}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Cores: Fundo, Texto, Destaque */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl">
+                          <SeletorCorOuDegrade
+                            label="Cor de Fundo / Degradê"
+                            valor={temaSeguro.cotasConfig?.regraDescontoFundo || 'rgba(16, 185, 129, 0.1)'}
+                            onChange={novo => atualizarTema({
+                              cotasConfig: {
+                                ...temaSeguro.cotasConfig,
+                                regraDescontoFundo: novo
+                              }
+                            })}
+                          />
+                        </div>
+
+                        <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-1.5">
+                          <label className="text-[10px] font-bold text-slate-400 block">Cor do Texto Normal</label>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="color"
+                              value={converterParaHex(temaSeguro.cotasConfig?.regraDescontoTexto || temaSeguro.cotasConfig?.regraDescontoTextoCor, '#34d399')}
+                              onChange={e => atualizarTema({
+                                cotasConfig: {
+                                  ...temaSeguro.cotasConfig,
+                                  regraDescontoTexto: e.target.value,
+                                  regraDescontoTextoCor: e.target.value
+                                }
+                              })}
+                              className="w-8 h-8 rounded cursor-pointer bg-transparent border-0 p-0"
+                            />
+                            <input
+                              type="text"
+                              value={temaSeguro.cotasConfig?.regraDescontoTexto || temaSeguro.cotasConfig?.regraDescontoTextoCor || '#34d399'}
+                              onChange={e => atualizarTema({
+                                cotasConfig: {
+                                  ...temaSeguro.cotasConfig,
+                                  regraDescontoTexto: e.target.value,
+                                  regraDescontoTextoCor: e.target.value
+                                }
+                              })}
+                              className="flex-1 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-[10px] font-mono text-white uppercase focus:outline-none"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-1.5">
+                          <label className="text-[10px] font-bold text-slate-400 block">Cor do Destaque (Valores)</label>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="color"
+                              value={converterParaHex(temaSeguro.cotasConfig?.regraDescontoDestaque || temaSeguro.cotasConfig?.regraDescontoDestaqueCor, '#10b981')}
+                              onChange={e => atualizarTema({
+                                cotasConfig: {
+                                  ...temaSeguro.cotasConfig,
+                                  regraDescontoDestaque: e.target.value,
+                                  regraDescontoDestaqueCor: e.target.value
+                                }
+                              })}
+                              className="w-8 h-8 rounded cursor-pointer bg-transparent border-0 p-0"
+                            />
+                            <input
+                              type="text"
+                              value={temaSeguro.cotasConfig?.regraDescontoDestaque || temaSeguro.cotasConfig?.regraDescontoDestaqueCor || '#10b981'}
+                              onChange={e => atualizarTema({
+                                cotasConfig: {
+                                  ...temaSeguro.cotasConfig,
+                                  regraDescontoDestaque: e.target.value,
+                                  regraDescontoDestaqueCor: e.target.value
+                                }
+                              })}
+                              className="flex-1 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-[10px] font-mono text-white uppercase focus:outline-none"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Arrastar a barra (Sliders) para Arredondamento, Tamanho do Texto e Espaçamento Interno */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-1.5">
+                          <div className="flex justify-between items-center text-[10px]">
+                            <span className="font-bold text-slate-400">Arredondamento (Raio):</span>
+                            <span className="font-mono text-emerald-400 font-bold">
+                              {(temaSeguro.cotasConfig?.regraDescontoRaioBorda ?? 9999) === 9999 ? 'Total (Pill)' : `${temaSeguro.cotasConfig?.regraDescontoRaioBorda ?? 12}px`}
+                            </span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0"
+                            max="32"
+                            value={temaSeguro.cotasConfig?.regraDescontoRaioBorda === 9999 ? 32 : (temaSeguro.cotasConfig?.regraDescontoRaioBorda ?? 12)}
+                            onChange={e => {
+                              const val = Number(e.target.value);
+                              atualizarTema({ cotasConfig: { ...temaSeguro.cotasConfig, regraDescontoRaioBorda: val === 32 ? 9999 : val } });
+                            }}
+                            className="w-full accent-emerald-500 bg-slate-950 cursor-pointer"
+                          />
+                        </div>
+
+                        <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-1.5">
+                          <div className="flex justify-between items-center text-[10px]">
+                            <span className="font-bold text-slate-400">Tamanho do Texto:</span>
+                            <span className="font-mono text-emerald-400 font-bold">{temaSeguro.cotasConfig?.regraDescontoTamanhoTexto ?? 12}px</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="10"
+                            max="28"
+                            value={temaSeguro.cotasConfig?.regraDescontoTamanhoTexto ?? 12}
+                            onChange={e => {
+                              const val = Number(e.target.value);
+                              atualizarTema({ cotasConfig: { ...temaSeguro.cotasConfig, regraDescontoTamanhoTexto: val, regraDescontoTamanhoFonte: val } });
+                            }}
+                            className="w-full accent-emerald-500 bg-slate-950 cursor-pointer"
+                          />
+                        </div>
+
+                        <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl space-y-1.5">
+                          <div className="flex justify-between items-center text-[10px]">
+                            <span className="font-bold text-slate-400">Espaçamento Interno (Padding):</span>
+                            <span className="font-mono text-emerald-400 font-bold">{temaSeguro.cotasConfig?.regraDescontoPaddingY ?? 4}px</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="2"
+                            max="20"
+                            value={temaSeguro.cotasConfig?.regraDescontoPaddingY ?? 4}
+                            onChange={e => atualizarTema({ cotasConfig: { ...temaSeguro.cotasConfig, regraDescontoPaddingY: Number(e.target.value) } })}
+                            className="w-full accent-emerald-500 bg-slate-950 cursor-pointer"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Ícone do Card - Definido na Aba de Ícones */}
+                      <div className="p-3.5 bg-slate-900 border border-slate-800 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+                            {(() => {
+                              const CurrentIcon = getSectionIcon(temaSeguro.cotasConfig?.regraDescontoIcone || 'Zap', Zap);
+                              return (temaSeguro.cotasConfig?.regraDescontoMostrarIcone ?? true) && CurrentIcon ? (
+                                <CurrentIcon className="w-4 h-4" />
+                              ) : (
+                                <Slash className="w-4 h-4 text-slate-500" />
+                              );
+                            })()}
+                          </div>
+                          <div>
+                            <span className="text-[11px] font-bold text-white block">Ícone do Card de Regras</span>
+                            <span className="text-[9.5px] text-slate-400 block">
+                              {(temaSeguro.cotasConfig?.regraDescontoMostrarIcone ?? true)
+                                ? `Ícone Atual: ${temaSeguro.cotasConfig?.regraDescontoIcone || 'Zap'} (20 opções na Aba de Ícones)`
+                                : 'Sem Ícone (Oculto)'}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const mostrar = !(temaSeguro.cotasConfig?.regraDescontoMostrarIcone ?? true);
+                              atualizarTema({ cotasConfig: { ...temaSeguro.cotasConfig, regraDescontoMostrarIcone: mostrar } });
+                            }}
+                            className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase transition border ${
+                              (temaSeguro.cotasConfig?.regraDescontoMostrarIcone ?? true)
+                                ? 'bg-slate-800 text-slate-300 border-slate-700'
+                                : 'bg-red-500/10 text-red-400 border-red-500/30'
+                            }`}
+                          >
+                            {(temaSeguro.cotasConfig?.regraDescontoMostrarIcone ?? true) ? 'Ocultar' : 'Exibir'}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSecaoEditor('geral');
+                              setSubAbaGeral('icones');
+                              setSecaoIconeAberta('regraDesconto');
+                            }}
+                            className="px-3 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-500/50 text-emerald-300 text-[10px] font-bold hover:bg-emerald-500/30 transition flex items-center gap-1.5 cursor-pointer shadow-sm"
+                          >
+                            <Sparkles className="w-3.5 h-3.5" />
+                            Aba de Ícones (20 Opções)
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -2126,14 +3771,24 @@ export const TemaBuilderView: React.FC<Props> = ({
 
                   {/* Textos da Seção */}
                   <SectionTextConfig
-                    titulo={temaSeguro.botao.tituloControles || ''}
-                    subtitulo={temaSeguro.botao.subtituloControles || ''}
+                    titulo={temaSeguro.botao.tituloControles ?? 'Selecione a quantidade manualmente'}
+                    subtitulo={temaSeguro.botao.subtituloControles ?? 'Use os botões + e - ou digite o valor'}
                     fonteTitulo={temaSeguro.tipografia.fonteControlesTitulo || ''}
                     fonteSubtitulo={temaSeguro.tipografia.fonteControlesSubtitulo || ''}
+                    tamanhoTitulo={temaSeguro.tipografia.tamanhoControlesTitulo ?? 16}
+                    tamanhoSubtitulo={temaSeguro.tipografia.tamanhoControlesSubtitulo ?? 12}
+                    alinhamentoTitulo={temaSeguro.tipografia.alinhamentoControlesTitulo || 'esquerda'}
+                    alinhamentoSubtitulo={temaSeguro.tipografia.alinhamentoControlesSubtitulo || 'esquerda'}
                     onTituloChange={val => atualizarTema({ botao: { ...temaSeguro.botao, tituloControles: val } })}
                     onSubtituloChange={val => atualizarTema({ botao: { ...temaSeguro.botao, subtituloControles: val } })}
                     onFonteTituloChange={val => atualizarTema({ tipografia: { ...temaSeguro.tipografia, fonteControlesTitulo: val } })}
                     onFonteSubtituloChange={val => atualizarTema({ tipografia: { ...temaSeguro.tipografia, fonteControlesSubtitulo: val } })}
+                    onTamanhoTituloChange={val => atualizarTema({ tipografia: { ...temaSeguro.tipografia, tamanhoControlesTitulo: val } })}
+                    onTamanhoSubtituloChange={val => atualizarTema({ tipografia: { ...temaSeguro.tipografia, tamanhoControlesSubtitulo: val } })}
+                    onAlinhamentoTituloChange={val => atualizarTema({ tipografia: { ...temaSeguro.tipografia, alinhamentoControlesTitulo: val } })}
+                    onAlinhamentoSubtituloChange={val => atualizarTema({ tipografia: { ...temaSeguro.tipografia, alinhamentoControlesSubtitulo: val } })}
+                    placeholderTitulo="Deixe em branco para ocultar o título..."
+                    placeholderSubtitulo="Deixe em branco para ocultar o subtítulo..."
                   />
 
                   <div className="space-y-2">
@@ -2364,10 +4019,14 @@ export const TemaBuilderView: React.FC<Props> = ({
                             subtitulo={temaSeguro.botao.subtituloCotas || ''}
                             fonteTitulo={temaSeguro.tipografia.fonteCotasTitulo || ''}
                             fonteSubtitulo={temaSeguro.tipografia.fonteCotasSubtitulo || ''}
+                            alinhamentoTitulo={temaSeguro.tipografia.alinhamentoCotasTitulo || 'esquerda'}
+                            alinhamentoSubtitulo={temaSeguro.tipografia.alinhamentoCotasSubtitulo || 'esquerda'}
                             onTituloChange={val => atualizarTema({ botao: { ...temaSeguro.botao, tituloCotas: val } })}
                             onSubtituloChange={val => atualizarTema({ botao: { ...temaSeguro.botao, subtituloCotas: val } })}
                             onFonteTituloChange={val => atualizarTema({ tipografia: { ...temaSeguro.tipografia, fonteCotasTitulo: val } })}
                             onFonteSubtituloChange={val => atualizarTema({ tipografia: { ...temaSeguro.tipografia, fonteCotasSubtitulo: val } })}
+                            onAlinhamentoTituloChange={val => atualizarTema({ tipografia: { ...temaSeguro.tipografia, alinhamentoCotasTitulo: val } })}
+                            onAlinhamentoSubtituloChange={val => atualizarTema({ tipografia: { ...temaSeguro.tipografia, alinhamentoCotasSubtitulo: val } })}
                           />
 
                           {/* Seletor de Efeito Visual */}
@@ -2879,6 +4538,19 @@ export const TemaBuilderView: React.FC<Props> = ({
                                   <SeletorFonteCard valor={temaSeguro.tipografia.fonteCardProgressoSubtitulo || ''} onChange={val => atualizarTema({ tipografia: { ...temaSeguro.tipografia, fonteCardProgressoSubtitulo: val } })} />
                                 </div>
                               </div>
+                              {/* Alinhamento dos Títulos */}
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t border-slate-900">
+                                <SeletorAlinhamento
+                                  label="Alinhamento do Título:"
+                                  valor={temaSeguro.tipografia.alinhamentoProgressoTitulo || 'esquerda'}
+                                  onChange={val => atualizarTema({ tipografia: { ...temaSeguro.tipografia, alinhamentoProgressoTitulo: val } })}
+                                />
+                                <SeletorAlinhamento
+                                  label="Alinhamento do Subtítulo:"
+                                  valor={temaSeguro.tipografia.alinhamentoProgressoSubtitulo || 'esquerda'}
+                                  onChange={val => atualizarTema({ tipografia: { ...temaSeguro.tipografia, alinhamentoProgressoSubtitulo: val } })}
+                                />
+                              </div>
                               {/* Texto interno (dentro da barra) */}
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
@@ -2941,29 +4613,83 @@ export const TemaBuilderView: React.FC<Props> = ({
                               <div>
                                 <div className="flex justify-between items-center mb-1">
                                   <label className="text-slate-300 font-bold">Altura da Barra</label>
-                                  <span className="font-mono text-emerald-400 font-bold">{temaSeguro.barraProgresso?.altura ?? 16}px</span>
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => atualizarTema({ barraProgresso: { ...temaSeguro.barraProgresso, altura: Math.max(4, (temaSeguro.barraProgresso?.altura ?? 16) - 1) } })}
+                                      className="w-5 h-5 bg-slate-800 hover:bg-slate-700 text-white rounded font-bold text-xs flex items-center justify-center cursor-pointer"
+                                    >
+                                      -
+                                    </button>
+                                    <input
+                                      type="number"
+                                      min="4"
+                                      max="60"
+                                      value={temaSeguro.barraProgresso?.altura ?? 16}
+                                      onChange={e => atualizarTema({ barraProgresso: { ...temaSeguro.barraProgresso, altura: Math.min(60, Math.max(4, Number(e.target.value) || 4)) } })}
+                                      className="w-12 bg-slate-950 border border-slate-700 rounded px-1 py-0.5 text-center font-mono text-emerald-400 font-bold text-xs focus:outline-none"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => atualizarTema({ barraProgresso: { ...temaSeguro.barraProgresso, altura: Math.min(60, (temaSeguro.barraProgresso?.altura ?? 16) + 1) } })}
+                                      className="w-5 h-5 bg-slate-800 hover:bg-slate-700 text-white rounded font-bold text-xs flex items-center justify-center cursor-pointer"
+                                    >
+                                      +
+                                    </button>
+                                    <span className="text-slate-500 text-[10px] font-mono">px</span>
+                                  </div>
                                 </div>
                                 <input
                                   type="range"
-                                  min={8}
-                                  max={40}
+                                  min={4}
+                                  max={50}
                                   value={temaSeguro.barraProgresso?.altura ?? 16}
+                                  onPointerDown={e => e.stopPropagation()}
+                                  onTouchStart={e => e.stopPropagation()}
                                   onChange={e => atualizarTema({ barraProgresso: { ...temaSeguro.barraProgresso, altura: Number(e.target.value) } })}
-                                  className="w-full accent-emerald-500 cursor-pointer"
+                                  className="w-full accent-emerald-500 cursor-pointer h-2 bg-slate-900 rounded-lg"
                                 />
                               </div>
                               <div>
                                 <div className="flex justify-between items-center mb-1">
                                   <label className="text-slate-300 font-bold">Cantos Arredondados</label>
-                                  <span className="font-mono text-emerald-400 font-bold">{temaSeguro.barraProgresso?.raioBorda ?? 9999}px</span>
+                                  <span className="font-mono text-emerald-400 font-bold">
+                                    {temaSeguro.barraProgresso?.raioBorda === 9999 ? 'Total (Pill)' : `${temaSeguro.barraProgresso?.raioBorda ?? 9999}px`}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1 mb-1.5">
+                                  {[
+                                    { id: 9999, label: 'Pill' },
+                                    { id: 16, label: '16px' },
+                                    { id: 8, label: '8px' },
+                                    { id: 0, label: '0px' },
+                                  ].map(r => (
+                                    <button
+                                      key={r.id}
+                                      type="button"
+                                      onClick={() => atualizarTema({ barraProgresso: { ...temaSeguro.barraProgresso, raioBorda: r.id } })}
+                                      className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold transition border cursor-pointer ${
+                                        (temaSeguro.barraProgresso?.raioBorda ?? 9999) === r.id
+                                          ? 'bg-emerald-500 text-slate-950 border-emerald-400 font-black'
+                                          : 'bg-slate-900 text-slate-400 border-slate-800 hover:border-slate-700'
+                                      }`}
+                                    >
+                                      {r.label}
+                                    </button>
+                                  ))}
                                 </div>
                                 <input
                                   type="range"
                                   min={0}
-                                  max={30}
-                                  value={temaSeguro.barraProgresso?.raioBorda ?? 9999}
-                                  onChange={e => atualizarTema({ barraProgresso: { ...temaSeguro.barraProgresso, raioBorda: Number(e.target.value) } })}
-                                  className="w-full accent-emerald-500 cursor-pointer"
+                                  max={50}
+                                  value={(temaSeguro.barraProgresso?.raioBorda ?? 9999) >= 50 ? 50 : (temaSeguro.barraProgresso?.raioBorda ?? 0)}
+                                  onPointerDown={e => e.stopPropagation()}
+                                  onTouchStart={e => e.stopPropagation()}
+                                  onChange={e => {
+                                    const val = Number(e.target.value);
+                                    atualizarTema({ barraProgresso: { ...temaSeguro.barraProgresso, raioBorda: val >= 50 ? 9999 : val } });
+                                  }}
+                                  className="w-full accent-emerald-500 cursor-pointer h-2 bg-slate-900 rounded-lg"
                                 />
                               </div>
                               <div>
@@ -3080,121 +4806,8 @@ export const TemaBuilderView: React.FC<Props> = ({
                               );
                             })}
                           </div>
-
-                          {/* Seção 4: Personalização do Preço Unitário ("Por apenas" e Tag de Valor) */}
-                          <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-4 pt-3">
-                            <div className="flex items-center justify-between">
-                              <label className="text-xs font-black text-white uppercase tracking-wider block">
-                                Texto e Estilo do "Por apenas" (Preço Unitário):
-                              </label>
-                              <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded font-mono font-bold">
-                                Valor por Cota
-                              </span>
-                            </div>
-
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              <div className="space-y-1">
-                                <label className="text-[11px] font-bold text-slate-300 block">Texto do Rótulo:</label>
-                                <input
-                                  type="text"
-                                  value={temaSeguro.cotasConfig?.textoPorApenas || 'Por apenas'}
-                                  onChange={e => atualizarTema({ 
-                                    cotasConfig: { 
-                                      ...temaSeguro.cotasConfig, 
-                                      textoPorApenas: e.target.value 
-                                    } 
-                                  })}
-                                  placeholder="Ex: Por apenas, Valor unitário, Apenas..."
-                                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
-                                />
-                              </div>
-
-                              <div className="space-y-1">
-                                <label className="text-[11px] font-bold text-slate-300 block">Disposição / Layout:</label>
-                                <select
-                                  value={temaSeguro.cotasConfig?.porApenasLayout || 'vertical'}
-                                  onChange={e => atualizarTema({
-                                    cotasConfig: {
-                                      ...temaSeguro.cotasConfig,
-                                      porApenasLayout: e.target.value as any
-                                    }
-                                  })}
-                                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-medium"
-                                >
-                                  <option value="vertical">Vertical (Texto em cima, preço embaixo)</option>
-                                  <option value="horizontal">Horizontal (Texto do lado, preço à direita)</option>
-                                </select>
-                              </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                              <div className="p-3 bg-slate-900 border border-slate-800 rounded-lg">
-                                <SeletorCorOuDegrade
-                                  label="Fundo / Degradê da Tag de Valor (R$)"
-                                  valor={temaSeguro.cotasConfig?.porApenasFundo || '#064e3b'}
-                                  onChange={novo => atualizarTema({
-                                    cotasConfig: {
-                                      ...temaSeguro.cotasConfig,
-                                      porApenasFundo: novo
-                                    }
-                                  })}
-                                />
-                              </div>
-
-                              <div className="p-3 bg-slate-900 border border-slate-800 rounded-lg space-y-1.5 flex flex-col justify-center">
-                                <div className="flex justify-between items-center text-xs">
-                                  <span className="font-bold text-slate-300">Tamanho da Fonte do Valor</span>
-                                  <span className="font-mono text-emerald-400 font-bold">{temaSeguro.cotasConfig?.porApenasTamanhoValor ?? 24}px</span>
-                                </div>
-                                <input
-                                  type="range"
-                                  min="12"
-                                  max="48"
-                                  value={temaSeguro.cotasConfig?.porApenasTamanhoValor ?? 24}
-                                  onChange={e => atualizarTema({ cotasConfig: { ...temaSeguro.cotasConfig, porApenasTamanhoValor: Number(e.target.value) } })}
-                                  className="w-full accent-emerald-500 cursor-pointer"
-                                />
-                              </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              <div className="p-2.5 bg-slate-900 border border-slate-800 rounded-lg space-y-1.5">
-                                <label className="text-[10px] font-bold text-slate-400 block">Cor do Texto do Valor (R$ 0,50)</label>
-                                <div className="flex items-center gap-2">
-                                  <input
-                                    type="color"
-                                    value={temaSeguro.cotasConfig?.porApenasTexto?.startsWith('#') ? temaSeguro.cotasConfig?.porApenasTexto : '#10b981'}
-                                    onChange={e => atualizarTema({ cotasConfig: { ...temaSeguro.cotasConfig, porApenasTexto: e.target.value } })}
-                                    className="w-7 h-7 rounded cursor-pointer bg-transparent border-0 p-0"
-                                  />
-                                  <input
-                                    type="text"
-                                    value={temaSeguro.cotasConfig?.porApenasTexto || '#10b981'}
-                                    onChange={e => atualizarTema({ cotasConfig: { ...temaSeguro.cotasConfig, porApenasTexto: e.target.value } })}
-                                    className="flex-1 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-[10px] font-mono text-white uppercase focus:outline-none"
-                                  />
-                                </div>
-                              </div>
-
-                              <div className="p-2.5 bg-slate-900 border border-slate-800 rounded-lg space-y-1.5">
-                                <label className="text-[10px] font-bold text-slate-400 block">Cor da Borda da Tag de Valor</label>
-                                <div className="flex items-center gap-2">
-                                  <input
-                                    type="color"
-                                    value={temaSeguro.cotasConfig?.porApenasBorda?.startsWith('#') ? temaSeguro.cotasConfig?.porApenasBorda : '#059669'}
-                                    onChange={e => atualizarTema({ cotasConfig: { ...temaSeguro.cotasConfig, porApenasBorda: e.target.value } })}
-                                    className="w-7 h-7 rounded cursor-pointer bg-transparent border-0 p-0"
-                                  />
-                                  <input
-                                    type="text"
-                                    value={temaSeguro.cotasConfig?.porApenasBorda || '#059669'}
-                                    onChange={e => atualizarTema({ cotasConfig: { ...temaSeguro.cotasConfig, porApenasBorda: e.target.value } })}
-                                    className="flex-1 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-[10px] font-mono text-white uppercase focus:outline-none"
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                          </div>
+                        </div>
+                      )}
 
                           {/* Seção 5: Personalização do Cabeçalho da Promoção (Compre mais barato!) */}
                           <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-4 pt-3">
@@ -3411,10 +5024,14 @@ export const TemaBuilderView: React.FC<Props> = ({
                             subtitulo={temaSeguro.botao.subtituloPremiado || ''}
                             fonteTitulo={temaSeguro.tipografia.fonteCardCotasPremiadas || ''}
                             fonteSubtitulo={temaSeguro.tipografia.fonteCardCotasPremiadasSubtitulo || ''}
+                            alinhamentoTitulo={temaSeguro.tipografia.alinhamentoPremiadoTitulo || 'esquerda'}
+                            alinhamentoSubtitulo={temaSeguro.tipografia.alinhamentoPremiadoSubtitulo || 'esquerda'}
                             onTituloChange={val => atualizarTema({ botao: { ...temaSeguro.botao, tituloPremiado: val } })}
                             onSubtituloChange={val => atualizarTema({ botao: { ...temaSeguro.botao, subtituloPremiado: val } })}
                             onFonteTituloChange={val => atualizarTema({ tipografia: { ...temaSeguro.tipografia, fonteCardCotasPremiadas: val } })}
                             onFonteSubtituloChange={val => atualizarTema({ tipografia: { ...temaSeguro.tipografia, fonteCardCotasPremiadasSubtitulo: val } })}
+                            onAlinhamentoTituloChange={val => atualizarTema({ tipografia: { ...temaSeguro.tipografia, alinhamentoPremiadoTitulo: val } })}
+                            onAlinhamentoSubtituloChange={val => atualizarTema({ tipografia: { ...temaSeguro.tipografia, alinhamentoPremiadoSubtitulo: val } })}
                           />
 
                           {/* Prévia Interativa dos Títulos Premiados */}
@@ -3855,7 +5472,7 @@ export const TemaBuilderView: React.FC<Props> = ({
                                 <div className="flex items-center justify-between">
                                   <div>
                                     <label className="text-xs font-black text-white block">Degradê de Fundo no Título / Banner</label>
-                                    <p className="text-[10px] text-slate-400">Adicione uma sombra ou degradê sob o título para dar legibilidade máxima</p>
+                                    <p className="text-[10px] text-slate-400">Adicione uma sombra suave ou degradê transparente de baixo para cima sob o título para leitura perfeita.</p>
                                   </div>
                                   <button
                                     type="button"
@@ -3865,9 +5482,9 @@ export const TemaBuilderView: React.FC<Props> = ({
                                         overlayDegradeAtivo: !(temaSeguro.bannerConfig?.overlayDegradeAtivo ?? true) 
                                       } 
                                     })}
-                                    className={`px-3 py-1 rounded text-xs font-black uppercase transition ${
+                                    className={`px-3 py-1 rounded text-xs font-black uppercase transition cursor-pointer ${
                                       (temaSeguro.bannerConfig?.overlayDegradeAtivo ?? true)
-                                        ? 'bg-purple-500 text-white'
+                                        ? 'bg-purple-500 text-white shadow-lg'
                                         : 'bg-slate-800 text-slate-400'
                                     }`}
                                   >
@@ -3876,26 +5493,55 @@ export const TemaBuilderView: React.FC<Props> = ({
                                 </div>
 
                                 {(temaSeguro.bannerConfig?.overlayDegradeAtivo ?? true) && (
-                                  <div className="space-y-3 pt-2 border-t border-slate-800">
-                                    <SeletorCorOuDegrade
-                                      label="Degradê de Fundo do Título"
-                                      valor={temaSeguro.bannerConfig?.overlayDegrade || 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 50%, transparent 100%)'}
-                                      onChange={novo => atualizarTema({
-                                        bannerConfig: {
-                                          ...temaSeguro.bannerConfig,
-                                          overlayDegrade: novo
-                                        }
-                                      })}
-                                    />
+                                  <div className="space-y-4 pt-3 border-t border-slate-800">
+                                    {/* Cor Única do Degradê */}
+                                    <div className="space-y-1.5">
+                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Cor Base do Degradê (Cor Única)</label>
+                                      <div className="flex items-center gap-2">
+                                        <input
+                                          type="color"
+                                          value={temaSeguro.bannerConfig?.overlayCor?.startsWith('#') ? temaSeguro.bannerConfig.overlayCor : '#000000'}
+                                          onChange={e => {
+                                            const cor = e.target.value;
+                                            atualizarTema({
+                                              bannerConfig: {
+                                                ...temaSeguro.bannerConfig,
+                                                overlayCor: cor,
+                                                overlayDegrade: gerarGradientDegradeBanner(cor)
+                                              }
+                                            });
+                                          }}
+                                          className="w-9 h-9 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                                        />
+                                        <input
+                                          type="text"
+                                          value={temaSeguro.bannerConfig?.overlayCor || '#000000'}
+                                          onChange={e => {
+                                            const cor = e.target.value;
+                                            atualizarTema({
+                                              bannerConfig: {
+                                                ...temaSeguro.bannerConfig,
+                                                overlayCor: cor,
+                                                overlayDegrade: gerarGradientDegradeBanner(cor)
+                                              }
+                                            });
+                                          }}
+                                          placeholder="#000000"
+                                          className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white uppercase focus:outline-none focus:border-purple-500"
+                                        />
+                                      </div>
+                                      <p className="text-[9.5px] text-slate-500">O efeito usará esta cor com transparência suave subindo da base até o topo.</p>
+                                    </div>
 
+                                    {/* Altura de Cobertura */}
                                     <div className="space-y-1.5">
                                       <div className="flex justify-between items-center text-[10px]">
-                                        <span className="text-slate-400">Altura de Cobertura do Degradê:</span>
+                                        <span className="text-slate-400 font-bold uppercase tracking-wider">Altura de Cobertura do Degradê:</span>
                                         <span className="font-mono text-purple-400 font-bold">{temaSeguro.bannerConfig?.overlayAltura ?? 60}%</span>
                                       </div>
                                       <input
                                         type="range"
-                                        min="20"
+                                        min="10"
                                         max="100"
                                         value={temaSeguro.bannerConfig?.overlayAltura ?? 60}
                                         onChange={e => atualizarTema({
@@ -3906,6 +5552,36 @@ export const TemaBuilderView: React.FC<Props> = ({
                                         })}
                                         className="w-full accent-purple-500 bg-slate-900 cursor-pointer"
                                       />
+                                      <p className="text-[9.5px] text-slate-500">Ex: 60% faz o degradê subir até 60% da altura do banner.</p>
+                                    </div>
+
+                                    {/* Prévia Real do Degradê */}
+                                    <div className="space-y-1 pt-1">
+                                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Prévia do Degradê no Banner:</span>
+                                      <div className="relative w-full h-36 rounded-xl overflow-hidden border border-slate-800 bg-slate-900 shadow-inner">
+                                        <img 
+                                          src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=600&q=80" 
+                                          alt="Fundo Exemplo" 
+                                          className="w-full h-full object-cover"
+                                        />
+                                        <div 
+                                          className="absolute inset-x-0 bottom-0 p-3 flex flex-col justify-end pointer-events-none"
+                                          style={{
+                                            background: gerarGradientDegradeBanner(temaSeguro.bannerConfig?.overlayCor || '#000000'),
+                                            height: `${temaSeguro.bannerConfig?.overlayAltura ?? 60}%`
+                                          }}
+                                        >
+                                          <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-widest flex items-center gap-1 mb-0.5">
+                                            <ShieldCheck className="w-3 h-3" /> Sorteio Oficial
+                                          </span>
+                                          <h4 className="text-xs font-black text-white leading-tight drop-shadow">
+                                            Título de Exemplo no Banner
+                                          </h4>
+                                          <p className="text-[10px] text-slate-300 font-medium">
+                                            Subtítulo por apenas R$ 0,50
+                                          </p>
+                                        </div>
+                                      </div>
                                     </div>
                                   </div>
                                 )}
@@ -3913,17 +5589,39 @@ export const TemaBuilderView: React.FC<Props> = ({
 
                               {/* Selo de Destaque no Banner */}
                               <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-3">
-                                <label className="text-[11px] font-black text-amber-400 uppercase tracking-wider block">Selo de Destaque do Banner</label>
-                                
-                                <div className="space-y-3">
-                                  <SeletorCorOuDegrade
-                                    label="Fundo do Selo"
-                                    valor={temaSeguro.cores.seloBannerFundo || temaSeguro.bannerConfig?.seloFundo || '#f59e0b'}
-                                    onChange={novo => atualizarTema({ 
-                                      cores: { ...temaSeguro.cores, seloBannerFundo: novo },
-                                      bannerConfig: { ...temaSeguro.bannerConfig, seloFundo: novo }
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <label className="text-xs font-black text-amber-400 uppercase tracking-wider block">Selo de Destaque do Banner</label>
+                                    <p className="text-[10px] text-slate-400">Exiba ou oculte o selo decorativo (ex: 🔥 MEGA PROMOÇÃO)</p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => atualizarTema({ 
+                                      bannerConfig: { 
+                                        ...temaSeguro.bannerConfig, 
+                                        exibirSeloBanner: !(temaSeguro.bannerConfig?.exibirSeloBanner ?? true) 
+                                      } 
                                     })}
-                                  />
+                                    className={`px-3 py-1 rounded text-xs font-black uppercase transition cursor-pointer ${
+                                      (temaSeguro.bannerConfig?.exibirSeloBanner ?? true)
+                                        ? 'bg-amber-500 text-slate-950 shadow-md font-extrabold'
+                                        : 'bg-slate-800 text-slate-400'
+                                    }`}
+                                  >
+                                    {(temaSeguro.bannerConfig?.exibirSeloBanner ?? true) ? 'Ativo' : 'Desativado'}
+                                  </button>
+                                </div>
+                                
+                                {(temaSeguro.bannerConfig?.exibirSeloBanner ?? true) && (
+                                  <div className="space-y-3 pt-2 border-t border-slate-800">
+                                    <SeletorCorOuDegrade
+                                      label="Fundo do Selo"
+                                      valor={temaSeguro.cores.seloBannerFundo || temaSeguro.bannerConfig?.seloFundo || '#f59e0b'}
+                                      onChange={novo => atualizarTema({ 
+                                        cores: { ...temaSeguro.cores, seloBannerFundo: novo },
+                                        bannerConfig: { ...temaSeguro.bannerConfig, seloFundo: novo }
+                                      })}
+                                    />
 
                                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div className="space-y-1.5">
@@ -3978,6 +5676,131 @@ export const TemaBuilderView: React.FC<Props> = ({
                                       </div>
                                     </div>
                                   </div>
+
+                                  {/* Borda do Selo */}
+                                    <div className="pt-2 border-t border-slate-800 space-y-3">
+                                      <div className="flex items-center justify-between">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Borda no Selo</label>
+                                        <div className="flex gap-1 bg-slate-900 p-1 rounded-lg border border-slate-800">
+                                          <button
+                                            type="button"
+                                            onClick={() => atualizarTema({ bannerConfig: { ...temaSeguro.bannerConfig, seloBordaAtiva: false } })}
+                                            className={`px-3 py-1 rounded-md text-[11px] font-bold transition cursor-pointer ${
+                                              !(temaSeguro.bannerConfig?.seloBordaAtiva)
+                                                ? 'bg-rose-600 text-white shadow'
+                                                : 'text-slate-400 hover:text-white'
+                                            }`}
+                                          >
+                                            Sem Borda
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => atualizarTema({ bannerConfig: { ...temaSeguro.bannerConfig, seloBordaAtiva: true } })}
+                                            className={`px-3 py-1 rounded-md text-[11px] font-bold transition cursor-pointer ${
+                                              temaSeguro.bannerConfig?.seloBordaAtiva
+                                                ? 'bg-purple-600 text-white shadow'
+                                                : 'text-slate-400 hover:text-white'
+                                            }`}
+                                          >
+                                            Com Borda
+                                          </button>
+                                        </div>
+                                      </div>
+
+                                      {temaSeguro.bannerConfig?.seloBordaAtiva && (
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                                          <div className="space-y-1.5">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Cor da Borda</label>
+                                            <div className="flex items-center gap-2">
+                                              <input
+                                                type="color"
+                                                value={temaSeguro.bannerConfig?.seloBordaCor?.startsWith('#') ? temaSeguro.bannerConfig.seloBordaCor : '#ffffff'}
+                                                onChange={e => atualizarTema({ bannerConfig: { ...temaSeguro.bannerConfig, seloBordaCor: e.target.value } })}
+                                                className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                                              />
+                                              <input
+                                                type="text"
+                                                value={temaSeguro.bannerConfig?.seloBordaCor || '#ffffff'}
+                                                onChange={e => atualizarTema({ bannerConfig: { ...temaSeguro.bannerConfig, seloBordaCor: e.target.value } })}
+                                                className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                                              />
+                                            </div>
+                                          </div>
+
+                                          <div className="space-y-1.5">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Espessura da Borda</label>
+                                            <div className="flex items-center gap-1.5">
+                                              {[1, 2, 3, 4].map(px => (
+                                                <button
+                                                  key={px}
+                                                  type="button"
+                                                  onClick={() => atualizarTema({ bannerConfig: { ...temaSeguro.bannerConfig, seloBordaEspessura: px } })}
+                                                  className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                                                    (temaSeguro.bannerConfig?.seloBordaEspessura ?? 1) === px
+                                                      ? 'bg-purple-600 text-white'
+                                                      : 'bg-slate-900 text-slate-400 border border-slate-800 hover:text-white'
+                                                  }`}
+                                                >
+                                                  {px}px
+                                                </button>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Alinhamento e Tamanho dos Textos do Banner */}
+                              <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-3">
+                                <SeletorAlinhamento
+                                  label="Alinhamento do Título & Subtítulo no Banner:"
+                                  valor={temaSeguro.tipografia.alinhamentoBanner || 'centro'}
+                                  onChange={val => atualizarTema({ tipografia: { ...temaSeguro.tipografia, alinhamentoBanner: val } })}
+                                />
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                                  <div className="space-y-1.5">
+                                    <div className="flex justify-between items-center text-[10px]">
+                                      <span className="text-slate-400 font-bold uppercase tracking-wider">Tamanho do Título</span>
+                                      <span className="font-mono text-purple-400 font-bold">{temaSeguro.tipografia.tamanhoBannerTitulo ?? 24}px</span>
+                                    </div>
+                                    <input
+                                      type="range"
+                                      min="14"
+                                      max="48"
+                                      value={temaSeguro.tipografia.tamanhoBannerTitulo ?? 24}
+                                      onChange={e => atualizarTema({
+                                        tipografia: {
+                                          ...temaSeguro.tipografia,
+                                          tamanhoBannerTitulo: Number(e.target.value)
+                                        }
+                                      })}
+                                      className="w-full accent-purple-500 bg-slate-900 cursor-pointer"
+                                    />
+                                  </div>
+
+                                  <div className="space-y-1.5">
+                                    <div className="flex justify-between items-center text-[10px]">
+                                      <span className="text-slate-400 font-bold uppercase tracking-wider">Tamanho do Subtítulo</span>
+                                      <span className="font-mono text-purple-400 font-bold">{temaSeguro.tipografia.tamanhoBannerSubtitulo ?? 13}px</span>
+                                    </div>
+                                    <input
+                                      type="range"
+                                      min="10"
+                                      max="28"
+                                      value={temaSeguro.tipografia.tamanhoBannerSubtitulo ?? 13}
+                                      onChange={e => atualizarTema({
+                                        tipografia: {
+                                          ...temaSeguro.tipografia,
+                                          tamanhoBannerSubtitulo: Number(e.target.value)
+                                        }
+                                      })}
+                                      className="w-full accent-purple-500 bg-slate-900 cursor-pointer"
+                                    />
+                                  </div>
                                 </div>
                               </div>
                             </div>
@@ -3990,7 +5813,15 @@ export const TemaBuilderView: React.FC<Props> = ({
                           icone: '📊',
                           corFundoKey: 'cardProgressoFundo',
                           corBordaKey: 'cardProgressoBorda',
-                          extras: null
+                          extras: (
+                            <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2 pt-2">
+                              <SeletorAlinhamento
+                                label="Alinhamento do Título de Progresso:"
+                                valor={temaSeguro.tipografia.alinhamentoProgresso || 'esquerda'}
+                                onChange={val => atualizarTema({ tipografia: { ...temaSeguro.tipografia, alinhamentoProgresso: val } })}
+                              />
+                            </div>
+                          )
                         },
                         {
                           id: 'cotas',
@@ -4028,6 +5859,13 @@ export const TemaBuilderView: React.FC<Props> = ({
                           corBordaKey: 'cardPremiosBorda',
                           extras: (
                             <div className="space-y-3 pt-2">
+                              <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                                <SeletorAlinhamento
+                                  label="Alinhamento do Título da Seção de Prêmios:"
+                                  valor={temaSeguro.tipografia.alinhamentoPremios || 'esquerda'}
+                                  onChange={val => atualizarTema({ tipografia: { ...temaSeguro.tipografia, alinhamentoPremios: val } })}
+                                />
+                              </div>
                               <h5 className="text-[11px] font-black text-amber-400 uppercase tracking-wider block">Cores da Lista de Prêmios (Itens e Ordem)</h5>
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
@@ -4245,6 +6083,13 @@ export const TemaBuilderView: React.FC<Props> = ({
                           corBordaKey: 'cardRankingBorda',
                           extras: (
                             <div className="space-y-3 pt-2">
+                              <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                                <SeletorAlinhamento
+                                  label="Alinhamento do Título da Seção de Top Compradores:"
+                                  valor={temaSeguro.tipografia.alinhamentoRanking || 'esquerda'}
+                                  onChange={val => atualizarTema({ tipografia: { ...temaSeguro.tipografia, alinhamentoRanking: val } })}
+                                />
+                              </div>
                               <h5 className="text-[11px] font-black text-amber-400 uppercase tracking-wider block">Cores dos Itens do Ranking e Podio</h5>
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
@@ -4361,39 +6206,48 @@ export const TemaBuilderView: React.FC<Props> = ({
                           corFundoKey: 'cardRegulamentoFundo',
                           corBordaKey: 'cardRegulamentoBorda',
                           extras: (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                            <div className="space-y-3 pt-2">
                               <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
-                                <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Cor do Texto do Regulamento</label>
-                                <div className="flex items-center gap-2">
-                                  <input
-                                    type="color"
-                                    value={(temaSeguro.cores as any).cardRegulamentoTexto || '#cbd5e1'}
-                                    onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cardRegulamentoTexto: e.target.value } })}
-                                    className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
-                                  />
-                                  <input
-                                    type="text"
-                                    value={(temaSeguro.cores as any).cardRegulamentoTexto || '#cbd5e1'}
-                                    onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cardRegulamentoTexto: e.target.value } })}
-                                    className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
-                                  />
-                                </div>
+                                <SeletorAlinhamento
+                                  label="Alinhamento do Título do Regulamento:"
+                                  valor={temaSeguro.tipografia.alinhamentoRegulamento || 'esquerda'}
+                                  onChange={val => atualizarTema({ tipografia: { ...temaSeguro.tipografia, alinhamentoRegulamento: val } })}
+                                />
                               </div>
-                              <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
-                                <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Cor do Título do Regulamento</label>
-                                <div className="flex items-center gap-2">
-                                  <input
-                                    type="color"
-                                    value={(temaSeguro.cores as any).cardRegulamentoTituloCor || temaSeguro.cores.titulos}
-                                    onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cardRegulamentoTituloCor: e.target.value } })}
-                                    className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
-                                  />
-                                  <input
-                                    type="text"
-                                    value={(temaSeguro.cores as any).cardRegulamentoTituloCor || temaSeguro.cores.titulos}
-                                    onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cardRegulamentoTituloCor: e.target.value } })}
-                                    className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
-                                  />
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Cor do Texto do Regulamento</label>
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="color"
+                                      value={(temaSeguro.cores as any).cardRegulamentoTexto || '#cbd5e1'}
+                                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cardRegulamentoTexto: e.target.value } })}
+                                      className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                                    />
+                                    <input
+                                      type="text"
+                                      value={(temaSeguro.cores as any).cardRegulamentoTexto || '#cbd5e1'}
+                                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cardRegulamentoTexto: e.target.value } })}
+                                      className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">Cor do Título do Regulamento</label>
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="color"
+                                      value={(temaSeguro.cores as any).cardRegulamentoTituloCor || temaSeguro.cores.titulos}
+                                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cardRegulamentoTituloCor: e.target.value } })}
+                                      className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0"
+                                    />
+                                    <input
+                                      type="text"
+                                      value={(temaSeguro.cores as any).cardRegulamentoTituloCor || temaSeguro.cores.titulos}
+                                      onChange={e => atualizarTema({ cores: { ...temaSeguro.cores, cardRegulamentoTituloCor: e.target.value } })}
+                                      className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono text-white uppercase focus:outline-none"
+                                    />
+                                  </div>
                                 </div>
                               </div>
                             </div>
@@ -4408,6 +6262,13 @@ export const TemaBuilderView: React.FC<Props> = ({
                           corBordaKey: 'cardGanhadoresBorda',
                           extras: (
                             <div className="space-y-3 pt-2">
+                              <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+                                <SeletorAlinhamento
+                                  label="Alinhamento do Título de Ganhadores:"
+                                  valor={temaSeguro.tipografia.alinhamentoGanhadores || 'esquerda'}
+                                  onChange={val => atualizarTema({ tipografia: { ...temaSeguro.tipografia, alinhamentoGanhadores: val } })}
+                                />
+                              </div>
                               <h5 className="text-[11px] font-black text-amber-400 uppercase tracking-wider block">Cores do Bloco do Ganhador</h5>
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
@@ -4620,9 +6481,6 @@ export const TemaBuilderView: React.FC<Props> = ({
 
         </div>
       )}
-
-            </div>
-          )}
 
       {/* SEÇÃO TIPOGRAFIA & FONTES UNIFICADA */}
       {secaoEditor === 'tipografia' && (

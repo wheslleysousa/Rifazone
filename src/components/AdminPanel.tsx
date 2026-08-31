@@ -37,9 +37,10 @@ import { TEMA_PADRAO } from '../types';
 
 interface Props {
   onSelectCampanha: (codigo: string) => void;
+  onNavigateComoFunciona?: () => void;
 }
 
-export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
+export const AdminPanel: React.FC<Props> = ({ onSelectCampanha, onNavigateComoFunciona }) => {
   // Auth
   const [user, setUser] = useState<User | null>(null);
   const [authPronto, setAuthPronto] = useState(false);
@@ -912,6 +913,7 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha }) => {
         { id: 'checkouts', label: 'Checkout', icon: <CreditCard className="w-4 h-4 text-indigo-400" /> },
         { id: 'metodos-pagamento', label: 'Métodos de Pagamento', icon: <Wallet className="w-4 h-4 text-emerald-400" /> },
         { id: 'configuracoes', label: 'Configurações', icon: <Settings className="w-4 h-4" />, alerta: !configPagamento?.mpConfigurado },
+        ...(onNavigateComoFunciona ? [{ id: 'como-funciona', label: 'Como Funciona (Público)', icon: <HelpCircle className="w-4 h-4 text-sky-400" />, onClick: onNavigateComoFunciona }] : [])
       ]
     }
   ];

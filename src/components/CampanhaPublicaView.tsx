@@ -3,8 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Campanha, CampanhaPublicaResponse, Promocao, OfertaRelampago, TemaCampanha, TEMA_PADRAO, DEFAULT_CHECKOUT_CONFIG, RankingItem } from '../types';
 import { 
-  Trophy, Flame, Sparkles, ShieldCheck, Ticket, Users,
-  ChevronDown, ChevronUp, Plus, Minus, Gift, Info,
+  Trophy, Flame, Sparkles, ShieldCheck, Ticket, Users, Tag,
+  ChevronDown, ChevronUp, Plus, Minus, Gift, Info, HelpCircle,
   Smartphone, Share2, Instagram, AlertTriangle, AlertCircle, Copy, CheckCircle2,
   User, CreditCard, QrCode, FileText, Lock, Shield, X, Music2, MessageCircle,
   ChevronLeft, ChevronRight, Star, TrendingUp, Zap, Camera, Video, Layout, Eye, Calendar,
@@ -21,7 +21,7 @@ import { SocialNotifications } from './SocialNotifications';
 import { ExitPopup } from './ExitPopup';
 import { WhatsAppIcon, TikTokIcon, InstagramIcon } from './BrandIcons';
 import { formatarMoeda, toCents, toReais } from '../lib/money';
-import { getSectionIcon, calcularEstiloBotao, calcularEstiloCard, obterFundoCss } from '../lib/temaHelpers';
+import { getSectionIcon, calcularEstiloBotao, calcularEstiloCard, obterFundoCss, gerarGradientDegradeBanner } from '../lib/temaHelpers';
 import { 
   initMetaPixel, 
   trackViewContent, 
@@ -39,6 +39,7 @@ import {
 interface Props {
   codigo?: string;
   onNavigateAdmin?: () => void;
+  onNavigateComoFunciona?: () => void;
   modoPreview?: boolean;
   previewCampanha?: Campanha;
   previewTema?: TemaCampanha;
@@ -47,6 +48,7 @@ interface Props {
 export const CampanhaPublicaView: React.FC<Props> = ({
   codigo = '',
   onNavigateAdmin,
+  onNavigateComoFunciona,
   modoPreview = false,
   previewCampanha,
   previewTema
@@ -1151,8 +1153,9 @@ export const CampanhaPublicaView: React.FC<Props> = ({
       tamanhoFonteCards: tema.botao?.tamanhoFonteCards,
     });
 
+    const overlayCor = bannerConfig.overlayCor || '#000000';
     const overlayDegradeEstilo = bannerConfig.overlayDegradeAtivo !== false
-      ? (bannerConfig.overlayDegrade || 'linear-gradient(to top, rgba(10, 15, 29, 0.95) 0%, rgba(10, 15, 29, 0.75) 45%, rgba(10, 15, 29, 0.2) 80%, transparent 100%)')
+      ? (bannerConfig.overlayDegrade || gerarGradientDegradeBanner(overlayCor))
       : 'none';
 
     // Auto-play opcional
@@ -1213,52 +1216,81 @@ export const CampanhaPublicaView: React.FC<Props> = ({
           </AnimatePresence>
 
           {/* Selo de Destaque no Banner */}
-          {campanha.selo && (campanha.exibirSelo ?? true) && (
-            <div 
-              style={{
-                ...obterFundoCss(bannerConfig.seloFundo || tema.cores.seloBannerFundo || '#f59e0b', '#f59e0b'),
-                color: bannerConfig.seloTexto || tema.cores.seloBannerTexto || '#022c22'
-              }}
-              className={`absolute top-3 left-3 px-3 py-1 font-black text-[10px] uppercase tracking-wider rounded-full shadow-xl flex items-center gap-1.5 z-20 select-none ${
-                isSeloPulsando ? 'animate-pulse ring-2 ring-white/30' : ''
-              }`}
-            >
-              {!(/^\s*[\p{Extended_Pictographic}\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u.test(campanha.selo.trim())) && (
-                <Flame className="w-3 h-3 fill-current" />
-              )}
-              <span>{campanha.selo}</span>
-            </div>
-          )}
+          {campanha.selo && (campanha.exibirSelo ?? true) && (bannerConfig.exibirSeloBanner !== false) && (() => {
+            const seloBordaAtiva = bannerConfig.seloBordaAtiva ?? false;
+            const seloBordaCor = bannerConfig.seloBordaCor || '#ffffff';
+            const seloBordaEspessura = bannerConfig.seloBordaEspessura ?? 1;
+            return (
+              <div 
+                style={{
+                  ...obterFundoCss(bannerConfig.seloFundo || tema.cores.seloBannerFundo || '#f59e0b', '#f59e0b'),
+                  color: bannerConfig.seloTexto || tema.cores.seloBannerTexto || '#022c22',
+                  ...(seloBordaAtiva ? { border: `${seloBordaEspessura}px solid ${seloBordaCor}` } : { border: 'none' })
+                }}
+                className={`absolute top-3 left-3 px-3 py-1 font-black text-[10px] uppercase tracking-wider rounded-full shadow-xl flex items-center gap-1.5 z-20 select-none ${
+                  isSeloPulsando ? 'animate-pulse' : ''
+                }`}
+              >
+                {!(/^\s*[\p{Extended_Pictographic}\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u.test(campanha.selo.trim())) && (
+                  <Flame className="w-3 h-3 fill-current" />
+                )}
+                <span>{campanha.selo}</span>
+              </div>
+            );
+          })()}
 
           {/* Overlay com Degradê do Título sobreposto na imagem */}
-          <div 
-            className="absolute inset-x-0 bottom-0 pt-16 pb-4 px-4 sm:px-5 flex flex-col justify-end z-20"
-            style={{ background: overlayDegradeEstilo }}
-          >
-            {campanha.exibirSeloOficial !== false && (
-              <div
-                className="flex items-center gap-1.5 text-[10px] font-black mb-1 uppercase tracking-widest text-emerald-400 drop-shadow"
-                style={{ color: 'var(--brand)' }}
+          {(() => {
+            const alinhamentoBanner = tema.tipografia?.alinhamentoBanner || 'esquerda';
+            const alignClassBanner = alinhamentoBanner === 'centro' ? 'text-center items-center' :
+                                     alinhamentoBanner === 'direita' ? 'text-right items-end' :
+                                     'text-left items-start';
+            const overlayAltura = bannerConfig.overlayAltura ?? 60;
+            const tamanhoBannerTitulo = tema.tipografia.tamanhoBannerTitulo;
+            const tamanhoBannerSubtitulo = tema.tipografia.tamanhoBannerSubtitulo;
+            return (
+              <div 
+                className={`absolute inset-x-0 bottom-0 pt-16 pb-4 px-4 sm:px-5 flex flex-col justify-end z-20 pointer-events-none ${alignClassBanner}`}
+                style={{ 
+                  background: overlayDegradeEstilo,
+                  height: bannerConfig.overlayDegradeAtivo !== false ? `${overlayAltura}%` : 'auto',
+                  maxHeight: '100%'
+                }}
               >
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span>Sorteio oficial: {campanha.localSorteio || 'Loteria Federal'}</span>
+                {campanha.exibirSeloOficial !== false && (
+                  <div
+                    className="flex items-center gap-1.5 text-[10px] font-black mb-1 uppercase tracking-widest text-emerald-400 drop-shadow pointer-events-auto"
+                    style={{ color: 'var(--brand)' }}
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    <span>Sorteio oficial: {campanha.localSorteio || 'Loteria Federal'}</span>
+                  </div>
+                )}
+                <h1 
+                  className={`font-black leading-tight drop-shadow-md pointer-events-auto ${tamanhoBannerTitulo ? '' : getTitleSizeClass(tema.tipografia.tamanhoTitulo)}`}
+                  style={{ 
+                    color: tema.cores.titulos, 
+                    fontFamily: tema.tipografia.fonteCardBanner || tema.tipografia.fonteTitulo,
+                    ...(tamanhoBannerTitulo ? { fontSize: `${tamanhoBannerTitulo}px` } : {})
+                  }}
+                >
+                  {campanha.titulo}
+                </h1>
+                {campanha.subtitulo && (
+                  <p 
+                    className="mt-1 line-clamp-2 opacity-95 uppercase font-medium tracking-tight text-slate-200 drop-shadow pointer-events-auto"
+                    style={{ 
+                      color: tema.cores.subtituloCor || '#e2e8f0', 
+                      fontFamily: tema.tipografia.fonteCardBannerSubtitulo || tema.tipografia.fonteCardBanner || tema.tipografia.fonteTexto,
+                      fontSize: tamanhoBannerSubtitulo ? `${tamanhoBannerSubtitulo}px` : '12px'
+                    }}
+                  >
+                    {campanha.subtitulo}
+                  </p>
+                )}
               </div>
-            )}
-            <h1 
-              className={`font-black leading-tight drop-shadow-md ${getTitleSizeClass(tema.tipografia.tamanhoTitulo)}`}
-              style={{ color: tema.cores.titulos, fontFamily: tema.tipografia.fonteCardBanner || tema.tipografia.fonteTitulo }}
-            >
-              {campanha.titulo}
-            </h1>
-            {campanha.subtitulo && (
-              <p 
-                className="text-[12px] sm:text-xs mt-1 line-clamp-2 opacity-95 uppercase font-medium tracking-tight text-slate-200 drop-shadow"
-                style={{ color: tema.cores.subtituloCor || '#e2e8f0', fontFamily: tema.tipografia.fonteCardBannerSubtitulo || tema.tipografia.fonteCardBanner || tema.tipografia.fonteTexto }}
-              >
-                {campanha.subtitulo}
-              </p>
-            )}
-          </div>
+            );
+          })()}
 
           {imagens.length > 1 && (
             <>
@@ -1324,8 +1356,23 @@ export const CampanhaPublicaView: React.FC<Props> = ({
       >
         {(tituloText || subtituloText || textoBarra) && (
           <div className="mb-2 space-y-0.5">
-            <div className="flex items-center justify-between text-xs">
-              {tituloText ? <span className="font-bold text-white opacity-90">{tituloText}</span> : <span />}
+            <div className={`flex items-center justify-between text-xs ${
+              (tema.tipografia?.alinhamentoProgressoTitulo || tema.tipografia?.alinhamentoProgresso) === 'centro' ? 'justify-center text-center' :
+              (tema.tipografia?.alinhamentoProgressoTitulo || tema.tipografia?.alinhamentoProgresso) === 'direita' ? 'justify-end text-right' :
+              'justify-between text-left'
+            }`}>
+              {tituloText ? (
+                <span 
+                  className="font-bold opacity-90"
+                  style={{ 
+                    fontFamily: tema.tipografia.fonteCardProgresso,
+                    fontSize: `${tema.tipografia.tamanhoProgressoTitulo ?? 14}px`,
+                    color: tema.cores.titulos || '#ffffff'
+                  }}
+                >
+                  {tituloText}
+                </span>
+              ) : <span />}
               {textoBarra && (
                 <span className="font-extrabold text-xs ml-auto" style={{ fontFamily: tema.tipografia.fonteProgressoInterno || tema.tipografia.fonteCardProgresso || 'Inter', color: tema.cores.barraProgressoPreenchimento || 'var(--brand)' }}>
                   {textoBarra}
@@ -1333,7 +1380,18 @@ export const CampanhaPublicaView: React.FC<Props> = ({
               )}
             </div>
             {subtituloText && (
-              <p className="text-[11px] opacity-70" style={{ fontFamily: tema.tipografia.fonteCardProgressoSubtitulo || 'Inter', color: tema.cores.descricoes }}>
+              <p 
+                className={`opacity-70 ${
+                  (tema.tipografia?.alinhamentoProgressoSubtitulo || tema.tipografia?.alinhamentoProgresso) === 'centro' ? 'text-center' :
+                  (tema.tipografia?.alinhamentoProgressoSubtitulo || tema.tipografia?.alinhamentoProgresso) === 'direita' ? 'text-right' :
+                  'text-left'
+                }`}
+                style={{ 
+                  fontFamily: tema.tipografia.fonteCardProgressoSubtitulo || 'Inter', 
+                  fontSize: `${tema.tipografia.tamanhoProgressoSubtitulo ?? 11}px`,
+                  color: tema.cores.descricoes 
+                }}
+              >
                 {subtituloText}
               </p>
             )}
@@ -1379,44 +1437,369 @@ export const CampanhaPublicaView: React.FC<Props> = ({
     if (campanha.modalidade === 'gratis') return null;
 
     const cotasCfg = tema.cotasConfig || {};
-    const textoPorApenas = cotasCfg.textoPorApenas || 'Por apenas';
+    const rawTexto = cotasCfg.textoPorApenas ?? 'Por apenas';
+    const textoPorApenas = rawTexto.trim();
+    const temTexto = textoPorApenas.length > 0;
     const porApenasFundo = cotasCfg.porApenasFundo || '#064e3b';
     const porApenasTexto = cotasCfg.porApenasTexto || tema.cores.primaria || '#10b981';
     const porApenasBorda = cotasCfg.porApenasBorda || '#059669';
+    const porApenasTemBorda = cotasCfg.porApenasTemBorda ?? true;
+    const porApenasEspessuraBorda = cotasCfg.porApenasEspessuraBorda ?? 1;
+    const porApenasRaioBorda = cotasCfg.porApenasRaioBorda ?? 12;
+    const porApenasEstiloBotao = cotasCfg.porApenasEstiloBotao || 'solido';
+    const porApenasTamanhoValor = cotasCfg.porApenasTamanhoValor || 24;
+    const porApenasTamanhoTexto = cotasCfg.porApenasTamanhoTexto || 14;
+    const porApenasFonte = cotasCfg.porApenasFonte || tema.tipografia.fonteCardCotas;
+    const estiloContainer = cotasCfg.estiloContainer || 'texto_e_botao';
+    const layout = cotasCfg.porApenasLayout || 'vertical';
+    const alinhamento = cotasCfg.porApenasAlinhamento || 'centro';
 
+    // Alinhamento na página (wrapper externo)
+    const alignWrapperClass = 
+      alinhamento === 'esquerda' ? 'justify-start text-left items-start' :
+      alinhamento === 'direita' ? 'justify-end text-right items-end' :
+      'justify-center text-center items-center';
+
+    const justifyFlexClass =
+      alinhamento === 'esquerda' ? 'justify-start' :
+      alinhamento === 'direita' ? 'justify-end' :
+      'justify-center';
+
+    const textAlignmentClass =
+      alinhamento === 'esquerda' ? 'text-left' :
+      alinhamento === 'direita' ? 'text-right' :
+      'text-center';
+
+    // Estilização do Botão/Tag quando usado
+    const styleBotaoObj = (() => {
+      if (porApenasEstiloBotao === 'vidro') {
+        return {
+          backgroundColor: 'rgba(16, 185, 129, 0.15)',
+          backdropFilter: 'blur(8px)',
+          border: porApenasTemBorda ? `${porApenasEspessuraBorda}px solid ${porApenasBorda}` : 'none',
+          borderRadius: `${porApenasRaioBorda}px`,
+          color: porApenasTexto,
+        };
+      }
+      if (porApenasEstiloBotao === 'transparente') {
+        return {
+          backgroundColor: 'transparent',
+          border: porApenasTemBorda ? `${porApenasEspessuraBorda}px solid ${porApenasBorda}` : 'none',
+          borderRadius: `${porApenasRaioBorda}px`,
+          color: porApenasTexto,
+        };
+      }
+      if (porApenasEstiloBotao === 'sombra') {
+        return {
+          ...obterFundoCss(porApenasFundo, '#064e3b'),
+          border: porApenasTemBorda ? `${porApenasEspessuraBorda}px solid ${porApenasBorda}` : 'none',
+          borderRadius: `${porApenasRaioBorda}px`,
+          color: porApenasTexto,
+          boxShadow: `0 4px 0 ${porApenasBorda}`,
+        };
+      }
+      // Padrão: Sólido
+      return {
+        ...obterFundoCss(porApenasFundo, '#064e3b'),
+        border: porApenasTemBorda ? `${porApenasEspessuraBorda}px solid ${porApenasBorda}` : 'none',
+        borderRadius: `${porApenasRaioBorda}px`,
+        color: porApenasTexto,
+      };
+    })();
+
+    // Elemento de Texto Solto
+    const renderTextoSolto = () => {
+      if (!temTexto) return null;
+      return (
+        <span 
+          style={{ 
+            fontSize: `${porApenasTamanhoTexto}px`,
+            color: porApenasTexto,
+            fontFamily: porApenasFonte 
+          }}
+          className="font-bold tracking-tight inline-block opacity-90"
+        >
+          {textoPorApenas}
+        </span>
+      );
+    };
+
+    // Elemento de Valor Solto (apenas texto)
+    const renderValorSolto = () => (
+      <span 
+        style={{ 
+          fontSize: `${porApenasTamanhoValor}px`,
+          color: porApenasTexto,
+          fontFamily: porApenasFonte 
+        }}
+        className="font-mono font-black tracking-tight inline-block"
+      >
+        {formatarMoeda(campanha.valorCota)}
+      </span>
+    );
+
+    // Elemento de Valor com Botão/Tag
+    const renderValorBotao = () => (
+      <div 
+        style={{
+          ...styleBotaoObj,
+          fontSize: `${porApenasTamanhoValor}px`,
+          fontFamily: porApenasFonte
+        }}
+        className="px-4 py-1.5 font-black shadow-sm font-mono tracking-tight inline-flex items-center justify-center transition-all"
+      >
+        {formatarMoeda(campanha.valorCota)}
+      </div>
+    );
+
+    // Conteúdo estruturado conforme a disposição (vertical | horizontal | inverso)
+    const renderConteudo = (tipo: 'solto' | 'valor_botao') => {
+      const renderVal = tipo === 'solto' ? renderValorSolto() : renderValorBotao();
+      const renderTxt = renderTextoSolto();
+
+      if (layout === 'horizontal') {
+        return (
+          <div className={`flex flex-row flex-wrap items-center gap-2.5 ${justifyFlexClass}`}>
+            {renderTxt}
+            {renderVal}
+          </div>
+        );
+      }
+      if (layout === 'inverso') {
+        return (
+          <div className={`flex flex-col gap-1 ${alignWrapperClass}`}>
+            {renderVal}
+            {renderTxt}
+          </div>
+        );
+      }
+      // Padrão: vertical
+      return (
+        <div className={`flex flex-col gap-1 ${alignWrapperClass}`}>
+          {renderTxt}
+          {renderVal}
+        </div>
+      );
+    };
+
+    // Regras de Desconto Progressivo por Valor Total (Totalmente Customizável)
+    const renderRegrasDesconto = () => {
+      if (!campanha.descontoPorValorTotal || campanha.descontoPorValorTotal.length === 0) return null;
+
+      const cotasCfg = tema.cotasConfig || {};
+      const regraEstilo = cotasCfg.regraDescontoEstilo || 'badge';
+      const regraFundo = cotasCfg.regraDescontoFundo || 'rgba(16, 185, 129, 0.1)';
+      const regraTexto = cotasCfg.regraDescontoTexto || '#34d399';
+      const regraDestaque = cotasCfg.regraDescontoDestaque || '#10b981';
+      const regraTemBorda = cotasCfg.regraDescontoTemBorda ?? true;
+      const regraBorda = cotasCfg.regraDescontoBorda || 'rgba(16, 185, 129, 0.3)';
+      const regraEspessuraBorda = cotasCfg.regraDescontoEspessuraBorda ?? 1;
+      const regraRaioBorda = cotasCfg.regraDescontoRaioBorda ?? 9999;
+      const regraFonte = cotasCfg.regraDescontoFonte || tema.tipografia.fonteCardCotas || '';
+      const regraTamanhoTexto = cotasCfg.regraDescontoTamanhoTexto ?? 12;
+      const regraPaddingY = cotasCfg.regraDescontoPaddingY ?? 4;
+      const regraAlinhamento = cotasCfg.regraDescontoAlinhamento || cotasCfg.porApenasAlinhamento || 'centro';
+      const regraMostrarIcone = cotasCfg.regraDescontoMostrarIcone ?? true;
+      const regraIconeTipo = cotasCfg.regraDescontoIcone || 'zap';
+      const regraTextoModelo = cotasCfg.regraDescontoTextoModelo || 'A partir de {valor} cada cota fica por {desconto}';
+
+      const regraAlignClass = 
+        regraAlinhamento === 'esquerda' ? 'items-start text-left' :
+        regraAlinhamento === 'direita' ? 'items-end text-right' :
+        'items-center text-center';
+
+      const IconComponent = (() => {
+        if (!regraMostrarIcone || regraIconeTipo === 'nenhum' || regraIconeTipo === 'none') return null;
+        return getSectionIcon(regraIconeTipo, Zap);
+      })();
+
+      const regraCardStyle = (() => {
+        const base: React.CSSProperties = {
+          fontFamily: regraFonte || undefined,
+          fontSize: `${regraTamanhoTexto}px`,
+          color: regraTexto,
+          borderRadius: `${regraRaioBorda}px`,
+          border: regraTemBorda ? `${regraEspessuraBorda}px solid ${regraBorda}` : 'none',
+          paddingTop: `${regraPaddingY}px`,
+          paddingBottom: `${regraPaddingY}px`,
+        };
+
+        if (regraEstilo === 'vidro') {
+          return {
+            ...base,
+            backgroundColor: 'rgba(16, 185, 129, 0.12)',
+            backdropFilter: 'blur(8px)',
+          };
+        }
+        if (regraEstilo === 'transparente') {
+          return {
+            ...base,
+            backgroundColor: 'transparent',
+          };
+        }
+        if (regraEstilo === '3d') {
+          return {
+            ...base,
+            ...obterFundoCss(regraFundo, '#064e3b'),
+            boxShadow: `0 3px 0 ${regraBorda || '#059669'}`,
+          };
+        }
+        if (regraEstilo === 'gradiente' || regraEstilo === 'solido') {
+          return {
+            ...base,
+            ...obterFundoCss(regraFundo, '#064e3b'),
+          };
+        }
+        // badge
+        return {
+          ...base,
+          ...obterFundoCss(regraFundo, 'rgba(16, 185, 129, 0.1)'),
+        };
+      })();
+
+      return (
+        <div className={`w-full flex flex-col gap-1.5 mt-2.5 ${regraAlignClass}`}>
+          {campanha.descontoPorValorTotal.map((d, dIdx) => {
+            const aPartir = formatarMoeda(d.aPartirDeValor);
+            const comDesconto = formatarMoeda(d.valorCotaComDesconto);
+            const partes = regraTextoModelo.split(/(\{valor\}|\{desconto\})/g);
+
+            return (
+              <div 
+                key={dIdx}
+                className="inline-flex items-center gap-1.5 px-3.5 shadow-sm font-semibold transition-all max-w-full"
+                style={regraCardStyle}
+              >
+                {IconComponent && <IconComponent className="w-3.5 h-3.5 shrink-0" style={{ color: regraDestaque }} />}
+                <span className="leading-snug">
+                  {partes.map((parte, pIdx) => {
+                    if (parte === '{valor}') {
+                      return <strong key={pIdx} className="font-extrabold" style={{ color: regraDestaque }}>{aPartir}</strong>;
+                    }
+                    if (parte === '{desconto}') {
+                      return <strong key={pIdx} className="font-extrabold font-mono" style={{ color: regraDestaque }}>{comDesconto}</strong>;
+                    }
+                    return <span key={pIdx}>{parte}</span>;
+                  })}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      );
+    };
+
+    // 1. Apenas Texto & Preço Soltos (sem nenhum card ou botão externo)
+    if (estiloContainer === 'apenas_texto_preco') {
+      return (
+        <div className={`w-full flex flex-col ${alignWrapperClass} py-1.5 transition-all`}>
+          <div className={`w-full flex ${justifyFlexClass}`}>
+            {renderConteudo('solto')}
+          </div>
+          {renderRegrasDesconto()}
+        </div>
+      );
+    }
+
+    // 2. Texto Solto + Botão no Valor
+    if (estiloContainer === 'texto_e_botao') {
+      return (
+        <div className={`w-full flex flex-col ${alignWrapperClass} py-1.5 transition-all`}>
+          <div className={`w-full flex ${justifyFlexClass}`}>
+            {renderConteudo('valor_botao')}
+          </div>
+          {renderRegrasDesconto()}
+        </div>
+      );
+    }
+
+    // 3. Botão Único Unificado (Texto e Preço juntos dentro da mesma tag/botão)
+    if (estiloContainer === 'botao_unico') {
+      const content = (() => {
+        if (layout === 'horizontal') {
+          return (
+            <div className="flex flex-row flex-wrap items-center gap-2 justify-center">
+              {temTexto && (
+                <span style={{ fontSize: `${porApenasTamanhoTexto}px` }} className="font-bold opacity-90">
+                  {textoPorApenas}
+                </span>
+              )}
+              <span style={{ fontSize: `${porApenasTamanhoValor}px` }} className="font-mono font-black">
+                {formatarMoeda(campanha.valorCota)}
+              </span>
+            </div>
+          );
+        }
+        if (layout === 'inverso') {
+          return (
+            <div className="flex flex-col items-center gap-0.5 justify-center">
+              <span style={{ fontSize: `${porApenasTamanhoValor}px` }} className="font-mono font-black">
+                {formatarMoeda(campanha.valorCota)}
+              </span>
+              {temTexto && (
+                <span style={{ fontSize: `${porApenasTamanhoTexto}px` }} className="font-bold opacity-90">
+                  {textoPorApenas}
+                </span>
+              )}
+            </div>
+          );
+        }
+        // Vertical
+        return (
+          <div className="flex flex-col items-center gap-0.5 justify-center">
+            {temTexto && (
+              <span style={{ fontSize: `${porApenasTamanhoTexto}px` }} className="font-bold opacity-90">
+                {textoPorApenas}
+              </span>
+            )}
+            <span style={{ fontSize: `${porApenasTamanhoValor}px` }} className="font-mono font-black">
+              {formatarMoeda(campanha.valorCota)}
+            </span>
+          </div>
+        );
+      })();
+
+      return (
+        <div className={`w-full flex flex-col ${alignWrapperClass} py-1.5 transition-all`}>
+          <div className={`w-full flex ${justifyFlexClass}`}>
+            <div 
+              style={{
+                ...styleBotaoObj,
+                fontFamily: tema.tipografia.fonteCardCotas
+              }}
+              className="px-5 py-2.5 shadow-md inline-flex items-center justify-center transition-all"
+            >
+              {content}
+            </div>
+          </div>
+          {renderRegrasDesconto()}
+        </div>
+      );
+    }
+
+    // 4. Card Destaque Tradicional (moldura com fundo e borda em volta de todo o conjunto)
     const estiloCard = calcularEstiloCard({
       estilo: tema.botao?.estiloCards,
-      corFundo: '#090d16',
+      corFundo: tema.cores.cardFundo || '#090d16',
       corBorda: porApenasBorda,
-      raioBorda: tema.botao?.raioBordaCards ?? 16,
+      raioBorda: porApenasRaioBorda,
+      larguraBorda: porApenasTemBorda ? porApenasEspessuraBorda : 0,
+      possuirBorda: porApenasTemBorda,
     });
 
     return (
       <div 
-        className={`border rounded-2xl p-4 shadow-sm text-center transition-all ${estiloCard.className}`}
+        className={`w-full p-4 shadow-sm transition-all ${estiloCard.className}`}
         style={{
           ...estiloCard.style,
-          borderColor: porApenasBorda,
+          borderColor: porApenasTemBorda ? porApenasBorda : 'transparent',
           fontFamily: tema.tipografia.fonteCardCotas
         }}
       >
-        <div className="flex flex-col items-center justify-center gap-2">
-          {/* Texto descritivo */}
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest block">
-            {textoPorApenas}
-          </span>
-          {/* Preço de destaque */}
-          <div 
-            className="px-5 py-2 rounded-xl font-black text-2xl sm:text-3xl shadow-md border font-mono tracking-tight inline-block"
-            style={{
-              ...obterFundoCss(porApenasFundo, '#064e3b'),
-              color: porApenasTexto,
-              borderColor: porApenasBorda,
-            }}
-          >
-            {formatarMoeda(campanha.valorCota)}
-          </div>
+        <div className={`w-full flex ${justifyFlexClass}`}>
+          {renderConteudo('valor_botao')}
         </div>
+        {renderRegrasDesconto()}
       </div>
     );
   };
@@ -1604,28 +1987,54 @@ export const CampanhaPublicaView: React.FC<Props> = ({
           </div>
         ) : (
           <>
-            {/* 
             {/* Títulos e Subtítulos - Pacotes */}
-            {(tema.botao.tituloPacotes || tema.botao.subtituloPacotes) && (
-              <div className="text-center sm:text-left space-y-0.5 pb-2">
-                {tema.botao.tituloPacotes && (
-                  <h3 className="font-black" style={{ fontFamily: tema.tipografia.fontePacotesTitulo || 'Inter', fontSize: '1rem', color: tema.cores.titulos }}>
-                    {tema.botao.tituloPacotes}
-                  </h3>
-                )}
-                {tema.botao.subtituloPacotes && (
-                  <p className="text-xs opacity-70" style={{ fontFamily: tema.tipografia.fontePacotesSubtitulo || 'Inter', color: tema.cores.descricoes }}>
-                    {tema.botao.subtituloPacotes}
-                  </p>
-                )}
-              </div>
-            )}
+            {(() => {
+              const tituloP = tema.botao?.tituloPacotes === undefined ? '⚡ Pacotes Promocionais' : tema.botao.tituloPacotes;
+              const subtituloP = tema.botao?.subtituloPacotes === undefined ? 'Compre em pacotes e garanta super descontos!' : tema.botao.subtituloPacotes;
+              const temTitulo = Boolean(tituloP && tituloP.trim());
+              const temSubtitulo = Boolean(subtituloP && subtituloP.trim());
+              if (!temTitulo && !temSubtitulo) return null;
+              
+              const alinTitP = tema.tipografia?.alinhamentoPacotesTitulo || tema.tipografia?.alinhamentoPacotes || 'esquerda';
+              const alinSubP = tema.tipografia?.alinhamentoPacotesSubtitulo || tema.tipografia?.alinhamentoPacotes || 'esquerda';
+
+              const alignTitClass = alinTitP === 'centro' ? 'text-center' : alinTitP === 'direita' ? 'text-right' : 'text-left';
+              const alignSubClass = alinSubP === 'centro' ? 'text-center' : alinSubP === 'direita' ? 'text-right' : 'text-left';
+
+              return (
+                <div className="space-y-0.5 pb-2">
+                  {temTitulo && (
+                    <h3 
+                      className={`font-black ${alignTitClass}`}
+                      style={{ 
+                        fontFamily: tema.tipografia?.fontePacotesTitulo || 'Inter', 
+                        fontSize: `${tema.tipografia?.tamanhoPacotesTitulo ?? 16}px`, 
+                        color: tema.cores?.titulos || '#ffffff' 
+                      }}
+                    >
+                      {tituloP}
+                    </h3>
+                  )}
+                  {temSubtitulo && (
+                    <p 
+                      className={`opacity-70 ${alignSubClass}`}
+                      style={{ 
+                        fontFamily: tema.tipografia?.fontePacotesSubtitulo || 'Inter', 
+                        fontSize: `${tema.tipografia?.tamanhoPacotesSubtitulo ?? 12}px`, 
+                        color: tema.cores?.descricoes || '#94a3b8' 
+                      }}
+                    >
+                      {subtituloP}
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Botões de Pacotes de Cotas */}
-            {/*
             <div className={`grid ${colMobileClass} ${colDesktopClass} gap-2.5`}>
-
               {listaBotoes.map((item, idx: number) => {
+                const isSelected = quantidade === item.quantidade;
                 const rotuloTexto = item.rotulo || (item.destaque ? 'Mais popular' : undefined);
                 const isDestaque = item.destaque || !!item.rotulo;
                 const corFundoPacote = isDestaque ? (tema.cores.botaoDestaqueFundo || tema.cores.primaria) : tema.cores.botaoCotasFundo;
@@ -1639,21 +2048,15 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                     key={idx}
                     type="button"
                     onClick={() => {
-                      setQuantidade((prev: number) => {
-                        const max = campanha.maxPorCompra || 500000;
-                        const min = campanha.minPorCompra || 1;
-                        const atual = Number(prev) || 0;
-                        const novaQtd = atual + item.quantidade;
-                        return Math.min(max, Math.max(min, novaQtd));
-                      });
+                      setQuantidade(item.quantidade);
                     }}
                     style={calcularEstiloBotao({
                       estilo: tema.botao?.estiloPacotes || 'solido',
                       corFundo: corFundoPacote,
                       corTexto: corTextoPacote,
-                      corBorda: tema.botao?.corBordaPacotes || tema.cores.botaoCotasBorda || tema.cores.cardBorda,
-                      larguraBorda: tema.botao?.larguraBordaPacotes,
-                      possuirBorda: tema.botao?.possuirBordaPacotes,
+                      corBorda: isSelected ? (tema.cores.primaria || '#10b981') : (tema.botao?.corBordaPacotes || tema.cores.botaoCotasBorda || tema.cores.cardBorda),
+                      larguraBorda: isSelected ? Math.max(2, (tema.botao?.larguraBordaPacotes || 1)) : tema.botao?.larguraBordaPacotes,
+                      possuirBorda: isSelected ? true : tema.botao?.possuirBordaPacotes,
                       raioBorda: tema.botao?.raioBordaPacotes ?? 12,
                       tamanhoAltura: tema.botao?.tamanhoAlturaPacotes ?? 12,
                       sombraAltura: tema.botao?.sombraAlturaPacotes ?? 3,
@@ -1666,7 +2069,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                         corTexto: corTextoPacote,
                         raioBorda: tema.botao?.raioBordaPacotes ?? 12,
                       }).className
-                    } relative py-3 px-2 border text-center transition flex flex-col items-center justify-center gap-1 group active:scale-95 cursor-pointer min-h-[70px] shadow-sm`}
+                    } relative py-3 px-2 border text-center transition flex flex-col items-center justify-center gap-1 group active:scale-95 cursor-pointer min-h-[70px] shadow-sm ${isSelected ? 'ring-2 ring-emerald-400 ring-offset-1 ring-offset-slate-950 scale-[1.02]' : ''}`}
                   >
                     {rotuloTexto && (
                       <span 
@@ -1701,20 +2104,48 @@ export const CampanhaPublicaView: React.FC<Props> = ({
             </div>
 
             {/* Títulos e Subtítulos - Controles */}
-            {(tema.botao.tituloControles || tema.botao.subtituloControles) && (
-              <div className="text-center sm:text-left space-y-0.5 pt-4 pb-1">
-                {tema.botao.tituloControles && (
-                  <h3 className="font-black" style={{ fontFamily: tema.tipografia.fonteControlesTitulo || 'Inter', fontSize: '1rem', color: tema.cores.titulos }}>
-                    {tema.botao.tituloControles}
-                  </h3>
-                )}
-                {tema.botao.subtituloControles && (
-                  <p className="text-xs opacity-70" style={{ fontFamily: tema.tipografia.fonteControlesSubtitulo || 'Inter', color: tema.cores.descricoes }}>
-                    {tema.botao.subtituloControles}
-                  </p>
-                )}
-              </div>
-            )}
+            {(() => {
+              const tituloC = tema.botao?.tituloControles === undefined ? 'Selecione a quantidade manualmente' : tema.botao.tituloControles;
+              const subtituloC = tema.botao?.subtituloControles === undefined ? 'Use os botões + e - ou digite o valor' : tema.botao.subtituloControles;
+              const temTitulo = Boolean(tituloC && tituloC.trim());
+              const temSubtitulo = Boolean(subtituloC && subtituloC.trim());
+              if (!temTitulo && !temSubtitulo) return null;
+              
+              const alinTitC = tema.tipografia?.alinhamentoControlesTitulo || tema.tipografia?.alinhamentoControles || 'esquerda';
+              const alinSubC = tema.tipografia?.alinhamentoControlesSubtitulo || tema.tipografia?.alinhamentoControles || 'esquerda';
+
+              const alignTitClass = alinTitC === 'centro' ? 'text-center' : alinTitC === 'direita' ? 'text-right' : 'text-left';
+              const alignSubClass = alinSubC === 'centro' ? 'text-center' : alinSubC === 'direita' ? 'text-right' : 'text-left';
+
+              return (
+                <div className="space-y-0.5 pt-4 pb-1">
+                  {temTitulo && (
+                    <h3 
+                      className={`font-black ${alignTitClass}`}
+                      style={{ 
+                        fontFamily: tema.tipografia?.fonteControlesTitulo || 'Inter', 
+                        fontSize: `${tema.tipografia?.tamanhoControlesTitulo ?? 16}px`, 
+                        color: tema.cores?.titulos || '#ffffff' 
+                      }}
+                    >
+                      {tituloC}
+                    </h3>
+                  )}
+                  {temSubtitulo && (
+                    <p 
+                      className={`opacity-70 ${alignSubClass}`}
+                      style={{ 
+                        fontFamily: tema.tipografia?.fonteControlesSubtitulo || 'Inter', 
+                        fontSize: `${tema.tipografia?.tamanhoControlesSubtitulo ?? 12}px`, 
+                        color: tema.cores?.descricoes || '#94a3b8' 
+                      }}
+                    >
+                      {subtituloC}
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Seletor Manual (+1 / -1 e Input Direto) */}
             {(() => {
@@ -1826,11 +2257,19 @@ export const CampanhaPublicaView: React.FC<Props> = ({
       tamanhoFonteCards: tema.botao?.tamanhoFonteCards,
     });
 
+    const alinPrem = tema.tipografia?.alinhamentoPremiosTitulo || tema.tipografia?.alinhamentoPremios || 'esquerda';
+    const alignClassPremios = alinPrem === 'centro' ? 'justify-center text-center' :
+                              alinPrem === 'direita' ? 'justify-end text-right' :
+                              'justify-start text-left';
+
     return (
       <div className={`border rounded-2xl p-5 shadow-sm ${cardStyle.className}`} style={{ ...cardStyle.style, fontFamily: tema.tipografia.fonteCardPremios }}>
-        <h3 className="text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-1.5 opacity-80">
-          <SectionIcon className="w-4 h-4" style={{ color: iconeCor }} />
-          Premiação
+        <h3 
+          className={`font-bold uppercase tracking-wider mb-3 flex items-center gap-1.5 opacity-80 ${alignClassPremios}`}
+          style={{ fontSize: `${tema.tipografia.tamanhoPremiosTitulo ?? 12}px`, color: tema.cores.titulos || '#ffffff' }}
+        >
+          <SectionIcon className="w-4 h-4 shrink-0" style={{ color: iconeCor }} />
+          <span>Premiação</span>
         </h3>
         <div className="space-y-2.5">
           {campanha.premios.map((premio, idx) => {
@@ -1889,20 +2328,37 @@ export const CampanhaPublicaView: React.FC<Props> = ({
       tamanhoFonteCards: tema.botao?.tamanhoFonteCards,
     });
 
+    const alinPremiadoTit = tema.tipografia?.alinhamentoPremiadoTitulo || tema.tipografia?.alinhamentoPremiado || 'esquerda';
+    const alinPremiadoSub = tema.tipografia?.alinhamentoPremiadoSubtitulo || tema.tipografia?.alinhamentoPremiado || 'esquerda';
+    const alignPremiadoTitClass = alinPremiadoTit === 'centro' ? 'justify-center text-center' : alinPremiadoTit === 'direita' ? 'justify-end text-right' : 'justify-start text-left';
+    const alignPremiadoSubClass = alinPremiadoSub === 'centro' ? 'text-center' : alinPremiadoSub === 'direita' ? 'text-right' : 'text-left';
+
     return (
       <div className={`border rounded-2xl p-5 shadow-sm ${cardStyle.className}`} style={{ ...cardStyle.style }}>
-        <div className="flex items-center justify-between mb-3">
-          <div className="space-y-1">
-            <h3 className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 opacity-80" style={{ fontFamily: tema.tipografia.fonteCardCotasPremiadas || 'Inter' }}>
-              <SectionIcon className="w-4 h-4" style={{ color: iconeCor }} />
-              {tema.botao.tituloPremiado || 'Cotas Premiadas (Ganhe no Pix na Hora)'}
-            </h3>
-            {tema.botao.subtituloPremiado && (
-              <p className="text-[10px] opacity-70" style={{ fontFamily: tema.tipografia.fonteCardCotasPremiadasSubtitulo || 'Inter' }}>
-                {tema.botao.subtituloPremiado}
-              </p>
-            )}
-          </div>
+        <div className="mb-3 space-y-1">
+          <h3 
+            className={`font-bold uppercase tracking-wider flex items-center gap-1.5 opacity-80 ${alignPremiadoTitClass}`} 
+            style={{ 
+              fontFamily: tema.tipografia.fonteCardCotasPremiadas || 'Inter',
+              fontSize: `${tema.tipografia.tamanhoPremiadoTitulo ?? 12}px`,
+              color: tema.cores.titulos || '#ffffff'
+            }}
+          >
+            <SectionIcon className="w-4 h-4 shrink-0" style={{ color: iconeCor }} />
+            <span>{tema.botao.tituloPremiado || 'Cotas Premiadas (Ganhe no Pix na Hora)'}</span>
+          </h3>
+          {tema.botao.subtituloPremiado && (
+            <p 
+              className={`opacity-70 ${alignPremiadoSubClass}`} 
+              style={{ 
+                fontFamily: tema.tipografia.fonteCardCotasPremiadasSubtitulo || 'Inter',
+                fontSize: `${tema.tipografia.tamanhoPremiadoSubtitulo ?? 10}px`,
+                color: tema.cores.descricoes || '#94a3b8'
+              }}
+            >
+              {tema.botao.subtituloPremiado}
+            </p>
+          )}
         </div>
         <div className="grid grid-cols-2 gap-2">
           {campanha.cotasPremiadas.map((cp, idx) => {
@@ -1985,11 +2441,19 @@ export const CampanhaPublicaView: React.FC<Props> = ({
       tamanhoFonteCards: tema.botao?.tamanhoFonteCards,
     });
 
+    const alinRank = tema.tipografia?.alinhamentoRankingTitulo || tema.tipografia?.alinhamentoRanking || 'esquerda';
+    const alignClassRanking = alinRank === 'centro' ? 'justify-center text-center' :
+                              alinRank === 'direita' ? 'justify-end text-right' :
+                              'justify-start text-left';
+
     return (
       <div className={`border rounded-2xl p-5 shadow-sm ${cardStyle.className}`} style={{ ...cardStyle.style, fontFamily: tema.tipografia.fonteCardRanking }}>
-        <h3 className="text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-1.5 opacity-80">
-          <SectionIcon className="w-4 h-4" style={{ color: iconeCor }} />
-          Top Compradores
+        <h3 
+          className={`font-bold uppercase tracking-wider mb-3 flex items-center gap-1.5 opacity-80 ${alignClassRanking}`}
+          style={{ fontSize: `${tema.tipografia.tamanhoRankingTitulo ?? 12}px`, color: tema.cores.titulos || '#ffffff' }}
+        >
+          <SectionIcon className="w-4 h-4 shrink-0" style={{ color: iconeCor }} />
+          <span>Top Compradores</span>
         </h3>
         <div className="space-y-2">
           {ranking.map((item) => {
@@ -2057,6 +2521,11 @@ export const CampanhaPublicaView: React.FC<Props> = ({
     });
     const regTextoCor = (tema.cores as any).cardRegulamentoTexto || tema.cores.descricoes || '#cbd5e1';
 
+    const alinReg = tema.tipografia?.alinhamentoRegulamentoTitulo || tema.tipografia?.alinhamentoRegulamento || 'esquerda';
+    const alignClassReg = alinReg === 'centro' ? 'justify-center text-center' :
+                          alinReg === 'direita' ? 'justify-end text-right' :
+                          'justify-start text-left';
+
     if (!temDesc && !temReg) return null;
 
     return (
@@ -2067,13 +2536,16 @@ export const CampanhaPublicaView: React.FC<Props> = ({
               type="button"
               onClick={() => setDescAberta(!descAberta)}
               aria-expanded={descAberta}
-              className="w-full flex items-center justify-between text-left focus:outline-none group cursor-pointer"
+              className={`w-full flex items-center justify-between focus:outline-none group cursor-pointer ${alignClassReg}`}
             >
-              <span className="text-xs font-bold uppercase tracking-wider flex items-center gap-2 opacity-90 group-hover:opacity-100 transition-opacity">
+              <span 
+                className="font-bold uppercase tracking-wider flex items-center gap-2 opacity-90 group-hover:opacity-100 transition-opacity"
+                style={{ fontSize: `${tema.tipografia.tamanhoRegulamentoTitulo ?? 12}px`, color: tema.cores.titulos || '#ffffff' }}
+              >
                 <SectionIconDesc className="w-4 h-4 shrink-0" style={{ color: iconeCorReg }} />
                 <span>{temReg ? 'Descrição da Campanha' : 'Descrição & Regulamento'}</span>
               </span>
-              <div className="p-1 rounded-lg bg-slate-800/40 text-slate-400 group-hover:text-white transition">
+              <div className="p-1 rounded-lg bg-slate-800/40 text-slate-400 group-hover:text-white transition shrink-0 ml-2">
                 {descAberta ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
               </div>
             </button>
@@ -2094,13 +2566,16 @@ export const CampanhaPublicaView: React.FC<Props> = ({
               type="button"
               onClick={() => setRegAberto(!regAberto)}
               aria-expanded={regAberto}
-              className="w-full flex items-center justify-between text-left focus:outline-none group cursor-pointer"
+              className={`w-full flex items-center justify-between focus:outline-none group cursor-pointer ${alignClassReg}`}
             >
-              <span className="text-xs font-bold uppercase tracking-wider flex items-center gap-2 opacity-90 group-hover:opacity-100 transition-opacity">
+              <span 
+                className="font-bold uppercase tracking-wider flex items-center gap-2 opacity-90 group-hover:opacity-100 transition-opacity"
+                style={{ fontSize: `${tema.tipografia.tamanhoRegulamentoTitulo ?? 12}px`, color: tema.cores.titulos || '#ffffff' }}
+              >
                 <SectionIconReg className="w-4 h-4 shrink-0" style={{ color: iconeCorReg }} />
                 <span>Regulamento & Regras</span>
               </span>
-              <div className="p-1 rounded-lg bg-slate-800/40 text-slate-400 group-hover:text-white transition">
+              <div className="p-1 rounded-lg bg-slate-800/40 text-slate-400 group-hover:text-white transition shrink-0 ml-2">
                 {regAberto ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
               </div>
             </button>
@@ -2132,11 +2607,19 @@ export const CampanhaPublicaView: React.FC<Props> = ({
       tamanhoFonteCards: tema.botao?.tamanhoFonteCards,
     });
 
+    const alinGanh = tema.tipografia?.alinhamentoGanhadoresTitulo || tema.tipografia?.alinhamentoGanhadores || 'esquerda';
+    const alignClassGanhadores = alinGanh === 'centro' ? 'justify-center text-center' :
+                                 alinGanh === 'direita' ? 'justify-end text-right' :
+                                 'justify-start text-left';
+
     return (
       <div className={`border rounded-2xl p-5 shadow-sm space-y-3 ${cardStyle.className}`} style={{ ...cardStyle.style, fontFamily: tema.tipografia.fonteCardGanhadores }}>
-        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-          <SectionIcon className="w-4 h-4" style={{ color: iconeCor }} />
-          Ganhadores da Campanha
+        <h3 
+          className={`font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5 ${alignClassGanhadores}`}
+          style={{ fontSize: `${tema.tipografia.tamanhoGanhadoresTitulo ?? 12}px`, color: tema.cores.titulos || '#ffffff' }}
+        >
+          <SectionIcon className="w-4 h-4 shrink-0" style={{ color: iconeCor }} />
+          <span>Ganhadores da Campanha</span>
         </h3>
 
         {campanha.ganhador ? (
@@ -2186,20 +2669,38 @@ export const CampanhaPublicaView: React.FC<Props> = ({
       return null;
     }
 
+    const posicaoPreco = tema.cotasConfig?.posicaoExibicao || 'proximo_cotas';
+
     switch (secaoId) {
       case 'banner':
-        return <BannerSection campanha={campanha} tema={tema} />;
+        return (
+          <div className="space-y-4">
+            <BannerSection campanha={campanha} tema={tema} />
+            {posicaoPreco === 'abaixo_banner' && (
+              <PrecoUnitarioSection campanha={campanha} tema={tema} />
+            )}
+          </div>
+        );
       case 'barraProgresso':
       case 'progresso':
         return (
           <div className="space-y-4">
-            <PrecoUnitarioSection campanha={campanha} tema={tema} />
+            {posicaoPreco === 'proximo_cotas' && (
+              <PrecoUnitarioSection campanha={campanha} tema={tema} />
+            )}
             <CabecalhoPromocaoSection campanha={campanha} tema={tema} />
             <ProgressoSection campanha={campanha} estatisticas={estatisticas} tema={tema} />
           </div>
         );
       case 'cotas':
-        return <CotasSection campanha={campanha} tema={tema} setQuantidade={setQuantidade} setCheckoutAberto={setCheckoutAberto} />;
+        return (
+          <div className="space-y-4">
+            {posicaoPreco === 'proximo_cotas' && (tema.layout.visivel.barraProgresso === false || !tema.layout.ordem.includes('barraProgresso')) && (
+              <PrecoUnitarioSection campanha={campanha} tema={tema} />
+            )}
+            <CotasSection campanha={campanha} tema={tema} setQuantidade={setQuantidade} setCheckoutAberto={setCheckoutAberto} />
+          </div>
+        );
       case 'premios':
         return <PremiosSection campanha={campanha} tema={tema} />;
       case 'premiadas':
@@ -2317,6 +2818,18 @@ export const CampanhaPublicaView: React.FC<Props> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            {onNavigateComoFunciona && (
+              <button
+                id="btn-como-funciona-topo"
+                type="button"
+                onClick={onNavigateComoFunciona}
+                className="hidden sm:flex items-center gap-1.5 text-xs font-bold px-2.5 py-1.5 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-slate-300 border border-slate-700 transition"
+              >
+                <HelpCircle className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Como Funciona</span>
+              </button>
+            )}
+
             <button
               id="btn-ver-meus-numeros"
               type="button"
@@ -2411,6 +2924,16 @@ export const CampanhaPublicaView: React.FC<Props> = ({
               </div>
 
               <div className="space-y-2">
+                {onNavigateComoFunciona && (
+                  <button
+                    onClick={() => { setMenuAberto(false); onNavigateComoFunciona(); }}
+                    className="w-full p-3 bg-slate-800 hover:bg-slate-700/80 rounded-xl text-xs font-bold text-slate-200 flex items-center gap-2.5 transition"
+                  >
+                    <HelpCircle className="w-4 h-4 text-emerald-400" />
+                    <span>Como Funciona / Guia Oficial</span>
+                  </button>
+                )}
+
                 <button
                   onClick={() => { setMenuAberto(false); setMeusNumerosAberto(true); }}
                   className="w-full p-3 bg-slate-800 hover:bg-slate-700/80 rounded-xl text-xs font-bold text-slate-200 flex items-center gap-2.5 transition"

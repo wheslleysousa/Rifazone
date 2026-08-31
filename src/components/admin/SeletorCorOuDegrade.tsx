@@ -272,12 +272,7 @@ export const SeletorCorOuDegrade: React.FC<SeletorCorOuDegradeProps> = ({
             value={corSolida}
             onChange={e => aplicarSolida(e.target.value)}
             placeholder="#10B981"
-            className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-white uppercase focus:outline-none focus:border-emerald-500"
-          />
-          <div
-            className="w-10 h-10 rounded-xl border border-slate-700/60 shadow-inner shrink-0"
-            style={{ backgroundColor: corSolida }}
-            title="Prévia da cor"
+            className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono font-bold text-center text-white uppercase focus:outline-none focus:border-emerald-500 tracking-wider"
           />
         </div>
       )}

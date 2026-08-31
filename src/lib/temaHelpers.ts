@@ -212,6 +212,28 @@ export const ICON_SETS = {
     { id: 'ThumbsUp', nome: 'Joinha', icon: ThumbsUp },
     { id: 'PartyPopper', nome: 'Festa Confete', icon: PartyPopper },
   ] as OpcaoIcone[],
+  regraDesconto: [
+    { id: 'none', nome: 'Nenhum (Sem Ícone)', icon: Slash },
+    { id: 'Zap', nome: 'Raio Turbo', icon: Zap },
+    { id: 'Flame', nome: 'Fogo / Chama', icon: Flame },
+    { id: 'Tag', nome: 'Etiqueta / Tag', icon: Tag },
+    { id: 'Gift', nome: 'Presente', icon: Gift },
+    { id: 'Sparkles', nome: 'Brilho Mágico', icon: Sparkles },
+    { id: 'Shield', nome: 'Escudo / Proteção', icon: Shield },
+    { id: 'Percent', nome: 'Porcentagem %', icon: Percent },
+    { id: 'DollarSign', nome: 'Cifrão R$', icon: DollarSign },
+    { id: 'Coins', nome: 'Moedas Ouro', icon: Coins },
+    { id: 'Ticket', nome: 'Cota Promocional', icon: Ticket },
+    { id: 'Trophy', nome: 'Troféu Desconto', icon: Trophy },
+    { id: 'Star', nome: 'Estrela Promo', icon: Star },
+    { id: 'Crown', nome: 'Super Oferta', icon: Crown },
+    { id: 'ShoppingBag', nome: 'Sacola Compras', icon: ShoppingBag },
+    { id: 'Rocket', nome: 'Oferta Relâmpago', icon: Rocket },
+    { id: 'Heart', nome: 'Oferta Especial', icon: Heart },
+    { id: 'CheckCircle2', nome: 'Desconto Válido', icon: CheckCircle2 },
+    { id: 'Info', nome: 'Informação Promo', icon: Info },
+    { id: 'Target', nome: 'Alvo Promocional', icon: Target },
+  ] as OpcaoIcone[],
 };
 
 // Retorna o componente de ícone correspondente
@@ -232,6 +254,15 @@ export function hexToRgba(hex?: string, alpha: number = 1): string {
   const g = parseInt(clean.substring(2, 4), 16);
   const b = parseInt(clean.substring(4, 6), 16);
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+// Gera o degradê de fundo de uma única cor de baixo para cima para o banner
+export function gerarGradientDegradeBanner(corHex?: string): string {
+  const hex = (corHex && typeof corHex === 'string' && (corHex.startsWith('#') || corHex.startsWith('rgb'))) ? corHex : '#000000';
+  const c95 = hexToRgba(hex, 0.95);
+  const c50 = hexToRgba(hex, 0.5);
+  const c00 = hexToRgba(hex, 0);
+  return `linear-gradient(to top, ${c95} 0%, ${c50} 55%, ${c00} 100%)`;
 }
 
 // Escurece uma cor HEX para gerar sombras 3D perfeitas

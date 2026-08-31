@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { CampanhaPublicaView } from './components/CampanhaPublicaView';
+import { ComoFuncionaView } from './components/ComoFuncionaView';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ToastHost } from './components/ToastHost';
 import { ConfirmHost } from './components/ConfirmHost';
@@ -26,7 +27,13 @@ export default function App() {
   useEffect(() => {
     const handleUrlChange = () => {
       const pathname = window.location.pathname;
-      if (pathname.startsWith('/c/')) {
+      if (pathname === '/como-funciona' || pathname.endsWith('/como-funciona')) {
+        if (pathname.startsWith('/c/')) {
+          const codigo = pathname.replace('/c/', '').replace('/como-funciona', '').split('/')[0];
+          setCodigoCampanha(codigo);
+        }
+        setCurrentRoute('como-funciona');
+      } else if (pathname.startsWith('/c/')) {
         const codigo = pathname.replace('/c/', '').split('/')[0];
         if (codigo) {
           setCodigoCampanha(codigo);
@@ -100,6 +107,16 @@ export default function App() {
     setCurrentRoute('publica');
   };
 
+  const navigateToComoFunciona = (codigo?: string) => {
+    if (codigo) {
+      window.history.pushState({}, '', `/c/${codigo}/como-funciona`);
+      setCodigoCampanha(codigo);
+    } else {
+      window.history.pushState({}, '', '/como-funciona');
+    }
+    setCurrentRoute('como-funciona');
+  };
+
   const formatCopyableError = () => {
     if (!globalError) return '';
     return `[DIAGNÓSTICO RIFAZONE]
@@ -114,10 +131,22 @@ ${globalError.stack || 'Sem mais detalhes'}`;
     <>
       <ToastHost />
       <ConfirmHost />
-      {currentRoute === 'publica' && codigoCampanha ? (
+      {currentRoute === 'como-funciona' ? (
+        <ComoFuncionaView
+          onVoltar={() => {
+            if (codigoCampanha) {
+              navigateToCampanha(codigoCampanha);
+            } else {
+              navigateToAdmin();
+            }
+          }}
+          codigoCampanha={codigoCampanha}
+        />
+      ) : currentRoute === 'publica' && codigoCampanha ? (
         <CampanhaPublicaView
           codigo={codigoCampanha}
           onNavigateAdmin={navigateToAdmin}
+          onNavigateComoFunciona={() => navigateToComoFunciona(codigoCampanha)}
         />
       ) : (
         <React.Suspense fallback={
@@ -129,7 +158,10 @@ ${globalError.stack || 'Sem mais detalhes'}`;
           </div>
         }>
           <ErrorBoundary titulo="Erro no painel">
-            <AdminPanel onSelectCampanha={navigateToCampanha} />
+            <AdminPanel
+              onSelectCampanha={navigateToCampanha}
+              onNavigateComoFunciona={() => navigateToComoFunciona()}
+            />
           </ErrorBoundary>
         </React.Suspense>
       )}

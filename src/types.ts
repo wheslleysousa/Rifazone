@@ -276,6 +276,8 @@ export interface TemaCampanha {
     subtituloProgresso?: string;
     tituloPremiado?: string;
     subtituloPremiado?: string;
+    alinhamentoBotaoCompra?: 'esquerda' | 'centro' | 'direita';
+    alinhamentoTextoBotaoCompra?: 'esquerda' | 'centro' | 'direita';
   };
   tipografia: {
     fonteTitulo: string; // ex: 'Inter', 'Poppins', etc.
@@ -303,8 +305,78 @@ export interface TemaCampanha {
     fontePacotesSubtitulo?: string;
     fonteControlesTitulo?: string;
     fonteControlesSubtitulo?: string;
+    tamanhoBotaoCompraTitulo?: number;
+    tamanhoBotaoCompraSubtitulo?: number;
+    tamanhoPacotesTitulo?: number;
+    tamanhoPacotesSubtitulo?: number;
+    tamanhoControlesTitulo?: number;
+    tamanhoControlesSubtitulo?: number;
+    tamanhoCotasTitulo?: number;
+    tamanhoCotasSubtitulo?: number;
+    tamanhoProgressoTitulo?: number;
+    tamanhoProgressoSubtitulo?: number;
+    tamanhoPremiadoTitulo?: number;
+    tamanhoPremiadoSubtitulo?: number;
+    tamanhoBannerTitulo?: number;
+    tamanhoBannerSubtitulo?: number;
+    tamanhoPremiosTitulo?: number;
+    tamanhoPremiosSubtitulo?: number;
+    tamanhoRankingTitulo?: number;
+    tamanhoRankingSubtitulo?: number;
+    tamanhoRegulamentoTitulo?: number;
+    tamanhoRegulamentoSubtitulo?: number;
+    tamanhoGanhadoresTitulo?: number;
+    tamanhoGanhadoresSubtitulo?: number;
     fonteCotasTitulo?: string;
     fonteCotasSubtitulo?: string;
+    fonteCardPremiosSubtitulo?: string;
+    fonteCardRankingSubtitulo?: string;
+    fonteCardRegulamentoSubtitulo?: string;
+    fonteCardGanhadoresSubtitulo?: string;
+    alinhamentoPacotes?: 'esquerda' | 'centro' | 'direita';
+    alinhamentoPacotesTitulo?: 'esquerda' | 'centro' | 'direita';
+    alinhamentoPacotesSubtitulo?: 'esquerda' | 'centro' | 'direita';
+    alinhamentoControles?: 'esquerda' | 'centro' | 'direita';
+    alinhamentoControlesTitulo?: 'esquerda' | 'centro' | 'direita';
+    alinhamentoControlesSubtitulo?: 'esquerda' | 'centro' | 'direita';
+    alinhamentoCotas?: 'esquerda' | 'centro' | 'direita';
+    alinhamentoCotasTitulo?: 'esquerda' | 'centro' | 'direita';
+    alinhamentoCotasSubtitulo?: 'esquerda' | 'centro' | 'direita';
+    alinhamentoProgresso?: 'esquerda' | 'centro' | 'direita';
+    alinhamentoProgressoTitulo?: 'esquerda' | 'centro' | 'direita';
+    alinhamentoProgressoSubtitulo?: 'esquerda' | 'centro' | 'direita';
+    alinhamentoCompra?: 'esquerda' | 'centro' | 'direita';
+    alinhamentoCompraTitulo?: 'esquerda' | 'centro' | 'direita';
+    alinhamentoCompraSubtitulo?: 'esquerda' | 'centro' | 'direita';
+    alinhamentoPremiado?: 'esquerda' | 'centro' | 'direita';
+    alinhamentoPremiadoTitulo?: 'esquerda' | 'centro' | 'direita';
+    alinhamentoPremiadoSubtitulo?: 'esquerda' | 'centro' | 'direita';
+    alinhamentoBanner?: 'esquerda' | 'centro' | 'direita';
+    alinhamentoBannerTitulo?: 'esquerda' | 'centro' | 'direita';
+    alinhamentoBannerSubtitulo?: 'esquerda' | 'centro' | 'direita';
+    alinhamentoPremios?: 'esquerda' | 'centro' | 'direita';
+    alinhamentoPremiosTitulo?: 'esquerda' | 'centro' | 'direita';
+    alinhamentoPremiosSubtitulo?: 'esquerda' | 'centro' | 'direita';
+    alinhamentoRanking?: 'esquerda' | 'centro' | 'direita';
+    alinhamentoRankingTitulo?: 'esquerda' | 'centro' | 'direita';
+    alinhamentoRankingSubtitulo?: 'esquerda' | 'centro' | 'direita';
+    alinhamentoRegulamento?: 'esquerda' | 'centro' | 'direita';
+    alinhamentoRegulamentoTitulo?: 'esquerda' | 'centro' | 'direita';
+    alinhamentoRegulamentoSubtitulo?: 'esquerda' | 'centro' | 'direita';
+    alinhamentoGanhadores?: 'esquerda' | 'centro' | 'direita';
+    alinhamentoGanhadoresTitulo?: 'esquerda' | 'centro' | 'direita';
+    alinhamentoGanhadoresSubtitulo?: 'esquerda' | 'centro' | 'direita';
+    alinhamentoCards?: 'esquerda' | 'centro' | 'direita';
+  };
+  campanha?: {
+    tituloPremios?: string;
+    subtituloPremios?: string;
+    tituloRanking?: string;
+    subtituloRanking?: string;
+    tituloRegulamento?: string;
+    subtituloRegulamento?: string;
+    tituloGanhadores?: string;
+    subtituloGanhadores?: string;
   };
   fundoMidia?: {
     tipo: 'cor' | 'imagem' | 'video';
@@ -321,10 +393,14 @@ export interface TemaCampanha {
     overlayDirecao?: 'to-top' | 'to-bottom';
     overlayTipo?: 'cor' | 'gradiente';
     overlayCor?: string;
+    exibirSeloBanner?: boolean;
     seloAnimado?: boolean;
     seloEstilo?: 'pulso' | 'estatico';
     seloFundo?: string;
     seloTexto?: string;
+    seloBordaAtiva?: boolean;
+    seloBordaCor?: string;
+    seloBordaEspessura?: number;
     seloPosicao?: 'topo-esquerda' | 'topo-direita' | 'sobre-titulo';
   };
   ganhadorCelebracaoEstilo?: 'confetes' | 'nenhuma' | string;
@@ -333,8 +409,17 @@ export interface TemaCampanha {
     porApenasFundo?: string;
     porApenasTexto?: string;
     porApenasBorda?: string;
+    porApenasTemBorda?: boolean;
+    porApenasEspessuraBorda?: number;
+    porApenasRaioBorda?: number;
+    porApenasEstiloBotao?: 'solido' | 'vidro' | 'transparente' | 'sombra' | 'gradiente';
     porApenasTamanhoValor?: number;
-    porApenasLayout?: 'vertical' | 'horizontal';
+    porApenasTamanhoTexto?: number;
+    porApenasLayout?: 'vertical' | 'horizontal' | 'inverso';
+    posicaoExibicao?: 'abaixo_banner' | 'proximo_cotas';
+    estiloContainer?: 'apenas_texto_preco' | 'texto_e_botao' | 'botao_unico' | 'card_destaque';
+    porApenasAlinhamento?: 'esquerda' | 'centro' | 'direita';
+    porApenasFonte?: string;
     exibirBlocoPromocao?: boolean;
     promoBlocoFundo?: string;
     promoBlocoBorda?: string;
@@ -355,6 +440,30 @@ export interface TemaCampanha {
     promoLarguraBorda?: number;
     promoPossuirBorda?: boolean;
     promoCorBorda?: string;
+    // Personalização da Regra de Desconto / Evento (A partir de X valor, cada cota sai por Y)
+    regraDescontoEstilo?: 'badge' | 'solido' | 'vidro' | 'transparente' | '3d' | 'borda' | 'gradiente';
+    regraDescontoFundo?: string;
+    regraDescontoTextoCor?: string;
+    regraDescontoTexto?: string;
+    regraDescontoDestaqueCor?: string;
+    regraDescontoDestaque?: string;
+    regraDescontoBordaCor?: string;
+    regraDescontoBorda?: string;
+    regraDescontoTemBorda?: boolean;
+    regraDescontoEspessuraBorda?: number;
+    regraDescontoRaioBorda?: number;
+    regraDescontoFonte?: string;
+    regraDescontoTamanhoFonte?: number;
+    regraDescontoTamanhoTexto?: number;
+    regraDescontoPadding?: number;
+    regraDescontoPaddingY?: number;
+    regraDescontoAlinhamento?: 'esquerda' | 'centro' | 'direita';
+    regraDescontoIconeAtivo?: boolean;
+    regraDescontoMostrarIcone?: boolean;
+    regraDescontoIcone?: string;
+    regraDescontoIconeTipo?: string;
+    regraDescontoModeloTexto?: string;
+    regraDescontoTextoModelo?: string;
   };
   layout: {
     ordem: string[]; // ex: ['banner', 'barraProgresso', 'cotas', 'premios', 'premiadas', 'ranking', 'regulamento', 'ganhadores']
@@ -589,6 +698,8 @@ export const TEMA_PADRAO: TemaCampanha = {
     fonteCardCotasPremiadasSubtitulo: 'Inter',
     fonteCardBanner: 'Inter',
     fonteCardBannerSubtitulo: 'Inter',
+    tamanhoBannerTitulo: 24,
+    tamanhoBannerSubtitulo: 13,
   },
   fundoMidia: {
     tipo: 'cor',
@@ -605,10 +716,14 @@ export const TEMA_PADRAO: TemaCampanha = {
     overlayDirecao: 'to-top',
     overlayTipo: 'gradiente',
     overlayCor: '#000000',
+    exibirSeloBanner: true,
     seloAnimado: false,
     seloEstilo: 'estatico',
     seloFundo: '#f59e0b',
     seloTexto: '#022c22',
+    seloBordaAtiva: false,
+    seloBordaCor: '#ffffff',
+    seloBordaEspessura: 1,
     seloPosicao: 'topo-esquerda'
   },
   ganhadorCelebracaoEstilo: 'confetes',
@@ -638,7 +753,22 @@ export const TEMA_PADRAO: TemaCampanha = {
     promoAltura: 12,
     promoLarguraBorda: 1,
     promoPossuirBorda: false,
-    promoCorBorda: '#1e293b'
+    promoCorBorda: '#1e293b',
+    regraDescontoEstilo: 'badge',
+    regraDescontoFundo: 'rgba(16, 185, 129, 0.1)',
+    regraDescontoTextoCor: '#34d399',
+    regraDescontoDestaqueCor: '#ffffff',
+    regraDescontoBordaCor: 'rgba(16, 185, 129, 0.3)',
+    regraDescontoTemBorda: true,
+    regraDescontoEspessuraBorda: 1,
+    regraDescontoRaioBorda: 9999,
+    regraDescontoFonte: 'Inter',
+    regraDescontoTamanhoFonte: 12,
+    regraDescontoPadding: 6,
+    regraDescontoAlinhamento: 'centro',
+    regraDescontoIconeAtivo: true,
+    regraDescontoIcone: 'Zap',
+    regraDescontoModeloTexto: 'A partir de {valor} cada cota fica por {desconto}'
   },
   layout: {
     ordem: ['banner', 'barraProgresso', 'cotas', 'premios', 'premiadas', 'ranking', 'regulamento', 'ganhadores'],
@@ -844,7 +974,7 @@ export interface MensagemFila {
   para: string; // whatsapp com DDI 55
   canal: 'whatsapp' | 'email' | 'ambos';
   texto: string;
-  tipo: 'nao_pagou' | 'pago';
+  tipo: 'nao_pagou' | 'pago' | 'sorteio';
   status: 'pendente' | 'enviada' | 'erro' | 'cancelada';
   erro?: string;
   chaveIdempotencia: string; // ex: pedidoId+regra

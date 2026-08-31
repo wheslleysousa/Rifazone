@@ -43,7 +43,13 @@ import {
   buscarTodasAsContasDeAnunciosDoUsuario
 } from './server/meta-service.js';
 import { toCents, toReais, extrairValorReaisPedido, isPedidoProcessedByCarteira } from './server/money-utils.js';
-import { EmailNotificador } from './server/notifications.js';
+import {
+  EmailNotificador,
+  WhatsAppCloudApiNotificador,
+  TwilioWhatsAppNotificador,
+  WhatsAppNotificadorCentral,
+  enviarNotificacaoWhatsApp
+} from './server/notifications.js';
 import { gerarPixMultiGateway, consultarPagamentoAsaas, consultarPagamentoEfipay, testEfipayConnection, resolveEfipayCredentials, consultarSaldoEfipay, enviarPixEfipay, consultarEnvioPixEfipay, registrarWebhookEfipay } from './server/gateways.js';
 import { Campanha, TEMA_PADRAO, DEFAULT_CHECKOUT_CONFIG } from './src/types.js';
 import { executarMigracaoFirebaseParaSupabase } from './server/migrate-v2.js';
@@ -235,10 +241,11 @@ let globalWorkerQr = {
   dataUrl: undefined as string | undefined,
   atualizadoEm: undefined as string | undefined
 };
-// Comando de conexão: o admin pede para conectar e o worker (que faz polling) inicia.
+// Comando de conexão ou desconexão: o admin pede para conectar/desconectar e o worker (que faz polling) executa.
 // metodo 'qr' (padrão) ou 'code' (conectar por número de telefone / pairing code).
 let globalWorkerComando = {
   conectar: false,
+  desconectar: false,
   metodo: 'qr' as 'qr' | 'code',
   numero: '' as string,
   solicitadoEm: undefined as string | undefined
@@ -949,18 +956,32 @@ async function processarConfirmacaoPedido(pedidoId: string, paymentId?: string, 
     if (pedidoAtualizado) {
       const campanha = await db.getCampanhaById(pedidoAtualizado.campanhaId);
       if (campanha) {
-        // Enfileirar remarketing pago se configurado e ativo
-        if (campanha.remarketing && campanha.remarketing.ativo && campanha.remarketing.regraPago && campanha.remarketing.regraPago.ativo) {
-          try {
-            const rule = campanha.remarketing.regraPago;
-            const numerosTexto = rule.enviarNumeros ? pedidoAtualizado.numeros.join(', ') : '';
-            const msgTexto = (rule.mensagem || '')
-              .replace(/\{nome\}/g, pedidoAtualizado.comprador.nome || 'Cliente')
-              .replace(/\{campanha\}/g, campanha.titulo)
-              .replace(/\{qtd\}/g, String(pedidoAtualizado.quantidade))
-              .replace(/\{numeros\}/g, numerosTexto);
+        // Enfileirar e enviar notificação WhatsApp/E-mail de confirmação do pedido pago
+        try {
+          const rule = campanha.remarketing?.regraPago;
+          const customAtivo = Boolean(campanha.remarketing && (campanha.remarketing.ativo || rule?.ativo));
+          const enviarNumeros = customAtivo ? (rule?.enviarNumeros !== false) : true;
+          const numerosTexto = enviarNumeros && Array.isArray(pedidoAtualizado.numeros) && pedidoAtualizado.numeros.length > 0
+            ? pedidoAtualizado.numeros.join(', ')
+            : 'Números atribuídos na sua conta';
+          
+          const valorFormatado = `R$ ${toReais(pedidoAtualizado.valorTotal).toFixed(2).replace('.', ',')}`;
 
-            const paraClean = pedidoAtualizado.comprador.whatsapp.replace(/\D/g, '');
+          let msgTexto = '';
+          if (customAtivo && rule?.mensagem && rule.mensagem.trim()) {
+            msgTexto = rule.mensagem
+              .replace(/\{nome\}/g, pedidoAtualizado.comprador?.nome || 'Cliente')
+              .replace(/\{campanha\}/g, campanha.titulo)
+              .replace(/\{qtd\}/g, String(pedidoAtualizado.quantidade || 1))
+              .replace(/\{numeros\}/g, numerosTexto)
+              .replace(/\{valor\}/g, valorFormatado)
+              .replace(/\{pedidoId\}/g, pedidoAtualizado.id);
+          } else {
+            msgTexto = `✅ *Pagamento Confirmado!*\n\nOlá, *${pedidoAtualizado.comprador?.nome || 'Cliente'}*! Seu pagamento para o sorteio *${campanha.titulo}* foi confirmado com sucesso!\n\n📋 *Detalhes do seu pedido:*\n• *Pedido:* #${pedidoAtualizado.id}\n• *Quantidade:* ${pedidoAtualizado.quantidade || 1} cota(s)\n• *Valor Total:* ${valorFormatado}\n\n🎟️ *Seus Números da Sorte:*\n*${numerosTexto}*\n\n🍀 Boa sorte! Você já está concorrendo aos prêmios oficiais!`;
+          }
+
+          const paraClean = (pedidoAtualizado.comprador?.whatsapp || '').replace(/\D/g, '');
+          if (paraClean) {
             const ddiPara = paraClean.startsWith('55') ? paraClean : `55${paraClean}`;
 
             await db.enfileirarMensagem({
@@ -968,14 +989,38 @@ async function processarConfirmacaoPedido(pedidoId: string, paymentId?: string, 
               campanhaId: campanha.id,
               pedidoId: pedidoAtualizado.id,
               para: ddiPara,
-              canal: campanha.remarketing.canal || 'whatsapp',
+              canal: campanha.remarketing?.canal || 'whatsapp',
               texto: msgTexto,
               tipo: 'pago',
               chaveIdempotencia: `${pedidoAtualizado.id}:pago`
             });
-          } catch (err) {
-            console.error('[Remarketing Pago] Erro ao enfileirar:', err);
+
+            // Disparo direto em background via WhatsApp Notificador (Twilio / Meta WhatsApp Cloud API / Notificame)
+            enviarNotificacaoWhatsApp({
+              destinatarioTelefone: ddiPara,
+              nomeComprador: pedidoAtualizado.comprador?.nome || 'Cliente',
+              tituloCampanha: campanha.titulo,
+              mensagemTexto: msgTexto,
+              pedidoId: pedidoAtualizado.id,
+              numeros: Array.isArray(pedidoAtualizado.numeros) ? pedidoAtualizado.numeros : [],
+              valorTotalFormatado: valorFormatado,
+              tipo: 'pago'
+            }).catch(waErr => console.warn('[WhatsApp Notificador Pagamento] Aviso no disparo:', waErr));
           }
+
+          // Disparo direto por e-mail se comprador possuir e-mail informado
+          if (pedidoAtualizado.comprador?.email) {
+            const emailNotificador = new EmailNotificador();
+            emailNotificador.enviarEmail({
+              destinatarioEmail: pedidoAtualizado.comprador.email,
+              destinatarioTelefone: paraClean,
+              nomeComprador: pedidoAtualizado.comprador.nome || 'Cliente',
+              tituloCampanha: campanha.titulo,
+              mensagemTexto: msgTexto
+            }).catch(mErr => console.warn('[E-mail Notificador] Aviso no disparo:', mErr));
+          }
+        } catch (err) {
+          console.error('[Notificação Pedido Pago] Erro ao enfileirar/disparar:', err);
         }
 
         const ownerConfig = await db.getConfig(campanha.ownerId || '');
@@ -3498,7 +3543,7 @@ app.post('/api/worker/status', verificarWorkerSecret, async (req, res) => {
     if (globalWorkerStatus.conectado) {
       globalWorkerQr = { dataUrl: undefined, atualizadoEm: undefined };
       globalWorkerPairCode = { codigo: undefined, atualizadoEm: undefined };
-      globalWorkerComando = { conectar: false, metodo: 'qr', numero: '', solicitadoEm: undefined };
+      globalWorkerComando = { conectar: false, desconectar: false, metodo: 'qr', numero: '', solicitadoEm: undefined };
     }
     return res.json({ success: true, status: globalWorkerStatus });
   } catch (err: any) {
@@ -3541,6 +3586,7 @@ app.post('/api/admin/worker/conectar', firebaseAuthMiddleware, async (req, res) 
   const { metodo, numero } = req.body || {};
   globalWorkerComando = {
     conectar: true,
+    desconectar: false,
     metodo: metodo === 'code' ? 'code' : 'qr',
     numero: numero ? String(numero).replace(/\D/g, '') : '',
     solicitadoEm: new Date().toISOString()
@@ -3551,21 +3597,39 @@ app.post('/api/admin/worker/conectar', firebaseAuthMiddleware, async (req, res) 
   return res.json({ success: true });
 });
 
-// GET /api/worker/comando -> O worker consulta se há pedido de conexão pendente.
-// O comando é CONSUMIDO ao ser entregue e expira em 5 min, pra um clique antigo
-// não ficar reiniciando o worker sozinho a cada reinício.
+// POST /api/admin/worker/desconectar -> O admin pede para desconectar o WhatsApp
+app.post('/api/admin/worker/desconectar', firebaseAuthMiddleware, async (req, res) => {
+  globalWorkerComando = {
+    conectar: false,
+    desconectar: true,
+    metodo: 'qr',
+    numero: '',
+    solicitadoEm: new Date().toISOString()
+  };
+  globalWorkerStatus = {
+    conectado: false,
+    numero: undefined,
+    atualizadoEm: new Date().toISOString()
+  };
+  globalWorkerQr = { dataUrl: undefined, atualizadoEm: undefined };
+  globalWorkerPairCode = { codigo: undefined, atualizadoEm: undefined };
+  return res.json({ success: true });
+});
+
+// GET /api/worker/comando -> O worker consulta se há pedido de conexão/desconexão pendente.
 app.get('/api/worker/comando', verificarWorkerSecret, async (req, res) => {
   const agora = Date.now();
   const ts = globalWorkerComando.solicitadoEm ? new Date(globalWorkerComando.solicitadoEm).getTime() : 0;
-  const valido = globalWorkerComando.conectar && ts > 0 && (agora - ts) < 5 * 60 * 1000;
+  const valido = (globalWorkerComando.conectar || globalWorkerComando.desconectar) && ts > 0 && (agora - ts) < 5 * 60 * 1000;
   const resposta = {
-    conectar: valido,
+    conectar: valido && globalWorkerComando.conectar,
+    desconectar: valido && globalWorkerComando.desconectar,
     metodo: globalWorkerComando.metodo,
     numero: globalWorkerComando.numero
   };
   if (valido) {
     // Consome o comando após entregá-lo uma vez.
-    globalWorkerComando = { conectar: false, metodo: 'qr', numero: '', solicitadoEm: undefined };
+    globalWorkerComando = { conectar: false, desconectar: false, metodo: 'qr', numero: '', solicitadoEm: undefined };
   }
   return res.json(resposta);
 });
@@ -3627,6 +3691,61 @@ app.post('/api/admin/campanhas/:id/sortear', firebaseAuthMiddleware, async (req,
     }
 
     const resultado = await db.realizarSorteio(id, String(numeroSorteado).trim());
+
+    // Dispara notificações aos compradores com o resultado oficial do sorteio
+    try {
+      const pedidos = await db.getPedidosPorCampanha(id);
+      const pedidosPagos = pedidos.filter(p => p.status === 'pago');
+      const compradoresNotificados = new Set<string>();
+
+      const nomeGanhador = resultado.ganhador?.nome || 'Ganhador contemplado';
+      const cotaSorteada = resultado.ganhador?.cota || String(numeroSorteado).trim();
+
+      for (const ped of pedidosPagos) {
+        const telRaw = (ped.comprador?.whatsapp || '').replace(/\D/g, '');
+        if (!telRaw || compradoresNotificados.has(telRaw)) continue;
+        compradoresNotificados.add(telRaw);
+
+        const ddiPara = telRaw.startsWith('55') ? telRaw : `55${telRaw}`;
+        const msgTexto = `🎉 *Resultado Oficial do Sorteio!*\n\nOlá, *${ped.comprador?.nome || 'Participante'}*! O sorteio da campanha *${existente.titulo}* foi apurado e encerrado com sucesso!\n\n🏆 *Número Sorteado:* *${cotaSorteada}*\n👤 *Ganhador(a):* *${nomeGanhador}*\n\nAgradecemos de coração pela sua participação e desejamos muita sorte nas próximas edições! 🍀`;
+
+        await db.enfileirarMensagem({
+          ownerId: existente.ownerId || '',
+          campanhaId: existente.id,
+          pedidoId: ped.id,
+          para: ddiPara,
+          canal: existente.remarketing?.canal || 'whatsapp',
+          texto: msgTexto,
+          tipo: 'sorteio',
+          chaveIdempotencia: `${existente.id}:sorteio:${ddiPara}`
+        });
+
+        // Disparo direto em background via WhatsApp Notificador (Twilio / Meta WhatsApp Cloud API / Notificame)
+        enviarNotificacaoWhatsApp({
+          destinatarioTelefone: ddiPara,
+          nomeComprador: ped.comprador?.nome || 'Participante',
+          tituloCampanha: existente.titulo,
+          mensagemTexto: msgTexto,
+          pedidoId: ped.id,
+          tipo: 'sorteio'
+        }).catch(waErr => console.warn('[WhatsApp Notificador Sorteio] Aviso:', waErr));
+
+        // Disparo direto por e-mail se comprador possuir e-mail
+        if (ped.comprador?.email) {
+          const emailNotificador = new EmailNotificador();
+          emailNotificador.enviarEmail({
+            destinatarioEmail: ped.comprador.email,
+            destinatarioTelefone: telRaw,
+            nomeComprador: ped.comprador.nome || 'Participante',
+            tituloCampanha: existente.titulo,
+            mensagemTexto: msgTexto
+          }).catch(mErr => console.warn('[E-mail Sorteio] Aviso:', mErr));
+        }
+      }
+    } catch (notifErr) {
+      console.error('[Notificação Sorteio] Erro ao enfileirar/disparar mensagens de sorteio:', notifErr);
+    }
+
     return res.json(resultado);
   } catch (err: any) {
     console.error('Erro ao realizar apuração:', err);
@@ -3952,35 +4071,22 @@ app.post('/api/tarefas/processar-fila', verificarCronSecret, async (req, res) =>
 
       if (canal === 'whatsapp' || canal === 'ambos') {
         try {
-          const response = await fetch('https://api.notificame.com.br/v1/messages', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Api-Key': token,
-              'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({
-              to: msg.para,
-              number: msg.para,
-              message: msg.texto,
-              body: msg.texto,
-              type: 'text'
-            })
+          const resWa = await enviarNotificacaoWhatsApp({
+            destinatarioTelefone: msg.para,
+            nomeComprador: 'Cliente',
+            tituloCampanha: 'RifaZone',
+            mensagemTexto: msg.texto,
+            pedidoId: msg.pedidoId,
+            tipo: msg.tipo as any
           });
 
-          const data = await response.json().catch(() => ({}));
-          if (!response.ok) {
+          if (!resWa.sucesso) {
             sucessoWhatsapp = false;
-            const msgErro = data.message || data.error || `HTTP ${response.status}`;
-            if (response.status === 402 || String(msgErro).toLowerCase().includes('saldo') || String(msgErro).toLowerCase().includes('balance') || String(msgErro).toLowerCase().includes('credit')) {
-              erroWhatsapp = `Falta de Saldo: ${msgErro}`;
-            } else {
-              erroWhatsapp = `Erro API Notificame: ${msgErro}`;
-            }
+            erroWhatsapp = resWa.erro || 'Falha no envio do WhatsApp';
           }
         } catch (err: any) {
           sucessoWhatsapp = false;
-          erroWhatsapp = `Conexão falhou: ${err.message || err}`;
+          erroWhatsapp = `Conexão WhatsApp falhou: ${err.message || err}`;
         }
       }
 

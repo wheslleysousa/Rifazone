@@ -4,7 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { 
   MessageSquare, Clock, Copy, Check, Send, AlertCircle, 
   Search, RefreshCw, Plus, Trash2, Tag, Settings2, Play,
-  CheckCircle2, Mail, PhoneCall, Ban, Eye, X, ArrowRight, HelpCircle, QrCode
+  CheckCircle2, Mail, PhoneCall, Ban, Eye, X, ArrowRight, HelpCircle, QrCode,
+  LogOut, Radio, Zap, ShieldCheck, Activity, Smartphone, AlertTriangle, Layers, Filter
 } from 'lucide-react';
 import { Pedido, Campanha, CupomDesconto, MensagemFila } from '../../types';
 
@@ -14,6 +15,31 @@ interface Props {
   onRefresh: () => void;
   authFetch?: (url: string, options?: RequestInit) => Promise<Response>;
 }
+
+// Auxiliar para formatação elegante de telefone do Brasil
+const formatarTelefoneBrasil = (num?: string) => {
+  if (!num) return 'Não informado';
+  const limpo = num.replace(/\D/g, '');
+  if (limpo.length === 13 && limpo.startsWith('55')) {
+    const ddd = limpo.slice(2, 4);
+    const parte1 = limpo.slice(4, 9);
+    const parte2 = limpo.slice(9);
+    return `+55 (${ddd}) ${parte1}-${parte2}`;
+  }
+  if (limpo.length === 11) {
+    const ddd = limpo.slice(0, 2);
+    const parte1 = limpo.slice(2, 7);
+    const parte2 = limpo.slice(7);
+    return `+55 (${ddd}) ${parte1}-${parte2}`;
+  }
+  if (limpo.length === 10) {
+    const ddd = limpo.slice(0, 2);
+    const parte1 = limpo.slice(2, 6);
+    const parte2 = limpo.slice(6);
+    return `+55 (${ddd}) ${parte1}-${parte2}`;
+  }
+  return '+' + limpo;
+};
 
 export const RemarketingView: React.FC<Props> = ({ 
   campanhas = [], 
@@ -33,17 +59,19 @@ export const RemarketingView: React.FC<Props> = ({
   // Estado de conexão do worker externo de WhatsApp Web
   const [workerStatus, setWorkerStatus] = useState<{ conectado: boolean; online?: boolean; numero?: string; atualizadoEm?: string } | null>(null);
   const [carregandoWorker, setCarregandoWorker] = useState(false);
-  // QR Code para conectar o WhatsApp pela web
+  const [desconectando, setDesconectando] = useState(false);
+
+  // QR Code e Conexão por Número
   const [workerQr, setWorkerQr] = useState<string | null>(null);
   const [mostrandoQr, setMostrandoQr] = useState(false);
   const [buscandoQr, setBuscandoQr] = useState(false);
-  // Conexão por número (pairing code) — alternativa ao QR
   const [metodoConexao, setMetodoConexao] = useState<'qr' | 'code'>('code');
   const [etapaNumero, setEtapaNumero] = useState(false);
   const [numeroInput, setNumeroInput] = useState('');
   const [pairCode, setPairCode] = useState<string | null>(null);
   const [tempoRestante, setTempoRestante] = useState<number>(60);
   const [copiouCodigo, setCopiouCodigo] = useState(false);
+  const [copiouNumero, setCopiouNumero] = useState(false);
 
   // Detalhe de Mensagem para Visualização Completa
   const [msgDetalhe, setMsgDetalhe] = useState<MensagemFila | null>(null);
@@ -66,7 +94,6 @@ export const RemarketingView: React.FC<Props> = ({
   const [cupons, setCupons] = useState<CupomDesconto[]>([]);
 
   // Estados auxiliares
-  const [copiadoId, setCopiadoId] = useState<string | null>(null);
   const [salvandoConfig, setSalvandoConfig] = useState(false);
   const [msgFeedback, setMsgFeedback] = useState('');
   const [executandoMotor, setExecutandoMotor] = useState(false);
@@ -90,7 +117,7 @@ export const RemarketingView: React.FC<Props> = ({
     }
   };
 
-  // Busca o QR Code atual do worker (pra escanear pela web)
+  // Busca o QR Code atual do worker
   const fetchWorkerQr = async () => {
     if (!authFetch) return;
     setBuscandoQr(true);
@@ -121,8 +148,7 @@ export const RemarketingView: React.FC<Props> = ({
     }
   };
 
-  // Inicia a conexão: metodo 'qr' (padrão) ou 'code' (por número).
-  // O número é sempre do Brasil, então prefixamos 55 automaticamente.
+  // Inicia a conexão: metodo 'qr' ou 'code' (por número)
   const iniciarConexaoWhatsapp = async (metodo: 'qr' | 'code' = 'qr') => {
     setMetodoConexao(metodo);
     setMostrandoQr(true);
@@ -139,19 +165,50 @@ export const RemarketingView: React.FC<Props> = ({
       } catch (e) {}
     }
     fetchWorkerStatus();
-    // No modo por número mostramos o código E o QR (dá pra digitar ou escanear).
     fetchWorkerQr();
     if (metodo === 'code') fetchPairCode();
   };
 
-  // Carrega o status do worker no mount e periodicamente a cada 15s
+  // Desconecta o WhatsApp e reseta estado
+  const handleDesconectar = async () => {
+    if (!(await confirmar({
+      mensagem: 'Deseja realmente desconectar este WhatsApp? As mensagens automáticas de remarketing ficarão pausadas até que você conecte novamente.',
+      perigo: true,
+      confirmarLabel: 'Sim, Desconectar WhatsApp'
+    }))) {
+      return;
+    }
+    setDesconectando(true);
+    try {
+      if (authFetch) {
+        const res = await authFetch('/api/admin/worker/desconectar', { method: 'POST' });
+        if (res.ok) {
+          toast('WhatsApp desconectado com sucesso.');
+          setWorkerStatus({ conectado: false });
+          setMostrandoQr(false);
+          setEtapaNumero(false);
+          setPairCode(null);
+          setWorkerQr(null);
+        } else {
+          toast('Erro ao solicitar desconexão do WhatsApp.');
+        }
+      }
+    } catch (err) {
+      toast('Falha ao desconectar o WhatsApp.');
+    } finally {
+      setDesconectando(false);
+      fetchWorkerStatus();
+    }
+  };
+
+  // Pollings de status
   useEffect(() => {
     fetchWorkerStatus();
-    const interval = setInterval(fetchWorkerStatus, 15000);
+    fetchFila();
+    const interval = setInterval(fetchWorkerStatus, 10000);
     return () => clearInterval(interval);
   }, []);
 
-  // Enquanto não estiver conectado, verifica status + QR/código rápido (a cada 2s)
   useEffect(() => {
     if (workerStatus?.conectado) return;
     const interval = setInterval(() => {
@@ -164,7 +221,6 @@ export const RemarketingView: React.FC<Props> = ({
     return () => clearInterval(interval);
   }, [workerStatus?.conectado, mostrandoQr]);
 
-  // Regressivo de 60s para a validade do QR / Código
   useEffect(() => {
     if (!mostrandoQr || workerStatus?.conectado) return;
     const timer = setInterval(() => {
@@ -173,7 +229,6 @@ export const RemarketingView: React.FC<Props> = ({
     return () => clearInterval(timer);
   }, [mostrandoQr, workerStatus?.conectado]);
 
-  // Reseta para 60 segundos quando chegam novos dados do QR ou PairCode
   useEffect(() => {
     if (workerQr || pairCode) {
       setTempoRestante(60);
@@ -197,14 +252,13 @@ export const RemarketingView: React.FC<Props> = ({
     }
   };
 
-  // Carrega fila ao entrar na sub-aba de fila
   useEffect(() => {
     if (subAba === 'fila') {
       fetchFila();
     }
   }, [subAba]);
 
-  // Atualiza estados quando troca a campanha selecionada
+  // Sincroniza campanha selecionada
   useEffect(() => {
     if (campanhaSel) {
       setRemAtivo(campanhaSel.remarketing?.ativo ?? false);
@@ -220,7 +274,7 @@ export const RemarketingView: React.FC<Props> = ({
     }
   }, [campanhaIdSel, campanhas]);
 
-  // Salva a configuração atualizada de remarketing e cupons na campanha
+  // Salva configurações
   const handleSalvarConfiguracoes = async () => {
     if (!campanhaSel || !authFetch) return;
     setSalvandoConfig(true);
@@ -247,6 +301,7 @@ export const RemarketingView: React.FC<Props> = ({
 
       if (res.ok) {
         setMsgFeedback('Configurações salvas e aplicadas com sucesso!');
+        toast('Automações e regras atualizadas!');
         onRefresh();
       } else {
         const err = await res.json();
@@ -260,7 +315,7 @@ export const RemarketingView: React.FC<Props> = ({
     }
   };
 
-  // Disparar motor de enfileiramento manualmente (Scan de pedidos para outbox)
+  // Motor de enfileiramento (scanner)
   const handleExecutarEnfileirador = async () => {
     setExecutandoMotor(true);
     setResultadoMotor(null);
@@ -272,7 +327,7 @@ export const RemarketingView: React.FC<Props> = ({
       const data = await res.json();
       if (res.ok) {
         setResultadoMotor({ type: 'enfileirador', ...data });
-        if (subAba === 'fila') fetchFila();
+        fetchFila();
         onRefresh();
       } else {
         toast(data.error || 'Erro ao varrer pedidos pendentes.');
@@ -284,7 +339,7 @@ export const RemarketingView: React.FC<Props> = ({
     }
   };
 
-  // Processar fila (Envia as mensagens do outbox)
+  // Processar fila (Outbox)
   const handleProcessarFilaManual = async () => {
     setProcessandoFila(true);
     setResultadoMotor(null);
@@ -308,9 +363,9 @@ export const RemarketingView: React.FC<Props> = ({
     }
   };
 
-  // Cancelar/Limpar todas as mensagens pendentes da fila
+  // Limpar mensagens pendentes / erros da fila
   const handleLimparFilaMensagens = async () => {
-    if (!(await confirmar({ mensagem: 'Deseja realmente cancelar todas as mensagens pendentes ou com erro na fila?', perigo: true, confirmarLabel: 'Cancelar tudo' }))) {
+    if (!(await confirmar({ mensagem: 'Deseja realmente cancelar todas as mensagens pendentes ou com erro na fila?', perigo: true, confirmarLabel: 'Cancelar mensagens' }))) {
       return;
     }
     try {
@@ -319,7 +374,7 @@ export const RemarketingView: React.FC<Props> = ({
         method: 'POST'
       });
       if (res.ok) {
-        toast('Todas as mensagens da fila foram canceladas com sucesso.');
+        toast('Fila de mensagens limpa com sucesso.');
         fetchFila();
       } else {
         const err = await res.json();
@@ -330,7 +385,7 @@ export const RemarketingView: React.FC<Props> = ({
     }
   };
 
-  // Filtragem da fila de outbox
+  // Filtragem da fila
   const filaFiltrada = filaMensagens.filter(m => {
     const combinaStatus = filtroStatusFila === 'todos' ? true : m.status === filtroStatusFila;
     const combinaCanal = filtroCanalFila === 'todos' ? true : m.canal === filtroCanalFila;
@@ -342,7 +397,13 @@ export const RemarketingView: React.FC<Props> = ({
     return combinaStatus && combinaCanal && combinaBusca;
   });
 
-  // Funções utilitárias para regras
+  // Métricas para a régua superior
+  const totalEnviadas = filaMensagens.filter(m => m.status === 'enviada').length;
+  const totalPendentes = filaMensagens.filter(m => m.status === 'pendente').length;
+  const totalErros = filaMensagens.filter(m => m.status === 'erro').length;
+  const totalRegrasAtivas = (regrasNaoPagou.length || 0) + (regraPago.ativo ? 1 : 0);
+
+  // Regras helpers
   const adicionarRegraNaoPagou = (tipo: 'faltando' | 'apos') => {
     if (tipo === 'faltando') {
       setRegrasNaoPagou([
@@ -373,120 +434,237 @@ export const RemarketingView: React.FC<Props> = ({
     setRegrasNaoPagou(regrasNaoPagou.map((item, i) => i === index ? { ...item, ...campos } : item));
   };
 
-  // ---- PORTÃO: só libera a aba de Remarketing depois de conectar o WhatsApp ----
-  if (!workerStatus?.conectado) {
-    const workerOffline = workerStatus && workerStatus.online === false && !workerStatus.atualizadoEm;
-    return (
-      <div className="max-w-xl mx-auto mt-6">
-        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl text-center relative overflow-hidden">
+  const workerOffline = workerStatus && workerStatus.online === false && !workerStatus.atualizadoEm;
+  const tempoDesdeSinalSec = workerStatus?.atualizadoEm ? Math.max(0, Math.round((Date.now() - new Date(workerStatus.atualizadoEm).getTime()) / 1000)) : null;
+
+  return (
+    <div className="space-y-6">
+
+      {/* ====================================================
+          1. PAINEL DE STATUS DO WHATSAPP & AÇÕES DE CONEXÃO
+         ==================================================== */}
+      <div className="bg-slate-900/90 border border-slate-800/80 rounded-3xl p-5 sm:p-6 shadow-2xl relative overflow-hidden backdrop-blur-md">
+        
+        {/* Glow de fundo dinâmico */}
+        <div className={`absolute -top-24 -right-24 w-60 h-60 rounded-full blur-3xl opacity-20 pointer-events-none transition-colors duration-500 ${
+          workerStatus?.conectado ? 'bg-emerald-500' : 'bg-amber-500'
+        }`} />
+
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
           
-          <div className="w-16 h-16 rounded-2xl bg-[#25D366] text-white flex items-center justify-center mx-auto mb-4 shadow-lg shadow-emerald-900/30">
-            <svg viewBox="0 0 24 24" fill="currentColor" className="w-9 h-9" aria-hidden="true">
-              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.149-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.71.306 1.263.489 1.694.625.712.227 1.36.195 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
-            </svg>
-          </div>
-          <h2 className="text-xl font-black text-white mb-1.5">Conecte seu WhatsApp</h2>
-          <p className="text-sm text-slate-400 mb-6 max-w-md mx-auto">
-            Digite seu número de telefone abaixo para conectar. O sistema gerará simultaneamente o <strong>QR Code para escanear</strong> e o <strong>Código de 8 dígitos</strong> para pareamento rápido.
-          </p>
-
-          {/* Estado Inicial: Botão Único "Conectar WhatsApp" */}
-          {!mostrandoQr && (
-            <div className="space-y-4 max-w-md mx-auto">
-              {!etapaNumero ? (
-                <button
-                  type="button"
-                  onClick={() => setEtapaNumero(true)}
-                  className="w-full py-4 bg-[#25D366] hover:brightness-110 text-white font-black rounded-2xl text-base transition flex items-center justify-center gap-2.5 shadow-lg shadow-emerald-900/30"
-                >
-                  <PhoneCall className="w-5 h-5" />
-                  Conectar WhatsApp
-                </button>
+          {/* Lado Esquerdo: Identificação do Dispositivo / Status */}
+          <div className="flex items-start sm:items-center gap-4">
+            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-lg transition-all ${
+              workerStatus?.conectado 
+                ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 shadow-emerald-950/50' 
+                : 'bg-amber-500/15 border border-amber-500/30 text-amber-400 shadow-amber-950/50'
+            }`}>
+              {workerStatus?.conectado ? (
+                <Smartphone className="w-7 h-7 animate-pulse text-emerald-400" />
               ) : (
-                <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-2xl space-y-3 text-left shadow-inner">
-                  <label className="text-xs font-bold text-slate-200">Digite seu WhatsApp com DDD:</label>
-                  <div className="flex items-center gap-2">
-                    <span className="px-3.5 py-3 bg-slate-900 border border-slate-700 rounded-xl text-sm font-mono text-slate-200 shrink-0 font-bold">
-                      🇧🇷 +55
-                    </span>
-                    <input
-                      type="tel"
-                      inputMode="numeric"
-                      placeholder="11 99999-9999"
-                      value={numeroInput}
-                      onChange={e => setNumeroInput(e.target.value.replace(/\D/g, ''))}
-                      className="flex-1 min-w-0 bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-3 text-sm text-white font-mono focus:border-emerald-500 focus:outline-none"
-                    />
-                  </div>
-                  <p className="text-[11px] text-slate-400">
-                    O código do país (<strong className="text-slate-200">+55</strong>) é adicionado automaticamente. Digite apenas o DDD + seu número.
-                  </p>
-
-                  <div className="pt-1 space-y-2">
-                    <button
-                      type="button"
-                      onClick={() => iniciarConexaoWhatsapp('code')}
-                      disabled={numeroInput.replace(/\D/g, '').length < 10}
-                      className="w-full py-3.5 bg-[#25D366] hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black rounded-xl text-sm transition flex items-center justify-center gap-2 shadow-md shadow-emerald-900/20"
-                    >
-                      <Check className="w-4 h-4" />
-                      Conectar
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => iniciarConexaoWhatsapp('qr')}
-                      className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-slate-200 text-xs font-semibold rounded-xl transition flex items-center justify-center gap-1.5 border border-slate-800"
-                    >
-                      <QrCode className="w-3.5 h-3.5" />
-                      Ou conectar apenas com QR Code (Sem informar número)
-                    </button>
-                  </div>
-                </div>
+                <MessageSquare className="w-7 h-7 text-amber-400" />
               )}
             </div>
-          )}
 
-          {/* Conexão em Andamento: Exibe QR Code + Código de 8 Dígitos + Timer Regressivo */}
-          {mostrandoQr && (
-            <div className="space-y-5 max-w-md mx-auto">
-              {/* Barra de Contador Regressivo de Validade */}
-              <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-3.5 text-left space-y-2 shadow-inner">
-                <div className="flex items-center justify-between text-xs font-bold text-slate-300">
-                  <span className="flex items-center gap-1.5 text-amber-400">
-                    <Clock className="w-4 h-4 animate-spin text-amber-400" />
-                    Tempo disponível: <span className="font-mono text-white font-black text-sm">{tempoRestante}s</span>
-                  </span>
-                  <span className="text-[10px] text-slate-400 font-normal">Renovação automática</span>
-                </div>
-                <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
-                  <div
-                    className="bg-gradient-to-r from-emerald-500 to-emerald-400 h-full transition-all duration-1000 rounded-full"
-                    style={{ width: `${Math.max(0, Math.min(100, (tempoRestante / 60) * 100))}%` }}
-                  />
-                </div>
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <h2 className="text-lg sm:text-xl font-black text-white tracking-tight">
+                  Disparo de WhatsApp
+                </h2>
+
+                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black tracking-wide uppercase border shadow-sm ${
+                  workerStatus?.conectado 
+                    ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' 
+                    : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                }`}>
+                  <span className={`w-2 h-2 rounded-full ${workerStatus?.conectado ? 'bg-emerald-400 animate-ping' : 'bg-amber-400'}`} />
+                  {workerStatus?.conectado ? 'Conectado & Ativo' : 'Desconectado'}
+                </span>
               </div>
 
-              {workerOffline ? (
-                <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-left">
-                  <p className="text-xs font-bold text-amber-300 mb-1">⚠️ O robô do WhatsApp está desligado</p>
-                  <p className="text-[11px] text-amber-200/90 leading-relaxed">
-                    Ligue o worker no seu celular (Termux) com o comando <code>node index.js</code>. Assim que ele estiver rodando, o QR e o código aparecerão automaticamente aqui.
-                  </p>
+              {/* Informações detalhadas do Número Conectado */}
+              {workerStatus?.conectado ? (
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-300">
+                  <div className="flex items-center gap-1.5 font-mono font-bold text-emerald-300 bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800">
+                    <PhoneCall className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>{formatarTelefoneBrasil(workerStatus.numero)}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (workerStatus.numero) {
+                          navigator.clipboard.writeText('+' + workerStatus.numero);
+                          setCopiouNumero(true);
+                          setTimeout(() => setCopiouNumero(false), 2000);
+                        }
+                      }}
+                      className="ml-1 text-slate-400 hover:text-white transition"
+                      title="Copiar número de telefone"
+                    >
+                      {copiouNumero ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                    </button>
+                  </div>
+
+                  <span className="text-slate-400 flex items-center gap-1">
+                    <Activity className="w-3.5 h-3.5 text-emerald-400" />
+                    {tempoDesdeSinalSec !== null ? `Sinal ativo (${tempoDesdeSinalSec}s atrás)` : 'Sinal ativo'}
+                  </span>
+
+                  <span className="text-slate-500 hidden sm:inline">• Disparos automáticos a cada 15s</span>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  {/* Bloco 1: Código de Conexão de 8 Dígitos */}
-                  <div className="bg-slate-950 border border-emerald-500/40 rounded-2xl p-4 text-center relative shadow-lg">
-                    <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-emerald-400 mb-2">
-                      <PhoneCall className="w-4 h-4" />
-                      <span>Código de Conexão (8 dígitos)</span>
-                    </div>
+                <p className="text-xs text-slate-400 max-w-xl leading-relaxed">
+                  Conecte seu WhatsApp para habilitar o envio automático de mensagens de cobrança, confirmações de Pix e cupons de recuperação.
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Lado Direito: Ações Principais (Conectar / Desconectar / Sincronizar) */}
+          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            {workerStatus?.conectado ? (
+              <button
+                type="button"
+                onClick={handleDesconectar}
+                disabled={desconectando}
+                className="px-4 py-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 font-bold rounded-2xl text-xs transition flex items-center gap-2 border border-rose-500/30 shadow-md hover:border-rose-500/50"
+                title="Desconectar este número de WhatsApp"
+              >
+                {desconectando ? <RefreshCw className="w-4 h-4 animate-spin text-rose-400" /> : <LogOut className="w-4 h-4 text-rose-400" />}
+                Desconectar WhatsApp
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setMostrandoQr(true)}
+                className="px-5 py-3 bg-[#25D366] hover:brightness-110 text-white font-black rounded-2xl text-xs sm:text-sm transition flex items-center gap-2 shadow-lg shadow-emerald-900/30"
+              >
+                <PhoneCall className="w-4 h-4" />
+                Conectar WhatsApp
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => {
+                fetchWorkerStatus();
+                fetchFila();
+                onRefresh();
+              }}
+              className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-2xl border border-slate-700 transition"
+              title="Sincronizar conexões e dados"
+            >
+              <RefreshCw className={`w-4 h-4 ${carregandoWorker ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
+        </div>
+
+        {/* ====================================================
+            MODAL / CARD DE PAREAMENTO QUANDO DESCONECTADO
+           ==================================================== */}
+        {!workerStatus?.conectado && mostrandoQr && (
+          <div className="mt-6 pt-6 border-t border-slate-800/80 animate-in fade-in space-y-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-black text-white flex items-center gap-2">
+                  <QrCode className="w-5 h-5 text-emerald-400" />
+                  Conectar Aparelho WhatsApp
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Insira o número do seu celular ou escaneie o QR Code abaixo com a câmera do seu WhatsApp.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setMostrandoQr(false);
+                  setEtapaNumero(false);
+                }}
+                className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Form de Inserção de Número */}
+            {!etapaNumero ? (
+              <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-2xl max-w-lg space-y-3">
+                <label className="text-xs font-bold text-slate-200 block">Digite seu número de WhatsApp com DDD:</label>
+                <div className="flex items-center gap-2">
+                  <span className="px-3.5 py-3 bg-slate-900 border border-slate-700 rounded-xl text-sm font-mono text-slate-200 font-bold shrink-0">
+                    🇧🇷 +55
+                  </span>
+                  <input
+                    type="tel"
+                    inputMode="numeric"
+                    placeholder="11 99999-9999"
+                    value={numeroInput}
+                    onChange={e => setNumeroInput(e.target.value.replace(/\D/g, ''))}
+                    className="flex-1 min-w-0 bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-3 text-sm text-white font-mono focus:border-emerald-500 focus:outline-none"
+                  />
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  O prefixo do país (<strong className="text-slate-200">+55</strong>) é adicionado automaticamente. Digite apenas DDD + número.
+                </p>
+
+                <div className="pt-2 flex flex-col sm:flex-row gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEtapaNumero(true);
+                      iniciarConexaoWhatsapp('code');
+                    }}
+                    disabled={numeroInput.replace(/\D/g, '').length < 10}
+                    className="flex-1 py-3 bg-[#25D366] hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black rounded-xl text-xs transition flex items-center justify-center gap-2 shadow-md shadow-emerald-900/20"
+                  >
+                    <Check className="w-4 h-4" />
+                    Gerar Código & QR
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEtapaNumero(true);
+                      iniciarConexaoWhatsapp('qr');
+                    }}
+                    className="py-3 px-4 bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-bold rounded-xl transition flex items-center justify-center gap-2 border border-slate-800"
+                  >
+                    <QrCode className="w-4 h-4 text-emerald-400" />
+                    Apenas QR Code
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4 max-w-xl">
+                {/* Timer e Contador de Renovação */}
+                <div className="bg-slate-950/90 border border-slate-800 rounded-2xl p-3.5 space-y-2">
+                  <div className="flex items-center justify-between text-xs font-bold text-slate-300">
+                    <span className="flex items-center gap-1.5 text-amber-400">
+                      <Clock className="w-4 h-4 animate-spin text-amber-400" />
+                      Tempo limite para validação: <span className="font-mono text-white font-black text-sm">{tempoRestante}s</span>
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-normal">Renovação automática</span>
+                  </div>
+                  <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                    <div
+                      className="bg-gradient-to-r from-emerald-500 to-emerald-400 h-full transition-all duration-1000 rounded-full"
+                      style={{ width: `${Math.max(0, Math.min(100, (tempoRestante / 60) * 100))}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Exibição em Bloco Duplo: Código de 8 dígitos e QR Code */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Bloco 1: Código de Pareamento de 8 dígitos */}
+                  <div className="bg-slate-950 border border-emerald-500/40 rounded-2xl p-4 text-center space-y-3 shadow-lg">
+                    <span className="text-xs font-bold text-emerald-400 flex items-center justify-center gap-1.5">
+                      <PhoneCall className="w-4 h-4" /> Código de 8 Dígitos
+                    </span>
 
                     {pairCode ? (
-                      <div className="space-y-3">
-                        <div className="py-2.5 px-3 bg-slate-900 rounded-xl border border-slate-800 inline-block w-full">
-                          <p className="text-3xl sm:text-4xl font-black tracking-[0.25em] text-emerald-400 font-mono">
+                      <div className="space-y-2">
+                        <div className="py-2 px-3 bg-slate-900 rounded-xl border border-slate-800">
+                          <p className="text-2xl sm:text-3xl font-black tracking-[0.2em] text-emerald-400 font-mono">
                             {pairCode.length === 8 ? `${pairCode.slice(0, 4)}-${pairCode.slice(4)}` : pairCode}
                           </p>
                         </div>
@@ -500,93 +678,186 @@ export const RemarketingView: React.FC<Props> = ({
                           className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 border border-slate-700"
                         >
                           {copiouCodigo ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                          {copiouCodigo ? 'Código Copiado!' : 'Copiar Código'}
+                          {copiouCodigo ? 'Copiado!' : 'Copiar Código'}
                         </button>
-                        <p className="text-[11px] text-slate-400 leading-relaxed text-left">
-                          No WhatsApp: <strong className="text-white">Configurações → Aparelhos conectados → Conectar um aparelho → Conectar com número de telefone</strong> e digite o código acima.
+                        <p className="text-[10px] text-slate-400 leading-tight text-left">
+                          No WhatsApp: <strong className="text-white">Aparelhos conectados → Conectar com número</strong> e digite o código.
                         </p>
                       </div>
                     ) : (
-                      <div className="py-4 flex flex-col items-center gap-2 text-slate-400">
+                      <div className="py-6 flex flex-col items-center gap-2 text-slate-400">
                         <RefreshCw className="w-5 h-5 animate-spin text-emerald-400" />
-                        <p className="text-xs">Gerando código de 8 dígitos...</p>
+                        <p className="text-xs">Gerando código...</p>
                       </div>
                     )}
                   </div>
 
-                  {/* Bloco 2: QR Code Visual para Escanear */}
-                  <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 text-center shadow-lg space-y-3">
-                    <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-slate-300">
-                      <QrCode className="w-4 h-4 text-emerald-400" />
-                      <span>Ou escaneie o QR Code</span>
-                    </div>
+                  {/* Bloco 2: QR Code Visual */}
+                  <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 text-center space-y-3 shadow-lg">
+                    <span className="text-xs font-bold text-slate-300 flex items-center justify-center gap-1.5">
+                      <QrCode className="w-4 h-4 text-emerald-400" /> Ou escaneie o QR
+                    </span>
 
                     {workerQr ? (
                       <div className="space-y-2">
-                        <div className="bg-white rounded-2xl p-3 inline-block shadow-md">
-                          <img src={workerQr} alt="QR Code WhatsApp" className="w-48 h-48 object-contain mx-auto" />
+                        <div className="bg-white rounded-xl p-2.5 inline-block shadow-md">
+                          <img src={workerQr} alt="QR Code WhatsApp" className="w-36 h-36 object-contain mx-auto" />
                         </div>
-                        <p className="text-[11px] text-slate-400 leading-relaxed">
-                          Abra o <strong className="text-white">WhatsApp</strong> → <strong className="text-white">Aparelhos conectados</strong> → <strong className="text-white">Conectar um aparelho</strong> e aponte a câmera para o QR.
+                        <p className="text-[10px] text-slate-400 leading-tight">
+                          Abra o WhatsApp e aponte a câmera para a imagem.
                         </p>
                       </div>
                     ) : (
-                      <div className="py-4 flex flex-col items-center gap-2 text-slate-400">
+                      <div className="py-6 flex flex-col items-center gap-2 text-slate-400">
                         <RefreshCw className="w-5 h-5 animate-spin text-emerald-400" />
-                        <p className="text-xs">Gerando imagem do QR Code...</p>
+                        <p className="text-xs">Gerando QR Code...</p>
                       </div>
                     )}
                   </div>
                 </div>
-              )}
 
-              <div className="pt-2 flex items-center justify-between text-xs">
-                <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
-                  <div className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                  Aguardando WhatsApp...
+                <div className="flex items-center justify-between text-xs pt-1">
+                  <span className="text-[11px] text-slate-400 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                    Aguardando confirmação do celular...
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEtapaNumero(false);
+                      setPairCode(null);
+                      setWorkerQr(null);
+                    }}
+                    className="text-xs text-slate-400 hover:text-white underline font-medium transition"
+                  >
+                    ← Alterar número
+                  </button>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMostrandoQr(false);
-                    setEtapaNumero(false);
-                    setWorkerQr(null);
-                    setPairCode(null);
-                  }}
-                  className="text-xs text-slate-400 hover:text-white underline font-semibold transition"
-                >
-                  ← Alterar número
-                </button>
               </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ====================================================
+          2. MÉTRICAS EM TEMPO REAL & MONITOR DE VISIBILIDADE
+         ==================================================== */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        
+        {/* Card 1: Mensagens Enviadas */}
+        <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-4 shadow-sm relative overflow-hidden">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Enviadas</span>
+            <div className="p-2 bg-emerald-500/10 text-emerald-400 rounded-xl">
+              <CheckCircle2 className="w-4 h-4" />
             </div>
-          )}
+          </div>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="text-2xl sm:text-3xl font-black text-white font-mono">{totalEnviadas}</span>
+            <span className="text-[10px] text-emerald-400 font-bold">sucesso</span>
+          </div>
+        </div>
+
+        {/* Card 2: Fila Outbox Pendente */}
+        <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-4 shadow-sm relative overflow-hidden">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Fila Outbox</span>
+            <div className="p-2 bg-amber-500/10 text-amber-400 rounded-xl">
+              <Clock className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="text-2xl sm:text-3xl font-black text-amber-300 font-mono">{totalPendentes}</span>
+            <span className="text-[10px] text-amber-400 font-bold">aguardando</span>
+          </div>
+        </div>
+
+        {/* Card 3: Erros de Envio */}
+        <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-4 shadow-sm relative overflow-hidden">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Falhas / Erros</span>
+            <div className="p-2 bg-rose-500/10 text-rose-400 rounded-xl">
+              <AlertCircle className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className={`text-2xl sm:text-3xl font-black font-mono ${totalErros > 0 ? 'text-rose-400' : 'text-slate-300'}`}>{totalErros}</span>
+            <span className="text-[10px] text-slate-400 font-bold">registro</span>
+          </div>
+        </div>
+
+        {/* Card 4: Regras Ativas */}
+        <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-4 shadow-sm relative overflow-hidden">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Regras Ativas</span>
+            <div className="p-2 bg-sky-500/10 text-sky-400 rounded-xl">
+              <Settings2 className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="text-2xl sm:text-3xl font-black text-white font-mono">{totalRegrasAtivas}</span>
+            <span className="text-[10px] text-sky-400 font-bold">gatilhos</span>
+          </div>
         </div>
       </div>
-    );
-  }
 
-  return (
-    <div className="space-y-6">
+      {/* ====================================================
+          3. NAVEGAÇÃO ENTRE SUB-ABAS E AÇÕES DE MOTOR
+         ==================================================== */}
+      <div className="bg-slate-900/90 border border-slate-800/80 rounded-2xl p-4 shadow-md space-y-4">
+        
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          {/* Navegação por Sub-Abas */}
+          <div className="flex p-1 bg-slate-950 border border-slate-800 rounded-xl max-w-lg w-full">
+            <button
+              onClick={() => setSubAba('fila')}
+              className={`flex-1 py-2 px-3 text-xs font-black rounded-lg transition flex items-center justify-center gap-2 ${
+                subAba === 'fila' 
+                  ? 'bg-emerald-500 text-slate-950 shadow-md' 
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Activity className="w-3.5 h-3.5" />
+              <span>Outbox Ao Vivo</span>
+              {totalPendentes > 0 && (
+                <span className="px-1.5 py-0.2 bg-slate-950 text-emerald-400 rounded-full text-[10px] font-mono">
+                  {totalPendentes}
+                </span>
+              )}
+            </button>
 
-      {/* Header Principal */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
-              <MessageSquare className="w-6 h-6 text-emerald-400" />
-              Central de Automação & Outbox
-            </h1>
-            <p className="text-slate-400 text-xs mt-0.5">
-              Configure regras de remarketing automatizadas para Pix pendentes e aprovados, gerencie cupons e acompanhe a fila de mensagens (Outbox).
-            </p>
+            <button
+              onClick={() => setSubAba('regras')}
+              className={`flex-1 py-2 px-3 text-xs font-black rounded-lg transition flex items-center justify-center gap-2 ${
+                subAba === 'regras' 
+                  ? 'bg-emerald-500 text-slate-950 shadow-md' 
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Settings2 className="w-3.5 h-3.5" />
+              <span>Regras de Automação</span>
+            </button>
+
+            <button
+              onClick={() => setSubAba('cupons')}
+              className={`flex-1 py-2 px-3 text-xs font-black rounded-lg transition flex items-center justify-center gap-2 ${
+                subAba === 'cupons' 
+                  ? 'bg-emerald-500 text-slate-950 shadow-md' 
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Tag className="w-3.5 h-3.5" />
+              <span>Cupons ({cupons.length})</span>
+            </button>
           </div>
 
+          {/* Botões de Ação Imediata da Automação */}
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={handleExecutarEnfileirador}
               disabled={executandoMotor}
-              className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-60 text-slate-200 font-bold border border-slate-700 rounded-xl text-xs flex items-center gap-1.5 transition"
+              className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-60 text-slate-200 font-bold border border-slate-700 rounded-xl text-xs flex items-center gap-2 transition shadow-sm"
               title="Varrer pedidos e enfileirar mensagens de remarketing pendentes"
             >
               {executandoMotor ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5 text-emerald-400" />}
@@ -596,129 +867,54 @@ export const RemarketingView: React.FC<Props> = ({
             <button
               onClick={handleProcessarFilaManual}
               disabled={processandoFila}
-              className="px-3.5 py-2 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 text-slate-950 font-black rounded-xl text-xs flex items-center gap-1.5 shadow-lg shadow-emerald-500/20 transition"
-              title="Processar mensagens pendentes da fila (enviar ao Notificame/E-mail)"
+              className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 text-slate-950 font-black rounded-xl text-xs flex items-center gap-2 shadow-lg shadow-emerald-500/20 transition"
+              title="Processar mensagens da outbox agora"
             >
               {processandoFila ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-              Processar Outbox
-            </button>
-
-            <button
-              onClick={() => {
-                if (subAba === 'fila') fetchFila();
-                onRefresh();
-              }}
-              className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl border border-slate-700 transition"
-              title="Sincronizar dados"
-            >
-              <RefreshCw className="w-4 h-4" />
+              Disparar Outbox Agora
             </button>
           </div>
         </div>
 
-        {/* Sub-Abas de Navegação */}
-        <div className="flex p-1 bg-slate-950 border border-slate-800 rounded-xl max-w-md">
-          <button
-            onClick={() => setSubAba('fila')}
-            className={`flex-1 py-2 text-xs font-black rounded-lg transition flex items-center justify-center gap-1.5 ${
-              subAba === 'fila' ? 'bg-emerald-500 text-slate-950 shadow-sm' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <PhoneCall className="w-3.5 h-3.5" />
-            Fila Outbox ({filaMensagens.filter(m => m.status === 'pendente').length})
-          </button>
-
-          <button
-            onClick={() => setSubAba('regras')}
-            className={`flex-1 py-2 text-xs font-black rounded-lg transition flex items-center justify-center gap-1.5 ${
-              subAba === 'regras' ? 'bg-emerald-500 text-slate-950 shadow-sm' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Settings2 className="w-3.5 h-3.5" />
-            Regras de Automação
-          </button>
-
-          <button
-            onClick={() => setSubAba('cupons')}
-            className={`flex-1 py-2 text-xs font-black rounded-lg transition flex items-center justify-center gap-1.5 ${
-              subAba === 'cupons' ? 'bg-emerald-500 text-slate-950 shadow-sm' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Tag className="w-3.5 h-3.5" />
-            Cupons ({cupons.length})
-          </button>
-        </div>
-
-        {/* Status do Conector WhatsApp Web (Worker) */}
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-4 bg-slate-950 border border-slate-800 rounded-xl">
-          <div className="flex items-center gap-3">
-            <div className={`p-2 rounded-lg ${workerStatus?.conectado ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-800 text-slate-500'}`}>
-              <MessageSquare className="w-5 h-5" />
+        {/* Feedback do Motor de Automação */}
+        {resultadoMotor && (
+          <div className="p-4 bg-slate-950 border border-emerald-500/40 rounded-xl text-xs text-slate-300 space-y-2 animate-in fade-in">
+            <div className="flex items-center justify-between">
+              <span className="font-black text-emerald-400 flex items-center gap-2 text-sm">
+                <CheckCircle2 className="w-4 h-4" />
+                {resultadoMotor.type === 'enfileirador' 
+                  ? `Scanner Concluído: Enfileiradas ${resultadoMotor.enfileirados || 0} novas mensagens` 
+                  : `Outbox Processado: Sucesso ${resultadoMotor.sucesso || 0} | Falhas ${resultadoMotor.erro || 0}`}
+              </span>
+              <button onClick={() => setResultadoMotor(null)} className="text-slate-500 hover:text-white">
+                <X className="w-4 h-4" />
+              </button>
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-black text-slate-200">Conector WhatsApp Web (Worker Externo)</span>
-                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black ${
-                  workerStatus?.conectado 
-                    ? 'bg-emerald-500/20 text-emerald-400' 
-                    : 'bg-slate-800 text-slate-400'
-                }`}>
-                  {workerStatus?.conectado ? 'CONECTADO' : 'DESCONECTADO'}
-                </span>
+
+            {resultadoMotor.detalhes && resultadoMotor.detalhes.length > 0 && (
+              <div className="bg-slate-900 p-3 rounded-lg border border-slate-800 space-y-1 font-mono text-[11px] max-h-36 overflow-y-auto">
+                {resultadoMotor.detalhes.map((d: any, idx: number) => (
+                  <div key={idx} className="flex items-center justify-between py-1 border-b border-slate-800/40 last:border-0">
+                    <span className="text-slate-300">Para: {d.para}</span>
+                    <span className={`font-bold ${d.status === 'enviada' || d.status === 'simulado' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {d.status || d.tipo} {d.erro ? `(${d.erro})` : ''}
+                    </span>
+                  </div>
+                ))}
               </div>
-              <p className="text-slate-400 text-[11px] mt-0.5">
-                {workerStatus?.conectado 
-                  ? `Número conectado: +${workerStatus.numero}. Fila outbox processada por cron local a cada 15s.`
-                  : 'Nenhum número pareado no momento. Conecte o worker externo e escaneie o código QR.'
-                }
-              </p>
-            </div>
+            )}
           </div>
-          {workerStatus?.atualizadoEm && (
-            <div className="text-[10px] text-slate-500 font-medium self-end md:self-center">
-              Último sinal: {Math.max(0, Math.round((Date.now() - new Date(workerStatus.atualizadoEm).getTime()) / 1000))}s atrás
-            </div>
-          )}
-        </div>
+        )}
       </div>
 
-      {/* Alertas de Motor / Feedback de Ações */}
-      {resultadoMotor && (
-        <div className="p-4 bg-slate-900 border border-emerald-500/40 rounded-2xl text-xs text-slate-300 space-y-2 animate-in fade-in">
-          <div className="flex items-center justify-between">
-            <span className="font-black text-emerald-400 flex items-center gap-1.5 text-sm">
-              <CheckCircle2 className="w-4 h-4" />
-              {resultadoMotor.type === 'enfileirador' 
-                ? `Venda varrida! Enfileiradas: ${resultadoMotor.enfileirados} novas mensagens` 
-                : `Outbox processada! Sucesso: ${resultadoMotor.sucesso} | Falhas: ${resultadoMotor.erro}`}
-            </span>
-            <button onClick={() => setResultadoMotor(null)} className="text-slate-500 hover:text-white">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-          {resultadoMotor.detalhes && resultadoMotor.detalhes.length > 0 && (
-            <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1 font-mono text-[11px] max-h-40 overflow-y-auto">
-              {resultadoMotor.detalhes.map((d: any, idx: number) => (
-                <div key={idx} className="flex items-center justify-between py-0.5 border-b border-slate-800/40 last:border-0">
-                  <span className="text-slate-300">Para: {d.para}</span>
-                  <span className={`font-bold ${d.status === 'enviada' || d.status === 'simulado' ? 'text-emerald-400' : 'text-rose-400'}`}>
-                    {d.status || d.tipo} {d.erro ? `(${d.erro})` : ''}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ----------------------------------------------------
+      {/* ====================================================
           SUB-ABA 1: FILA DE MENSAGENS (OUTBOX)
-         ---------------------------------------------------- */}
+         ==================================================== */}
       {subAba === 'fila' && (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+        <div className="bg-slate-900/90 border border-slate-800/80 rounded-2xl p-5 shadow-sm space-y-4">
           
-          {/* Barra de Filtros da Fila */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-slate-800">
+          {/* Barra de Busca e Filtro */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-800">
             <div className="flex flex-wrap items-center gap-2">
               <select
                 value={filtroStatusFila}
@@ -728,7 +924,7 @@ export const RemarketingView: React.FC<Props> = ({
                 <option value="todos">Status: Todos</option>
                 <option value="pendente">Status: Pendente</option>
                 <option value="enviada">Status: Enviada</option>
-                <option value="erro">Status: Erro (Falhou)</option>
+                <option value="erro">Status: Erro / Falha</option>
                 <option value="cancelada">Status: Cancelada</option>
               </select>
 
@@ -749,7 +945,7 @@ export const RemarketingView: React.FC<Props> = ({
                     setFiltroCanalFila('todos');
                     setTermoBuscaFila('');
                   }}
-                  className="px-2.5 py-1.5 bg-slate-800 text-xs text-slate-300 rounded-lg hover:text-white"
+                  className="px-2.5 py-2 bg-slate-800 text-xs text-slate-300 rounded-xl hover:text-white transition"
                 >
                   Limpar Filtros
                 </button>
@@ -757,81 +953,83 @@ export const RemarketingView: React.FC<Props> = ({
             </div>
 
             <div className="flex items-center gap-2">
-              <div className="relative">
+              <div className="relative flex-1 sm:w-64">
                 <input
                   type="text"
-                  placeholder="Buscar destinatário ou texto..."
+                  placeholder="Buscar número, pedido ou texto..."
                   value={termoBuscaFila}
                   onChange={e => setTermoBuscaFila(e.target.value)}
-                  className="bg-slate-950 border border-slate-700 rounded-xl pl-8 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:border-emerald-500 focus:outline-none w-56"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-8 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:border-emerald-500 focus:outline-none"
                 />
-                <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-3" />
+                <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2.5" />
               </div>
 
               <button
                 onClick={handleLimparFilaMensagens}
-                className="px-3.5 py-2 bg-slate-950 border border-rose-500/30 hover:bg-rose-500/10 text-rose-400 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+                className="px-3 py-2 bg-slate-950 border border-rose-500/30 hover:bg-rose-500/10 text-rose-400 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0"
                 title="Limpar mensagens com erro e pendentes da outbox"
               >
                 <Ban className="w-3.5 h-3.5" />
-                Limpar Fila
+                <span className="hidden sm:inline">Limpar Erros</span>
               </button>
             </div>
           </div>
 
-          {/* Listagem da Fila de Mensagens */}
+          {/* Tabela de Outbox */}
           {carregandoFila ? (
             <div className="py-12 text-center text-slate-400 text-xs flex flex-col items-center justify-center gap-2">
               <RefreshCw className="w-6 h-6 animate-spin text-emerald-400" />
-              Buscando mensagens da outbox...
+              Sincronizando outbox do robô...
             </div>
           ) : filaFiltrada.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="border-b border-slate-800 text-slate-400 font-bold uppercase text-[10px]">
-                    <th className="py-3 px-4">ID / Criação</th>
+                  <tr className="border-b border-slate-800 text-slate-400 font-bold uppercase text-[10px] tracking-wider">
+                    <th className="py-3 px-4">Criação / ID</th>
                     <th className="py-3 px-4">Destinatário</th>
                     <th className="py-3 px-4">Canal / Tipo</th>
-                    <th className="py-3 px-4">Conteúdo</th>
+                    <th className="py-3 px-4">Preview do Conteúdo</th>
                     <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-4 text-right">Ações</th>
+                    <th className="py-3 px-4 text-right">Ação</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60">
                   {filaFiltrada.map((msg) => (
                     <tr key={msg.id} className="hover:bg-slate-950/45 transition">
-                      <td className="py-3 px-4 font-mono text-[10px] text-slate-500">
-                        <div className="text-slate-300 font-bold">{msg.id.slice(-8).toUpperCase()}</div>
-                        <div>{new Date(msg.criadoEm).toLocaleDateString('pt-BR')} {new Date(msg.criadoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
+                      <td className="py-3 px-4 font-mono text-[10px] text-slate-400">
+                        <div className="text-slate-200 font-bold">{msg.id.slice(-8).toUpperCase()}</div>
+                        <div className="text-slate-500">
+                          {new Date(msg.criadoEm).toLocaleDateString('pt-BR')} {new Date(msg.criadoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                        </div>
                       </td>
-                      <td className="py-3 px-4 font-bold text-slate-200">
+                      <td className="py-3 px-4 font-bold text-slate-200 font-mono">
                         {msg.para}
                       </td>
                       <td className="py-3 px-4">
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1.5">
                           {msg.canal === 'whatsapp' ? (
-                            <span className="px-1.5 py-0.5 bg-emerald-500/10 text-emerald-400 text-[9px] font-bold uppercase rounded border border-emerald-500/20">Whats</span>
+                            <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 text-[10px] font-bold uppercase rounded-md border border-emerald-500/20">Whats</span>
                           ) : msg.canal === 'email' ? (
-                            <span className="px-1.5 py-0.5 bg-sky-500/10 text-sky-400 text-[9px] font-bold uppercase rounded border border-sky-500/20">E-mail</span>
+                            <span className="px-2 py-0.5 bg-sky-500/10 text-sky-400 text-[10px] font-bold uppercase rounded-md border border-sky-500/20">E-mail</span>
                           ) : (
-                            <span className="px-1.5 py-0.5 bg-purple-500/10 text-purple-400 text-[9px] font-bold uppercase rounded border border-purple-500/20">Ambos</span>
+                            <span className="px-2 py-0.5 bg-purple-500/10 text-purple-400 text-[10px] font-bold uppercase rounded-md border border-purple-500/20">Ambos</span>
                           )}
-                          <span className="text-slate-400 text-[10px] font-medium capitalize">({msg.tipo})</span>
+                          <span className="text-slate-400 text-[10px] capitalize">({msg.tipo})</span>
                         </div>
                       </td>
-                      <td className="py-3 px-4 text-slate-300 max-w-xs truncate">
+                      <td className="py-3 px-4 text-slate-300 max-w-xs truncate font-sans">
                         {msg.texto}
                       </td>
                       <td className="py-3 px-4">
                         <div className="space-y-0.5">
-                          <span className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded border inline-block ${
+                          <span className={`px-2 py-0.5 text-[10px] font-black uppercase rounded-md border inline-block ${
                             msg.status === 'pendente'
-                              ? 'bg-amber-500/15 text-amber-400 border-amber-500/20'
+                              ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
                               : msg.status === 'enviada'
-                              ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20'
+                              ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
                               : msg.status === 'erro'
-                              ? 'bg-rose-500/15 text-rose-400 border-rose-500/20'
+                              ? 'bg-rose-500/15 text-rose-400 border-rose-500/30'
                               : 'bg-slate-800 text-slate-500 border-slate-700'
                           }`}>
                             {msg.status}
@@ -858,59 +1056,60 @@ export const RemarketingView: React.FC<Props> = ({
               </table>
             </div>
           ) : (
-            <div className="py-12 text-center text-slate-500 text-xs bg-slate-950/40 rounded-xl border border-slate-800/60">
-              <Check className="w-8 h-8 mx-auto mb-2 text-emerald-500/50" />
-              Nenhuma mensagem encontrada na outbox com os filtros atuais.
+            <div className="py-12 text-center text-slate-500 text-xs bg-slate-950/40 rounded-2xl border border-slate-800/60 space-y-2">
+              <CheckCircle2 className="w-8 h-8 mx-auto text-emerald-500/50" />
+              <p className="font-semibold text-slate-300">Outbox Limpo</p>
+              <p className="text-[11px] text-slate-500">Nenhuma mensagem pendente ou registrada na fila para o filtro selecionado.</p>
             </div>
           )}
         </div>
       )}
 
-      {/* Modal para Visualização Detalhada da Mensagem */}
+      {/* Modal de Detalhe de Mensagem */}
       {msgDetalhe && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-5 space-y-4 shadow-2xl relative">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-lg p-6 space-y-4 shadow-2xl relative">
             <button 
               onClick={() => setMsgDetalhe(null)} 
-              className="absolute right-4 top-4 text-slate-400 hover:text-white transition"
+              className="absolute right-5 top-5 text-slate-400 hover:text-white transition"
             >
               <X className="w-5 h-5" />
             </button>
 
             <h3 className="font-black text-white text-base flex items-center gap-2 border-b border-slate-800 pb-3">
               <Eye className="w-5 h-5 text-emerald-400" />
-              Detalhes da Mensagem Outbox
+              Detalhes da Mensagem
             </h3>
 
             <div className="grid grid-cols-2 gap-3 text-xs">
-              <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800/60">
+              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
                 <span className="text-slate-500 block font-bold text-[10px] uppercase">ID do Registro</span>
                 <span className="text-slate-300 font-mono text-[10px]">{msgDetalhe.id}</span>
               </div>
-              <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800/60">
+              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
                 <span className="text-slate-500 block font-bold text-[10px] uppercase">Destinatário</span>
-                <span className="text-slate-200 font-bold text-sm">{msgDetalhe.para}</span>
+                <span className="text-slate-200 font-mono font-bold text-sm">{msgDetalhe.para}</span>
               </div>
-              <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800/60">
+              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
                 <span className="text-slate-500 block font-bold text-[10px] uppercase">Status de Envio</span>
                 <span className={`font-bold capitalize ${msgDetalhe.status === 'enviada' ? 'text-emerald-400' : msgDetalhe.status === 'erro' ? 'text-rose-400' : 'text-amber-400'}`}>{msgDetalhe.status}</span>
               </div>
-              <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800/60">
+              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
                 <span className="text-slate-500 block font-bold text-[10px] uppercase">Canal e Tipo</span>
                 <span className="text-slate-300 font-medium capitalize">{msgDetalhe.canal} ({msgDetalhe.tipo})</span>
               </div>
             </div>
 
-            <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-1.5">
-              <span className="text-slate-400 font-bold text-[10px] uppercase block">Texto Completo da Mensagem</span>
-              <p className="text-xs text-slate-200 white-space:pre-wrap leading-relaxed font-sans bg-slate-900/60 p-3 rounded-lg border border-slate-800/60 font-mono">
+            <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-1.5">
+              <span className="text-slate-400 font-bold text-[10px] uppercase block">Texto Completo</span>
+              <p className="text-xs text-slate-200 leading-relaxed font-mono whitespace-pre-wrap bg-slate-900 p-3 rounded-lg border border-slate-800/80">
                 {msgDetalhe.texto}
               </p>
             </div>
 
             {msgDetalhe.erro && (
               <div className="bg-rose-500/10 border border-rose-500/20 p-3 rounded-xl text-xs space-y-1">
-                <span className="text-rose-400 font-bold text-[10px] uppercase block">Log do Erro Retornado</span>
+                <span className="text-rose-400 font-bold text-[10px] uppercase block">Log de Erro</span>
                 <p className="font-mono text-[11px] text-rose-300">{msgDetalhe.erro}</p>
               </div>
             )}
@@ -918,27 +1117,27 @@ export const RemarketingView: React.FC<Props> = ({
             <div className="flex justify-end pt-2">
               <button
                 onClick={() => setMsgDetalhe(null)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold border border-slate-700 transition"
+                className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition"
               >
-                Fechar Visualização
+                Fechar
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ----------------------------------------------------
+      {/* ====================================================
           SUB-ABA 2: CONFIGURAÇÃO DE REGRAS DE AUTOMAÇÃO
-         ---------------------------------------------------- */}
+         ==================================================== */}
       {subAba === 'regras' && (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-6 animate-in fade-in">
+        <div className="bg-slate-900/90 border border-slate-800/80 rounded-2xl p-5 sm:p-6 shadow-sm space-y-6 animate-in fade-in">
           
           {/* Seletor de Campanha */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
             <div>
-              <h3 className="text-base font-black text-white">Central de Regras de Remarketing</h3>
+              <h3 className="text-base font-black text-white">Regras de Automação do Robô</h3>
               <p className="text-xs text-slate-400">
-                Determine as regras de contato automatizado por campanha. Os envios são gerados em background.
+                Gatilhos automáticos configurados especificamente para a campanha selecionada.
               </p>
             </div>
 
@@ -947,7 +1146,7 @@ export const RemarketingView: React.FC<Props> = ({
               <select
                 value={campanhaIdSel}
                 onChange={e => setCampanhaIdSel(e.target.value)}
-                className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-emerald-500"
+                className="bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs font-bold text-white focus:outline-none focus:border-emerald-500"
               >
                 {campanhas.map(c => (
                   <option key={c.id} value={c.id}>{c.titulo} (/c/{c.codigo})</option>
@@ -956,14 +1155,14 @@ export const RemarketingView: React.FC<Props> = ({
             </div>
           </div>
 
-          {/* Configurações Globais da Campanha */}
+          {/* Opções Globais */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             
             {/* Ativar Remarketing */}
-            <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between">
+            <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 flex items-center justify-between">
               <div className="space-y-0.5">
-                <span className="font-bold text-white text-sm block">Ativar Remarketing Automatizado</span>
-                <span className="text-slate-400 text-[11px] block">O robô varrerá os pedidos para esta campanha conforme as regras.</span>
+                <span className="font-bold text-white text-sm block">Ativar Automações Nesta Campanha</span>
+                <span className="text-slate-400 text-[11px] block">O robô varrerá os pedidos para esta rifa conforme as regras.</span>
               </div>
               <button
                 onClick={() => setRemAtivo(!remAtivo)}
@@ -973,16 +1172,16 @@ export const RemarketingView: React.FC<Props> = ({
               </button>
             </div>
 
-            {/* Canal de Envio Preferencial */}
-            <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between">
+            {/* Canal Preferencial */}
+            <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 flex items-center justify-between">
               <div className="space-y-0.5">
                 <span className="font-bold text-white text-sm block">Canal Preferencial de Disparo</span>
-                <span className="text-slate-400 text-[11px] block">Escolha se as notificações vão por WhatsApp, E-mail ou Ambos.</span>
+                <span className="text-slate-400 text-[11px] block">Escolha se os envios ocorrem por WhatsApp, E-mail ou Ambos.</span>
               </div>
               <select
                 value={canal}
                 onChange={e => setCanal(e.target.value as any)}
-                className="bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs font-bold text-white focus:outline-none"
+                className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs font-bold text-white focus:outline-none"
               >
                 <option value="whatsapp">WhatsApp</option>
                 <option value="email">E-mail</option>
@@ -991,10 +1190,10 @@ export const RemarketingView: React.FC<Props> = ({
             </div>
 
             {/* Somente se Campanha Ativa */}
-            <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between md:col-span-2">
+            <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 flex items-center justify-between md:col-span-2">
               <div className="space-y-0.5">
-                <span className="font-bold text-white text-sm block">Apenas se Campanha Estiver Publicada</span>
-                <span className="text-slate-400 text-[11px] block">Evita que regras de longa duração (+24h, +7d) disparem se a campanha já foi finalizada ou pausada.</span>
+                <span className="font-bold text-white text-sm block">Disparar Apenas se Campanha Estiver Ativa/Publicada</span>
+                <span className="text-slate-400 text-[11px] block">Evita disparar lembretes se a campanha já foi encerrada ou pausada.</span>
               </div>
               <button
                 onClick={() => setSomenteSeCampanhaAtiva(!somenteSeCampanhaAtiva)}
@@ -1006,19 +1205,19 @@ export const RemarketingView: React.FC<Props> = ({
           </div>
 
           {/* Variáveis dinâmicas para Ajuda */}
-          <div className="p-3.5 bg-slate-950/60 rounded-xl border border-slate-800/80 text-xs space-y-2">
-            <span className="text-slate-400 font-bold flex items-center gap-1">
-              <HelpCircle className="w-3.5 h-3.5 text-emerald-400" />
-              Variáveis dinâmicas suportadas no texto das mensagens:
+          <div className="p-4 bg-slate-950/70 rounded-2xl border border-slate-800/80 text-xs space-y-2">
+            <span className="text-slate-300 font-bold flex items-center gap-1.5">
+              <HelpCircle className="w-4 h-4 text-emerald-400" />
+              Variáveis Dinâmicas Suportadas no Texto:
             </span>
             <div className="flex flex-wrap gap-2 text-[11px] font-mono text-emerald-400">
-              <span className="bg-slate-900 px-2 py-0.5 rounded border border-slate-800" title="Primeiro nome do comprador">{'{nome}'}</span>
-              <span className="bg-slate-900 px-2 py-0.5 rounded border border-slate-800" title="Título da Campanha">{'{campanha}'}</span>
-              <span className="bg-slate-900 px-2 py-0.5 rounded border border-slate-800" title="Link com cupom embutido se houver">{'{link}'}</span>
-              <span className="bg-slate-900 px-2 py-0.5 rounded border border-slate-800" title="Código do cupom ativo">{'{cupom}'}</span>
-              <span className="bg-slate-900 px-2 py-0.5 rounded border border-slate-800" title="Minutos (restantes ou decorridos)">{'{minutos}'}</span>
-              <span className="bg-slate-900 px-2 py-0.5 rounded border border-slate-800" title="Números reservados ou comprados">{'{numeros}'}</span>
-              <span className="bg-slate-900 px-2 py-0.5 rounded border border-slate-800" title="Quantidade de cotas reservadas">{'{qtd}'}</span>
+              <span className="bg-slate-900 px-2 py-1 rounded-lg border border-slate-800">{'{nome}'}</span>
+              <span className="bg-slate-900 px-2 py-1 rounded-lg border border-slate-800">{'{campanha}'}</span>
+              <span className="bg-slate-900 px-2 py-1 rounded-lg border border-slate-800">{'{link}'}</span>
+              <span className="bg-slate-900 px-2 py-1 rounded-lg border border-slate-800">{'{cupom}'}</span>
+              <span className="bg-slate-900 px-2 py-1 rounded-lg border border-slate-800">{'{minutos}'}</span>
+              <span className="bg-slate-900 px-2 py-1 rounded-lg border border-slate-800">{'{numeros}'}</span>
+              <span className="bg-slate-900 px-2 py-1 rounded-lg border border-slate-800">{'{qtd}'}</span>
             </div>
           </div>
 
@@ -1027,21 +1226,21 @@ export const RemarketingView: React.FC<Props> = ({
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-2">
               <h4 className="text-sm font-black text-amber-400 flex items-center gap-1.5">
                 <Clock className="w-4 h-4" />
-                Mensagens de Pix Gerado & NÃO Pago (Aguardando / Expirado)
+                Lembretes de Pix Gerado & NÃO Pago (Aguardando / Expirado)
               </h4>
               
               <div className="flex gap-2">
                 <button
                   type="button"
                   onClick={() => adicionarRegraNaoPagou('faltando')}
-                  className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-bold border border-slate-700 flex items-center gap-1"
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold border border-slate-700 flex items-center gap-1"
                 >
-                  <Plus className="w-3.5 h-3.5" /> Pix Quase Expirando
+                  <Plus className="w-3.5 h-3.5" /> Pix Expirando
                 </button>
                 <button
                   type="button"
                   onClick={() => adicionarRegraNaoPagou('apos')}
-                  className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-bold border border-slate-700 flex items-center gap-1"
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold border border-slate-700 flex items-center gap-1"
                 >
                   <Plus className="w-3.5 h-3.5" /> Pedido Expirou
                 </button>
@@ -1054,13 +1253,13 @@ export const RemarketingView: React.FC<Props> = ({
                   const isFaltando = r.faltandoMin !== undefined;
 
                   return (
-                    <div key={idx} className="p-4 bg-slate-950 border border-slate-800 rounded-xl space-y-4 shadow-sm">
+                    <div key={idx} className="p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-4 shadow-sm">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className={`px-2 py-0.5 text-[9px] font-black uppercase rounded border ${
+                          <span className={`px-2.5 py-0.5 text-[9px] font-black uppercase rounded-md border ${
                             isFaltando 
-                              ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' 
-                              : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                              ? 'bg-amber-500/10 text-amber-300 border-amber-500/20' 
+                              : 'bg-rose-500/10 text-rose-300 border-rose-500/20'
                           }`}>
                             {isFaltando ? 'Pix Quase Expirando' : 'Pedido Expirado'}
                           </span>
@@ -1102,11 +1301,11 @@ export const RemarketingView: React.FC<Props> = ({
                         </button>
                       </div>
 
-                      {/* Configuração de Cupom (Somente para Regras após expirar) */}
+                      {/* Configuração de Cupom (para Regras de Expirados) */}
                       {!isFaltando && (
                         <div className="grid grid-cols-2 gap-3 max-w-sm">
                           <div>
-                            <label className="text-[10px] text-slate-400 block mb-0.5">Cupom de Desconto</label>
+                            <label className="text-[10px] text-slate-400 block mb-0.5 font-bold">Cupom de Desconto</label>
                             <input
                               type="text"
                               value={r.cupom || ''}
@@ -1116,7 +1315,7 @@ export const RemarketingView: React.FC<Props> = ({
                             />
                           </div>
                           <div>
-                            <label className="text-[10px] text-slate-400 block mb-0.5">Desconto (%)</label>
+                            <label className="text-[10px] text-slate-400 block mb-0.5 font-bold">Desconto (%)</label>
                             <input
                               type="number"
                               min="0"
@@ -1130,12 +1329,12 @@ export const RemarketingView: React.FC<Props> = ({
                       )}
 
                       <div className="space-y-1">
-                        <label className="text-[10px] text-slate-500 uppercase block font-bold">Conteúdo do Texto de Remarketing</label>
+                        <label className="text-[10px] text-slate-400 uppercase block font-bold">Conteúdo da Mensagem</label>
                         <textarea
                           rows={3}
                           value={r.mensagem}
                           onChange={e => atualizarRegraNaoPagou(idx, { mensagem: e.target.value })}
-                          className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
                           placeholder="Olá {nome}! Notamos que seu pedido na campanha {campanha} está..."
                         />
                       </div>
@@ -1144,8 +1343,8 @@ export const RemarketingView: React.FC<Props> = ({
                 })}
               </div>
             ) : (
-              <div className="py-8 text-center text-slate-500 text-xs bg-slate-950/40 rounded-xl border border-slate-800/60">
-                Nenhuma regra cadastrada para pedidos não pagos ainda. Adicione regras acima!
+              <div className="py-8 text-center text-slate-500 text-xs bg-slate-950/40 rounded-2xl border border-slate-800/60">
+                Nenhuma regra cadastrada para pedidos não pagos. Adicione regras acima!
               </div>
             )}
           </div>
@@ -1161,7 +1360,7 @@ export const RemarketingView: React.FC<Props> = ({
               <button
                 type="button"
                 onClick={() => setRegraPago({ ...regraPago, ativo: !regraPago.ativo })}
-                className={`px-3 py-1 text-[10px] font-black uppercase rounded border transition ${
+                className={`px-3 py-1 text-[10px] font-black uppercase rounded-md border transition ${
                   regraPago.ativo ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-slate-800 text-slate-500 border-slate-700'
                 }`}
               >
@@ -1170,11 +1369,9 @@ export const RemarketingView: React.FC<Props> = ({
             </div>
 
             {regraPago.ativo && (
-              <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl space-y-4 animate-in fade-in">
+              <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-4 animate-in fade-in">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-slate-300">Enviar lista de cotas compradas no corpo da mensagem?</span>
-                  </div>
+                  <span className="text-xs text-slate-300">Enviar lista de cotas compradas no corpo da mensagem?</span>
                   <button
                     onClick={() => setRegraPago({ ...regraPago, enviarNumeros: !regraPago.enviarNumeros })}
                     className={`w-10 h-5 rounded-full transition-colors relative p-0.5 flex items-center ${regraPago.enviarNumeros ? 'bg-emerald-500' : 'bg-slate-800'}`}
@@ -1184,12 +1381,12 @@ export const RemarketingView: React.FC<Props> = ({
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] text-slate-500 uppercase block font-bold">Conteúdo da Mensagem de Confirmação</label>
+                  <label className="text-[10px] text-slate-400 uppercase block font-bold">Conteúdo da Mensagem de Confirmação</label>
                   <textarea
                     rows={3}
                     value={regraPago.mensagem || ''}
                     onChange={e => setRegraPago({ ...regraPago, mensagem: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
                     placeholder="Olá {nome}! Recebemos o seu Pix..."
                   />
                 </div>
@@ -1200,14 +1397,14 @@ export const RemarketingView: React.FC<Props> = ({
           {/* Botão de Gravar Tudo */}
           <div className="pt-2 flex items-center justify-between border-t border-slate-800">
             {msgFeedback && (
-              <span className="text-emerald-400 text-xs font-bold flex items-center gap-1">
+              <span className="text-emerald-400 text-xs font-bold flex items-center gap-1.5">
                 <CheckCircle2 className="w-4 h-4" /> {msgFeedback}
               </span>
             )}
             <button
               onClick={handleSalvarConfiguracoes}
               disabled={salvandoConfig}
-              className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs shadow-md shadow-emerald-500/20 transition ml-auto flex items-center gap-1.5"
+              className="px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs shadow-md shadow-emerald-500/20 transition ml-auto flex items-center gap-2"
             >
               {salvandoConfig ? 'Salvando...' : 'Gravar Configurações & Regras'}
             </button>
@@ -1215,17 +1412,17 @@ export const RemarketingView: React.FC<Props> = ({
         </div>
       )}
 
-      {/* ----------------------------------------------------
+      {/* ====================================================
           SUB-ABA 3: GESTÃO DE CUPONS DE DESCONTO
-         ---------------------------------------------------- */}
+         ==================================================== */}
       {subAba === 'cupons' && (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-5 animate-in fade-in">
+        <div className="bg-slate-900/90 border border-slate-800/80 rounded-2xl p-5 sm:p-6 shadow-sm space-y-5 animate-in fade-in">
           
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
             <div>
               <h3 className="text-base font-black text-white">Cupons de Desconto da Campanha</h3>
               <p className="text-xs text-slate-400">
-                Cadastre cupons fixos que os clientes podem aplicar manualmente na tela de checkout da campanha.
+                Cadastre cupons promocionais que os compradores aplicam no checkout.
               </p>
             </div>
 
@@ -1234,7 +1431,7 @@ export const RemarketingView: React.FC<Props> = ({
               <select
                 value={campanhaIdSel}
                 onChange={e => setCampanhaIdSel(e.target.value)}
-                className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-emerald-500"
+                className="bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs font-bold text-white focus:outline-none focus:border-emerald-500"
               >
                 {campanhas.map(c => (
                   <option key={c.id} value={c.id}>{c.titulo} (/c/{c.codigo})</option>
@@ -1244,8 +1441,8 @@ export const RemarketingView: React.FC<Props> = ({
           </div>
 
           {/* Adicionar Novo Cupom */}
-          <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl space-y-3">
-            <span className="text-xs font-bold text-slate-300 block">Cadastrar Novo Cupom de Desconto:</span>
+          <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-3">
+            <span className="text-xs font-bold text-slate-200 block">Cadastrar Novo Cupom de Desconto:</span>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="text-[10px] font-bold text-slate-400 block mb-1">Código do Cupom</label>
@@ -1253,19 +1450,19 @@ export const RemarketingView: React.FC<Props> = ({
                   type="text"
                   placeholder="EX: PROMO10"
                   id="novoCupomCodigo"
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono font-bold text-white uppercase focus:border-emerald-500 focus:outline-none"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono font-bold text-white uppercase focus:border-emerald-500 focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="text-[10px] font-bold text-slate-400 block mb-1">Porcentagem de Desconto (%)</label>
+                <label className="text-[10px] font-bold text-slate-400 block mb-1">Desconto (%)</label>
                 <input
                   type="number"
                   min="1"
                   max="100"
                   placeholder="10"
                   id="novoCupomPct"
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs font-bold text-white focus:border-emerald-500 focus:outline-none"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-white focus:border-emerald-500 focus:outline-none"
                 />
               </div>
 
@@ -1295,7 +1492,7 @@ export const RemarketingView: React.FC<Props> = ({
                     if (elCod) elCod.value = '';
                     if (elPct) elPct.value = '';
                   }}
-                  className="w-full py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-lg text-xs transition flex items-center justify-center gap-1.5 shadow-md shadow-emerald-500/10"
+                  className="w-full py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-md shadow-emerald-500/10"
                 >
                   <Plus className="w-4 h-4" /> Adicionar Cupom
                 </button>
@@ -1309,9 +1506,9 @@ export const RemarketingView: React.FC<Props> = ({
             {cupons.length > 0 ? (
               <div className="space-y-2">
                 {cupons.map((c, idx) => (
-                  <div key={c.id || idx} className="p-3 bg-slate-950 border border-slate-800 rounded-xl flex items-center justify-between gap-3">
+                  <div key={c.id || idx} className="p-3 bg-slate-950 border border-slate-800 rounded-2xl flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
-                      <span className="px-3 py-1 bg-emerald-500/20 text-emerald-300 font-mono font-bold text-xs rounded border border-emerald-500/30">
+                      <span className="px-3 py-1 bg-emerald-500/20 text-emerald-300 font-mono font-bold text-xs rounded-lg border border-emerald-500/30">
                         {c.codigo}
                       </span>
                       <span className="text-xs font-bold text-white">
@@ -1324,7 +1521,7 @@ export const RemarketingView: React.FC<Props> = ({
                         onClick={() => {
                           setCupons(cupons.map((item, i) => i === idx ? { ...item, ativo: !item.ativo } : item));
                         }}
-                        className={`px-2.5 py-1 text-[10px] font-bold uppercase rounded border transition ${
+                        className={`px-2.5 py-1 text-[10px] font-bold uppercase rounded-md border transition ${
                           c.ativo !== false ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : 'bg-slate-800 text-slate-500 border-slate-700'
                         }`}
                       >
@@ -1333,7 +1530,7 @@ export const RemarketingView: React.FC<Props> = ({
 
                       <button
                         onClick={() => setCupons(cupons.filter((_, i) => i !== idx))}
-                        className="text-slate-500 hover:text-rose-400 transition"
+                        className="text-slate-500 hover:text-rose-400 transition p-1"
                         title="Excluir Cupom"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -1343,8 +1540,8 @@ export const RemarketingView: React.FC<Props> = ({
                 ))}
               </div>
             ) : (
-              <div className="py-8 text-center text-slate-500 text-xs bg-slate-950/40 rounded-xl border border-slate-800/60">
-                Nenhum cupom específico cadastrado nesta campanha ainda.
+              <div className="py-8 text-center text-slate-500 text-xs bg-slate-950/40 rounded-2xl border border-slate-800/60">
+                Nenhum cupom cadastrado nesta campanha ainda.
               </div>
             )}
           </div>
@@ -1359,7 +1556,7 @@ export const RemarketingView: React.FC<Props> = ({
             <button
               onClick={handleSalvarConfiguracoes}
               disabled={salvandoConfig}
-              className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs shadow-md shadow-emerald-500/20 transition ml-auto flex items-center gap-1.5"
+              className="px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs shadow-md shadow-emerald-500/20 transition ml-auto flex items-center gap-1.5"
             >
               {salvandoConfig ? 'Salvando...' : 'Salvar Alterações de Cupons'}
             </button>

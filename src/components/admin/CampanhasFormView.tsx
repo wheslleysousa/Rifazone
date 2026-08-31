@@ -2982,78 +2982,9 @@ export const CampanhasFormView: React.FC<Props> = ({
           </div>
         </AcordeaoSecao>
 
-        {/* ABA 7: TEXTOS DAS SEÇÕES (título/subtítulo de cada bloco) */}
+        {/* ABA 7: MODELO DE CHECKOUT DA CAMPANHA */}
         <AcordeaoSecao
-          titulo="7. Textos das Seções"
-          isAberto={secaoAberta === 'textos'}
-          onToggle={() => setSecaoAberta(secaoAberta === 'textos' ? null : 'textos')}
-        >
-          <div className="bg-slate-900/60 border border-slate-800/60 backdrop-blur-xl rounded-3xl p-6 md:p-8 shadow-2xl space-y-6 animate-in fade-in">
-            <div>
-              <h3 className="text-sm font-black text-white flex items-center gap-2 uppercase tracking-wider mb-1">
-                <Type className="w-4 h-4 text-cyan-400" />
-                Títulos e subtítulos de cada seção
-              </h3>
-              <p className="text-xs text-slate-400">
-                Aqui você edita o <b className="text-slate-300">texto</b> que aparece acima de cada bloco na página.
-                A <b className="text-slate-300">fonte</b> e a <b className="text-slate-300">cor</b> desses textos você ajusta no
-                editor de <b className="text-slate-300">Tema &amp; Cores</b>. Deixe em branco para não exibir o cabeçalho.
-              </p>
-            </div>
-
-            {([
-              { key: 'tituloControles', subKey: 'subtituloControles', label: 'Controles de Quantidade (+ / −)', ph: 'Ex: Quantas cotas você quer?' },
-            ] as { key: string; subKey: string; label: string; ph: string }[]).map(sec => {
-              const temaAtual = form.tema || TEMA_PADRAO;
-              const botaoAtual: any = (temaAtual as any).botao || (TEMA_PADRAO as any).botao || {};
-              return (
-                <div key={sec.key} className="p-4 bg-slate-950/60 border border-slate-800 rounded-2xl space-y-3">
-                  <span className="text-[11px] font-black text-cyan-400 uppercase tracking-wider">{sec.label}</span>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-[11px] text-slate-400 font-bold mb-1">Título</label>
-                      <input
-                        type="text"
-                        value={botaoAtual[sec.key] || ''}
-                        onChange={e => setForm(prev => {
-                          const base = prev.tema || TEMA_PADRAO;
-                          const bBase: any = (base as any).botao || (TEMA_PADRAO as any).botao || {};
-                          return { ...prev, tema: { ...base, botao: { ...bBase, [sec.key]: e.target.value } } as any };
-                        })}
-                        placeholder={sec.ph}
-                        className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] text-slate-400 font-bold mb-1">Subtítulo</label>
-                      <input
-                        type="text"
-                        value={botaoAtual[sec.subKey] || ''}
-                        onChange={e => setForm(prev => {
-                          const base = prev.tema || TEMA_PADRAO;
-                          const bBase: any = (base as any).botao || (TEMA_PADRAO as any).botao || {};
-                          return { ...prev, tema: { ...base, botao: { ...bBase, [sec.subKey]: e.target.value } } as any };
-                        })}
-                        placeholder="Opcional"
-                        className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none"
-                      />
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-
-            <p className="text-[11px] text-slate-500 leading-snug">
-              O título/subtítulo da <b className="text-slate-400">Barra de Progresso</b> continua no editor de Tema
-              (junto com as fontes de cada texto: fora, dentro e rodapé), porque usam variáveis como
-              &#123;pct&#125;, &#123;vendidas&#125; e &#123;disponiveis&#125;.
-            </p>
-          </div>
-        </AcordeaoSecao>
-
-        {/* ABA 8: MODELO DE CHECKOUT DA CAMPANHA */}
-        <AcordeaoSecao
-          titulo="8. Modelo de Checkout"
+          titulo="7. Modelo de Checkout"
           isAberto={secaoAberta === 'checkout'}
           onToggle={() => setSecaoAberta(secaoAberta === 'checkout' ? null : 'checkout')}
         >

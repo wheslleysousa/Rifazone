@@ -8,7 +8,7 @@ import {
   LayoutGrid, HelpCircle, Flame, Lock, Eye, Star, Info, Rocket,
   Upload, Camera, User, Link as LinkIcon, RefreshCw, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, ArrowUp, ArrowDown,
   DollarSign, Clock, MapPin, Tag, Check, Sparkle, GripVertical, Palette, Loader2, CreditCard, ShieldCheck,
-  Instagram, MessageSquare, Music, Share2, Type
+  Instagram, MessageSquare, Music, Share2, Type, Sliders, Maximize2, Minimize2
 } from 'lucide-react';
 import { WhatsAppIcon, TikTokIcon, InstagramIcon } from '../BrandIcons';
 import { Campanha, Premio, CotaPremiada, Promocao, OfertaRelampago, TEMA_PADRAO, CheckoutSalvo } from '../../types';
@@ -105,7 +105,27 @@ export const CampanhasFormView: React.FC<Props> = ({
   authFetch
 }) => {
   const [novaFotoUrl, setNovaFotoUrl] = useState('');
-  const [secaoAberta, setSecaoAberta] = useState<TabType | null>('basico');
+  const [secoesAbertas, setSecoesAbertas] = useState<TabType[]>(['basico']);
+
+  const toggleSecao = (tab: TabType) => {
+    setSecoesAbertas(prev =>
+      prev.includes(tab) ? prev.filter(t => t !== tab) : [...prev, tab]
+    );
+  };
+
+  const abrirSecao = (tab: TabType) => {
+    setSecoesAbertas(prev =>
+      prev.includes(tab) ? prev : [...prev, tab]
+    );
+  };
+
+  const expandirTodas = () => {
+    setSecoesAbertas(['basico', 'midia', 'premios', 'promocoes', 'upsell', 'extras', 'checkout']);
+  };
+
+  const recolherTodas = () => {
+    setSecoesAbertas([]);
+  };
   const [carregandoBanner, setCarregandoBanner] = useState(false);
   const [carregandoCarrossel, setCarregandoCarrossel] = useState(false);
   const [carregandoOrganizadorFoto, setCarregandoOrganizadorFoto] = useState(false);
@@ -521,19 +541,22 @@ export const CampanhasFormView: React.FC<Props> = ({
   const arrecadacaoEstimada = totalCotasNum * valorCotaNum;
 
   const tabKeys: TabType[] = ['basico', 'midia', 'premios', 'promocoes', 'upsell', 'extras', 'checkout'];
-  const currentIndex = secaoAberta ? tabKeys.indexOf(secaoAberta) : 0;
+  const ultimaAberta = [...secoesAbertas].reverse().find(t => tabKeys.includes(t)) || 'basico';
+  const currentIndex = tabKeys.indexOf(ultimaAberta);
   const isUltimaEtapa = currentIndex === tabKeys.length - 1;
   const isEdicao = !!(form.id);
 
   const irProximo = () => {
     if (currentIndex < tabKeys.length - 1) {
-      setSecaoAberta(tabKeys[currentIndex + 1]);
+      const proxima = tabKeys[currentIndex + 1];
+      abrirSecao(proxima);
     }
   };
 
   const irAnterior = () => {
     if (currentIndex > 0) {
-      setSecaoAberta(tabKeys[currentIndex - 1]);
+      const anterior = tabKeys[currentIndex - 1];
+      abrirSecao(anterior);
     }
   };
 
@@ -657,41 +680,101 @@ export const CampanhasFormView: React.FC<Props> = ({
 
       <form onSubmit={(e) => e.preventDefault()} className="space-y-6">
         
-        {secaoAberta !== 'tema' && (
-          <div className="flex lg:hidden items-center justify-center bg-slate-900 border border-slate-800 rounded-xl p-1 mb-4">
-            <button
-              type="button"
-              onClick={() => setVisualizacaoMobile('controles')}
-              className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 ${
-                visualizacaoMobile === 'controles'
-                  ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <span>✏️ Editar Formulário</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setVisualizacaoMobile('preview')}
-              className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 ${
-                visualizacaoMobile === 'preview'
-                  ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <span>📱 Ver Prévia ao Vivo</span>
-            </button>
-          </div>
-        )}
+        <div className="flex lg:hidden items-center justify-center bg-slate-900 border border-slate-800 rounded-xl p-1 mb-4">
+          <button
+            type="button"
+            onClick={() => setVisualizacaoMobile('controles')}
+            className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 ${
+              visualizacaoMobile === 'controles'
+                ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <span>✏️ Editar Formulário</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setVisualizacaoMobile('preview')}
+            className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 ${
+              visualizacaoMobile === 'preview'
+                ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <span>📱 Ver Prévia ao Vivo</span>
+          </button>
+        </div>
 
         <div className="flex flex-col gap-8">
             <div className={`w-full space-y-4 ${visualizacaoMobile === 'preview' ? 'hidden lg:block' : 'block'}`}>
               
+              {/* BARRA DE MÚLTIPLA EXPANSÃO DAS SEÇÕES */}
+              <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 space-y-3.5 shadow-lg">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                      <Sliders className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-black text-white uppercase tracking-wider">
+                        Painel de Controle de Seções
+                      </h4>
+                      <p className="text-[10px] text-slate-400">
+                        {secoesAbertas.length} de {tabKeys.length} seções expandidas • As seções permanecem abertas até você fechar
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={expandirTodas}
+                      className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Maximize2 className="w-3.5 h-3.5" />
+                      <span>Expandir Todas</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={recolherTodas}
+                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Minimize2 className="w-3.5 h-3.5" />
+                      <span>Recolher Todas</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Pílulas Interativas de Acesso Rápido */}
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 custom-scrollbar">
+                  {tabsConfig.map(tab => {
+                    const isAberta = secoesAbertas.includes(tab.id);
+                    const IconComp = tab.icon;
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => toggleSecao(tab.id)}
+                        className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center gap-2 shrink-0 border cursor-pointer ${
+                          isAberta
+                            ? 'bg-emerald-500/20 border-emerald-500 text-white shadow-sm'
+                            : 'bg-slate-950/80 hover:bg-slate-800 border-slate-800 text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        <IconComp className={`w-3.5 h-3.5 ${isAberta ? 'text-emerald-400' : tab.iconColor}`} />
+                        <span>{tab.label}</span>
+                        <span className={`w-2 h-2 rounded-full ${isAberta ? 'bg-emerald-400 animate-pulse' : 'bg-slate-700'}`} />
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               {/* ABA 1: INFORMACÕES & COTAS */}
               <AcordeaoSecao 
                 titulo="1. Informações & Cotas" 
-                isAberto={secaoAberta === 'basico'} 
-                onToggle={() => setSecaoAberta(secaoAberta === 'basico' ? null : 'basico')}
+                isAberto={secoesAbertas.includes('basico')} 
+                onToggle={() => toggleSecao('basico')}
               >
           <div className="bg-slate-900/60 border border-slate-800/60 backdrop-blur-xl rounded-3xl p-6 md:p-8 shadow-2xl space-y-8 animate-in fade-in">
             <div className="flex items-center justify-between border-b border-slate-800/80 pb-5">
@@ -1573,8 +1656,8 @@ export const CampanhasFormView: React.FC<Props> = ({
         {/* ABA 2: FOTOS & MÍDIA (UPLOAD DIRETO DO CELULAR E CARROSSEL) */}
         <AcordeaoSecao 
           titulo="2. Fotos & Mídia" 
-          isAberto={secaoAberta === 'midia'} 
-          onToggle={() => setSecaoAberta(secaoAberta === 'midia' ? null : 'midia')}
+          isAberto={secoesAbertas.includes('midia')} 
+          onToggle={() => toggleSecao('midia')}
         >
           <div className="bg-slate-900/60 border border-slate-800/60 backdrop-blur-xl rounded-3xl p-6 md:p-8 shadow-2xl space-y-8 animate-in fade-in">
             {/* BANNER E FOTOS DA CAMPANHA */}
@@ -1906,8 +1989,8 @@ export const CampanhasFormView: React.FC<Props> = ({
         {/* ABA 3: PRÊMIOS & COTAS PREMIADAS */}
         <AcordeaoSecao 
           titulo="3. Prêmios & Bilhetes Premiados" 
-          isAberto={secaoAberta === 'premios'} 
-          onToggle={() => setSecaoAberta(secaoAberta === 'premios' ? null : 'premios')}
+          isAberto={secoesAbertas.includes('premios')} 
+          onToggle={() => toggleSecao('premios')}
         >
           <div className="bg-slate-900/60 border border-slate-800/60 backdrop-blur-xl rounded-3xl p-6 md:p-8 shadow-2xl space-y-8 animate-in fade-in">
             {/* Prêmios Principais */}
@@ -2212,8 +2295,8 @@ export const CampanhasFormView: React.FC<Props> = ({
         {/* ABA 4: PROMOÇÕES & PACOTES */}
         <AcordeaoSecao 
           titulo="4. Pacotes & Descontos" 
-          isAberto={secaoAberta === 'promocoes'} 
-          onToggle={() => setSecaoAberta(secaoAberta === 'promocoes' ? null : 'promocoes')}
+          isAberto={secoesAbertas.includes('promocoes')} 
+          onToggle={() => toggleSecao('promocoes')}
         >
           <div className="bg-slate-900/60 border border-slate-800/60 backdrop-blur-xl rounded-3xl p-6 md:p-8 shadow-2xl space-y-8 animate-in fade-in">
             {form.modalidade === 'gratis' && (
@@ -2612,8 +2695,8 @@ export const CampanhasFormView: React.FC<Props> = ({
         {/* ABA 5: OFERTAS RELÂMPAGO (UPSELL NO CHECKOUT) */}
         <AcordeaoSecao 
           titulo="5. Ofertas Relâmpago" 
-          isAberto={secaoAberta === 'upsell'} 
-          onToggle={() => setSecaoAberta(secaoAberta === 'upsell' ? null : 'upsell')}
+          isAberto={secoesAbertas.includes('upsell')} 
+          onToggle={() => toggleSecao('upsell')}
         >
           <div className="bg-slate-900/60 border border-slate-800/60 backdrop-blur-xl rounded-3xl p-6 md:p-8 shadow-2xl space-y-8 animate-in fade-in">
             {form.modalidade === 'gratis' && (
@@ -2770,8 +2853,8 @@ export const CampanhasFormView: React.FC<Props> = ({
         {/* ABA 6: E-BOOK, ROLETA & EXTRAS */}
         <AcordeaoSecao 
           titulo="6. Brindes & Roleta" 
-          isAberto={secaoAberta === 'extras'} 
-          onToggle={() => setSecaoAberta(secaoAberta === 'extras' ? null : 'extras')}
+          isAberto={secoesAbertas.includes('extras')} 
+          onToggle={() => toggleSecao('extras')}
         >
           <div className="bg-slate-900/60 border border-slate-800/60 backdrop-blur-xl rounded-3xl p-6 md:p-8 shadow-2xl space-y-8 animate-in fade-in">
             {/* Brinde Digital / E-book */}
@@ -2985,8 +3068,8 @@ export const CampanhasFormView: React.FC<Props> = ({
         {/* ABA 7: MODELO DE CHECKOUT DA CAMPANHA */}
         <AcordeaoSecao
           titulo="7. Modelo de Checkout"
-          isAberto={secaoAberta === 'checkout'}
-          onToggle={() => setSecaoAberta(secaoAberta === 'checkout' ? null : 'checkout')}
+          isAberto={secoesAbertas.includes('checkout')}
+          onToggle={() => toggleSecao('checkout')}
         >
           <div className="bg-slate-900/60 border border-slate-800/60 backdrop-blur-xl rounded-3xl p-6 md:p-8 shadow-2xl space-y-6 animate-in fade-in">
             <div>

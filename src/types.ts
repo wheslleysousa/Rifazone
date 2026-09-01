@@ -420,6 +420,8 @@ export interface TemaCampanha {
     estiloContainer?: 'apenas_texto_preco' | 'texto_e_botao' | 'botao_unico' | 'card_destaque';
     porApenasAlinhamento?: 'esquerda' | 'centro' | 'direita';
     porApenasFonte?: string;
+    porApenasAltura?: number;
+    porApenasLargura?: number;
     exibirBlocoPromocao?: boolean;
     promoBlocoFundo?: string;
     promoBlocoBorda?: string;

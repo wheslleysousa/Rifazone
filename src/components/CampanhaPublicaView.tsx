@@ -1472,6 +1472,12 @@ export const CampanhaPublicaView: React.FC<Props> = ({
 
     // Estilização do Botão/Tag quando usado
     const styleBotaoObj = (() => {
+      const paddingStyles = {
+        paddingTop: cotasCfg.porApenasAltura !== undefined ? `${cotasCfg.porApenasAltura}px` : '6px',
+        paddingBottom: cotasCfg.porApenasAltura !== undefined ? `${cotasCfg.porApenasAltura}px` : '6px',
+        paddingLeft: cotasCfg.porApenasLargura !== undefined ? `${cotasCfg.porApenasLargura}px` : '16px',
+        paddingRight: cotasCfg.porApenasLargura !== undefined ? `${cotasCfg.porApenasLargura}px` : '16px',
+      };
       if (porApenasEstiloBotao === 'vidro') {
         return {
           backgroundColor: 'rgba(16, 185, 129, 0.15)',
@@ -1479,6 +1485,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
           border: porApenasTemBorda ? `${porApenasEspessuraBorda}px solid ${porApenasBorda}` : 'none',
           borderRadius: `${porApenasRaioBorda}px`,
           color: porApenasTexto,
+          ...paddingStyles,
         };
       }
       if (porApenasEstiloBotao === 'transparente') {
@@ -1487,6 +1494,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
           border: porApenasTemBorda ? `${porApenasEspessuraBorda}px solid ${porApenasBorda}` : 'none',
           borderRadius: `${porApenasRaioBorda}px`,
           color: porApenasTexto,
+          ...paddingStyles,
         };
       }
       if (porApenasEstiloBotao === 'sombra') {
@@ -1496,6 +1504,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
           borderRadius: `${porApenasRaioBorda}px`,
           color: porApenasTexto,
           boxShadow: `0 4px 0 ${porApenasBorda}`,
+          ...paddingStyles,
         };
       }
       // Padrão: Sólido
@@ -1504,6 +1513,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
         border: porApenasTemBorda ? `${porApenasEspessuraBorda}px solid ${porApenasBorda}` : 'none',
         borderRadius: `${porApenasRaioBorda}px`,
         color: porApenasTexto,
+        ...paddingStyles,
       };
     })();
 
@@ -1546,7 +1556,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
           fontSize: `${porApenasTamanhoValor}px`,
           fontFamily: porApenasFonte
         }}
-        className="px-4 py-1.5 font-black shadow-sm font-mono tracking-tight inline-flex items-center justify-center transition-all"
+        className="font-black shadow-sm font-mono tracking-tight inline-flex items-center justify-center transition-all"
       >
         {formatarMoeda(campanha.valorCota)}
       </div>
@@ -2688,7 +2698,6 @@ export const CampanhaPublicaView: React.FC<Props> = ({
             {posicaoPreco === 'proximo_cotas' && (
               <PrecoUnitarioSection campanha={campanha} tema={tema} />
             )}
-            <CabecalhoPromocaoSection campanha={campanha} tema={tema} />
             <ProgressoSection campanha={campanha} estatisticas={estatisticas} tema={tema} />
           </div>
         );
@@ -2698,6 +2707,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
             {posicaoPreco === 'proximo_cotas' && (tema.layout.visivel.barraProgresso === false || !tema.layout.ordem.includes('barraProgresso')) && (
               <PrecoUnitarioSection campanha={campanha} tema={tema} />
             )}
+            <CabecalhoPromocaoSection campanha={campanha} tema={tema} />
             <CotasSection campanha={campanha} tema={tema} setQuantidade={setQuantidade} setCheckoutAberto={setCheckoutAberto} />
           </div>
         );

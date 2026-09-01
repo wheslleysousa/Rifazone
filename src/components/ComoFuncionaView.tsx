@@ -28,7 +28,7 @@ interface ComoFuncionaViewProps {
 }
 
 export function ComoFuncionaView({ onVoltar, codigoCampanha, nomeCampanha }: ComoFuncionaViewProps) {
-  const [faqAberto, setFaqAberto] = useState<number | null>(0);
+  const [faqsAbertos, setFaqsAbertos] = useState<number[]>([0]);
   const [buscaFaq, setBuscaFaq] = useState('');
   const [abaSimulador, setAbaSimulador] = useState<number>(50);
   const [simuladorStatus, setSimuladorStatus] = useState<'selecao' | 'pagamento' | 'confirmado'>('selecao');
@@ -475,14 +475,14 @@ export function ComoFuncionaView({ onVoltar, codigoCampanha, nomeCampanha }: Com
             </div>
           ) : (
             faqsFiltrados.map((item, idx) => {
-              const aberto = faqAberto === idx;
+              const aberto = faqsAbertos.includes(idx);
               return (
                 <div
                   key={idx}
                   className="bg-slate-900/70 border border-slate-800/80 rounded-2xl overflow-hidden transition"
                 >
                   <button
-                    onClick={() => setFaqAberto(aberto ? null : idx)}
+                    onClick={() => setFaqsAbertos(prev => prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx])}
                     className="w-full p-4 sm:p-5 text-left flex items-center justify-between gap-4 hover:bg-slate-800/40 transition"
                   >
                     <span className="text-xs sm:text-sm font-bold text-white leading-snug">

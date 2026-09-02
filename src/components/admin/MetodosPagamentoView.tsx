@@ -204,7 +204,7 @@ export const MetodosPagamentoView: React.FC<MetodosPagamentoViewProps> = ({
     }
   };
 
-  const handleSalvar = async (metodoParaAtivar?: MetodoPagamentoAtivo, fecharModal: boolean = false, statusCarteiraOverride?: string) => {
+  const handleSalvar = async (metodoParaAtivar?: MetodoPagamentoAtivo | 'none', fecharModal: boolean = false, statusCarteiraOverride?: string) => {
     setSalvando(true);
     setMsgSucesso('');
     setMsgErro('');
@@ -398,15 +398,29 @@ export const MetodosPagamentoView: React.FC<MetodosPagamentoViewProps> = ({
           </p>
         </div>
 
-        {metodoAtivo && (
+        {metodoAtivo && metodoAtivo !== 'none' ? (
           <div className="px-3.5 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs font-bold text-slate-300 flex items-center gap-2 self-start sm:self-auto">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
             Método Ativo: <span className="text-emerald-400 font-bold">{metodosDePagamento.find(g => g.id === metodoAtivo)?.nome || 'Nenhum'}</span>
+          </div>
+        ) : (
+          <div className="px-3.5 py-2 bg-rose-500/15 border border-rose-500/25 rounded-xl text-xs font-bold text-rose-400 flex items-center gap-2 self-start sm:self-auto">
+            <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
+            Nenhum método ativo
           </div>
         )}
       </div>
 
       {/* Alertas */}
+      {(!metodoAtivo || metodoAtivo === 'none') && (
+        <div className="p-4 rounded-2xl border border-rose-500/35 bg-rose-500/10 text-rose-300 text-xs font-semibold flex items-center gap-3 animate-in fade-in">
+          <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />
+          <div>
+            <p className="font-bold text-white">Configure um método de pagamento!</p>
+            <p className="text-[11px] text-rose-200 mt-0.5">Sua campanha ficará indisponível para compras até que você configure e ative um método de pagamento abaixo.</p>
+          </div>
+        </div>
+      )}
       {msgSucesso && (
         <div className="p-4 rounded-2xl border border-emerald-500/40 bg-emerald-500/10 text-emerald-300 text-xs font-semibold flex items-center justify-between gap-2.5 animate-in fade-in">
           <div className="flex items-center gap-2">
@@ -461,7 +475,7 @@ export const MetodosPagamentoView: React.FC<MetodosPagamentoViewProps> = ({
       )}
 
       {/* CARDS DOS MÉTODOS DE PAGAMENTO */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
         {metodosDePagamento.map(g => {
           const isAtivo = metodoAtivo === g.id;
           const isCarteira = g.id === 'carteira';
@@ -471,175 +485,110 @@ export const MetodosPagamentoView: React.FC<MetodosPagamentoViewProps> = ({
           return (
             <div
               key={g.id}
-              className={`p-5 rounded-2xl border flex flex-col justify-between transition-all duration-200 ${
+              onClick={() => {
+                setModalGateway(g.id as MetodoPagamentoAtivo);
+              }}
+              className={`p-5 rounded-2xl border flex flex-col justify-between transition-all duration-300 relative cursor-pointer group select-none ${
                 isAtivo
-                  ? 'border-emerald-500/80 bg-slate-900 shadow-lg shadow-emerald-950/20 ring-1 ring-emerald-500/30'
-                  : 'border-slate-800 bg-slate-900/80 hover:border-slate-700'
+                  ? 'border-emerald-500 bg-slate-900 shadow-xl shadow-emerald-950/20 ring-1 ring-emerald-500/50'
+                  : conectado
+                  ? 'border-sky-500/50 bg-slate-900/90 hover:border-sky-500 shadow-md hover:shadow-sky-950/10'
+                  : 'border-slate-800 bg-slate-900/60 hover:border-slate-700 opacity-90 hover:opacity-100'
               }`}
             >
               <div>
-                {/* 1. Nome do Gateway */}
-                <div className="flex items-center gap-3 mb-3">
-                  <div className={`p-2.5 rounded-xl border ${
+                {/* Status Indicator & Badges */}
+                <div className="flex items-center justify-between gap-2 mb-4">
+                  <div className={`p-2.5 rounded-xl border transition-colors ${
                     isAtivo 
                       ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400' 
-                      : 'bg-slate-800/80 border-slate-700/60 text-slate-300'
+                      : conectado
+                      ? 'bg-sky-500/10 border-sky-500/30 text-sky-400'
+                      : 'bg-slate-800 border-slate-700 text-slate-400'
                   }`}>
                     {g.icon}
                   </div>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                        {g.nome}
-                        {isAtivo && (
-                          <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-500 text-slate-950">
-                            Ativo
-                          </span>
-                        )}
-                      </h3>
-                      {!isAtivo && conectado && (
-                        <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded-full flex items-center gap-1">
-                          <Check className="w-3 h-3" /> Conectado
-                        </span>
-                      )}
-                    </div>
+
+                  <div className="flex items-center gap-1.5">
+                    {isAtivo ? (
+                      <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded bg-emerald-500 text-slate-950 shadow-sm animate-pulse">
+                        Ativo
+                      </span>
+                    ) : conectado ? (
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-sky-950 text-sky-400 border border-sky-500/20">
+                        Configurado
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-slate-950 text-slate-500 border border-slate-800">
+                        Inativo
+                      </span>
+                    )}
                   </div>
                 </div>
 
-                {/* 2. Informações das Taxas */}
-                <p className="text-xs text-slate-400 leading-relaxed min-h-[44px]">
+                {/* Gateway Name */}
+                <h3 className="text-sm font-bold text-white mb-1.5 flex items-center gap-1.5 group-hover:text-purple-400 transition-colors">
+                  {g.nome}
+                </h3>
+
+                {/* Description */}
+                <p className="text-xs text-slate-400 leading-relaxed min-h-[50px]">
                   {g.desc}
                 </p>
               </div>
 
-              {/* 3. Ações */}
-              <div className="mt-4 pt-3 border-t border-slate-800">
-                {/* CARTEIRA DO SISTEMA */}
-                {isCarteira && (
-                  carteiraStatus === 'aprovado' ? (
+              {/* Action Buttons */}
+              <div 
+                className="mt-5 pt-4 border-t border-slate-800"
+                onClick={(e) => {
+                  e.stopPropagation();
+                }}
+              >
+                {isAtivo ? (
+                  // Active state: Can deactivate or configure
+                  <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => {
-                        if (onAbrirCarteira) {
-                          onAbrirCarteira();
-                        } else {
-                          setModalGateway('carteira');
-                        }
-                      }}
-                      className="w-full py-2.5 px-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black rounded-xl shadow-md transition flex items-center justify-center gap-2"
+                      onClick={() => handleSalvar('none')}
+                      className="flex-1 py-2 px-3 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 hover:text-rose-300 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer"
                     >
-                      <Wallet className="w-4 h-4" />
-                      Abrir Minha Carteira
+                      Desativar Método
                     </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setModalGateway('carteira')}
-                      className="w-full py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-emerald-500/30 hover:border-emerald-500/60 text-xs font-bold rounded-xl transition flex items-center justify-center gap-2"
-                    >
-                      <Wallet className="w-4 h-4" />
-                      Solicitar Acesso à Carteira
-                    </button>
-                  )
-                )}
-
-                {/* MERCADO PAGO: VAI DIRETO PARA O OAUTH AO CLICAR */}
-                {isMp && (
-                  !mpConectado ? (
-                    <button
-                      type="button"
-                      disabled={conectandoOAuth}
-                      onClick={iniciarConexaoMercadoPago}
-                      className="w-full py-2.5 px-4 bg-[#009ee3] hover:bg-[#0081b8] disabled:opacity-70 text-white text-xs font-black rounded-xl shadow-md transition flex items-center justify-center gap-2"
-                    >
-                      {conectandoOAuth ? (
-                        <>
-                          <RefreshCw className="w-4 h-4 animate-spin" />
-                          Conectando ao Mercado Pago...
-                        </>
-                      ) : (
-                        <>
-                          <Zap className="w-4 h-4" />
-                          Conectar Mercado Pago
-                        </>
-                      )}
-                    </button>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      {!isAtivo ? (
-                        <button
-                          type="button"
-                          onClick={() => handleSalvar('mercadopago')}
-                          className="flex-1 py-2.5 px-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black rounded-xl transition flex items-center justify-center gap-1.5 shadow-sm"
-                        >
-                          <Check className="w-3.5 h-3.5" />
-                          Tornar Ativo
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          disabled={conectandoOAuth}
-                          onClick={iniciarConexaoMercadoPago}
-                          className="flex-1 py-2.5 px-3 bg-[#009ee3] hover:bg-[#0081b8] text-white text-xs font-black rounded-xl transition flex items-center justify-center gap-1.5 shadow-sm"
-                        >
-                          {conectandoOAuth ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
-                          Reconectar
-                        </button>
-                      )}
-                      
-                      <button
-                        type="button"
-                        onClick={() => handleDesconectar('mercadopago')}
-                        title="Desconectar Mercado Pago"
-                        className="p-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-xl transition flex items-center justify-center"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  )
-                )}
-
-                {/* DEMAIS GATEWAYS */}
-                {!isCarteira && !isMp && (
-                  !conectado ? (
                     <button
                       type="button"
                       onClick={() => setModalGateway(g.id as MetodoPagamentoAtivo)}
-                      className="w-full py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-600 text-xs font-bold rounded-xl transition flex items-center justify-center gap-2"
+                      className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl transition cursor-pointer"
                     >
-                      Conectar {g.nome}
+                      Ajustar
                     </button>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      {!isAtivo ? (
-                        <button
-                          type="button"
-                          onClick={() => handleSalvar(g.id as MetodoPagamentoAtivo)}
-                          className="flex-1 py-2.5 px-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black rounded-xl transition flex items-center justify-center gap-1.5 shadow-sm"
-                        >
-                          <Check className="w-3.5 h-3.5" />
-                          Tornar Ativo
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => setModalGateway(g.id as MetodoPagamentoAtivo)}
-                          className="flex-1 py-2.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5"
-                        >
-                          Configurar
-                        </button>
-                      )}
-                      
-                      <button
-                        type="button"
-                        onClick={() => handleDesconectar(g.id)}
-                        title={`Desconectar ${g.nome}`}
-                        className="p-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-xl transition flex items-center justify-center"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  )
+                  </div>
+                ) : conectado ? (
+                  // Connected but not active: Can turn active ("Ativar" / "Usar") or adjust
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleSalvar(g.id as MetodoPagamentoAtivo)}
+                      className="flex-1 py-2 px-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black rounded-xl shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <Check className="w-3.5 h-3.5" /> Ativar Método
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setModalGateway(g.id as MetodoPagamentoAtivo)}
+                      className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl transition cursor-pointer"
+                    >
+                      Ajustar
+                    </button>
+                  </div>
+                ) : (
+                  // Not connected: Must configure first
+                  <button
+                    type="button"
+                    onClick={() => setModalGateway(g.id as MetodoPagamentoAtivo)}
+                    className="w-full py-2 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-600 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    Configure para Ativar
+                  </button>
                 )}
               </div>
             </div>

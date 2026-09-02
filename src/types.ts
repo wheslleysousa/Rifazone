@@ -79,6 +79,8 @@ export interface TemaCampanha {
     barraProgressoFundo: string;
     barraProgressoPreenchimento: string;
     barraProgressoTexto: string;
+    barraProgressoTitulo?: string;
+    barraProgressoSubtitulo?: string;
     cardBarraProgressoFundo: string;
     botaoCotasFundo: string;
     botaoCotasTexto: string;
@@ -159,6 +161,8 @@ export interface TemaCampanha {
     cotaPagaFundo?: string;
     cotaPagaTexto?: string;
     cotaPagaBorda?: string;
+    descontoCorFundo?: string;
+    descontoCorTexto?: string;
   };
   barraProgresso?: {
     titulo?: string;
@@ -176,7 +180,14 @@ export interface TemaCampanha {
     tipoFundoProgresso?: 'solido' | 'gradiente';
     fundoCorProgresso?: string;
     fundoGradienteProgresso?: string;
-    estiloProgresso?: 'solido' | 'vidro' | 'transparente' | '3d';
+    estiloProgresso?: 'solido' | 'gradiente' | 'vidro' | 'transparente' | 'neon' | 'sombra' | 'borda_fina' | 'reluzente';
+    corGlow?: string;
+    intensidadeGlow?: number;
+    gradienteCoresQtd?: 2 | 3;
+    gradienteCor1?: string;
+    gradienteCor2?: string;
+    gradienteCor3?: string;
+    gradienteDirecao?: 'direita' | 'diagonal' | 'baixo';
   };
   secaoIcones: {
     premios: string;
@@ -188,6 +199,7 @@ export interface TemaCampanha {
     meusNumeros?: string;
     sorteio?: string;
     botaoCompra?: string;
+    seloBanner?: string;
   };
   botao: {
     formato: 'reto' | 'arredondado' | 'pill' | 'super' | 'cortado' | 'inclinado' | 'square' | 'rounded' | 'pilled' | 'round';
@@ -206,6 +218,11 @@ export interface TemaCampanha {
     textoCompra: string;
     iconeCompra?: string;
     // Botões dos pacotes promocionais
+    textoPopular?: string;
+    seloPopularTexto?: string;
+    seloPopularFonte?: string;
+    seloPopularTamanhoTexto?: number;
+    seloPopularRaio?: number;
     estiloPacotes?: 'solido' | 'vidro' | 'transparente' | '3d' | 'gradiente' | 'neon' | 'outline' | 'soft';
     colunasPacotesMobile?: 1 | 2 | 3 | 4; // 1, 2, 3 ou 4 colunas lado a lado
     colunasPacotesDesktop?: 1 | 2 | 3 | 4 | 6;
@@ -220,6 +237,15 @@ export interface TemaCampanha {
     sombraOffsetXPacotes?: number;
     sombraOffsetYPacotes?: number;
     corSombraPacotes?: string;
+    descontoFormato?: 'porcentagem' | 'valor' | 'ambos';
+    descontoPosicao?: 'topo' | 'base';
+    descontoEstilo?: 'solido' | 'vidro' | 'pill' | 'neon' | 'borda' | 'gradiente';
+    descontoRaioBorda?: number;
+    descontoTamanhoTexto?: number;
+    descontoAltura?: number;
+    cotasPremiadasRaioBorda?: number;
+    cotasPremiadasTamanhoTexto?: number;
+    cotasPremiadasAltura?: number;
     // Controles de ajuste manual (+ e -)
     estiloControles?: 'solido' | 'vidro' | 'transparente' | '3d' | 'gradiente' | 'neon' | 'outline' | 'soft';
     raioBordaControles?: number; // 0 a 30
@@ -264,6 +290,8 @@ export interface TemaCampanha {
     tamanhoAlturaPremiado?: number;
     tamanhoTextoPremiado?: number;
     // Título e Subtítulos customizados por módulo
+    tituloBanner?: string;
+    subtituloBanner?: string;
     tituloCompra?: string;
     subtituloCompra?: string;
     tituloPacotes?: string;
@@ -303,6 +331,8 @@ export interface TemaCampanha {
     fonteBotaoCompraSubtitulo?: string;
     fontePacotesTitulo?: string;
     fontePacotesSubtitulo?: string;
+    fonteSeloPopular?: string;
+    tamanhoSeloPopular?: number;
     fonteControlesTitulo?: string;
     fonteControlesSubtitulo?: string;
     tamanhoBotaoCompraTitulo?: number;
@@ -345,6 +375,7 @@ export interface TemaCampanha {
     alinhamentoProgresso?: 'esquerda' | 'centro' | 'direita';
     alinhamentoProgressoTitulo?: 'esquerda' | 'centro' | 'direita';
     alinhamentoProgressoSubtitulo?: 'esquerda' | 'centro' | 'direita';
+    alinhamentoProgressoRodape?: 'esquerda' | 'centro' | 'direita';
     alinhamentoCompra?: 'esquerda' | 'centro' | 'direita';
     alinhamentoCompraTitulo?: 'esquerda' | 'centro' | 'direita';
     alinhamentoCompraSubtitulo?: 'esquerda' | 'centro' | 'direita';
@@ -393,7 +424,14 @@ export interface TemaCampanha {
     overlayDirecao?: 'to-top' | 'to-bottom';
     overlayTipo?: 'cor' | 'gradiente';
     overlayCor?: string;
+    exibirTituloBanner?: boolean;
+    exibirSubtituloBanner?: boolean;
+    exibirSeloOficial?: boolean;
+    tituloBanner?: string;
+    subtituloBanner?: string;
+    subtituloPadrao?: string;
     exibirSeloBanner?: boolean;
+    seloTextoPadrao?: string;
     seloAnimado?: boolean;
     seloEstilo?: 'pulso' | 'estatico';
     seloFundo?: string;
@@ -401,7 +439,17 @@ export interface TemaCampanha {
     seloBordaAtiva?: boolean;
     seloBordaCor?: string;
     seloBordaEspessura?: number;
-    seloPosicao?: 'topo-esquerda' | 'topo-direita' | 'sobre-titulo';
+    seloRaioBorda?: number;
+    seloPosicao?: 'topo-esquerda' | 'topo-direita' | 'inferior-esquerda' | 'inferior-direita' | 'centro-topo' | 'centro-base' | 'sobre-titulo' | 'abaixo-titulo' | string;
+    seloIcone?: string;
+    seloTamanhoTexto?: number;
+    seloFonte?: string;
+    seloPaddingY?: number;
+    seloPaddingX?: number;
+    seloTamanhoIcone?: number;
+    enquadramento?: 'contain' | 'cover' | 'auto';
+    proporcao?: 'auto' | '16/9' | '16/10' | '4/3' | '1/1' | '21/9';
+    raioBorda?: number;
   };
   ganhadorCelebracaoEstilo?: 'confetes' | 'nenhuma' | string;
   cotasConfig?: {
@@ -421,6 +469,8 @@ export interface TemaCampanha {
     porApenasAlinhamento?: 'esquerda' | 'centro' | 'direita';
     porApenasFonte?: string;
     porApenasAltura?: number;
+    porApenasOffsetVertical?: number;
+    porApenasOffsetHorizontal?: number;
     porApenasLargura?: number;
     exibirBlocoPromocao?: boolean;
     promoBlocoFundo?: string;
@@ -639,6 +689,8 @@ export const TEMA_PADRAO: TemaCampanha = {
     tamanhoTexto: 15,
     estilo: 'solido',
     iconeCompra: 'Sparkles',
+    seloPopularTexto: 'Mais popular',
+    seloPopularRaio: 9999,
     estiloPacotes: 'solido',
     colunasPacotesMobile: 2,
     colunasPacotesDesktop: 4,
@@ -688,6 +740,8 @@ export const TEMA_PADRAO: TemaCampanha = {
     fonteBotaoCompraSubtitulo: 'Inter',
     fontePacotesTitulo: 'Inter',
     fontePacotesSubtitulo: 'Inter',
+    fonteSeloPopular: 'Inter',
+    tamanhoSeloPopular: 8,
     fonteControlesTitulo: 'Inter',
     fonteControlesSubtitulo: 'Inter',
     fonteCotasTitulo: 'Inter',
@@ -718,7 +772,14 @@ export const TEMA_PADRAO: TemaCampanha = {
     overlayDirecao: 'to-top',
     overlayTipo: 'gradiente',
     overlayCor: '#000000',
+    exibirTituloBanner: true,
+    exibirSubtituloBanner: true,
+    exibirSeloOficial: true,
+    tituloBanner: '',
+    subtituloBanner: '',
+    subtituloPadrao: '',
     exibirSeloBanner: true,
+    seloTextoPadrao: '',
     seloAnimado: false,
     seloEstilo: 'estatico',
     seloFundo: '#f59e0b',
@@ -805,6 +866,22 @@ export interface ConfirmacaoCompraConfig {
   botaoGrupoVipLink?: string;
   bannerSucessoUrl?: string;
   instrucoesPosCompra?: string;
+  exibirIconeSucesso?: boolean;
+  iconeSucessoTipo?: 'check' | 'trofeu' | 'estrela' | 'coracao' | 'festa' | 'ticket' | 'medalha' | 'fogo' | 'custom_emoji';
+  iconeSucessoEmoji?: string;
+  iconeSucessoCor?: string;
+  iconeSucessoFundo?: string;
+  iconeSucessoTamanho?: number;
+  formatoBilhetes?: 'grid_moderno' | 'cartao_ticket' | 'pilula_compacta' | 'bloco_mono';
+  bilhetesFundo?: string;
+  bilhetesTextoCor?: string;
+  bilhetesBordaCor?: string;
+  bilhetesRaioBorda?: number;
+  bilhetesTamanhoFonte?: number;
+  botaoWhatsappTexto?: string;
+  botaoWhatsappCor?: string;
+  botaoCopiarTexto?: string;
+  botaoMeusNumerosTexto?: string;
 }
 
 export interface CheckoutConfig {
@@ -871,7 +948,7 @@ export interface CheckoutConfig {
     preco: number;
     imagemUrl?: string;
   }[];
-  // Campos originais:
+  // Campos originais e avançados:
   parcelasMax: number;
   taxaParcelamento: 'comprador' | 'organizador';
   mensagens: {
@@ -880,6 +957,7 @@ export interface CheckoutConfig {
     cartao?: string;
     sucesso?: string;
     urgencia?: string;
+    boleto?: string;
   };
   selosSeguranca: boolean;
   confirmacao?: ConfirmacaoCompraConfig;
@@ -889,10 +967,32 @@ export interface CheckoutConfig {
   textoBotao?: string;
   textoRodape?: string;
   bannerUrl?: string;
+  bannerTipo?: 'imagem' | 'video';
+  bannerVideoUrl?: string;
+  bannerEnquadramento?: 'contain' | 'cover' | 'auto';
+  bannerAltura?: number;
   temporizadorAtivo?: boolean;
   temporizadorMinutos?: number;
+  temporizadorEstilo?: 'fogo' | 'alerta' | 'minimalista' | 'badge' | 'pulsante' | 'barra_compacta' | 'neon';
+  temporizadorTexto?: string;
+  temporizadorMostrarIcone?: boolean;
+  temporizadorIcone?: string;
+  temporizadorFundo?: string;
+  temporizadorTextoCor?: string;
+  temporizadorRaioBorda?: number;
+  temporizadorAltura?: number;
+  temporizadorTamanhoFonte?: number;
+  posicaoSelos?: 'abaixo_botao' | 'abaixo_banner' | 'topo' | 'rodape';
+  estiloSelos?: 'chips_modernos' | 'cards_detalhados' | 'icones_minimalistas' | 'barra_seguranca';
+  botaoEstilo?: 'solido' | 'gradiente' | 'vidro' | 'borda' | 'sombra_glow';
+  botaoCorFundo?: string;
+  botaoCorTexto?: string;
+  botaoRaioBorda?: number;
+  botaoAltura?: number;
+  botaoTamanhoFonte?: number;
   mensagemEscassez?: string;
   selosExtras?: string[];
+  ordemElementos?: string[];
 }
 
 export const DEFAULT_CHECKOUT_CONFIG: CheckoutConfig = {
@@ -996,6 +1096,8 @@ export interface Campanha {
   bannerUrl: string;
   fotosCarrossel?: string[]; // fotos adicionais para carrossel
   youtubeUrl: string | null;
+  videoUrl?: string | null; // upload direto de vídeo ou link mp4/webm
+  bannerEnquadramento?: 'contain' | 'cover' | 'auto';
   modelo: 'aleatorio' | 'manual';
   totalCotas: number; // ex: 10000 ou 100000
   valorCota: number; // em reais, ex: 0.03 ou 0.50
@@ -1011,6 +1113,7 @@ export interface Campanha {
   descontoPorValorTotal?: { aPartirDeValor: number; valorCotaComDesconto: number }[];
   organizadorNome?: string;
   organizadorFoto?: string;
+  organizadorCapa?: string;
   organizadorWhatsapp?: string;
   organizadorInstagram?: string;
   organizadorTiktok?: string;
@@ -1121,6 +1224,8 @@ export interface RedesSociais {
 export interface MarcaConfig {
   nomeMarca?: string | null;
   logoUrl?: string | null;
+  capaUrl?: string | null;
+  fotoPerfilUrl?: string | null;
   corPrincipal?: string | null; // ex: #2563eb
   corDestaque?: string | null;  // ex: #10b981
 }

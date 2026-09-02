@@ -287,6 +287,8 @@ export function configParaPainel(config: ConfigOrganizador | null) {
     marca: {
       nomeMarca: config?.marca?.nomeMarca || null,
       logoUrl: config?.marca?.logoUrl || null,
+      capaUrl: config?.marca?.capaUrl || null,
+      fotoPerfilUrl: config?.marca?.fotoPerfilUrl || null,
       corPrincipal: config?.marca?.corPrincipal || null,
       corDestaque: config?.marca?.corDestaque || null
     },
@@ -301,6 +303,8 @@ export function configParaMarcaPublica(config: ConfigOrganizador | null) {
   return {
     nomeMarca: config?.marca?.nomeMarca || null,
     logoUrl: config?.marca?.logoUrl || null,
+    capaUrl: config?.marca?.capaUrl || null,
+    fotoPerfilUrl: config?.marca?.fotoPerfilUrl || null,
     corPrincipal: config?.marca?.corPrincipal || null,
     corDestaque: config?.marca?.corDestaque || null,
     redes: config?.redes || {},

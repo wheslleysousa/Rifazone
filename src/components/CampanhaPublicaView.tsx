@@ -8,7 +8,7 @@ import {
   Smartphone, Share2, Instagram, AlertTriangle, AlertCircle, Copy, CheckCircle2,
   User, CreditCard, QrCode, FileText, Lock, Shield, X, Music2, MessageCircle,
   ChevronLeft, ChevronRight, Star, TrendingUp, Zap, Camera, Video, Layout, Eye, Calendar,
-  MapPin, Building, Home, Hash, Loader2
+  MapPin, Building, Home, Hash, Loader2, Crown, ArrowLeft
 } from 'lucide-react';
 import { validarCPF, formatarCPF } from '../utils/cpfValidation';
 import { UpsellModal } from './UpsellModal';
@@ -552,7 +552,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
 
   const ranking = data?.ranking || [];
   const marca = data?.marca;
-  const campanha = (modoPreview && previewCampanha ? previewCampanha : data?.campanha) as Campanha;
+  const originalCampanha = (modoPreview && previewCampanha ? previewCampanha : data?.campanha) as Campanha;
 
   if ((erro || !data) && !modoPreview) {
     return (
@@ -574,7 +574,15 @@ export const CampanhaPublicaView: React.FC<Props> = ({
     );
   }
 
-  if (!campanha) return null;
+  if (!originalCampanha) return null;
+
+  const campanha = {
+    ...originalCampanha,
+    organizadorFoto: originalCampanha.organizadorFoto || (modoPreview ? previewCampanha?.organizadorFoto : marca?.fotoPerfilUrl) || '',
+    organizadorCapa: originalCampanha.organizadorCapa || (modoPreview ? previewCampanha?.organizadorCapa : marca?.capaUrl) || '',
+    organizadorNome: originalCampanha.organizadorNome || (modoPreview ? previewCampanha?.organizadorNome : marca?.nomeMarca) || '',
+    cabecalhoLogoUrl: originalCampanha.cabecalhoLogoUrl || (modoPreview ? previewCampanha?.cabecalhoLogoUrl : marca?.logoUrl) || '',
+  } as Campanha;
 
   const estatisticas = data?.estatisticas || {
     totalCotas: campanha.totalCotas || 0,
@@ -1180,7 +1188,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
             ? { borderRadius: '0px', fontFamily: tema.tipografia.fonteCardBanner }
             : {
                 ...bannerCardStyle.style,
-                borderRadius: `${tema.botao?.raioBordaCards ?? 16}px`,
+                borderRadius: `${bannerConfig.raioBorda ?? tema.botao?.raioBordaCards ?? 16}px`,
                 fontFamily: tema.tipografia.fonteCardBanner
               }
         }
@@ -1216,25 +1224,69 @@ export const CampanhaPublicaView: React.FC<Props> = ({
           </AnimatePresence>
 
           {/* Selo de Destaque no Banner */}
-          {campanha.selo && (campanha.exibirSelo ?? true) && (bannerConfig.exibirSeloBanner !== false) && (() => {
+          {(() => {
+            const textoSelo = bannerConfig.seloTextoPadrao || (campanha as any)?.seloBanner || '';
+            const deveExibirSelo = (bannerConfig.exibirSeloBanner !== false) && (Boolean(textoSelo?.trim()) || Boolean(bannerConfig.seloIcone && bannerConfig.seloIcone !== 'none'));
+            if (!deveExibirSelo) return null;
+
             const seloBordaAtiva = bannerConfig.seloBordaAtiva ?? false;
             const seloBordaCor = bannerConfig.seloBordaCor || '#ffffff';
             const seloBordaEspessura = bannerConfig.seloBordaEspessura ?? 1;
+            const seloRaioBorda = bannerConfig.seloRaioBorda ?? 9999;
+            const seloRadiusEstilo = seloRaioBorda >= 9999 ? '9999px' : `${seloRaioBorda}px`;
+            const seloPos = bannerConfig.seloPosicao || 'topo-esquerda';
+            const seloIconeNome = bannerConfig.seloIcone || (tema.secaoIcones as any)?.seloBanner || 'Flame';
+            const seloPaddingY = bannerConfig.seloPaddingY ?? 4;
+            const seloPaddingX = bannerConfig.seloPaddingX ?? 12;
+            const seloTamanhoTexto = bannerConfig.seloTamanhoTexto ?? 10;
+            const seloFonte = bannerConfig.seloFonte || tema.tipografia?.fonteCardBanner || tema.tipografia?.fonteTitulo;
+            const seloTamanhoIcone = bannerConfig.seloTamanhoIcone ?? 14;
+
+            // Posições flutuantes no topo (caso não esteja no overlay de título)
+            if (seloPos === 'sobre-titulo' || seloPos === 'abaixo-titulo') {
+              return null; // Renderizado dentro do container do overlay
+            }
+
+            let posClass = 'top-3 left-3';
+            if (seloPos === 'topo-direita' || seloPos === 'superior-direito') {
+              posClass = 'top-3 right-3';
+            } else if (seloPos === 'inferior-esquerda' || seloPos === 'inferior-esquerdo') {
+              posClass = 'bottom-3 left-3';
+            } else if (seloPos === 'inferior-direita' || seloPos === 'inferior-direito') {
+              posClass = 'bottom-3 right-3';
+            } else if (seloPos === 'centro-topo' || seloPos === 'centralizado-topo') {
+              posClass = 'top-3 left-1/2 -translate-x-1/2';
+            } else if (seloPos === 'centro-base' || seloPos === 'centralizado-base') {
+              posClass = 'bottom-3 left-1/2 -translate-x-1/2';
+            }
+
+            const IconeComp = (seloIconeNome && seloIconeNome !== 'none') ? getSectionIcon(seloIconeNome, Flame) : null;
+
             return (
               <div 
                 style={{
                   ...obterFundoCss(bannerConfig.seloFundo || tema.cores.seloBannerFundo || '#f59e0b', '#f59e0b'),
                   color: bannerConfig.seloTexto || tema.cores.seloBannerTexto || '#022c22',
+                  borderRadius: seloRadiusEstilo,
+                  paddingTop: `${seloPaddingY}px`,
+                  paddingBottom: `${seloPaddingY}px`,
+                  paddingLeft: `${seloPaddingX}px`,
+                  paddingRight: `${seloPaddingX}px`,
+                  fontSize: `${seloTamanhoTexto}px`,
+                  fontFamily: seloFonte,
                   ...(seloBordaAtiva ? { border: `${seloBordaEspessura}px solid ${seloBordaCor}` } : { border: 'none' })
                 }}
-                className={`absolute top-3 left-3 px-3 py-1 font-black text-[10px] uppercase tracking-wider rounded-full shadow-xl flex items-center gap-1.5 z-20 select-none ${
+                className={`absolute ${posClass} font-black uppercase tracking-wider shadow-xl flex items-center gap-1.5 z-25 select-none leading-none ${
                   isSeloPulsando ? 'animate-pulse' : ''
                 }`}
               >
-                {!(/^\s*[\p{Extended_Pictographic}\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u.test(campanha.selo.trim())) && (
-                  <Flame className="w-3 h-3 fill-current" />
+                {IconeComp && (
+                  <IconeComp 
+                    style={{ width: `${seloTamanhoIcone}px`, height: `${seloTamanhoIcone}px` }} 
+                    className="shrink-0" 
+                  />
                 )}
-                <span>{campanha.selo}</span>
+                <span>{textoSelo}</span>
               </div>
             );
           })()}
@@ -1245,50 +1297,124 @@ export const CampanhaPublicaView: React.FC<Props> = ({
             const alignClassBanner = alinhamentoBanner === 'centro' ? 'text-center items-center' :
                                      alinhamentoBanner === 'direita' ? 'text-right items-end' :
                                      'text-left items-start';
-            const overlayAltura = bannerConfig.overlayAltura ?? 60;
+            const overlayAltura = Math.min(50, bannerConfig.overlayAltura ?? 50);
             const tamanhoBannerTitulo = tema.tipografia.tamanhoBannerTitulo;
             const tamanhoBannerSubtitulo = tema.tipografia.tamanhoBannerSubtitulo;
-            return (
-              <div 
-                className={`absolute inset-x-0 bottom-0 pt-16 pb-4 px-4 sm:px-5 flex flex-col justify-end z-20 pointer-events-none ${alignClassBanner}`}
-                style={{ 
-                  background: overlayDegradeEstilo,
-                  height: bannerConfig.overlayDegradeAtivo !== false ? `${overlayAltura}%` : 'auto',
-                  maxHeight: '100%'
-                }}
-              >
-                {campanha.exibirSeloOficial !== false && (
-                  <div
-                    className="flex items-center gap-1.5 text-[10px] font-black mb-1 uppercase tracking-widest text-emerald-400 drop-shadow pointer-events-auto"
-                    style={{ color: 'var(--brand)' }}
-                  >
-                    <ShieldCheck className="w-3.5 h-3.5" />
-                    <span>Sorteio oficial: {campanha.localSorteio || 'Loteria Federal'}</span>
-                  </div>
-                )}
-                <h1 
-                  className={`font-black leading-tight drop-shadow-md pointer-events-auto ${tamanhoBannerTitulo ? '' : getTitleSizeClass(tema.tipografia.tamanhoTitulo)}`}
-                  style={{ 
-                    color: tema.cores.titulos, 
-                    fontFamily: tema.tipografia.fonteCardBanner || tema.tipografia.fonteTitulo,
-                    ...(tamanhoBannerTitulo ? { fontSize: `${tamanhoBannerTitulo}px` } : {})
+            const exibirTitulo = bannerConfig.exibirTituloBanner !== false;
+            const exibirSubtitulo = bannerConfig.exibirSubtituloBanner !== false;
+            const textoTitulo = campanha.titulo || bannerConfig.tituloBanner || tema.botao?.tituloBanner || '';
+            const textoSubtitulo = campanha.subtitulo || bannerConfig.subtituloBanner || bannerConfig.subtituloPadrao || tema.botao?.subtituloBanner || campanha.descricao || '';
+            const seloPos = bannerConfig.seloPosicao || 'topo-esquerda';
+            const deveExibirSeloOficial = (bannerConfig.exibirSeloOficial !== false) && 
+                                          (tema.layout?.visivel?.localSorteio !== false) && 
+                                          (campanha.exibirSeloOficial !== false);
+
+            const renderSeloNoOverlay = () => {
+              const textoSelo = bannerConfig.seloTextoPadrao || '';
+              const deveExibirSelo = (bannerConfig.exibirSeloBanner !== false) && Boolean(textoSelo?.trim());
+              if (!deveExibirSelo) return null;
+              if (seloPos !== 'sobre-titulo' && seloPos !== 'abaixo-titulo') return null;
+
+              const seloBordaAtiva = bannerConfig.seloBordaAtiva ?? false;
+              const seloBordaCor = bannerConfig.seloBordaCor || '#ffffff';
+              const seloBordaEspessura = bannerConfig.seloBordaEspessura ?? 1;
+              const seloRaioBorda = bannerConfig.seloRaioBorda ?? 9999;
+              const seloRadiusEstilo = seloRaioBorda >= 9999 ? '9999px' : `${seloRaioBorda}px`;
+              const seloIconeNome = bannerConfig.seloIcone || (tema.secaoIcones as any)?.seloBanner || 'Flame';
+              const IconeComp = (seloIconeNome && seloIconeNome !== 'none') ? getSectionIcon(seloIconeNome, Flame) : null;
+              const seloPaddingY = bannerConfig.seloPaddingY ?? 4;
+              const seloPaddingX = bannerConfig.seloPaddingX ?? 12;
+              const seloTamanhoTexto = bannerConfig.seloTamanhoTexto ?? 10;
+              const seloFonte = bannerConfig.seloFonte || tema.tipografia?.fonteCardBanner || tema.tipografia?.fonteTitulo;
+              const seloTamanhoIcone = bannerConfig.seloTamanhoIcone ?? 14;
+
+              return (
+                <div 
+                  style={{
+                    ...obterFundoCss(bannerConfig.seloFundo || tema.cores.seloBannerFundo || '#f59e0b', '#f59e0b'),
+                    color: bannerConfig.seloTexto || tema.cores.seloBannerTexto || '#022c22',
+                    borderRadius: seloRadiusEstilo,
+                    paddingTop: `${seloPaddingY}px`,
+                    paddingBottom: `${seloPaddingY}px`,
+                    paddingLeft: `${seloPaddingX}px`,
+                    paddingRight: `${seloPaddingX}px`,
+                    fontSize: `${seloTamanhoTexto}px`,
+                    fontFamily: seloFonte,
+                    ...(seloBordaAtiva ? { border: `${seloBordaEspessura}px solid ${seloBordaCor}` } : { border: 'none' })
                   }}
+                  className={`inline-flex my-1 font-black uppercase tracking-wider shadow-xl items-center gap-1.5 pointer-events-auto select-none leading-none ${
+                    isSeloPulsando ? 'animate-pulse' : ''
+                  }`}
                 >
-                  {campanha.titulo}
-                </h1>
-                {campanha.subtitulo && (
-                  <p 
-                    className="mt-1 line-clamp-2 opacity-95 uppercase font-medium tracking-tight text-slate-200 drop-shadow pointer-events-auto"
+                  {IconeComp && (
+                    <IconeComp 
+                      style={{ width: `${seloTamanhoIcone}px`, height: `${seloTamanhoIcone}px` }} 
+                      className="shrink-0" 
+                    />
+                  )}
+                  <span>{textoSelo}</span>
+                </div>
+              );
+            };
+
+            return (
+              <>
+                {/* Degradê de Fundo do Banner */}
+                {bannerConfig.overlayDegradeAtivo !== false && (
+                  <div 
+                    className="absolute inset-x-0 bottom-0 z-10 pointer-events-none"
                     style={{ 
-                      color: tema.cores.subtituloCor || '#e2e8f0', 
-                      fontFamily: tema.tipografia.fonteCardBannerSubtitulo || tema.tipografia.fonteCardBanner || tema.tipografia.fonteTexto,
-                      fontSize: tamanhoBannerSubtitulo ? `${tamanhoBannerSubtitulo}px` : '12px'
+                      background: overlayDegradeEstilo,
+                      height: `${overlayAltura}%`
                     }}
-                  >
-                    {campanha.subtitulo}
-                  </p>
+                  />
                 )}
-              </div>
+
+                {/* Conteúdo de Texto e Selos sobre o Banner */}
+                <div 
+                  className={`absolute inset-x-0 bottom-0 pt-4 pb-3.5 px-4 sm:px-5 flex flex-col justify-end z-20 pointer-events-none ${alignClassBanner}`}
+                >
+                  {seloPos === 'sobre-titulo' && renderSeloNoOverlay()}
+
+                  {deveExibirSeloOficial && (
+                    <div
+                      className="flex items-center gap-1.5 text-[10px] font-black mb-1 uppercase tracking-widest text-emerald-400 drop-shadow pointer-events-auto"
+                      style={{ color: tema.cores.localSorteioCor || 'var(--brand)' }}
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                      <span>Sorteio oficial: {campanha.localSorteio || 'Loteria Federal'}</span>
+                    </div>
+                  )}
+                  
+                  {exibirTitulo && Boolean(textoTitulo?.trim()) && (
+                    <h1 
+                      className={`font-black leading-tight drop-shadow-md pointer-events-auto ${tamanhoBannerTitulo ? '' : getTitleSizeClass(tema.tipografia.tamanhoTitulo)}`}
+                      style={{ 
+                        color: tema.cores.titulos, 
+                        fontFamily: tema.tipografia.fonteCardBanner || tema.tipografia.fonteTitulo,
+                        ...(tamanhoBannerTitulo ? { fontSize: `${tamanhoBannerTitulo}px` } : {})
+                      }}
+                    >
+                      {textoTitulo}
+                    </h1>
+                  )}
+
+                  {exibirSubtitulo && Boolean(textoSubtitulo?.trim()) && (
+                    <p 
+                      className="mt-1 font-medium tracking-tight text-slate-200 drop-shadow pointer-events-auto leading-snug"
+                      style={{ 
+                        color: tema.cores.subtituloCor || '#e2e8f0', 
+                        fontFamily: tema.tipografia.fonteCardBannerSubtitulo || tema.tipografia.fonteCardBanner || tema.tipografia.fonteTexto,
+                        fontSize: tamanhoBannerSubtitulo ? `${tamanhoBannerSubtitulo}px` : '13px'
+                      }}
+                    >
+                      {textoSubtitulo}
+                    </p>
+                  )}
+
+                  {seloPos === 'abaixo-titulo' && renderSeloNoOverlay()}
+                </div>
+              </>
             );
           })()}
 
@@ -1329,7 +1455,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
 
   // 2. Seção Barra de Progresso
   const ProgressoSection = ({ campanha, estatisticas, tema }: { campanha: Campanha; estatisticas: any, tema: TemaCampanha }) => {
-    if (campanha.exibirBarraProgresso === false || estatisticas.vendidas === 0) return null;
+    if (campanha.exibirBarraProgresso === false) return null;
     const progCardStyle = calcularEstiloCard({
       estilo: tema.botao?.estiloCards,
       corFundo: (tema.cores as any).cardProgressoFundo || tema.cores.cardBarraProgressoFundo || tema.cores.cardFundo,
@@ -1354,30 +1480,25 @@ export const CampanhaPublicaView: React.FC<Props> = ({
         className={`border rounded-2xl p-4 shadow-sm mx-auto ${progCardStyle.className}`}
         style={{ ...progCardStyle.style, maxWidth: larguraMax, fontFamily: tema.tipografia.fonteCardProgresso }}
       >
-        {(tituloText || subtituloText || textoBarra) && (
+        {(tituloText || subtituloText) && (
           <div className="mb-2 space-y-0.5">
-            <div className={`flex items-center justify-between text-xs ${
+            <div className={`flex items-center text-xs gap-2 ${
               (tema.tipografia?.alinhamentoProgressoTitulo || tema.tipografia?.alinhamentoProgresso) === 'centro' ? 'justify-center text-center' :
               (tema.tipografia?.alinhamentoProgressoTitulo || tema.tipografia?.alinhamentoProgresso) === 'direita' ? 'justify-end text-right' :
-              'justify-between text-left'
+              'justify-start text-left'
             }`}>
               {tituloText ? (
                 <span 
                   className="font-bold opacity-90"
                   style={{ 
-                    fontFamily: tema.tipografia.fonteCardProgresso,
+                    fontFamily: tema.tipografia.fonteCardProgresso || 'Inter',
                     fontSize: `${tema.tipografia.tamanhoProgressoTitulo ?? 14}px`,
-                    color: tema.cores.titulos || '#ffffff'
+                    color: (tema.cores as any).barraProgressoTitulo || tema.cores.titulos || '#ffffff'
                   }}
                 >
                   {tituloText}
                 </span>
-              ) : <span />}
-              {textoBarra && (
-                <span className="font-extrabold text-xs ml-auto" style={{ fontFamily: tema.tipografia.fonteProgressoInterno || tema.tipografia.fonteCardProgresso || 'Inter', color: tema.cores.barraProgressoPreenchimento || 'var(--brand)' }}>
-                  {textoBarra}
-                </span>
-              )}
+              ) : null}
             </div>
             {subtituloText && (
               <p 
@@ -1389,7 +1510,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                 style={{ 
                   fontFamily: tema.tipografia.fonteCardProgressoSubtitulo || 'Inter', 
                   fontSize: `${tema.tipografia.tamanhoProgressoSubtitulo ?? 11}px`,
-                  color: tema.cores.descricoes 
+                  color: (tema.cores as any).barraProgressoSubtitulo || tema.cores.descricoes || '#94a3b8'
                 }}
               >
                 {subtituloText}
@@ -1399,31 +1520,108 @@ export const CampanhaPublicaView: React.FC<Props> = ({
         )}
 
         {/* Barra de progresso */}
-        <div 
-          className="w-full overflow-hidden p-0.5 border border-slate-700/50 relative flex items-center" 
-          style={{ 
-            height: `${altura}px`, 
-            borderRadius: `${raioBorda}px`, 
-            backgroundColor: tema.cores.barraProgressoFundo || '#1e293b' 
-          }}
-        >
-          <div
-            className="h-full transition-all duration-500 shadow-sm"
-            style={{
-              width: `${Math.min(100, Math.max(2, pct))}%`,
-              borderRadius: `${Math.max(0, raioBorda - 2)}px`,
-              background: tema.cores.barraProgressoPreenchimento || '#10b981'
-            }}
-          />
-        </div>
+        {(() => {
+          const bgCor = tema.cores.barraProgressoPreenchimento || '#10b981';
+          const estilo = cfg.estiloProgresso || 'solido';
+          const corGlow = cfg.corGlow || bgCor;
+          const intensidadeGlow = cfg.intensidadeGlow ?? 12;
+          const gradQtd = cfg.gradienteCoresQtd ?? 2;
+          const c1 = cfg.gradienteCor1 || bgCor;
+          const c2 = cfg.gradienteCor2 || '#3b82f6';
+          const c3 = cfg.gradienteCor3 || '#a855f7';
+          const dir = cfg.gradienteDirecao || 'direita';
+
+          let dirCss = 'to right';
+          if (dir === 'diagonal') dirCss = '135deg';
+          else if (dir === 'baixo') dirCss = 'to bottom';
+
+          let fillStyle: React.CSSProperties = {
+            width: `${Math.min(100, Math.max(0, pct))}%`,
+            borderRadius: `${Math.max(0, raioBorda - 2)}px`,
+            backgroundColor: bgCor,
+          };
+
+          if (estilo === 'gradiente') {
+            fillStyle.backgroundColor = undefined;
+            if (gradQtd === 3) {
+              fillStyle.backgroundImage = `linear-gradient(${dirCss}, ${c1}, ${c2}, ${c3})`;
+            } else {
+              fillStyle.backgroundImage = `linear-gradient(${dirCss}, ${c1}, ${c2})`;
+            }
+          } else if (estilo === 'neon') {
+            fillStyle.backgroundColor = bgCor;
+            fillStyle.boxShadow = `0 0 ${intensidadeGlow}px ${corGlow}, 0 0 ${intensidadeGlow * 1.8}px ${corGlow}99`;
+          } else if (estilo === 'vidro') {
+            fillStyle.backgroundColor = bgCor + 'b3';
+            fillStyle.backdropFilter = 'blur(6px)';
+            fillStyle.border = '1px solid rgba(255,255,255,0.4)';
+            fillStyle.boxShadow = 'inset 0 1px 1px rgba(255,255,255,0.5)';
+          } else if (estilo === 'transparente') {
+            fillStyle.backgroundColor = bgCor + '44';
+            fillStyle.border = `1.5px solid ${bgCor}`;
+          } else if (estilo === 'sombra') {
+            fillStyle.backgroundImage = `linear-gradient(to bottom, ${bgCor}, rgba(0,0,0,0.35))`;
+            fillStyle.boxShadow = '0 3px 8px rgba(0,0,0,0.6), inset 0 1px 1px rgba(255,255,255,0.4)';
+          } else if (estilo === 'borda_fina') {
+            fillStyle.backgroundColor = 'transparent';
+            fillStyle.border = `2px solid ${bgCor}`;
+            fillStyle.boxShadow = `inset 0 0 8px ${bgCor}66`;
+          } else if (estilo === 'reluzente') {
+            fillStyle.backgroundImage = `linear-gradient(135deg, ${bgCor} 0%, #ffffff 50%, ${bgCor} 100%)`;
+            fillStyle.boxShadow = `0 0 12px ${bgCor}aa`;
+          }
+
+          const barraAlturaFinal = Math.max(22, altura);
+
+          return (
+            <div 
+              className="w-full overflow-hidden p-0.5 border border-slate-700/50 relative flex items-center justify-center select-none" 
+              style={{ 
+                height: `${barraAlturaFinal}px`, 
+                borderRadius: `${raioBorda}px`, 
+                backgroundColor: tema.cores.barraProgressoFundo || '#1e293b' 
+              }}
+            >
+              <div
+                className="h-full transition-all duration-500 shadow-sm absolute left-0 top-0 bottom-0"
+                style={fillStyle}
+              />
+              {textoBarra && (
+                <span 
+                  className="relative z-10 font-extrabold text-[11px] sm:text-xs tracking-wider px-2 whitespace-nowrap drop-shadow"
+                  style={{ 
+                    fontFamily: tema.tipografia.fonteProgressoInterno || tema.tipografia.fonteCardProgresso || 'Inter', 
+                    color: tema.cores.barraProgressoTexto || '#ffffff' 
+                  }}
+                >
+                  {textoBarra}
+                </span>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Rodapé customizado ou padrão */}
         {rodapeText ? (
-          <div className="text-[11px] mt-2 text-center opacity-80" style={{ fontFamily: tema.tipografia.fonteProgressoRodape || tema.tipografia.fonteCardProgresso || 'Inter', color: tema.cores.barraProgressoTexto }}>
+          <div 
+            className="text-[11px] mt-2 opacity-80" 
+            style={{ 
+              fontFamily: tema.tipografia.fonteProgressoRodape || tema.tipografia.fonteCardProgresso || 'Inter', 
+              color: tema.cores.barraProgressoTexto || '#ffffff',
+              textAlign: (tema.tipografia?.alinhamentoProgressoRodape || 'centro') === 'esquerda' ? 'left' :
+                         (tema.tipografia?.alinhamentoProgressoRodape || 'centro') === 'direita' ? 'right' : 'center'
+            }}
+          >
             {rodapeText.replace('{vendidas}', estatisticas.vendidas.toLocaleString('pt-BR')).replace('{disponiveis}', estatisticas.disponiveis.toLocaleString('pt-BR'))}
           </div>
         ) : (campanha.exibirQtdCotas ?? true) ? (
-          <div className="flex justify-between text-[11px] mt-2 opacity-60" style={{ fontFamily: tema.tipografia.fonteProgressoRodape || tema.tipografia.fonteCardProgresso || 'Inter' }}>
+          <div 
+            className={`flex text-[11px] mt-2 opacity-60 ${
+              (tema.tipografia?.alinhamentoProgressoRodape || 'centro') === 'esquerda' ? 'justify-start gap-4' :
+              (tema.tipografia?.alinhamentoProgressoRodape || 'centro') === 'direita' ? 'justify-end gap-4' : 'justify-between'
+            }`} 
+            style={{ fontFamily: tema.tipografia.fonteProgressoRodape || tema.tipografia.fonteCardProgresso || 'Inter' }}
+          >
             <span style={{ color: tema.cores.barraProgressoTexto }}>{estatisticas.vendidas.toLocaleString('pt-BR')} cotas vendidas</span>
             <span style={{ color: tema.cores.barraProgressoTexto }}>{estatisticas.disponiveis.toLocaleString('pt-BR')} disponíveis</span>
           </div>
@@ -1453,6 +1651,14 @@ export const CampanhaPublicaView: React.FC<Props> = ({
     const estiloContainer = cotasCfg.estiloContainer || 'texto_e_botao';
     const layout = cotasCfg.porApenasLayout || 'vertical';
     const alinhamento = cotasCfg.porApenasAlinhamento || 'centro';
+
+    // Offset de Posição Customizado
+    const offsetV = cotasCfg.porApenasOffsetVertical ?? 0;
+    const offsetH = cotasCfg.porApenasOffsetHorizontal ?? 0;
+    const customOffsetStyle: React.CSSProperties = {
+      marginTop: offsetV ? `${offsetV}px` : undefined,
+      transform: offsetH ? `translateX(${offsetH}px)` : undefined,
+    };
 
     // Alinhamento na página (wrapper externo)
     const alignWrapperClass = 
@@ -1702,7 +1908,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
     // 1. Apenas Texto & Preço Soltos (sem nenhum card ou botão externo)
     if (estiloContainer === 'apenas_texto_preco') {
       return (
-        <div className={`w-full flex flex-col ${alignWrapperClass} py-1.5 transition-all`}>
+        <div style={customOffsetStyle} className={`w-full flex flex-col ${alignWrapperClass} py-1.5 transition-all`}>
           <div className={`w-full flex ${justifyFlexClass}`}>
             {renderConteudo('solto')}
           </div>
@@ -1714,7 +1920,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
     // 2. Texto Solto + Botão no Valor
     if (estiloContainer === 'texto_e_botao') {
       return (
-        <div className={`w-full flex flex-col ${alignWrapperClass} py-1.5 transition-all`}>
+        <div style={customOffsetStyle} className={`w-full flex flex-col ${alignWrapperClass} py-1.5 transition-all`}>
           <div className={`w-full flex ${justifyFlexClass}`}>
             {renderConteudo('valor_botao')}
           </div>
@@ -1770,7 +1976,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
       })();
 
       return (
-        <div className={`w-full flex flex-col ${alignWrapperClass} py-1.5 transition-all`}>
+        <div style={customOffsetStyle} className={`w-full flex flex-col ${alignWrapperClass} py-1.5 transition-all`}>
           <div className={`w-full flex ${justifyFlexClass}`}>
             <div 
               style={{
@@ -1803,7 +2009,8 @@ export const CampanhaPublicaView: React.FC<Props> = ({
         style={{
           ...estiloCard.style,
           borderColor: porApenasTemBorda ? porApenasBorda : 'transparent',
-          fontFamily: tema.tipografia.fonteCardCotas
+          fontFamily: tema.tipografia.fonteCardCotas,
+          ...customOffsetStyle
         }}
       >
         <div className={`w-full flex ${justifyFlexClass}`}>
@@ -2045,20 +2252,29 @@ export const CampanhaPublicaView: React.FC<Props> = ({
             <div className={`grid ${colMobileClass} ${colDesktopClass} gap-2.5`}>
               {listaBotoes.map((item, idx: number) => {
                 const isSelected = quantidade === item.quantidade;
-                const rotuloTexto = item.rotulo || (item.destaque ? 'Mais popular' : undefined);
+                const textoSeloCustom = tema.botao?.seloPopularTexto || tema.botao?.textoPopular || 'Mais popular';
+                const rotuloTexto = item.destaque || item.rotulo === 'Mais popular' ? textoSeloCustom : (item.rotulo || (item.destaque ? textoSeloCustom : undefined));
                 const isDestaque = item.destaque || !!item.rotulo;
                 const corFundoPacote = isDestaque ? (tema.cores.botaoDestaqueFundo || tema.cores.primaria) : tema.cores.botaoCotasFundo;
                 const corTextoPacote = isDestaque ? (tema.cores.botaoDestaqueTexto || '#022c22') : tema.cores.botaoCotasTexto;
                 const corNumeroPacote = isDestaque ? (tema.cores.botaoDestaqueTexto || '#022c22') : tema.cores.botaoCotasNumero;
                 const corSeloPopularFundo = tema.cores.seloPopularFundo || '#f59e0b';
                 const corSeloPopularTexto = tema.cores.seloPopularTexto || '#022c22';
+                const fonteSeloPopular = tema.tipografia?.fonteSeloPopular || tema.tipografia?.fonteTexto;
+                const tamanhoSeloPopular = tema.tipografia?.tamanhoSeloPopular ?? 8;
+                const raioSeloPopular = tema.botao?.seloPopularRaio ?? 20;
 
                 return (
                   <button
                     key={idx}
                     type="button"
                     onClick={() => {
-                      setQuantidade(item.quantidade);
+                      setQuantidade((prevQtd: number) => {
+                        const qAtual = Number(prevQtd) || 0;
+                        const novaQtd = qAtual + item.quantidade;
+                        const max = campanha.maxPorCompra || 500000;
+                        return Math.min(max, novaQtd);
+                      });
                     }}
                     style={calcularEstiloBotao({
                       estilo: tema.botao?.estiloPacotes || 'solido',
@@ -2086,28 +2302,146 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                         style={{
                           backgroundColor: corSeloPopularFundo,
                           color: corSeloPopularTexto,
+                          fontFamily: fonteSeloPopular,
+                          fontSize: `${tamanhoSeloPopular}px`,
+                          borderRadius: raioSeloPopular === 0 ? '0px' : (raioSeloPopular >= 20 ? '9999px' : `${raioSeloPopular}px`),
                         }}
-                        className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 py-0.5 font-black text-[8px] uppercase tracking-wider rounded-full shadow-md whitespace-nowrap z-10"
+                        className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 py-0.5 font-black uppercase tracking-wider shadow-md whitespace-nowrap z-10"
                       >
                         {rotuloTexto}
                       </span>
                     )}
+
+                    {/* Número de cotas (+50) */}
                     <span className="block text-base font-black group-hover:opacity-80 transition-opacity leading-tight" style={{ color: corNumeroPacote }}>
                       +{item.quantidade}
                     </span>
-                    <div className="flex items-center gap-1 flex-wrap justify-center">
-                      <span
-                        className="block text-xs font-black font-mono"
-                        style={{ color: corTextoPacote }}
-                      >
-                        {formatarMoeda(item.valor)}
-                      </span>
-                      {item.descontoPct !== undefined && (
-                        <span className="px-1 py-0.2 bg-emerald-500 text-slate-950 font-black text-[9px] rounded leading-none">
-                          -{item.descontoPct}%
+
+                    {/* Tag de Desconto (no Topo, se configurado) */}
+                    {(() => {
+                      if (item.descontoPct === undefined || item.descontoPct <= 0) return null;
+
+                      const descBgCor = (tema.cores as any)?.descontoCorFundo || '#ef4444';
+                      const descTxtCor = (tema.cores as any)?.descontoCorTexto || '#ffffff';
+                      const descEstilo = (tema.botao as any)?.descontoEstilo || 'solido';
+                      const descPos = (tema.botao as any)?.descontoPosicao || 'base';
+                      const descFormato = (tema.botao as any)?.descontoFormato || 'porcentagem';
+                      const descRaio = (tema.botao as any)?.descontoRaioBorda ?? (descEstilo === 'pill' ? 9999 : 4);
+                      const descFontSize = (tema.botao as any)?.descontoTamanhoTexto ?? 10;
+                      const descPaddingY = (tema.botao as any)?.descontoAltura ?? 3;
+
+                      let descTagStyle: React.CSSProperties = {
+                        color: descTxtCor,
+                        fontSize: `${descFontSize}px`,
+                        paddingTop: `${descPaddingY}px`,
+                        paddingBottom: `${descPaddingY}px`,
+                        paddingLeft: `${descPaddingY * 2.2}px`,
+                        paddingRight: `${descPaddingY * 2.2}px`,
+                        borderRadius: `${descRaio}px`,
+                      };
+
+                      if (descEstilo === 'solido' || descEstilo === 'pill') {
+                        descTagStyle.backgroundColor = descBgCor;
+                      } else if (descEstilo === 'gradiente') {
+                        descTagStyle.backgroundImage = `linear-gradient(135deg, ${descBgCor}, #3b82f6)`;
+                      } else if (descEstilo === 'vidro') {
+                        descTagStyle.backgroundColor = descBgCor + '99';
+                        descTagStyle.backdropFilter = 'blur(4px)';
+                        descTagStyle.border = '1px solid rgba(255,255,255,0.3)';
+                      } else if (descEstilo === 'neon') {
+                        descTagStyle.backgroundColor = descBgCor;
+                        descTagStyle.boxShadow = `0 0 8px ${descBgCor}`;
+                      } else if (descEstilo === 'borda') {
+                        descTagStyle.backgroundColor = 'transparent';
+                        descTagStyle.border = `1px solid ${descBgCor}`;
+                        descTagStyle.color = descBgCor;
+                      }
+
+                      let descTexto = `-${item.descontoPct}%`;
+                      const valorSemDesconto = item.quantidade * (campanha.valorCota || 0);
+                      const economizou = Math.max(0, valorSemDesconto - item.valor);
+
+                      if (descFormato === 'valor' && economizou > 0) {
+                        descTexto = `R$ ${economizou.toFixed(2).replace('.', ',')} OFF`;
+                      } else if (descFormato === 'ambos' && economizou > 0) {
+                        descTexto = `-${item.descontoPct}% | R$ ${economizou.toFixed(2).replace('.', ',')} OFF`;
+                      }
+
+                      if (descPos !== 'topo') return null;
+
+                      return (
+                        <span style={descTagStyle} className="font-black leading-none inline-flex items-center justify-center tracking-tight whitespace-nowrap shadow-xs my-0.5">
+                          {descTexto}
                         </span>
-                      )}
-                    </div>
+                      );
+                    })()}
+
+                    {/* Preço do Pacote */}
+                    <span
+                      className="block text-xs font-black font-mono"
+                      style={{ color: corTextoPacote }}
+                    >
+                      {formatarMoeda(item.valor)}
+                    </span>
+
+                    {/* Tag de Desconto (na Base, se configurado) */}
+                    {(() => {
+                      if (item.descontoPct === undefined || item.descontoPct <= 0) return null;
+
+                      const descBgCor = (tema.cores as any)?.descontoCorFundo || '#ef4444';
+                      const descTxtCor = (tema.cores as any)?.descontoCorTexto || '#ffffff';
+                      const descEstilo = (tema.botao as any)?.descontoEstilo || 'solido';
+                      const descPos = (tema.botao as any)?.descontoPosicao || 'base';
+                      const descFormato = (tema.botao as any)?.descontoFormato || 'porcentagem';
+                      const descRaio = (tema.botao as any)?.descontoRaioBorda ?? (descEstilo === 'pill' ? 9999 : 4);
+                      const descFontSize = (tema.botao as any)?.descontoTamanhoTexto ?? 10;
+                      const descPaddingY = (tema.botao as any)?.descontoAltura ?? 3;
+
+                      let descTagStyle: React.CSSProperties = {
+                        color: descTxtCor,
+                        fontSize: `${descFontSize}px`,
+                        paddingTop: `${descPaddingY}px`,
+                        paddingBottom: `${descPaddingY}px`,
+                        paddingLeft: `${descPaddingY * 2.2}px`,
+                        paddingRight: `${descPaddingY * 2.2}px`,
+                        borderRadius: `${descRaio}px`,
+                      };
+
+                      if (descEstilo === 'solido' || descEstilo === 'pill') {
+                        descTagStyle.backgroundColor = descBgCor;
+                      } else if (descEstilo === 'gradiente') {
+                        descTagStyle.backgroundImage = `linear-gradient(135deg, ${descBgCor}, #3b82f6)`;
+                      } else if (descEstilo === 'vidro') {
+                        descTagStyle.backgroundColor = descBgCor + '99';
+                        descTagStyle.backdropFilter = 'blur(4px)';
+                        descTagStyle.border = '1px solid rgba(255,255,255,0.3)';
+                      } else if (descEstilo === 'neon') {
+                        descTagStyle.backgroundColor = descBgCor;
+                        descTagStyle.boxShadow = `0 0 8px ${descBgCor}`;
+                      } else if (descEstilo === 'borda') {
+                        descTagStyle.backgroundColor = 'transparent';
+                        descTagStyle.border = `1px solid ${descBgCor}`;
+                        descTagStyle.color = descBgCor;
+                      }
+
+                      let descTexto = `-${item.descontoPct}%`;
+                      const valorSemDesconto = item.quantidade * (campanha.valorCota || 0);
+                      const economizou = Math.max(0, valorSemDesconto - item.valor);
+
+                      if (descFormato === 'valor' && economizou > 0) {
+                        descTexto = `R$ ${economizou.toFixed(2).replace('.', ',')} OFF`;
+                      } else if (descFormato === 'ambos' && economizou > 0) {
+                        descTexto = `-${item.descontoPct}% | R$ ${economizou.toFixed(2).replace('.', ',')} OFF`;
+                      }
+
+                      if (descPos !== 'base') return null;
+
+                      return (
+                        <span style={descTagStyle} className="font-black leading-none inline-flex items-center justify-center tracking-tight whitespace-nowrap shadow-xs my-0.5">
+                          {descTexto}
+                        </span>
+                      );
+                    })()}
                   </button>
                 );
               })}
@@ -2807,14 +3141,14 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                   alt="Logo" 
                   className={`object-contain transition cursor-pointer ${campanha.cabecalhoLogoLarguraTotal ? 'w-full max-w-full mx-auto' : 'max-w-[200px] sm:max-w-[280px]'}`} 
                   style={{ 
-                    height: `${campanha.cabecalhoLogoTamanho || 40}px`, 
-                    maxHeight: '56px',
-                    maxWidth: '100%',
+                    maxHeight: `${campanha.cabecalhoLogoTamanho || 48}px`, 
+                    width: 'auto',
+                    height: 'auto',
                     objectFit: 'contain'
                   }}
                   onClick={(e) => {
                     e.stopPropagation();
-                    window.location.href = '/campanhas';
+                    setOrganizadorModalAberto(true);
                   }} 
                 />
               ) : (
@@ -2828,18 +3162,6 @@ export const CampanhaPublicaView: React.FC<Props> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            {onNavigateComoFunciona && (
-              <button
-                id="btn-como-funciona-topo"
-                type="button"
-                onClick={onNavigateComoFunciona}
-                className="hidden sm:flex items-center gap-1.5 text-xs font-bold px-2.5 py-1.5 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-slate-300 border border-slate-700 transition"
-              >
-                <HelpCircle className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Como Funciona</span>
-              </button>
-            )}
-
             <button
               id="btn-ver-meus-numeros"
               type="button"
@@ -2910,39 +3232,34 @@ export const CampanhaPublicaView: React.FC<Props> = ({
           >
             <div className="space-y-5">
               <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-                <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => { setMenuAberto(false); setOrganizadorModalAberto(true); }}
+                  className="flex items-center gap-3 text-left hover:opacity-90 transition group cursor-pointer"
+                >
                   {campanha.organizadorFoto ? (
-                    <img src={campanha.organizadorFoto} alt="Perfil" className="w-10 h-10 rounded-full object-cover border border-[var(--brand)]/50" />
+                    <img src={campanha.organizadorFoto} alt="Perfil" className="w-10 h-10 rounded-full object-cover border border-[var(--brand)]/50 group-hover:scale-105 transition-transform" />
                   ) : (
                     <div
-                      className="w-10 h-10 rounded-full flex items-center justify-center font-black"
+                      className="w-10 h-10 rounded-full flex items-center justify-center font-black group-hover:scale-105 transition-transform"
                       style={{ backgroundColor: 'var(--brand)', color: 'var(--btn-txt)' }}
                     >
                       {(campanha.organizadorNome || 'O')[0]}
                     </div>
                   )}
                   <div>
-                    <h4 className="text-sm font-bold text-white leading-tight">
+                    <h4 className="text-sm font-bold text-white leading-tight group-hover:text-emerald-400 transition-colors">
                       {campanha.organizadorNome || 'Organizador Oficial'}
                     </h4>
-                    <span className="text-[11px] text-slate-400">Organizador Oficial</span>
+                    <span className="text-[11px] text-slate-400">Ver Perfil e Campanhas →</span>
                   </div>
-                </div>
+                </button>
                 <button onClick={() => setMenuAberto(false)} className="p-1 text-slate-400 hover:text-white rounded-lg">
                   ✕
                 </button>
               </div>
 
               <div className="space-y-2">
-                {onNavigateComoFunciona && (
-                  <button
-                    onClick={() => { setMenuAberto(false); onNavigateComoFunciona(); }}
-                    className="w-full p-3 bg-slate-800 hover:bg-slate-700/80 rounded-xl text-xs font-bold text-slate-200 flex items-center gap-2.5 transition"
-                  >
-                    <HelpCircle className="w-4 h-4 text-emerald-400" />
-                    <span>Como Funciona / Guia Oficial</span>
-                  </button>
-                )}
 
                 <button
                   onClick={() => { setMenuAberto(false); setMeusNumerosAberto(true); }}
@@ -3279,6 +3596,51 @@ export const CampanhaPublicaView: React.FC<Props> = ({
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md overflow-y-auto">
           <div className="relative w-full max-w-lg bg-slate-900 border border-slate-700/80 rounded-3xl p-5 sm:p-6 shadow-2xl text-white my-6 max-h-[92vh] overflow-y-auto">
             
+            {/* Banner do Checkout (Imagem ou Vídeo) */}
+            {campanha.checkout?.bannerTipo === 'video' && campanha.checkout?.bannerVideoUrl ? (
+              <div className="mb-4 -mx-5 sm:-mx-6 -mt-5 sm:-mt-6 rounded-t-3xl overflow-hidden border-b border-slate-800 relative bg-slate-950 flex items-center justify-center">
+                {campanha.checkout.bannerVideoUrl.includes('youtube.com') || campanha.checkout.bannerVideoUrl.includes('youtu.be') ? (
+                  <div className="aspect-video w-full max-h-52">
+                    <iframe
+                      src={campanha.checkout.bannerVideoUrl.replace('watch?v=', 'embed/').replace('youtu.be/', 'youtube.com/embed/')}
+                      title="Vídeo do Checkout"
+                      className="w-full h-full"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    />
+                  </div>
+                ) : (
+                  <video
+                    src={campanha.checkout.bannerVideoUrl}
+                    controls
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    className="w-full max-h-52 object-contain bg-slate-950"
+                  />
+                )}
+              </div>
+            ) : campanha.checkout?.bannerUrl ? (
+              <div className="mb-4 -mx-5 sm:-mx-6 -mt-5 sm:-mt-6 rounded-t-3xl overflow-hidden border-b border-slate-800 relative bg-slate-950 flex items-center justify-center p-1">
+                {/* Imagem de fundo borrada para dar efeito preenchido sem cortar a principal */}
+                <img 
+                  src={campanha.checkout.bannerUrl} 
+                  alt="" 
+                  className="absolute inset-0 w-full h-full object-cover blur-xl opacity-20"
+                />
+                <img 
+                  src={campanha.checkout.bannerUrl} 
+                  alt="Banner do Checkout" 
+                  className={`relative z-10 w-full ${
+                    campanha.checkout.bannerEnquadramento === 'cover'
+                      ? 'max-h-48 object-cover'
+                      : 'max-h-56 object-contain'
+                  } rounded-t-2xl`}
+                />
+              </div>
+            ) : null}
+
             {/* Header do Checkout */}
             <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
               <div>
@@ -4179,174 +4541,332 @@ export const CampanhaPublicaView: React.FC<Props> = ({
         </div>
       )}
 
-      {/* Modal Todas as Campanhas do Organizador */}
+      {/* Página Dedicada Completa do Perfil do Organizador */}
       {organizadorModalAberto && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-5 shadow-2xl space-y-4 max-h-[85vh] flex flex-col">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3 shrink-0">
-              <div className="flex items-center gap-3">
-                {campanha.organizadorFoto ? (
-                  <img
-                    src={campanha.organizadorFoto}
-                    alt={campanha.organizadorNome || 'Organizador'}
-                    className="w-10 h-10 rounded-full object-cover border border-emerald-500/50"
-                  />
-                ) : (
-                  <div className="w-10 h-10 rounded-full bg-emerald-500 text-slate-950 font-black flex items-center justify-center text-lg">
-                    {(campanha.organizadorNome || 'R')[0].toUpperCase()}
-                  </div>
-                )}
-                <div>
-                  <h3 className="font-extrabold text-white text-sm">
-                    {campanha.organizadorNome || 'Organizador Oficial'}
-                  </h3>
-                  <span className="text-[11px] text-slate-400">
-                    Campanhas e Ações Disponíveis
+        <div className="fixed inset-0 z-[100] bg-slate-950 text-slate-100 overflow-y-auto flex flex-col animate-in fade-in duration-300">
+          {/* Cabeçalho Fixo Superior da Página do Perfil */}
+          <header className="sticky top-0 z-50 bg-slate-950/90 backdrop-blur-md border-b border-slate-800/80 px-4 py-3">
+            <div className="max-w-5xl mx-auto flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setOrganizadorModalAberto(false)}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700/80 font-bold text-xs transition shadow-sm active:scale-95 cursor-pointer"
+              >
+                <ArrowLeft className="w-4 h-4 text-emerald-400" />
+                <span>Voltar para a Rifa</span>
+              </button>
+
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black text-slate-300 hidden sm:inline uppercase tracking-wider">
+                  {campanha.organizadorNome || 'Organizador Oficial'}
+                </span>
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                  <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                  Verificado
+                </span>
+              </div>
+            </div>
+          </header>
+
+          <main className="flex-1 pb-16">
+            {/* Foto de Fundo / Capa de Banner */}
+            <div className="relative w-full bg-slate-900 overflow-hidden">
+              {campanha.organizadorCapa ? (
+                <img
+                  src={campanha.organizadorCapa}
+                  alt="Capa do Perfil"
+                  className="w-full h-auto block object-cover"
+                  style={{ minHeight: '140px', maxHeight: '520px' }}
+                />
+              ) : (
+                <div className="w-full h-48 sm:h-64 lg:h-80 bg-gradient-to-r from-slate-900 via-emerald-950/40 to-slate-900 flex items-center justify-center relative">
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(16,185,129,0.15)_0,transparent_70%)]" />
+                  <span className="text-slate-700/60 font-black text-2xl uppercase tracking-widest select-none">
+                    {campanha.organizadorNome || 'WS Premiações'}
                   </span>
                 </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setOrganizadorModalAberto(false)}
-                className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white transition"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              )}
+              {/* Degradê na parte inferior da capa para transição suave */}
+              <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-slate-950 via-slate-950/60 to-transparent" />
             </div>
 
-            <div className="overflow-y-auto space-y-4 pr-1 flex-1">
-              {carregandoOrganizador ? (
-                <div className="py-8 text-center text-xs text-slate-400">
-                  <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-                  Carregando campanhas do organizador...
+            {/* Conteúdo do Perfil do Organizador */}
+            <div className="max-w-5xl mx-auto px-4 sm:px-6 relative z-10 -mt-16 sm:-mt-20">
+              <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-6 border-b border-slate-800/80">
+                <div className="flex flex-col sm:flex-row items-start sm:items-end gap-4">
+                  {/* Avatar / Foto de Perfil Cadastrada */}
+                  <div className="relative group shrink-0">
+                    {campanha.organizadorFoto ? (
+                      <img
+                        src={campanha.organizadorFoto}
+                        alt={campanha.organizadorNome || 'Organizador'}
+                        className="w-28 h-28 sm:w-36 sm:h-36 rounded-full object-cover border-4 border-slate-950 shadow-2xl bg-slate-900 ring-2 ring-emerald-500/40"
+                      />
+                    ) : (
+                      <div className="w-28 h-28 sm:w-36 sm:h-36 rounded-full bg-emerald-500 text-slate-950 font-black flex items-center justify-center text-4xl border-4 border-slate-950 shadow-2xl ring-2 ring-emerald-500/40">
+                        {(campanha.organizadorNome || 'O')[0].toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Nome e Informações do Perfil */}
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                        {campanha.organizadorNome || 'Organizador Oficial'}
+                      </h1>
+                      <ShieldCheck className="w-6 h-6 text-emerald-400 drop-shadow" title="Organizador Verificado" />
+                    </div>
+                    <p className="text-xs sm:text-sm text-slate-400 font-medium">
+                      Página oficial do organizador de rifas, ações de prêmios e sorteios.
+                    </p>
+                  </div>
                 </div>
-              ) : campanhasOrganizador.length === 0 ? (
-                <div className="py-8 text-center text-xs text-slate-400">
-                  Nenhuma outra campanha encontrada no momento.
+
+                {/* Botões de Redes Sociais do Organizador (WhatsApp, Instagram, TikTok) */}
+                <div className="flex items-center gap-2 flex-wrap pt-2 sm:pt-0">
+                  {campanha.organizadorWhatsapp && (
+                    <a
+                      href={`https://wa.me/55${campanha.organizadorWhatsapp.replace(/\D/g, '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-[#25D366]/15 hover:bg-[#25D366]/25 text-[#25D366] border border-[#25D366]/30 font-extrabold text-xs transition shadow-sm active:scale-95"
+                    >
+                      <WhatsAppIcon className="w-4 h-4" />
+                      <span>WhatsApp</span>
+                    </a>
+                  )}
+
+                  {campanha.organizadorInstagram && (
+                    <a
+                      href={`https://instagram.com/${campanha.organizadorInstagram.replace('@', '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-pink-500/15 hover:bg-pink-500/25 text-pink-400 border border-pink-500/30 font-extrabold text-xs transition shadow-sm active:scale-95"
+                    >
+                      <InstagramIcon className="w-4 h-4" />
+                      <span>{campanha.organizadorInstagram.startsWith('@') ? campanha.organizadorInstagram : `@${campanha.organizadorInstagram}`}</span>
+                    </a>
+                  )}
+
+                  {campanha.organizadorTiktok && (
+                    <a
+                      href={`https://tiktok.com/@${campanha.organizadorTiktok.replace('@', '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-extrabold text-xs transition shadow-sm active:scale-95"
+                    >
+                      <TikTokIcon className="w-4 h-4" />
+                      <span>{campanha.organizadorTiktok.startsWith('@') ? campanha.organizadorTiktok : `@${campanha.organizadorTiktok}`}</span>
+                    </a>
+                  )}
                 </div>
-              ) : (
-                <>
-                  {/* Seção Campanhas Ativas */}
-                  {campanhasOrganizador.filter(c => c.status === 'publicada' || c.status === 'pausada').length > 0 && (
-                    <div className="space-y-2">
-                      <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-1">
-                        Campanhas em Andamento
-                      </h4>
-                      <div className="space-y-2">
-                        {campanhasOrganizador
-                          .filter(c => c.status === 'publicada' || c.status === 'pausada')
-                          .map(c => (
-                            <a
-                              key={c.id}
-                              href={`/c/${c.slug || c.id}`}
-                              className={`p-3 rounded-xl border block transition ${
-                                c.id === campanha.id
-                                  ? 'bg-emerald-500/10 border-emerald-500/50 text-white'
-                                  : 'bg-slate-950 border-slate-800 hover:border-slate-700 text-slate-200'
-                              }`}
-                            >
-                              <div className="flex items-center gap-3">
-                                {c.bannerUrl ? (
-                                  <img src={c.bannerUrl} alt={c.titulo} className="w-14 h-14 rounded-lg object-cover shrink-0" />
-                                ) : (
-                                  <div className="w-14 h-14 rounded-lg bg-slate-800 flex items-center justify-center text-slate-500 text-xs shrink-0 font-bold">
-                                    Rifa
-                                  </div>
-                                )}
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center justify-between gap-1">
-                                    <span className="font-bold text-xs text-white truncate">{c.titulo}</span>
-                                    {c.modalidade === 'gratis' ? (
-                                      <span className="text-[9px] font-black uppercase bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded border border-purple-500/30">Grátis</span>
+              </div>
+
+              {/* Seção das Campanhas Organizadas */}
+              <div className="mt-8 space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+                  <div>
+                    <h2 className="text-lg font-black text-white flex items-center gap-2 uppercase tracking-wide">
+                      <Trophy className="w-5 h-5 text-emerald-400" />
+                      <span>Campanhas do Organizador</span>
+                    </h2>
+                    <p className="text-xs text-slate-400">
+                      Veja todas as campanhas em andamento e encerradas criadas por este organizador.
+                    </p>
+                  </div>
+
+                  {/* Contador Total */}
+                  <div className="flex items-center gap-2">
+                    <span className="px-3 py-1 rounded-full bg-slate-900 border border-slate-800 text-slate-300 font-mono text-xs font-bold">
+                      Total: {campanhasOrganizador.length} {campanhasOrganizador.length === 1 ? 'campanha' : 'campanhas'}
+                    </span>
+                  </div>
+                </div>
+
+                {carregandoOrganizador ? (
+                  <div className="py-16 text-center space-y-3">
+                    <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto" />
+                    <p className="text-sm font-bold text-slate-400">Carregando campanhas do organizador...</p>
+                  </div>
+                ) : campanhasOrganizador.length === 0 ? (
+                  <div className="py-16 text-center bg-slate-900/50 rounded-2xl border border-slate-800 p-8 space-y-2">
+                    <Sparkles className="w-8 h-8 text-slate-600 mx-auto" />
+                    <h3 className="text-sm font-bold text-slate-300">Nenhuma campanha encontrada</h3>
+                    <p className="text-xs text-slate-500">Este organizador ainda não possui outras campanhas cadastradas.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-8">
+                    {/* Campanhas Em Andamento */}
+                    {campanhasOrganizador.filter(c => c.status === 'publicada' || c.status === 'pausada').length > 0 && (
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                          <h3 className="text-xs font-black text-slate-300 uppercase tracking-wider">
+                            Campanhas em Andamento ({campanhasOrganizador.filter(c => c.status === 'publicada' || c.status === 'pausada').length})
+                          </h3>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                          {campanhasOrganizador
+                            .filter(c => c.status === 'publicada' || c.status === 'pausada')
+                            .map(c => {
+                              const isAtual = c.id === campanha.id;
+                              return (
+                                <a
+                                  key={c.id}
+                                  href={`/c/${c.slug || c.id}`}
+                                  className={`group bg-slate-900/90 border rounded-2xl overflow-hidden flex flex-col transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-emerald-950/30 ${
+                                    isAtual
+                                      ? 'border-emerald-500/80 ring-2 ring-emerald-500/20'
+                                      : 'border-slate-800 hover:border-slate-700'
+                                  }`}
+                                >
+                                  {/* Banner da Campanha */}
+                                  <div className="relative aspect-[16/9] w-full bg-slate-950 overflow-hidden">
+                                    {c.bannerUrl ? (
+                                      <img
+                                        src={c.bannerUrl}
+                                        alt={c.titulo}
+                                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                      />
                                     ) : (
-                                      <span className="text-[9px] font-mono font-bold text-emerald-400">
-                                        {c.valorCota === 0 ? 'Grátis' : `R$ ${(c.valorCota || 0).toFixed(2).replace('.', ',')}`}
+                                      <div className="w-full h-full flex items-center justify-center bg-slate-950 text-slate-600 font-black text-xl">
+                                        RIFA
+                                      </div>
+                                    )}
+
+                                    {/* Tag Preço / Grátis */}
+                                    <div className="absolute top-3 right-3 bg-slate-950/90 backdrop-blur-md px-3 py-1 rounded-xl border border-slate-700/80 shadow-lg">
+                                      <span className="font-mono font-black text-xs text-emerald-400">
+                                        {c.modalidade === 'gratis' || c.valorCota === 0
+                                          ? 'GRÁTIS'
+                                          : `R$ ${(c.valorCota || 0).toFixed(2).replace('.', ',')}`}
                                       </span>
+                                    </div>
+
+                                    {isAtual && (
+                                      <div className="absolute top-3 left-3 bg-emerald-500 text-slate-950 font-black text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-lg shadow">
+                                        Campanha Atual
+                                      </div>
                                     )}
                                   </div>
-                                  <p className="text-[10px] text-slate-400 line-clamp-1 mt-0.5">{c.subtitulo || c.descricao || 'Sorteio Oficial'}</p>
-                                  <div className="text-[10px] text-slate-500 mt-1 flex items-center gap-2">
-                                    <span>{c.totalCotas.toLocaleString()} cotas</span>
-                                    {c.id === campanha.id && <span className="text-emerald-400 font-bold">• Atual</span>}
-                                  </div>
-                                </div>
-                              </div>
-                            </a>
-                          ))}
-                      </div>
-                    </div>
-                  )}
 
-                  {/* Seção Campanhas Encerradas */}
-                  {campanhasOrganizador.filter(c => c.status === 'encerrada').length > 0 && (
-                    <div className="space-y-2 pt-2">
-                      <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-1 flex items-center gap-1.5">
-                        <Trophy className="w-3.5 h-3.5 text-amber-400" />
-                        Campanhas Encerradas
-                      </h4>
-                      <div className="space-y-2">
-                        {campanhasOrganizador
-                          .filter(c => c.status === 'encerrada')
-                          .map(c => {
-                            const dataEnc = c.encerradaEm || c.atualizadaEm || c.criadaEm;
-                            let dataFmt = '—';
-                            if (dataEnc) {
-                              try {
-                                const d = new Date(dataEnc);
-                                dataFmt = isNaN(d.getTime()) ? dataEnc : d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-                              } catch(e) {}
-                            }
-                            return (
-                              <button
-                                key={c.id}
-                                type="button"
-                                onClick={() => setCampanhaResultadoModal(c)}
-                                className="w-full text-left p-3 rounded-xl border bg-slate-950 border-slate-800 hover:border-amber-500/40 text-slate-200 transition group"
-                              >
-                                <div className="flex items-center gap-3">
-                                  {c.bannerUrl ? (
-                                    <img src={c.bannerUrl} alt={c.titulo} className="w-14 h-14 rounded-lg object-cover shrink-0" />
-                                  ) : (
-                                    <div className="w-14 h-14 rounded-lg bg-slate-800 flex items-center justify-center text-slate-500 text-xs shrink-0 font-bold">
-                                      Rifa
+                                  {/* Detalhes da Campanha */}
+                                  <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
+                                    <div className="space-y-1">
+                                      <h4 className="font-extrabold text-white text-sm line-clamp-2 group-hover:text-emerald-400 transition-colors">
+                                        {c.titulo}
+                                      </h4>
+                                      <p className="text-xs text-slate-400 line-clamp-2">
+                                        {c.subtitulo || c.descricao || 'Sorteio oficial com apuração transparente.'}
+                                      </p>
                                     </div>
-                                  )}
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center justify-between gap-1">
-                                      <span className="font-bold text-xs text-white truncate group-hover:text-amber-300 transition-colors">{c.titulo}</span>
-                                      <span className="text-[9px] font-bold uppercase bg-red-500/20 text-red-300 px-1.5 py-0.5 rounded border border-red-500/30 shrink-0">
-                                        Encerrada
+
+                                    <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs">
+                                      <span className="text-slate-500 font-medium">
+                                        {c.totalCotas.toLocaleString()} cotas
+                                      </span>
+                                      <span className="font-bold text-emerald-400 flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                                        Participar →
                                       </span>
                                     </div>
-                                    <p className="text-[10px] text-slate-400 line-clamp-1 mt-0.5">
-                                      Encerrada em: {dataFmt}
-                                    </p>
-                                    <div className="text-[10px] text-amber-400/90 font-medium mt-1 flex items-center gap-1">
-                                      <Eye className="w-3 h-3" />
-                                      <span>Ver resultado oficial</span>
+                                  </div>
+                                </a>
+                              );
+                            })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Campanhas Encerradas */}
+                    {campanhasOrganizador.filter(c => c.status === 'encerrada').length > 0 && (
+                      <div className="space-y-4 pt-4 border-t border-slate-800/80">
+                        <div className="flex items-center gap-2">
+                          <Trophy className="w-4 h-4 text-amber-400" />
+                          <h3 className="text-xs font-black text-slate-300 uppercase tracking-wider">
+                            Campanhas Encerradas ({campanhasOrganizador.filter(c => c.status === 'encerrada').length})
+                          </h3>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                          {campanhasOrganizador
+                            .filter(c => c.status === 'encerrada')
+                            .map(c => {
+                              const dataEnc = c.encerradaEm || c.atualizadaEm || c.criadaEm;
+                              let dataFmt = '—';
+                              if (dataEnc) {
+                                try {
+                                  const d = new Date(dataEnc);
+                                  dataFmt = isNaN(d.getTime()) ? dataEnc : d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                                } catch (e) {}
+                              }
+                              return (
+                                <button
+                                  key={c.id}
+                                  type="button"
+                                  onClick={() => setCampanhaResultadoModal(c)}
+                                  className="group text-left bg-slate-900/60 border border-slate-800 hover:border-amber-500/50 rounded-2xl overflow-hidden flex flex-col transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl cursor-pointer"
+                                >
+                                  <div className="relative aspect-[16/9] w-full bg-slate-950 overflow-hidden">
+                                    {c.bannerUrl ? (
+                                      <img
+                                        src={c.bannerUrl}
+                                        alt={c.titulo}
+                                        className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500"
+                                      />
+                                    ) : (
+                                      <div className="w-full h-full flex items-center justify-center bg-slate-950 text-slate-600 font-black text-xl">
+                                        RIFA
+                                      </div>
+                                    )}
+
+                                    <div className="absolute top-3 right-3 bg-red-950/90 text-red-300 border border-red-500/40 px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider">
+                                      Encerrada
                                     </div>
                                   </div>
-                                </div>
-                              </button>
-                            );
-                          })}
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
 
-            <div className="pt-2 border-t border-slate-800">
-              <button
-                type="button"
-                onClick={() => setOrganizadorModalAberto(false)}
-                className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition"
-              >
-                Fechar
-              </button>
+                                  <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
+                                    <div className="space-y-1">
+                                      <h4 className="font-extrabold text-white text-sm line-clamp-2 group-hover:text-amber-300 transition-colors">
+                                        {c.titulo}
+                                      </h4>
+                                      <p className="text-xs text-slate-400">
+                                        Encerrada em: {dataFmt}
+                                      </p>
+                                    </div>
+
+                                    <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs text-amber-400 font-bold">
+                                      <span className="flex items-center gap-1">
+                                        <Eye className="w-3.5 h-3.5" />
+                                        Ver resultado oficial
+                                      </span>
+                                      <span>→</span>
+                                    </div>
+                                  </div>
+                                </button>
+                              );
+                            })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          </main>
+
+          {/* Rodapé do Perfil do Organizador */}
+          <footer className="border-t border-slate-800/80 bg-slate-950 py-6 px-4 text-center text-xs text-slate-500">
+            <div className="max-w-5xl mx-auto space-y-1">
+              <p className="font-medium">
+                {campanha.organizadorNome || 'WS Premiações'} • Todos os direitos reservados.
+              </p>
+              <p className="text-[10px] text-slate-600">
+                Plataforma de Ações com Tecnologia RifaZone.
+              </p>
+            </div>
+          </footer>
         </div>
       )}
 

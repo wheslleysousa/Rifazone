@@ -3,43 +3,27 @@ import { toast } from '../../lib/toast';
 import React, { useState, useEffect, useRef } from 'react';
 import { CheckoutConfig, CheckoutSalvo, DEFAULT_CHECKOUT_CONFIG, ConfirmacaoCompraConfig, CupomDesconto } from '../../types';
 import { dispararExplosaoConfetes } from '../../utils/confettiUtils';
+import { VisualTab } from './checkout/VisualTab';
+import { PagamentoTab } from './checkout/PagamentoTab';
+import { GatilhosTab } from './checkout/GatilhosTab';
+import { CamposTab } from './checkout/CamposTab';
+import { PosVendaTab } from './checkout/PosVendaTab';
+import { OrdemElementosTab } from './checkout/OrdemElementosTab';
+import { CheckoutConfigExtended } from './checkout/types_private';
 import {
   CreditCard, QrCode, FileText, ShieldCheck, CheckCircle2,
   Trash2, Edit3, Plus, Save, RefreshCw, Smartphone,
   Monitor, AlertTriangle, Clock, Zap, MessageSquare,
   Palette, Type, X, PartyPopper, Users, Sparkles, Copy,
   Share2, Ticket, MessageCircle, ExternalLink, HelpCircle, Tag,
-  Upload, Image, Check, Flame, Sliders, ChevronDown, CheckCheck
+  Upload, Image, Check, Flame, Sliders, ChevronDown, CheckCheck, Layers
 } from 'lucide-react';
 
 interface Props {
   authFetch: (url: string, options?: RequestInit) => Promise<Response>;
 }
 
-interface CheckoutConfigExtended extends CheckoutConfig {
-  corPrimaria?: string;
-  corFundo?: string;
-  fonteFamilia?: string;
-  textoBotao?: string;
-  textoRodape?: string;
-  bannerUrl?: string;
-  temporizadorAtivo?: boolean;
-  temporizadorMinutos?: number;
-  temporizadorEstilo?: 'fogo' | 'alerta' | 'minimalista' | 'badge';
-  temporizadorTexto?: string;
-  mensagemEscassez?: string;
-  selosExtras?: string[];
-  posicaoSelos?: 'abaixo_botao' | 'abaixo_banner';
-  confirmacao?: ConfirmacaoCompraConfig;
-  exigirCpf?: boolean;
-  exigirEmail?: boolean;
-  cupomAtivo?: boolean;
-  exibirCupom?: boolean;
-  cupons?: CupomDesconto[];
-  notificacoesModoIntervalo?: 'fixo' | 'aleatorio';
-  notificacoesIntervaloMin?: number;
-  notificacoesIntervaloMax?: number;
-}
+
 
 const SELOS_DISPONIVEIS = [
   { id: 'ssl', icon: '🔒', label: 'SSL 256-bit' },
@@ -122,6 +106,13 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
   const [cartaoValidade, setCartaoValidade] = useState('11/29');
   const [cartaoCVV, setCartaoCVV] = useState('823');
   const [parcelaSelecionada, setParcelaSelecionada] = useState(1);
+  const [activeFormTab, setActiveFormTab] = useState<'visual' | 'pagamento' | 'gatilhos' | 'campos' | 'posvenda'>('visual');
+  const [selectedPaymentCard, setSelectedPaymentCard] = useState<'pix' | 'cartao' | 'boleto'>('pix');
+
+  const handleSelectPaymentCard = (method: 'pix' | 'cartao' | 'boleto') => {
+    setSelectedPaymentCard(method);
+    setPreviewTab(method);
+  };
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { carregarCheckouts(); }, []);
@@ -195,6 +186,19 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
   const updConfirmacao = (patch: Partial<ConfirmacaoCompraConfig>) =>
     setCheckoutConfig(prev => ({ ...prev, confirmacao: { ...prev.confirmacao, ...patch } }));
   
+  const updGateway = (gatewayId: string, patch: any) => {
+    setCheckoutConfig(prev => ({
+      ...prev,
+      gateways: {
+        ...(prev as any).gateways,
+        [gatewayId]: {
+          ...((prev as any).gateways?.[gatewayId] || {}),
+          ...patch
+        }
+      }
+    }));
+  };
+  
   const toggleSelo = (id: string) => {
     const atual = checkoutConfig.selosExtras || [];
     upd({ selosExtras: atual.includes(id) ? atual.filter(s => s !== id) : [...atual, id] });
@@ -214,6 +218,7 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
       }
     };
     reader.readAsDataURL(file);
+    e.target.value = '';
   };
 
   const copiarChavePix = () => {
@@ -273,41 +278,86 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {checkoutsSalvos.map(item => {
               const cfg = item.checkout as CheckoutConfigExtended;
               const cor = cfg.corPrimaria || '#10b981';
               const selosBadges = SELOS_DISPONIVEIS.filter(s => (cfg.selosExtras || []).includes(s.id));
               return (
-                <div key={item.id} className="group bg-slate-900 border border-slate-800 hover:border-indigo-500/40 rounded-2xl p-5 flex flex-col gap-4 transition-all">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: `${cor}20`, border: `1px solid ${cor}40` }}>
-                      <CreditCard className="w-5 h-5" style={{ color: cor }} />
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-black text-white leading-tight">{item.nome}</h3>
-                      <p className="text-[10px] text-slate-500 font-mono">{item.id.slice(0, 8)}...</p>
+                <div 
+                  key={item.id} 
+                  className="group bg-slate-900/90 border border-slate-800 hover:border-indigo-500/50 rounded-2xl p-6 flex flex-col gap-4 transition-all duration-300 hover:shadow-xl hover:shadow-indigo-950/10 hover:-translate-y-0.5"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 shadow-inner" style={{ backgroundColor: `${cor}15`, border: `1px solid ${cor}30` }}>
+                        <CreditCard className="w-5 h-5 transition-transform group-hover:scale-110" style={{ color: cor }} />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-bold text-white leading-tight group-hover:text-indigo-400 transition-colors">{item.nome}</h3>
+                        <p className="text-[10px] text-slate-500 font-mono mt-0.5">ID: {item.id.slice(0, 8)}</p>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    {cfg.metodos?.pix !== false && <span className="px-2 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-bold rounded-lg flex items-center gap-1"><QrCode className="w-3 h-3" /> Pix</span>}
-                    {cfg.metodos?.cartao && <span className="px-2 py-1 bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] font-bold rounded-lg flex items-center gap-1"><CreditCard className="w-3 h-3" /> Cartão {cfg.parcelasMax}x</span>}
-                    {cfg.metodos?.boleto && <span className="px-2 py-1 bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] font-bold rounded-lg flex items-center gap-1"><FileText className="w-3 h-3" /> Boleto</span>}
-                    {cfg.cupomAtivo && <span className="px-2 py-1 bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[10px] font-bold rounded-lg flex items-center gap-1"><Tag className="w-3 h-3" /> Cupons {(cfg.cupons || []).length > 0 ? `(${(cfg.cupons || []).length})` : ''}</span>}
-                    {cfg.confirmacao?.botaoGrupoVipAtivo && <span className="px-2 py-1 bg-teal-500/10 border border-teal-500/20 text-teal-400 text-[10px] font-bold rounded-lg flex items-center gap-1"><Users className="w-3 h-3" /> Grupo VIP</span>}
+
+                  {/* Badges de Ativos */}
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {cfg.metodos?.pix !== false && (
+                      <span className="px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-bold rounded-md flex items-center gap-1">
+                        <QrCode className="w-3 h-3" /> Pix
+                      </span>
+                    )}
+                    {cfg.metodos?.cartao && (
+                      <span className="px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] font-bold rounded-md flex items-center gap-1">
+                        <CreditCard className="w-3 h-3" /> Cartão {cfg.parcelasMax}x
+                      </span>
+                    )}
+                    {cfg.metodos?.boleto && (
+                      <span className="px-2 py-0.5 bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] font-bold rounded-md flex items-center gap-1">
+                        <FileText className="w-3 h-3" /> Boleto
+                      </span>
+                    )}
+                    {cfg.cupomAtivo && (
+                      <span className="px-2 py-0.5 bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[10px] font-bold rounded-md flex items-center gap-1">
+                        <Tag className="w-3 h-3" /> Cupom
+                      </span>
+                    )}
+                    {cfg.confirmacao?.botaoGrupoVipAtivo && (
+                      <span className="px-2 py-0.5 bg-teal-500/10 border border-teal-500/20 text-teal-400 text-[10px] font-bold rounded-md flex items-center gap-1">
+                        <Users className="w-3 h-3" /> VIP
+                      </span>
+                    )}
                   </div>
+
+                  {/* Selos de segurança */}
                   {selosBadges.length > 0 && (
-                    <div className="flex flex-wrap gap-1">
-                      {selosBadges.slice(0, 3).map(s => <span key={s.id} className="text-[10px] text-slate-400 bg-slate-800 px-2 py-0.5 rounded-md">{s.icon} {s.label}</span>)}
-                      {selosBadges.length > 3 && <span className="text-[10px] text-slate-500 bg-slate-800 px-2 py-0.5 rounded-md">+{selosBadges.length - 3}</span>}
+                    <div className="flex flex-wrap gap-1 border-t border-slate-800/80 pt-3">
+                      {selosBadges.slice(0, 3).map(s => (
+                        <span key={s.id} className="text-[9px] text-slate-400 bg-slate-950 border border-slate-800/60 px-1.5 py-0.5 rounded-md flex items-center gap-1">
+                          {s.icon} {s.label}
+                        </span>
+                      ))}
+                      {selosBadges.length > 3 && (
+                        <span className="text-[9px] text-slate-500 bg-slate-950 border border-slate-850 px-1.5 py-0.5 rounded-md">
+                          +{selosBadges.length - 3}
+                        </span>
+                      )}
                     </div>
                   )}
-                  <div className="flex gap-2 mt-auto">
-                    <button onClick={() => handleEditar(item)} className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-white text-[11px] font-black rounded-xl flex items-center justify-center gap-1.5 transition border border-slate-700 cursor-pointer">
-                      <Edit3 className="w-3.5 h-3.5 text-indigo-400" /> Editar
+
+                  {/* Ações */}
+                  <div className="flex gap-2 mt-auto pt-2 border-t border-slate-800/60">
+                    <button 
+                      onClick={() => handleEditar(item)} 
+                      className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition border border-slate-700 hover:border-slate-600 cursor-pointer"
+                    >
+                      <Edit3 className="w-3.5 h-3.5 text-indigo-400" /> Editar Ajustes
                     </button>
-                    <button onClick={() => handleExcluir(item.id)} className="py-2.5 px-3 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl flex items-center justify-center transition border border-red-500/20 cursor-pointer">
-                      <Trash2 className="w-3.5 h-3.5" />
+                    <button 
+                      onClick={() => handleExcluir(item.id)} 
+                      className="py-2.5 px-3.5 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 hover:border-rose-500/40 text-rose-400 rounded-xl flex items-center justify-center transition cursor-pointer"
+                    >
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
@@ -338,865 +388,89 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
               </div>
             </div>
 
-            {/* 1. Visual & Tipografia */}
-            <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4">
-              <h2 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
-                <Palette className="w-4 h-4 text-pink-400" /> 1. Identidade Visual & Tipografia
-              </h2>
-              <div className="grid grid-cols-2 gap-4">
-                {[
-                  { label: 'Cor Primária (Botões & Destaques)', key: 'corPrimaria', def: '#10b981' },
-                  { label: 'Cor de Fundo do Checkout', key: 'corFundo', def: '#020617' },
-                ].map(c => (
-                  <div key={c.key}>
-                    <label className="text-xs font-bold text-slate-300 block mb-1.5">{c.label}</label>
-                    <div className="flex items-center gap-2">
-                      <input type="color" value={(checkoutConfig as any)[c.key] || c.def} onChange={e => upd({ [c.key]: e.target.value })} className="w-10 h-10 rounded-lg border-0 cursor-pointer bg-transparent" />
-                      <input type="text" value={(checkoutConfig as any)[c.key] || c.def} onChange={e => upd({ [c.key]: e.target.value })} className="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-white focus:border-indigo-500 focus:outline-none" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Seletor Visual de Tipografia com Prévias */}
-              <div className="space-y-2 pt-2 border-t border-slate-800">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                    <Type className="w-3.5 h-3.5 text-indigo-400" /> Fonte Tipográfica do Checkout
-                  </label>
-                  <span className="text-[10px] text-indigo-400 font-mono font-bold bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">
-                    {checkoutConfig.fonteFamilia || 'Inter'}
-                  </span>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-56 overflow-y-auto pr-1">
-                  {FONTES.map(f => {
-                    const isSelected = (checkoutConfig.fonteFamilia || 'Inter') === f.value;
-                    return (
-                      <button
-                        key={f.value}
-                        type="button"
-                        onClick={() => upd({ fonteFamilia: f.value })}
-                        className={`p-3 rounded-xl border text-left transition flex items-center justify-between gap-3 cursor-pointer ${
-                          isSelected
-                            ? 'bg-indigo-500/15 border-indigo-500 ring-1 ring-indigo-500/40 text-white'
-                            : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700 hover:bg-slate-900'
-                        }`}
-                        style={{ fontFamily: f.value }}
-                      >
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-black">{f.label}</span>
-                            <span className="text-[9px] text-slate-500 font-sans">{f.categoria}</span>
-                          </div>
-                          <span className="text-sm font-semibold opacity-90 block mt-0.5 truncate" style={{ color: isSelected ? '#a5b4fc' : undefined }}>
-                            {f.amostra}
-                          </span>
-                        </div>
-                        {isSelected && <Check className="w-4 h-4 text-indigo-400 shrink-0" />}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Banner de Topo com Upload Direto ou URL */}
-              <div className="space-y-2 pt-2 border-t border-slate-800">
-                <label className="text-xs font-bold text-slate-300 block">
-                  Banner do Topo no Checkout (Upload ou URL)
-                </label>
-                
-                <div className="flex flex-col sm:flex-row items-center gap-3">
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleUploadBanner}
-                    accept="image/*"
-                    className="hidden"
-                  />
+            {/* Navegação por Abas do Checkout Form */}
+            <div className="flex items-center gap-1.5 p-1.5 bg-slate-900 border border-slate-800 rounded-2xl overflow-x-auto no-scrollbar">
+              {[
+                { id: 'visual', label: '1. Visual', icon: Palette },
+                { id: 'pagamento', label: '2. Pagamento', icon: CreditCard },
+                { id: 'gatilhos', label: '3. Gatilhos & Urgência', icon: Clock },
+                { id: 'campos', label: '4. Campos & Cupons', icon: Tag },
+                { id: 'posvenda', label: '5. Pós-Venda', icon: PartyPopper },
+                { id: 'ordem', label: '6. Ordem', icon: Layers },
+              ].map(tab => {
+                const Icon = tab.icon;
+                const isSel = activeFormTab === tab.id;
+                return (
                   <button
+                    key={tab.id}
                     type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full sm:w-auto px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-black rounded-xl border border-slate-700 flex items-center justify-center gap-2 transition cursor-pointer shrink-0"
+                    onClick={() => setActiveFormTab(tab.id as any)}
+                    className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition cursor-pointer ${
+                      isSel
+                        ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md'
+                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                    }`}
                   >
-                    <Upload className="w-4 h-4 text-emerald-400" /> Escolher do Computador
+                    <Icon className="w-3.5 h-3.5" />
+                    {tab.label}
                   </button>
-                  <input
-                    type="url"
-                    value={checkoutConfig.bannerUrl || ''}
-                    onChange={e => upd({ bannerUrl: e.target.value })}
-                    placeholder="Ou cole a URL direta da imagem (https://...)"
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-indigo-500 focus:outline-none"
-                  />
-                </div>
-
-                {checkoutConfig.bannerUrl && (
-                  <div className="relative mt-2 rounded-xl overflow-hidden border border-slate-700 max-h-28 group">
-                    <img
-                      src={checkoutConfig.bannerUrl}
-                      alt="Banner Preview"
-                      className="w-full h-24 object-cover"
-                      onError={e => (e.currentTarget.style.display = 'none')}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => upd({ bannerUrl: '' })}
-                      className="absolute top-2 right-2 bg-red-600/90 hover:bg-red-500 text-white p-1.5 rounded-lg text-xs font-bold transition shadow"
-                      title="Remover banner"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                )}
-              </div>
+                );
+              })}
             </div>
 
-            {/* 2. Métodos */}
-            <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4">
-              <h2 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
-                <CreditCard className="w-4 h-4 text-blue-400" /> 2. Métodos de Pagamento
-              </h2>
-              <div className="grid grid-cols-3 gap-3">
-                <div onClick={() => updMetodos({ pix: !checkoutConfig.metodos.pix })} className={`p-4 rounded-xl border cursor-pointer transition flex flex-col gap-2 ${checkoutConfig.metodos.pix !== false ? 'bg-emerald-500/10 border-emerald-500' : 'bg-slate-950 border-slate-800 hover:border-slate-700'}`}>
-                  <div className="flex items-center justify-between"><QrCode className="w-5 h-5 text-emerald-400" /><div className={`w-5 h-5 rounded-full border-2 ${checkoutConfig.metodos.pix !== false ? 'bg-emerald-500 border-emerald-500' : 'border-slate-600'} flex items-center justify-center`}>{checkoutConfig.metodos.pix !== false && <CheckCircle2 className="w-3 h-3 text-slate-950" />}</div></div>
-                  <div><p className="text-xs font-black text-white">Pix</p><p className="text-[10px] text-slate-400">Imediato</p></div>
-                </div>
-                <div onClick={() => updMetodos({ cartao: !checkoutConfig.metodos.cartao })} className={`p-4 rounded-xl border cursor-pointer transition flex flex-col gap-2 ${checkoutConfig.metodos.cartao ? 'bg-blue-500/10 border-blue-500' : 'bg-slate-950 border-slate-800 hover:border-slate-700'}`}>
-                  <div className="flex items-center justify-between"><CreditCard className="w-5 h-5 text-blue-400" /><div className={`w-5 h-5 rounded-full border-2 ${checkoutConfig.metodos.cartao ? 'bg-blue-500 border-blue-500' : 'border-slate-600'} flex items-center justify-center`}>{checkoutConfig.metodos.cartao && <CheckCircle2 className="w-3 h-3 text-slate-950" />}</div></div>
-                  <div><p className="text-xs font-black text-white">Cartão</p><p className="text-[10px] text-slate-400">Parcelado</p></div>
-                </div>
-                <div onClick={() => updMetodos({ boleto: !checkoutConfig.metodos.boleto })} className={`p-4 rounded-xl border cursor-pointer transition flex flex-col gap-2 ${checkoutConfig.metodos.boleto ? 'bg-amber-500/10 border-amber-500' : 'bg-slate-950 border-slate-800 hover:border-slate-700'}`}>
-                  <div className="flex items-center justify-between"><FileText className="w-5 h-5 text-amber-400" /><div className={`w-5 h-5 rounded-full border-2 ${checkoutConfig.metodos.boleto ? 'bg-amber-500 border-amber-500' : 'border-slate-600'} flex items-center justify-center`}>{checkoutConfig.metodos.boleto && <CheckCircle2 className="w-3 h-3 text-slate-950" />}</div></div>
-                  <div><p className="text-xs font-black text-white">Boleto</p><p className="text-[10px] text-slate-400">3 dias</p></div>
-                </div>
-              </div>
-              {checkoutConfig.metodos.cartao && (
-                <div className="p-4 bg-slate-950/80 border border-blue-900/40 rounded-xl grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[11px] text-slate-400 block mb-1">Máx. Parcelas</label>
-                    <select value={checkoutConfig.parcelasMax} onChange={e => upd({ parcelasMax: Number(e.target.value) })} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none">
-                      {[1,2,3,4,5,6,7,8,9,10,11,12].map(n => <option key={n} value={n}>{n === 1 ? '1x à vista' : `Até ${n}x`}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-[11px] text-slate-400 block mb-1">Juros por</label>
-                    <select value={checkoutConfig.taxaParcelamento} onChange={e => upd({ taxaParcelamento: e.target.value as any })} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none">
-                      <option value="comprador">Comprador</option>
-                      <option value="organizador">Organizador (Sem juros)</option>
-                    </select>
-                  </div>
-                </div>
-              )}
-            </div>
+            {/* Conteúdo da Aba Selecionada */}
+            {activeFormTab === 'visual' && (
+              <VisualTab
+                checkoutConfig={checkoutConfig as CheckoutConfigExtended}
+                upd={upd}
+                fileInputRef={fileInputRef}
+                handleUploadBanner={handleUploadBanner}
+              />
+            )}
 
-            {/* 3. Textos */}
-            <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4">
-              <h2 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
-                <MessageSquare className="w-4 h-4 text-purple-400" /> 3. Textos & Gatilhos Mentais
-              </h2>
-              <div>
-                <label className="text-[11px] font-bold text-slate-400 block mb-1">Texto do Botão Principal</label>
-                <input type="text" value={checkoutConfig.textoBotao || ''} onChange={e => upd({ textoBotao: e.target.value })} placeholder="Garantir Minha Cota Agora" className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none" />
-              </div>
-              <div>
-                <label className="text-[11px] font-bold text-slate-400 block mb-1">Mensagem de Urgência (topo)</label>
-                <input type="text" value={checkoutConfig.mensagens?.urgencia || ''} onChange={e => updMsgs({ urgencia: e.target.value })} placeholder="⚡ Seus números estão reservados!" className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none" />
-              </div>
-              <div>
-                <label className="text-[11px] font-bold text-slate-400 block mb-1">Mensagem de Escassez</label>
-                <input type="text" value={checkoutConfig.mensagemEscassez || ''} onChange={e => upd({ mensagemEscassez: e.target.value })} placeholder="🔥 Apenas 47 cotas restantes!" className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none" />
-              </div>
-              <div>
-                <label className="text-[11px] font-bold text-slate-400 block mb-1">Instrução do Pix</label>
-                <input type="text" value={checkoutConfig.mensagens?.pix || ''} onChange={e => updMsgs({ pix: e.target.value })} placeholder="Escaneie o QR Code ou copie o código." className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none" />
-              </div>
-              <div>
-                <label className="text-[11px] font-bold text-slate-400 block mb-1">Texto de Rodapé do Checkout</label>
-                <textarea value={checkoutConfig.textoRodape || ''} onChange={e => upd({ textoRodape: e.target.value })} rows={2} placeholder="Pagamento seguro com criptografia..." className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white focus:border-indigo-500 focus:outline-none resize-none" />
-              </div>
-            </div>
+            {activeFormTab === 'pagamento' && (
+              <PagamentoTab
+                checkoutConfig={checkoutConfig as CheckoutConfigExtended}
+                upd={upd}
+                updGateway={updGateway}
+                selectedPaymentCard={selectedPaymentCard}
+                handleSelectPaymentCard={handleSelectPaymentCard}
+              />
+            )}
 
-            {/* 4. Campos Obrigatórios */}
-            <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4">
-              <h2 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-emerald-400" /> 4. Campos Obrigatórios no Checkout
-              </h2>
-              <div className="space-y-3">
-                <label className="flex items-center gap-3 p-3 bg-slate-950/60 border border-slate-800 rounded-xl cursor-pointer hover:bg-slate-950 transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={checkoutConfig.exigirCpf || false}
-                    onChange={e => upd({ exigirCpf: e.target.checked })}
-                    className="w-4 h-4 rounded text-emerald-500 bg-slate-900 border-slate-700 cursor-pointer"
-                  />
-                  <span className="text-xs text-slate-200 font-medium">Exigir CPF do comprador para participar</span>
-                </label>
-                <label className="flex items-center gap-3 p-3 bg-slate-950/60 border border-slate-800 rounded-xl cursor-pointer hover:bg-slate-950 transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={checkoutConfig.exigirEmail || false}
-                    onChange={e => upd({ exigirEmail: e.target.checked })}
-                    className="w-4 h-4 rounded text-emerald-500 bg-slate-900 border-slate-700 cursor-pointer"
-                  />
-                  <span className="text-xs text-slate-200 font-medium">Exigir E-mail do comprador para confirmação</span>
-                </label>
+            {activeFormTab === 'gatilhos' && (
+              <GatilhosTab
+                checkoutConfig={checkoutConfig as CheckoutConfigExtended}
+                upd={upd}
+                updMsgs={updMsgs}
+                toggleSelo={toggleSelo}
+              />
+            )}
 
-                <div className="p-3 bg-slate-950/60 border border-slate-800 rounded-xl space-y-2">
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={checkoutConfig.coletaDados?.coletarEndereco?.ativo || false}
-                      onChange={e => upd({
-                        coletaDados: {
-                          ...(checkoutConfig.coletaDados || {}),
-                          coletarEndereco: {
-                            ...(checkoutConfig.coletaDados?.coletarEndereco || {}),
-                            ativo: e.target.checked
-                          }
-                        }
-                      })}
-                      className="w-4 h-4 rounded text-emerald-500 bg-slate-900 border-slate-700 cursor-pointer"
-                    />
-                    <div>
-                      <span className="text-xs text-slate-200 font-medium block">Coletar Endereço Completo do Comprador</span>
-                      <span className="text-[11px] text-slate-400 block">Exibe campos de CEP, Logradouro, Número, Bairro, Cidade e UF no checkout</span>
-                    </div>
-                  </label>
-                  {checkoutConfig.coletaDados?.coletarEndereco?.ativo && (
-                    <label className="flex items-center gap-3 pl-7 pt-1.5 cursor-pointer border-t border-slate-800/60 mt-2">
-                      <input
-                        type="checkbox"
-                        checked={checkoutConfig.coletaDados?.coletarEndereco?.obrigatorio || false}
-                        onChange={e => upd({
-                          coletaDados: {
-                            ...(checkoutConfig.coletaDados || {}),
-                            coletarEndereco: {
-                              ...(checkoutConfig.coletaDados?.coletarEndereco || {}),
-                              obrigatorio: e.target.checked
-                            }
-                          }
-                        })}
-                        className="w-4 h-4 rounded text-amber-500 bg-slate-900 border-slate-700 cursor-pointer"
-                      />
-                      <span className="text-xs text-amber-400 font-medium">Tornar preenchimento do endereço OBRIGATÓRIO</span>
-                    </label>
-                  )}
-                </div>
-              </div>
-            </div>
+            {activeFormTab === 'campos' && (
+              <CamposTab
+                checkoutConfig={checkoutConfig as CheckoutConfigExtended}
+                upd={upd}
+              />
+            )}
 
-            {/* 5. Temporizador de Urgência & Estilos */}
-            <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4">
-              <h2 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
-                <Clock className="w-4 h-4 text-amber-400" /> 5. Temporizador de Urgência & Estilos
-              </h2>
-              <label className="flex items-center justify-between p-3 bg-slate-950/60 border border-slate-800 rounded-xl cursor-pointer">
-                <div>
-                  <p className="text-xs font-bold text-white">Ativar Contador Regressivo</p>
-                  <p className="text-[11px] text-slate-400">Exibe tempo limite para efetuar o pagamento da reserva</p>
-                </div>
-                <div onClick={() => upd({ temporizadorAtivo: !checkoutConfig.temporizadorAtivo })} className={`relative w-11 h-6 rounded-full cursor-pointer transition-colors ${checkoutConfig.temporizadorAtivo ? 'bg-amber-500' : 'bg-slate-700'}`}>
-                  <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${checkoutConfig.temporizadorAtivo ? 'translate-x-6' : 'translate-x-1'}`} />
-                </div>
-              </label>
+            {activeFormTab === 'posvenda' && (
+              <PosVendaTab
+                checkoutConfig={checkoutConfig as CheckoutConfigExtended}
+                updConfirmacao={updConfirmacao}
+                setPreviewScreen={setPreviewScreen}
+                setModalAnimacaoAberto={setModalAnimacaoAberto}
+              />
+            )}
 
-              {checkoutConfig.temporizadorAtivo && (
-                <div className="space-y-3 pt-1 animate-in fade-in">
-                  {/* Seletor de Estilo do Temporizador */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-300 block">Estilo Visual do Temporizador:</label>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      {[
-                        { id: 'fogo', label: 'Destaque Fogo', icon: '🔥', desc: 'Gradiente quente' },
-                        { id: 'alerta', label: 'Alerta Vermelho', icon: '⚡', desc: 'Alta urgência' },
-                        { id: 'minimalista', label: 'Minimalista', icon: '⏱️', desc: 'Clean moderno' },
-                        { id: 'badge', label: 'Badge Escuro', icon: '⏳', desc: 'Mono digital' },
-                      ].map(st => {
-                        const isSel = (checkoutConfig.temporizadorEstilo || 'fogo') === st.id;
-                        return (
-                          <button
-                            key={st.id}
-                            type="button"
-                            onClick={() => upd({ temporizadorEstilo: st.id as any })}
-                            className={`p-2.5 rounded-xl border text-left transition cursor-pointer flex flex-col justify-between gap-1.5 ${
-                              isSel ? 'bg-amber-500/15 border-amber-500 ring-1 ring-amber-500/50 text-white' : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm">{st.icon}</span>
-                              {isSel && <Check className="w-3.5 h-3.5 text-amber-400" />}
-                            </div>
-                            <span className="text-xs font-black block leading-tight">{st.label}</span>
-                            <span className="text-[9px] text-slate-500">{st.desc}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
+            {activeFormTab === 'ordem' && (
+              <OrdemElementosTab
+                checkoutConfig={checkoutConfig as CheckoutConfigExtended}
+                upd={upd}
+              />
+            )}
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[11px] text-slate-400 block mb-1">Duração (minutos)</label>
-                      <input
-                        type="number"
-                        min={1}
-                        max={60}
-                        value={checkoutConfig.temporizadorMinutos || 10}
-                        onChange={e => upd({ temporizadorMinutos: Number(e.target.value) })}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] text-slate-400 block mb-1">Texto do Rótulo</label>
-                      <input
-                        type="text"
-                        value={checkoutConfig.temporizadorTexto || '⏱️ Sua reserva expira em'}
-                        onChange={e => upd({ temporizadorTexto: e.target.value })}
-                        placeholder="⏱️ Sua reserva expira em"
-                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
 
-            {/* 6. Selos & Posição */}
-            <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4">
-              <h2 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-emerald-400" /> 6. Selos de Segurança & Posicionamento
-              </h2>
-              <label className="flex items-center justify-between p-3 bg-slate-950/60 border border-slate-800 rounded-xl cursor-pointer">
-                <div>
-                  <p className="text-xs font-bold text-white">Exibir Selos de Confiança</p>
-                  <p className="text-[11px] text-slate-400">Badges e garantias que aumentam a conversão</p>
-                </div>
-                <div onClick={() => upd({ selosSeguranca: !checkoutConfig.selosSeguranca })} className={`relative w-11 h-6 rounded-full cursor-pointer transition-colors ${checkoutConfig.selosSeguranca ? 'bg-emerald-500' : 'bg-slate-700'}`}>
-                  <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${checkoutConfig.selosSeguranca ? 'translate-x-6' : 'translate-x-1'}`} />
-                </div>
-              </label>
-
-              {checkoutConfig.selosSeguranca && (
-                <div className="space-y-3 pt-1 animate-in fade-in">
-                  <div className="p-3 bg-slate-950/80 border border-slate-800 rounded-xl">
-                    <label className="text-xs font-bold text-slate-300 block mb-1.5">Posicionamento dos Selos:</label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => upd({ posicaoSelos: 'abaixo_botao' })}
-                        className={`p-2.5 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
-                          (checkoutConfig.posicaoSelos || 'abaixo_botao') === 'abaixo_botao'
-                            ? 'bg-emerald-500/15 border-emerald-500 text-emerald-400'
-                            : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
-                        }`}
-                      >
-                        <Check className={`w-3.5 h-3.5 ${(checkoutConfig.posicaoSelos || 'abaixo_botao') === 'abaixo_botao' ? 'opacity-100' : 'opacity-0'}`} />
-                        Abaixo do Botão de Pagamento
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => upd({ posicaoSelos: 'abaixo_banner' })}
-                        className={`p-2.5 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
-                          checkoutConfig.posicaoSelos === 'abaixo_banner'
-                            ? 'bg-emerald-500/15 border-emerald-500 text-emerald-400'
-                            : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
-                        }`}
-                      >
-                        <Check className={`w-3.5 h-3.5 ${checkoutConfig.posicaoSelos === 'abaixo_banner' ? 'opacity-100' : 'opacity-0'}`} />
-                        Abaixo do Banner no Topo
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    {SELOS_DISPONIVEIS.map(selo => {
-                      const ativo = (checkoutConfig.selosExtras || []).includes(selo.id);
-                      return (
-                        <div key={selo.id} onClick={() => toggleSelo(selo.id)} className={`p-2.5 rounded-xl border cursor-pointer transition flex items-center gap-2 ${ativo ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-300' : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'}`}>
-                          <span className="text-base">{selo.icon}</span>
-                          <span className="text-[10px] font-bold flex-1">{selo.label}</span>
-                          {ativo && <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* 7. Cupom de Desconto */}
-            <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4">
-              <h2 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
-                <Tag className="w-4 h-4 text-emerald-400" /> 7. Cupom de Desconto
-              </h2>
-              <label className="flex items-center justify-between p-3 bg-slate-950/60 border border-slate-800 rounded-xl cursor-pointer hover:bg-slate-950 transition-colors">
-                <div>
-                  <p className="text-xs font-bold text-white">Ativar Campo de Cupom no Checkout</p>
-                  <p className="text-[11px] text-slate-400">Permite que o comprador insira códigos promocionais</p>
-                </div>
-                <div
-                  onClick={() => upd({ cupomAtivo: !checkoutConfig.cupomAtivo, exibirCupom: !checkoutConfig.cupomAtivo })}
-                  className={`relative w-11 h-6 rounded-full cursor-pointer transition-colors ${checkoutConfig.cupomAtivo ? 'bg-emerald-500' : 'bg-slate-700'}`}
-                >
-                  <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${checkoutConfig.cupomAtivo ? 'translate-x-6' : 'translate-x-1'}`} />
-                </div>
-              </label>
-
-              {checkoutConfig.cupomAtivo && (
-                <div className="space-y-3 pt-1">
-                  {(!checkoutConfig.cupons || checkoutConfig.cupons.length === 0) && (
-                    <p className="text-[11px] text-amber-400/90 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
-                      ⚠️ Adicione pelo menos um cupom abaixo para que os compradores possam utilizá-lo.
-                    </p>
-                  )}
-
-                  {(checkoutConfig.cupons || []).map((cup, i) => (
-                    <div key={cup.id || i} className="p-3 bg-slate-950/80 border border-slate-800 rounded-xl space-y-2.5">
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          value={cup.codigo}
-                          onChange={e => {
-                            const arr = [...(checkoutConfig.cupons || [])];
-                            arr[i] = { ...arr[i], codigo: e.target.value.toUpperCase().replace(/\s/g, '') };
-                            upd({ cupons: arr });
-                          }}
-                          placeholder="CÓDIGO (ex: VOLTA10)"
-                          className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white uppercase font-mono font-bold focus:border-emerald-500 focus:outline-none"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const arr = (checkoutConfig.cupons || []).filter((_, idx) => idx !== i);
-                            upd({ cupons: arr });
-                          }}
-                          className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition cursor-pointer"
-                          title="Remover cupom"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2">
-                        <select
-                          value={cup.tipo || 'percentual'}
-                          onChange={e => {
-                            const arr = [...(checkoutConfig.cupons || [])];
-                            arr[i] = { ...arr[i], tipo: e.target.value as 'percentual' | 'fixo' };
-                            upd({ cupons: arr });
-                          }}
-                          className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
-                        >
-                          <option value="percentual">Desconto em %</option>
-                          <option value="fixo">Valor fixo (R$)</option>
-                        </select>
-                        {(cup.tipo || 'percentual') === 'fixo' ? (
-                          <div className="flex items-center bg-slate-900 border border-slate-700 rounded-lg px-3 focus-within:border-emerald-500">
-                            <span className="text-slate-500 text-xs mr-1">R$</span>
-                            <input
-                              type="number"
-                              min={0}
-                              step="0.01"
-                              value={cup.valorFixo ?? ''}
-                              onChange={e => {
-                                const arr = [...(checkoutConfig.cupons || [])];
-                                arr[i] = { ...arr[i], valorFixo: Number(e.target.value) };
-                                upd({ cupons: arr });
-                              }}
-                              placeholder="5,00"
-                              className="w-full bg-transparent py-2 text-xs text-white focus:outline-none"
-                            />
-                          </div>
-                        ) : (
-                          <div className="flex items-center bg-slate-900 border border-slate-700 rounded-lg px-3 focus-within:border-emerald-500">
-                            <input
-                              type="number"
-                              min={0}
-                              max={100}
-                              value={cup.descontoPct ?? ''}
-                              onChange={e => {
-                                const arr = [...(checkoutConfig.cupons || [])];
-                                arr[i] = { ...arr[i], descontoPct: Number(e.target.value) };
-                                upd({ cupons: arr });
-                              }}
-                              placeholder="10"
-                              className="w-full bg-transparent py-2 text-xs text-white focus:outline-none"
-                            />
-                            <span className="text-slate-500 text-xs ml-1">%</span>
-                          </div>
-                        )}
-                      </div>
-
-                      <label className="flex items-center gap-2 text-[11px] text-slate-400 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={cup.ativo !== false}
-                          onChange={e => {
-                            const arr = [...(checkoutConfig.cupons || [])];
-                            arr[i] = { ...arr[i], ativo: e.target.checked };
-                            upd({ cupons: arr });
-                          }}
-                          className="w-3.5 h-3.5 rounded text-emerald-500 bg-slate-900 border-slate-700/50 cursor-pointer"
-                        />
-                        Cupom ativo para uso
-                      </label>
-                    </div>
-                  ))}
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const novo: CupomDesconto = {
-                        id: `cup-${Date.now()}`,
-                        codigo: '',
-                        tipo: 'percentual',
-                        descontoPct: 10,
-                        valorFixo: 0,
-                        ativo: true,
-                        criadoEm: new Date().toISOString()
-                      };
-                      upd({ cupons: [...(checkoutConfig.cupons || []), novo] });
-                    }}
-                    className="w-full flex items-center justify-center gap-2 p-2.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-bold rounded-xl border border-emerald-500/30 transition cursor-pointer"
-                  >
-                    <Plus className="w-4 h-4" /> Adicionar cupom
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* 8. Tela de Compra Concluída (Sucesso & Pós-Venda) */}
-            <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
-                  <PartyPopper className="w-4 h-4 text-emerald-400" /> 8. Tela de Compra Concluída (Pós-Pagamento)
-                </h2>
-                <button
-                  type="button"
-                  onClick={() => setPreviewScreen('sucesso')}
-                  className="text-[11px] font-bold text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-1 rounded-lg transition cursor-pointer"
-                >
-                  Visualizar no Preview →
-                </button>
-              </div>
-              <p className="text-xs text-slate-400">
-                Personalize os textos, botões e ações exibidos imediatamente após o pagamento ser confirmado pelo comprador.
-              </p>
-
-              <div>
-                <label className="text-[11px] font-bold text-slate-400 block mb-1">Título da Tela de Sucesso</label>
-                <input
-                  type="text"
-                  value={conf.titulo || ''}
-                  onChange={e => updConfirmacao({ titulo: e.target.value })}
-                  placeholder="Pagamento Confirmado! 🎉"
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-emerald-500 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-slate-400 block mb-1">Subtítulo / Mensagem Explicativa</label>
-                <input
-                  type="text"
-                  value={conf.subtitulo || ''}
-                  onChange={e => updConfirmacao({ subtitulo: e.target.value })}
-                  placeholder="Seus números da sorte já foram vinculados ao seu WhatsApp!"
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-emerald-500 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-slate-400 block mb-1">Mensagem de Agradecimento (Destaque)</label>
-                <input
-                  type="text"
-                  value={conf.mensagemAgradecimento || ''}
-                  onChange={e => updConfirmacao({ mensagemAgradecimento: e.target.value })}
-                  placeholder="Obrigado por apoiar nosso projeto! Boa sorte!"
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-emerald-500 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-slate-400 block mb-1">Banner Comemorativo da Confirmação (URL opcional)</label>
-                <input
-                  type="url"
-                  value={conf.bannerSucessoUrl || ''}
-                  onChange={e => updConfirmacao({ bannerSucessoUrl: e.target.value })}
-                  placeholder="https://..."
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-emerald-500 focus:outline-none"
-                />
-              </div>
-
-              {/* Opção Escolher Animação da Tela de Sucesso */}
-              <div className="p-3 bg-slate-950/80 border border-slate-800 rounded-xl space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-white flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-yellow-400" /> Animação da Tela de Sucesso
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => dispararExplosaoConfetes()}
-                    className="text-[10px] bg-purple-500/20 hover:bg-purple-500/40 text-purple-300 font-black border border-purple-500/40 px-2.5 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
-                  >
-                    <Zap className="w-3 h-3 text-purple-400" /> ⚡ Testar Efeito
-                  </button>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 p-2 bg-slate-900 border border-slate-700/80 rounded-xl flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <PartyPopper className="w-4 h-4 text-purple-400" />
-                      <div>
-                        <span className="text-xs font-bold text-white block">
-                          {conf.animacaoSucesso === 'nenhuma' || conf.exibirConfetes === false
-                            ? 'Nenhuma Animação'
-                            : '🎉 Explosão de Confetes'}
-                        </span>
-                        <span className="text-[10px] text-slate-400 block">
-                          {conf.animacaoSucesso === 'nenhuma' || conf.exibirConfetes === false
-                            ? 'Sem efeito visual ao concluir'
-                            : 'Explosão lateral com 2 canhões'}
-                        </span>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setModalAnimacaoAberto(true)}
-                      className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg text-xs transition shadow-sm cursor-pointer"
-                    >
-                      Escolher Animação
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Toggles da Tela de Sucesso */}
-              <div className="space-y-2 pt-1">
-                <label className="flex items-center justify-between p-2.5 bg-slate-950/60 border border-slate-800 rounded-xl cursor-pointer">
-                  <span className="text-xs text-slate-300 font-bold flex items-center gap-1.5">
-                    <Ticket className="w-3.5 h-3.5 text-emerald-400" /> Exibir Lista de Números da Sorte
-                  </span>
-                  <input
-                    type="checkbox"
-                    checked={conf.exibirNumeros !== false}
-                    onChange={e => updConfirmacao({ exibirNumeros: e.target.checked })}
-                    className="w-4 h-4 accent-emerald-500"
-                  />
-                </label>
-
-                <label className="flex items-center justify-between p-2.5 bg-slate-950/60 border border-slate-800 rounded-xl cursor-pointer">
-                  <span className="text-xs text-slate-300 font-bold flex items-center gap-1.5">
-                    <Copy className="w-3.5 h-3.5 text-blue-400" /> Exibir Botão "Copiar Números"
-                  </span>
-                  <input
-                    type="checkbox"
-                    checked={conf.exibirBotaoCopiar !== false}
-                    onChange={e => updConfirmacao({ exibirBotaoCopiar: e.target.checked })}
-                    className="w-4 h-4 accent-emerald-500"
-                  />
-                </label>
-
-                <label className="flex items-center justify-between p-2.5 bg-slate-950/60 border border-slate-800 rounded-xl cursor-pointer">
-                  <span className="text-xs text-slate-300 font-bold flex items-center gap-1.5">
-                    <MessageCircle className="w-3.5 h-3.5 text-teal-400" /> Exibir Botão "Salvar / Compartilhar no WhatsApp"
-                  </span>
-                  <input
-                    type="checkbox"
-                    checked={conf.exibirBotaoWhatsapp !== false}
-                    onChange={e => updConfirmacao({ exibirBotaoWhatsapp: e.target.checked })}
-                    className="w-4 h-4 accent-emerald-500"
-                  />
-                </label>
-
-                <label className="flex items-center justify-between p-2.5 bg-slate-950/60 border border-slate-800 rounded-xl cursor-pointer">
-                  <span className="text-xs text-slate-300 font-bold flex items-center gap-1.5">
-                    <Ticket className="w-3.5 h-3.5 text-indigo-400" /> Exibir Botão "Acessar Área Meus Números"
-                  </span>
-                  <input
-                    type="checkbox"
-                    checked={conf.exibirBotaoMeusNumeros !== false}
-                    onChange={e => updConfirmacao({ exibirBotaoMeusNumeros: e.target.checked })}
-                    className="w-4 h-4 accent-emerald-500"
-                  />
-                </label>
-              </div>
-
-              {/* Botão de Grupo VIP / Canal */}
-              <div className="p-3.5 bg-slate-950/80 border border-teal-900/40 rounded-xl space-y-3">
-                <label className="flex items-center justify-between cursor-pointer">
-                  <div>
-                    <p className="text-xs font-bold text-white flex items-center gap-1.5">
-                      <Users className="w-4 h-4 text-teal-400" /> Botão para Grupo VIP / Canal do WhatsApp
-                    </p>
-                    <p className="text-[11px] text-slate-400">Leva o cliente ao seu grupo oficial logo após o pagamento</p>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={!!conf.botaoGrupoVipAtivo}
-                    onChange={e => updConfirmacao({ botaoGrupoVipAtivo: e.target.checked })}
-                    className="w-4 h-4 accent-teal-500"
-                  />
-                </label>
-
-                {conf.botaoGrupoVipAtivo && (
-                  <div className="space-y-2 pt-1 border-t border-slate-800">
-                    <div>
-                      <label className="text-[11px] text-slate-400 block mb-1">Texto do Botão do Grupo</label>
-                      <input
-                        type="text"
-                        value={conf.botaoGrupoVipTexto || ''}
-                        onChange={e => updConfirmacao({ botaoGrupoVipTexto: e.target.value })}
-                        placeholder="Entrar no Grupo VIP do WhatsApp"
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] text-slate-400 block mb-1">Link do Grupo / Canal (URL)</label>
-                      <input
-                        type="url"
-                        value={conf.botaoGrupoVipLink || ''}
-                        onChange={e => updConfirmacao({ botaoGrupoVipLink: e.target.value })}
-                        placeholder="https://chat.whatsapp.com/..."
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-slate-400 block mb-1">Instruções Extras Pós-Compra (Notas / Regras)</label>
-                <textarea
-                  value={conf.instrucoesPosCompra || ''}
-                  onChange={e => updConfirmacao({ instrucoesPosCompra: e.target.value })}
-                  rows={2}
-                  placeholder="Ex: O sorteio será transmitido ao vivo em nosso Instagram às 20h..."
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white focus:border-emerald-500 focus:outline-none resize-none"
-                />
-              </div>
-            </div>
-
-            {/* 9. Conversão & Retenção */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-4">
-              <h4 className="text-sm font-black text-white flex items-center gap-2">🔔 9. Conversão & Retenção</h4>
-
-              {/* Notificações Sociais */}
-              <div className="rounded-xl border border-slate-800 bg-slate-950 p-3 space-y-3">
-                <label className="flex items-center justify-between cursor-pointer">
-                  <div>
-                    <span className="text-xs font-bold text-slate-200 block">Notificações Sociais (Toast "Fulano comprou...")</span>
-                    <span className="text-[11px] text-slate-400 block">Aumenta prova social e conversão com compras em tempo real</span>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={!!checkoutConfig.notificacoesSociais?.ativo}
-                    onChange={e => upd({ notificacoesSociais: { ...checkoutConfig.notificacoesSociais, ativo: e.target.checked } })}
-                    className="rounded border-slate-700 bg-slate-900 text-emerald-500 w-4 h-4 cursor-pointer"
-                  />
-                </label>
-
-                {checkoutConfig.notificacoesSociais?.ativo && (
-                  <div className="space-y-3 pt-2 border-t border-slate-800 animate-in fade-in">
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="text-[10px] text-slate-400 block mb-1">Posição na Tela</label>
-                        <select
-                          value={checkoutConfig.notificacoesSociais?.posicao || 'base-esq'}
-                          onChange={e => upd({ notificacoesSociais: { ...checkoutConfig.notificacoesSociais, ativo: true, posicao: e.target.value as any } })}
-                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white"
-                        >
-                          <option value="base-esq">Inferior esquerda</option>
-                          <option value="base-dir">Inferior direita</option>
-                          <option value="topo-esq">Superior esquerda</option>
-                          <option value="topo-dir">Superior direita</option>
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="text-[10px] text-slate-400 block mb-1">Modo de Intervalo</label>
-                        <select
-                          value={checkoutConfig.notificacoesModoIntervalo || 'fixo'}
-                          onChange={e => upd({ notificacoesModoIntervalo: e.target.value as any })}
-                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white"
-                        >
-                          <option value="fixo">Intervalo Fixo</option>
-                          <option value="aleatorio">Faixa Aleatória (mais natural)</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    {(checkoutConfig.notificacoesModoIntervalo || 'fixo') === 'fixo' ? (
-                      <div>
-                        <label className="text-[10px] text-slate-400 block mb-1">Disparar a cada (segundos)</label>
-                        <input
-                          type="number" min={3} max={120}
-                          value={checkoutConfig.notificacoesSociais?.intervalo || 12}
-                          onChange={e => upd({ notificacoesSociais: { ...checkoutConfig.notificacoesSociais, ativo: true, intervalo: Number(e.target.value) } })}
-                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white"
-                        />
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="text-[10px] text-slate-400 block mb-1">Mínimo (seg)</label>
-                          <input
-                            type="number" min={2} max={60}
-                            value={checkoutConfig.notificacoesIntervaloMin || 6}
-                            onChange={e => upd({ notificacoesIntervaloMin: Number(e.target.value) })}
-                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[10px] text-slate-400 block mb-1">Máximo (seg)</label>
-                          <input
-                            type="number" min={4} max={120}
-                            value={checkoutConfig.notificacoesIntervaloMax || 18}
-                            onChange={e => upd({ notificacoesIntervaloMax: Number(e.target.value) })}
-                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white"
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Exit Pop-up */}
-              <div className="rounded-xl border border-slate-800 bg-slate-950 p-3">
-                <label className="flex items-center justify-between cursor-pointer">
-                  <span className="text-xs font-bold text-slate-200">Pop-up de retenção (Exit Pop-up)</span>
-                  <input
-                    type="checkbox"
-                    checked={!!checkoutConfig.exitPopup?.ativo}
-                    onChange={e => upd({ exitPopup: { ...checkoutConfig.exitPopup, ativo: e.target.checked } })}
-                    className="rounded border-slate-700 bg-slate-900 text-emerald-500 w-4 h-4 cursor-pointer"
-                  />
-                </label>
-                {checkoutConfig.exitPopup?.ativo && (
-                  <div className="mt-3">
-                    <label className="text-[10px] text-slate-400 block mb-1">Gatilho</label>
-                    <select
-                      value={checkoutConfig.exitPopup?.gatilho || 'saida'}
-                      onChange={e => upd({ exitPopup: { ...checkoutConfig.exitPopup, ativo: true, gatilho: e.target.value as any } })}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white"
-                    >
-                      <option value="saida">Mouse saindo pelo topo (desktop)</option>
-                      <option value="aba">Trocar de aba/app</option>
-                      <option value="voltar">Botão voltar do navegador</option>
-                      <option value="tempo">Após X segundos na página</option>
-                    </select>
-                    {checkoutConfig.exitPopup?.gatilho === 'tempo' && (
-                      <input
-                        type="number" min={3}
-                        value={checkoutConfig.exitPopup?.tempoSegundos || 20}
-                        onChange={e => upd({ exitPopup: { ...checkoutConfig.exitPopup, ativo: true, gatilho: 'tempo', tempoSegundos: Number(e.target.value) } })}
-                        placeholder="Segundos"
-                        className="w-full mt-2 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white"
-                      />
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
 
             {/* Salvar */}
             <div className="flex items-center gap-3">
@@ -1287,15 +561,45 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
                     </div>
 
                     <div className="p-4 space-y-3 max-h-[560px] overflow-y-auto">
-                      {/* Banner de Topo */}
-                      {checkoutConfig.bannerUrl && (
-                        <img
-                          src={checkoutConfig.bannerUrl}
-                          alt="Banner"
-                          className="w-full h-24 object-cover rounded-xl border border-slate-800 shadow"
-                          onError={e => (e.currentTarget.style.display = 'none')}
-                        />
-                      )}
+                      {/* Banner de Topo (Imagem ou Vídeo) */}
+                      {checkoutConfig.bannerTipo === 'video' && checkoutConfig.bannerVideoUrl ? (
+                        <div className="rounded-xl overflow-hidden border border-slate-800 shadow bg-slate-950">
+                          {checkoutConfig.bannerVideoUrl.includes('youtube.com') || checkoutConfig.bannerVideoUrl.includes('youtu.be') ? (
+                            <div className="aspect-video w-full max-h-48">
+                              <iframe
+                                src={checkoutConfig.bannerVideoUrl.replace('watch?v=', 'embed/').replace('youtu.be/', 'youtube.com/embed/')}
+                                title="Vídeo do Checkout"
+                                className="w-full h-full"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                allowFullScreen
+                              />
+                            </div>
+                          ) : (
+                            <video
+                              src={checkoutConfig.bannerVideoUrl}
+                              controls
+                              autoPlay
+                              loop
+                              muted
+                              playsInline
+                              className="w-full max-h-44 object-contain bg-slate-950"
+                            />
+                          )}
+                        </div>
+                      ) : checkoutConfig.bannerUrl ? (
+                        <div className="rounded-xl overflow-hidden border border-slate-800 shadow bg-slate-950 flex items-center justify-center">
+                          <img
+                            src={checkoutConfig.bannerUrl}
+                            alt="Banner"
+                            className={`w-full ${
+                              checkoutConfig.bannerEnquadramento === 'cover'
+                                ? 'h-28 object-cover'
+                                : 'max-h-44 object-contain'
+                            } rounded-xl`}
+                            onError={e => (e.currentTarget.style.display = 'none')}
+                          />
+                        </div>
+                      ) : null}
 
                       {/* Selos no topo se configurado */}
                       {checkoutConfig.selosSeguranca && checkoutConfig.posicaoSelos === 'abaixo_banner' && (checkoutConfig.selosExtras || []).length > 0 && (

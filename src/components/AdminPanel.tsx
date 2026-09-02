@@ -7,7 +7,7 @@ import {
   Users, Ticket, RotateCw, Settings, LogOut, RefreshCw,
   Eye, Edit3, Link2, Copy, CheckCircle2, AlertCircle, Menu, X, Mail, Lock, User as UserIcon, Key,
   ExternalLink, Zap, Unlink, ShieldCheck, HelpCircle, ChevronDown, ChevronUp, Info,
-  Trophy, Trash2, Play, Pause, Camera, Sparkles, Palette, BarChart3,
+  Trophy, Trash2, Play, Pause, Camera, Sparkles, Palette, BarChart3, Image as ImageIcon,
   ArrowLeft, Save, CreditCard, Wallet, Search,
   PanelLeftClose, PanelLeftOpen, ChevronLeft, ChevronRight
 } from 'lucide-react';
@@ -199,6 +199,7 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha, onNavigateComoFu
   const [perfilNome, setPerfilNome] = useState('');
   const [perfilFoto, setPerfilFoto] = useState('');
   const [perfilLogo, setPerfilLogo] = useState('');
+  const [perfilCapa, setPerfilCapa] = useState('');
   const [perfilEmail, setPerfilEmail] = useState('');
   const [salvandoPerfil, setSalvandoPerfil] = useState(false);
 
@@ -217,6 +218,9 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha, onNavigateComoFu
       setPerfilEmail(user.email || '');
       if (configPagamento?.marca?.logoUrl) {
         setPerfilLogo(configPagamento.marca.logoUrl);
+      }
+      if (configPagamento?.marca?.capaUrl) {
+        setPerfilCapa(configPagamento.marca.capaUrl);
       }
     }
   }, [user, configPagamento]);
@@ -245,6 +249,17 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha, onNavigateComoFu
     }
   };
 
+  const handleCapaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const url = await uploadImageToStorage(file, 'organizadores', 1200, 600, 0.85);
+      setPerfilCapa(url);
+    } catch (err: any) {
+      setConfigErro(err?.message || 'Não foi possível enviar a foto de capa.');
+    }
+  };
+
   const handleSalvarPerfil = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -257,19 +272,20 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha, onNavigateComoFu
         await atualizarPerfilUsuario(perfilNome.trim(), perfilFoto.trim());
       }
 
-      // 2) Atualiza Logo da Marca na Config
-      if (perfilLogo.trim() !== (configPagamento?.marca?.logoUrl || '')) {
-        await authFetch('/api/admin/configuracoes', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            marca: {
-              ...configPagamento?.marca,
-              logoUrl: perfilLogo.trim() || null
-            }
-          })
-        });
-      }
+      // 2) Atualiza Marca (Nome, Logo, Capa, FotoPerfil) na Config
+      await authFetch('/api/admin/configuracoes', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          marca: {
+            ...configPagamento?.marca,
+            nomeMarca: perfilNome.trim() || null,
+            logoUrl: perfilLogo.trim() || null,
+            capaUrl: perfilCapa.trim() || null,
+            fotoPerfilUrl: perfilFoto.trim() || null
+          }
+        })
+      });
 
       // Recarrega o estado do usuário para refletir as alterações
       setUser({
@@ -278,7 +294,7 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha, onNavigateComoFu
         photoURL: perfilFoto.trim()
       } as any);
 
-      setConfigMsg('Informações de perfil atualizadas com sucesso!');
+      setConfigMsg('Informações do seu perfil foram salvas com sucesso!');
       setModoEdicaoPerfil(false);
     } catch (err: any) {
       setConfigErro(traduzErroAuth(err?.code || '') || err.message || 'Erro ao atualizar dados da conta.');
@@ -484,10 +500,18 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha, onNavigateComoFu
       const url = form.id ? `/api/admin/campanhas/${form.id}` : '/api/admin/campanhas';
       const method = form.id ? 'PUT' : 'POST';
 
+      const formPayload = {
+        ...form,
+        organizadorNome: perfilNome || user?.displayName || form.organizadorNome || null,
+        organizadorFoto: perfilFoto || user?.photoURL || form.organizadorFoto || null,
+        organizadorCapa: perfilCapa || configPagamento?.marca?.capaUrl || form.organizadorCapa || null,
+        cabecalhoLogoUrl: perfilLogo || configPagamento?.marca?.logoUrl || form.cabecalhoLogoUrl || null
+      };
+
       const res = await authFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
+        body: JSON.stringify(formPayload)
       });
 
       let salva: any = {};
@@ -1606,6 +1630,32 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha, onNavigateComoFu
                           <p className="text-sm font-black text-emerald-400 font-mono">{user?.email}</p>
                         </div>
                       </div>
+
+                      {/* Visualização de Capa e Logo */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-800/80">
+                        <div className="p-4 bg-slate-950 border border-slate-800/80 rounded-2xl space-y-2">
+                          <span className="text-[10px] uppercase font-bold text-slate-400 block">Sua Logo de Organizador / Marca</span>
+                          {perfilLogo ? (
+                            <div className="h-16 rounded-xl bg-slate-900 border border-slate-800 p-2 flex items-center justify-center">
+                              <img src={perfilLogo} alt="Sua Logo" className="max-h-full object-contain" />
+                            </div>
+                          ) : (
+                            <p className="text-xs text-slate-500 italic">Nenhuma logo cadastrada</p>
+                          )}
+                        </div>
+
+                        <div className="p-4 bg-slate-950 border border-slate-800/80 rounded-2xl space-y-2">
+                          <span className="text-[10px] uppercase font-bold text-slate-400 block">Foto de Fundo / Capa do Perfil</span>
+                          {perfilCapa ? (
+                            <div className="h-16 rounded-xl overflow-hidden border border-slate-800 relative bg-slate-900 flex items-center justify-center">
+                              <img src={perfilCapa} className="absolute inset-0 w-full h-full object-cover blur-md opacity-40 scale-110 select-none pointer-events-none" alt="" />
+                              <img src={perfilCapa} alt="Capa do Perfil" className="relative z-10 max-h-full object-contain" />
+                            </div>
+                          ) : (
+                            <p className="text-xs text-slate-500 italic">Nenhuma foto de capa cadastrada</p>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   ) : (
                     /* Edição de Informações */
@@ -1624,7 +1674,7 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha, onNavigateComoFu
                         </button>
                       </div>
 
-                      {/* Upload de Foto */}
+                      {/* Upload de Foto de Perfil */}
                       <div className="flex flex-col sm:flex-row items-center gap-5 p-4 bg-slate-950 rounded-2xl border border-slate-800">
                         <div className="w-20 h-20 rounded-full bg-slate-900 border-2 border-emerald-500/40 overflow-hidden flex items-center justify-center shrink-0">
                           {perfilFoto ? (
@@ -1635,9 +1685,9 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha, onNavigateComoFu
                         </div>
                         <div className="space-y-2 text-center sm:text-left flex-1">
                           <h4 className="text-xs font-bold text-white">Foto do Perfil</h4>
-                          <p className="text-[11px] text-slate-400">Selecione uma foto diretamente do seu dispositivo.</p>
+                          <p className="text-[11px] text-slate-400">Selecione uma foto de perfil do organizador. <span className="text-emerald-400 font-semibold block sm:inline sm:ml-1">(Recomendado: 400x400px, formato quadrado 1:1)</span></p>
                           <label className="inline-flex items-center gap-2 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl border border-slate-700 cursor-pointer transition">
-                            <Camera className="w-3.5 h-3.5 text-emerald-400" />
+                             <Camera className="w-3.5 h-3.5 text-emerald-400" />
                             <span>Upload da Foto</span>
                             <input
                               type="file"
@@ -1679,15 +1729,15 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha, onNavigateComoFu
                         </div>
                       </div>
 
-                      {/* Logo da Plataforma por Upload */}
+                      {/* Logo da Marca */}
                       <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-3">
                         <div className="flex items-center justify-between">
                           <div>
                             <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
                               <Palette className="w-3.5 h-3.5 text-emerald-400" />
-                              Logo da Marca / Plataforma
+                              Sua Logo de Organizador / Marca
                             </h4>
-                            <p className="text-[11px] text-slate-400">Faça o upload do logo para exibir nas páginas das rifas e no painel.</p>
+                            <p className="text-[11px] text-slate-400">A sua logo personalizada que aparece ao lado de sua foto de perfil no topo da página de suas rifas (quando ativada). <span className="text-emerald-400 font-semibold block">(Recomendado: Logo horizontal com fundo transparente, 600x200px ou proporção 3:1)</span></p>
                           </div>
                           {perfilLogo && (
                             <div className="w-12 h-12 rounded-xl bg-slate-900 border border-slate-700 p-1 flex items-center justify-center overflow-hidden">
@@ -1703,6 +1753,35 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha, onNavigateComoFu
                             type="file"
                             accept="image/*"
                             onChange={handleLogoUpload}
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
+
+                      {/* Foto de Fundo / Capa do Perfil */}
+                      <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
+                              <ImageIcon className="w-3.5 h-3.5 text-indigo-400" />
+                              Foto de Fundo / Capa do Perfil
+                            </h4>
+                            <p className="text-[11px] text-slate-400">Exibida no topo da sua página pública de organizador. <span className="text-emerald-400 font-semibold block">(Recomendado: Banner horizontal, 1200x400px ou proporção 3:1 para melhor enquadramento)</span></p>
+                          </div>
+                          {perfilCapa && (
+                            <div className="w-20 h-12 rounded-xl bg-slate-900 border border-slate-700 overflow-hidden">
+                              <img src={perfilCapa} alt="Capa" className="w-full h-full object-cover" />
+                            </div>
+                          )}
+                        </div>
+
+                        <label className="inline-flex items-center gap-2 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl border border-slate-700 cursor-pointer transition">
+                          <ImageIcon className="w-3.5 h-3.5 text-indigo-400" />
+                          <span>Upload da Foto de Capa</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleCapaUpload}
                             className="hidden"
                           />
                         </label>

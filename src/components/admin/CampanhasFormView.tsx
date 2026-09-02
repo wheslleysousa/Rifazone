@@ -129,6 +129,7 @@ export const CampanhasFormView: React.FC<Props> = ({
   const [carregandoBanner, setCarregandoBanner] = useState(false);
   const [carregandoCarrossel, setCarregandoCarrossel] = useState(false);
   const [carregandoOrganizadorFoto, setCarregandoOrganizadorFoto] = useState(false);
+  const [carregandoOrganizadorCapa, setCarregandoOrganizadorCapa] = useState(false);
   const [carregandoCabecalhoLogo, setCarregandoCabecalhoLogo] = useState(false);
   const [dragActiveBanner, setDragActiveBanner] = useState(false);
   const [dragActiveCarrossel, setDragActiveCarrossel] = useState(false);
@@ -136,6 +137,8 @@ export const CampanhasFormView: React.FC<Props> = ({
   const [mostrarModalCotas, setMostrarModalCotas] = useState(false);
   const [mostrarSeletorCotas, setMostrarSeletorCotas] = useState(false);
   const [modoPersonalizadoCotas, setModoPersonalizadoCotas] = useState(false);
+  const [cotasCustomInput, setCotasCustomInput] = useState('');
+  const [abaModalCotas, setAbaModalCotas] = useState<'predefinidas' | 'personalizada'>('predefinidas');
   const [descontoAtivo, setDescontoAtivo] = useState(!!(form.descontoPorValorTotal && form.descontoPorValorTotal.length > 0));
   const [draggedPromoIdx, setDraggedPromoIdx] = useState<number | null>(null);
   const [visualizacaoMobile, setVisualizacaoMobile] = useState<'controles' | 'preview'>('controles');
@@ -156,6 +159,7 @@ export const CampanhasFormView: React.FC<Props> = ({
   const carrosselFileInputRef = useRef<HTMLInputElement>(null);
   const organizadorFileInputRef = useRef<HTMLInputElement>(null);
   const organizadorCameraInputRef = useRef<HTMLInputElement>(null);
+  const organizadorCapaFileInputRef = useRef<HTMLInputElement>(null);
   const cabecalhoLogoFileInputRef = useRef<HTMLInputElement>(null);
 
   const handleOrganizadorFotoUpload = async (file: File) => {
@@ -167,6 +171,18 @@ export const CampanhasFormView: React.FC<Props> = ({
       toast(err.message || 'Erro ao carregar foto do organizador.');
     } finally {
       setCarregandoOrganizadorFoto(false);
+    }
+  };
+
+  const handleOrganizadorCapaUpload = async (file: File) => {
+    try {
+      setCarregandoOrganizadorCapa(true);
+      const url = await uploadImageToStorage(file, 'organizadores', 1200, 600, 0.85);
+      setForm(prev => ({ ...prev, organizadorCapa: url }));
+    } catch (err: any) {
+      toast(err.message || 'Erro ao carregar foto de capa do perfil.');
+    } finally {
+      setCarregandoOrganizadorCapa(false);
     }
   };
 
@@ -827,6 +843,20 @@ export const CampanhasFormView: React.FC<Props> = ({
                 />
               </div>
 
+              {/* SUBTÍTULO DA CAMPANHA */}
+              <div className="md:col-span-2">
+                <label className="text-xs font-bold text-slate-300 mb-2 uppercase tracking-wider block">
+                  Subtítulo / Frase de Destaque da Campanha
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ex: Corre que essa vai rápido! Adquira suas cotas e boa sorte!"
+                  value={form.subtitulo || ''}
+                  onChange={e => setForm(prev => ({ ...prev, subtitulo: e.target.value }))}
+                  className="w-full bg-slate-950/50 border border-slate-700/50 rounded-xl px-4 py-3.5 text-sm text-white focus:border-emerald-500 focus:bg-slate-900/80 transition-colors focus:outline-none placeholder:text-slate-600 shadow-inner"
+                />
+              </div>
+
               {/* CAMPO DE ETIQUETA / SLUG DO LINK DA CAMPANHA */}
               <div className="md:col-span-2 space-y-2">
                 <div className="flex items-center justify-between">
@@ -877,19 +907,6 @@ export const CampanhasFormView: React.FC<Props> = ({
                     (Letras, números e hífens)
                   </span>
                 </div>
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="text-xs font-bold text-slate-300 block mb-2 uppercase tracking-wider">
-                  Subtítulo / Chamada Chamativa
-                </label>
-                <input
-                  type="text"
-                  placeholder="Ex: Por apenas R$ 0,50! Frete grátis para todo o Brasil."
-                  value={form.subtitulo || ''}
-                  onChange={e => setForm(prev => ({ ...prev, subtitulo: e.target.value }))}
-                  className="w-full bg-slate-950/50 border border-slate-700/50 rounded-xl px-4 py-3.5 text-sm font-medium text-white focus:border-emerald-500 focus:bg-slate-900/80 transition-colors focus:outline-none placeholder:text-slate-600 shadow-inner"
-                />
               </div>
             </div>
 
@@ -973,39 +990,54 @@ export const CampanhasFormView: React.FC<Props> = ({
                   </div>
 
                   <div className="space-y-3">
-                    <div className="flex flex-col gap-3">
-                      {!form.totalCotas ? (
-                        <button
-                          type="button"
-                          onClick={() => setMostrarModalCotas(true)}
-                          className="w-full px-4 py-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-2xl text-sm font-black flex items-center justify-center gap-2 transition-all shadow-lg active:scale-95 group"
-                        >
-                          <Zap className="w-5 h-5 animate-pulse" />
-                          <span>Selecionar Quantidade de Cotas</span>
-                        </button>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setMostrarModalCotas(true)}
-                            className="flex-1 px-4 py-4 bg-slate-950/60 border-2 border-emerald-500/50 hover:border-emerald-500 rounded-2xl text-sm font-black text-white flex items-center justify-center gap-2 transition-all shadow-inner group"
-                          >
-                            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
-                            <span className="text-emerald-400 font-mono text-lg">{form.totalCotas.toLocaleString('pt-BR')}</span>
-                            <span className="text-slate-400 text-xs ml-2 font-medium">(Clique para alterar)</span>
-                          </button>
-                          
-                          <button
-                            type="button"
-                            onClick={() => setForm(prev => ({ ...prev, totalCotas: undefined }))}
-                            className="w-14 h-14 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-500 rounded-2xl flex items-center justify-center transition-all active:scale-95"
-                            title="Remover quantidade"
-                          >
-                            <Trash2 className="w-6 h-6" />
-                          </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCotasCustomInput(form.totalCotas ? String(form.totalCotas) : '');
+                        setAbaModalCotas('predefinidas');
+                        setMostrarModalCotas(true);
+                      }}
+                      className={`w-full px-5 py-4 rounded-2xl text-sm font-black flex items-center justify-between gap-3 transition-all shadow-md active:scale-[0.99] border-2 cursor-pointer ${
+                        form.totalCotas && form.totalCotas > 0
+                          ? 'bg-slate-950/80 border-emerald-500/60 hover:border-emerald-400 text-white shadow-emerald-500/5'
+                          : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 border-transparent shadow-emerald-500/20'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold shrink-0 ${
+                          form.totalCotas && form.totalCotas > 0
+                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                            : 'bg-slate-950/20 text-slate-950'
+                        }`}>
+                          <Zap className="w-5 h-5" />
                         </div>
-                      )}
-                    </div>
+                        <div className="text-left">
+                          <div className={`text-base font-mono font-black ${
+                            form.totalCotas && form.totalCotas > 0 ? 'text-emerald-400' : 'text-slate-950'
+                          }`}>
+                            {form.totalCotas && form.totalCotas > 0
+                              ? `${form.totalCotas.toLocaleString('pt-BR')} Cotas`
+                              : 'Selecionar Quantidade de Cotas'}
+                          </div>
+                          <div className={`text-[11px] font-normal ${
+                            form.totalCotas && form.totalCotas > 0 ? 'text-slate-400' : 'text-slate-900 font-semibold'
+                          }`}>
+                            {form.totalCotas && form.totalCotas > 0
+                              ? `Numeração de 0 a ${String(form.totalCotas - 1).padStart(String(form.totalCotas - 1).length < 2 ? 2 : String(form.totalCotas - 1).length, '0')} • Clique para alterar`
+                              : 'Clique para escolher opções pré-definidas ou personalizar'}
+                          </div>
+                        </div>
+                      </div>
+
+                      <span className={`text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1 shrink-0 ${
+                        form.totalCotas && form.totalCotas > 0
+                          ? 'bg-slate-800 text-slate-300'
+                          : 'bg-slate-950/20 text-slate-950'
+                      }`}>
+                        {form.totalCotas && form.totalCotas > 0 ? 'Alterar' : 'Escolher'}
+                        <ChevronRight className="w-4 h-4 ml-0.5" />
+                      </span>
+                    </button>
                   </div>
                 </div>
 
@@ -1229,40 +1261,6 @@ export const CampanhasFormView: React.FC<Props> = ({
               )}
             </div>
 
-            {/* Selo e Flag Promocional */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="md:col-span-2 space-y-2">
-                <label className="text-xs font-bold text-slate-300 block uppercase tracking-wider">
-                  Selo Promocional de Destaque
-                </label>
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <select
-                    value={selosPredefinidos.includes(form.selo || '') ? form.selo || '' : 'outro'}
-                    onChange={e => {
-                      if (e.target.value !== 'outro') {
-                        setForm(prev => ({ ...prev, selo: e.target.value }));
-                      }
-                    }}
-                    className="sm:w-1/3 bg-slate-950/50 border border-slate-700/50 rounded-xl px-4 py-3.5 text-sm text-white focus:border-emerald-500 focus:bg-slate-900/80 transition-colors focus:outline-none shadow-inner"
-                  >
-                    <option value="">Nenhum selo</option>
-                    {selosPredefinidos.map((s, idx) => (
-                      <option key={idx} value={s}>{s}</option>
-                    ))}
-                    <option value="outro">Personalizado...</option>
-                  </select>
-
-                  <input
-                    type="text"
-                    placeholder="Ou digite uma frase curta promocional..."
-                    value={form.selo || ''}
-                    onChange={e => setForm(prev => ({ ...prev, selo: e.target.value }))}
-                    className="flex-1 bg-slate-950/50 border border-slate-700/50 rounded-xl px-4 py-3.5 text-sm text-white focus:border-emerald-500 focus:bg-slate-900/80 transition-colors focus:outline-none shadow-inner"
-                  />
-                </div>
-              </div>
-            </div>
-
             <hr className="border-slate-800/60" />
 
             {/* Datas da Campanha e Contador Regressivo */}
@@ -1326,282 +1324,120 @@ export const CampanhasFormView: React.FC<Props> = ({
 
             <hr className="border-slate-800/60" />
 
-            {/* Dados do Organizador e Redes Sociais */}
+            {/* Exibição do Cabeçalho da Rifa / Identidade do Organizador */}
             <div className="space-y-6">
               <div>
                 <h4 className="text-sm font-black text-emerald-400 flex items-center gap-2 uppercase tracking-wider">
                   <Tag className="w-4 h-4" />
-                  Perfil do Organizador
+                  Identidade do Organizador
                 </h4>
                 <p className="text-xs text-slate-400 mt-1">
-                  Aparece no cabeçalho, no menu e nos direitos autorais da campanha.
+                  Selecione o que será exibido no cabeçalho superior da sua campanha pública.
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div className="md:col-span-2 lg:col-span-2">
-                  <label className="text-xs font-bold text-slate-300 block mb-2 uppercase tracking-wider">
-                    Nome / Marca
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Ex: Wheslley Sousa"
-                    value={form.organizadorNome || ''}
-                    onChange={e => setForm(prev => ({ ...prev, organizadorNome: e.target.value }))}
-                    className="w-full bg-slate-950/50 border border-slate-700/50 rounded-xl px-4 py-3.5 text-sm text-white focus:border-emerald-500 focus:bg-slate-900/80 transition-colors focus:outline-none shadow-inner"
-                  />
-                </div>
-
-                <div className="md:col-span-2 lg:col-span-2">
-                  <label className="text-xs font-bold text-slate-300 block mb-2 uppercase tracking-wider">
-                    Foto / Logo
-                  </label>
-                  
-                  <input
-                    type="file"
-                    ref={organizadorFileInputRef}
-                    accept="image/*"
-                    className="hidden"
-                    onChange={e => {
-                      const file = e.target.files?.[0];
-                      if (file) handleOrganizadorFotoUpload(file);
-                    }}
-                  />
-                  <input
-                    type="file"
-                    ref={organizadorCameraInputRef}
-                    accept="image/*"
-                    capture="environment"
-                    className="hidden"
-                    onChange={e => {
-                      const file = e.target.files?.[0];
-                      if (file) handleOrganizadorFotoUpload(file);
-                    }}
-                  />
-                  <input
-                    type="file"
-                    ref={cabecalhoLogoFileInputRef}
-                    accept="image/*"
-                    className="hidden"
-                    onChange={e => {
-                      const file = e.target.files?.[0];
-                      if (file) handleCabecalhoLogoUpload(file);
-                    }}
-                  />
-
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3">
-                      {form.organizadorFoto ? (
-                        <div className="relative group shrink-0">
-                          <img
-                            src={form.organizadorFoto}
-                            alt="Preview Organizador"
-                            className="w-12 h-12 rounded-full object-cover border-2 border-emerald-500 shadow-md"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setForm(prev => ({ ...prev, organizadorFoto: '' }))}
-                            className="absolute -top-1 -right-1 w-5 h-5 bg-red-500/90 hover:bg-red-500 text-white rounded-full text-[10px] font-bold flex items-center justify-center shadow-lg transition-transform hover:scale-110"
-                            title="Remover foto"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="w-12 h-12 rounded-full bg-slate-950/80 border border-slate-700 flex items-center justify-center shrink-0 text-slate-400">
-                          <Camera className="w-5 h-5" />
-                        </div>
-                      )}
-
-                      <div className="flex-1 flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => organizadorFileInputRef.current?.click()}
-                          disabled={carregandoOrganizadorFoto}
-                          className="flex-1 px-3 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-sm"
-                        >
-                          {carregandoOrganizadorFoto ? (
-                            <RefreshCw className="w-4 h-4 animate-spin text-emerald-400" />
-                          ) : (
-                            <Upload className="w-4 h-4 text-emerald-400" />
-                          )}
-                          <span>{form.organizadorFoto ? 'Trocar Imagem' : 'upload image'}</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => organizadorCameraInputRef.current?.click()}
-                          disabled={carregandoOrganizadorFoto}
-                          className="px-3 py-2 bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 border border-slate-700/50 font-bold rounded-xl text-xs flex items-center justify-center transition-all active:scale-95 shadow-sm"
-                          title="Tirar foto com a Câmera"
-                        >
-                          <Camera className="w-4 h-4 text-emerald-400" />
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="space-y-4 pt-2">
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-300 block uppercase tracking-wider">O que exibir ao lado da foto no Topo?</label>
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setForm(prev => ({ ...prev, exibirCabecalhoTipo: 'nome' }))}
-                            className={`px-4 py-3 text-xs font-bold border rounded-xl transition flex-1 flex items-center justify-center gap-2 ${
-                              form.exibirCabecalhoTipo === 'nome' || !form.exibirCabecalhoTipo
-                                ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400'
-                                : 'border-slate-800 bg-slate-950 text-slate-500 hover:border-slate-700'
-                            }`}
-                          >
-                            <User className="w-4 h-4" />
-                            Nome do Organizador
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setForm(prev => ({ ...prev, exibirCabecalhoTipo: 'logo' }))}
-                            className={`px-4 py-3 text-xs font-bold border rounded-xl transition flex-1 flex items-center justify-center gap-2 ${
-                              form.exibirCabecalhoTipo === 'logo'
-                                ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400'
-                                : 'border-slate-800 bg-slate-950 text-slate-500 hover:border-slate-700'
-                            }`}
-                          >
-                            <ImageIcon className="w-4 h-4" />
-                            Logo da Marca
-                          </button>
-                        </div>
-                      </div>
-
-                      {form.exibirCabecalhoTipo === 'logo' && (
-                        <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300 border-t border-slate-800/50 pt-4">
-                          <div className="space-y-2">
-                            <label className="text-xs font-bold text-slate-300 block uppercase tracking-wider">Logo da Marca (Topo)</label>
-                            
-                            <div className="flex items-center gap-3">
-                              {form.cabecalhoLogoUrl ? (
-                                <div className="relative group shrink-0">
-                                  <img
-                                    src={form.cabecalhoLogoUrl}
-                                    alt="Preview Logo"
-                                    className="h-10 w-auto rounded border border-slate-700 object-contain bg-slate-900"
-                                    style={{ maxHeight: '40px' }}
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => setForm(prev => ({ ...prev, cabecalhoLogoUrl: '' }))}
-                                    className="absolute -top-1 -right-1 w-5 h-5 bg-red-500/90 hover:bg-red-500 text-white rounded-full text-[10px] font-bold flex items-center justify-center shadow-lg transition-transform hover:scale-110"
-                                    title="Remover logo"
-                                  >
-                                    ✕
-                                  </button>
-                                </div>
-                              ) : (
-                                <div className="h-10 w-10 rounded bg-slate-950/80 border border-slate-700 flex items-center justify-center shrink-0 text-slate-400">
-                                  <ImageIcon className="w-4 h-4" />
-                                </div>
-                              )}
-
-                              <button
-                                type="button"
-                                onClick={() => cabecalhoLogoFileInputRef.current?.click()}
-                                disabled={carregandoCabecalhoLogo}
-                                className="flex-1 px-3 py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-sm"
-                              >
-                                {carregandoCabecalhoLogo ? (
-                                  <RefreshCw className="w-4 h-4 animate-spin text-blue-400" />
-                                ) : (
-                                  <Upload className="w-4 h-4 text-blue-400" />
-                                )}
-                                <span>{form.cabecalhoLogoUrl ? 'Trocar Logo' : 'Enviar Logo'}</span>
-                              </button>
-                            </div>
-                          </div>
-
-                          <div className="space-y-2">
-                            <div className="flex justify-between items-center text-xs">
-                              <span className="font-bold text-slate-300 uppercase tracking-wider">Tamanho da Logo no Topo</span>
-                              <span className="font-mono text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded">{form.cabecalhoLogoTamanho || 40}px</span>
-                            </div>
-                            <input
-                              type="range"
-                              min="28"
-                              max="120"
-                              value={form.cabecalhoLogoTamanho || 40}
-                              onChange={e => setForm(prev => ({ ...prev, cabecalhoLogoTamanho: Number(e.target.value) }))}
-                              className="w-full accent-emerald-500 bg-slate-950 cursor-pointer h-2 rounded-lg"
-                            />
-                          </div>
-
-                          <div className="pt-2 border-t border-slate-800/40">
-                            <label className="flex items-center justify-between gap-3 cursor-pointer group/toggle p-3 bg-slate-950/40 border border-slate-800 rounded-xl hover:border-slate-700 transition">
-                              <div>
-                                <span className="text-xs font-bold text-slate-200 block">Exibir Logo em Largura Total</span>
-                                <span className="text-[11px] text-slate-400 block">Centraliza e expande a logo no menu do topo em largura total (responsivo no celular).</span>
-                              </div>
-                              <input
-                                type="checkbox"
-                                checked={!!form.cabecalhoLogoLarguraTotal}
-                                onChange={e => setForm(prev => ({ ...prev, cabecalhoLogoLarguraTotal: e.target.checked }))}
-                                className="w-5 h-5 rounded text-emerald-500 bg-slate-900 border-slate-700 cursor-pointer focus:ring-emerald-500 shrink-0"
-                              />
-                            </label>
-                          </div>
-                        </div>
-                      )}
-                    </div>
+              <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-5 space-y-5 shadow-inner">
+                <div className="flex items-start gap-3">
+                  <div className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20 shrink-0">
+                    <User className="w-5 h-5" />
+                  </div>
+                  <div className="space-y-1">
+                    <h5 className="text-xs font-black text-white uppercase tracking-wider">
+                      Informações Sincronizadas do Seu Perfil
+                    </h5>
+                    <p className="text-xs text-slate-400 leading-relaxed">
+                      Seu <strong>Nome de Organizador</strong>, <strong>Foto de Perfil</strong>, <strong>Foto de Fundo/Capa</strong> e <strong>Logo da Marca</strong> são cadastrados diretamente em <strong className="text-emerald-400">Configurações &gt; Minha Conta</strong> no App e aplicados automaticamente a todas as suas rifas.
+                    </p>
                   </div>
                 </div>
 
-                <div className="md:col-span-1 lg:col-span-1">
-                  <label className="text-xs font-bold text-slate-300 mb-2 uppercase tracking-wider flex items-center gap-2">
-                    <span className="w-5 h-5 rounded-full bg-[#25D366] flex items-center justify-center text-white shadow-sm ring-1 ring-white/10 shrink-0">
-                      <WhatsAppIcon className="w-3 h-3" />
-                    </span>
-                    Suporte WhatsApp
+                <div className="pt-4 border-t border-slate-800/80 space-y-3">
+                  <label className="text-xs font-bold text-slate-300 block uppercase tracking-wider">
+                    O que exibir ao lado da foto no Topo da Rifa?
                   </label>
-                  <input
-                    type="text"
-                    placeholder="(99) 99999-9999"
-                    value={form.organizadorWhatsapp || ''}
-                    onChange={e => setForm(prev => ({ ...prev, organizadorWhatsapp: e.target.value }))}
-                    className="w-full bg-slate-950/50 border border-slate-700/50 rounded-xl px-4 py-3.5 text-sm text-white focus:border-emerald-500 focus:bg-slate-900/80 transition-colors focus:outline-none shadow-inner"
-                  />
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setForm(prev => ({ ...prev, exibirCabecalhoTipo: 'nome' }))}
+                      className={`px-4 py-3 text-xs font-bold border rounded-xl transition flex-1 flex items-center justify-center gap-2 cursor-pointer ${
+                        form.exibirCabecalhoTipo === 'nome' || !form.exibirCabecalhoTipo
+                          ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400 shadow-sm'
+                          : 'border-slate-800 bg-slate-950 text-slate-500 hover:border-slate-700'
+                      }`}
+                    >
+                      <User className="w-4 h-4" />
+                      Nome do Organizador
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setForm(prev => ({ ...prev, exibirCabecalhoTipo: 'logo' }))}
+                      className={`px-4 py-3 text-xs font-bold border rounded-xl transition flex-1 flex items-center justify-center gap-2 cursor-pointer ${
+                        form.exibirCabecalhoTipo === 'logo'
+                          ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400 shadow-sm'
+                          : 'border-slate-800 bg-slate-950 text-slate-500 hover:border-slate-700'
+                      }`}
+                    >
+                      <ImageIcon className="w-4 h-4" />
+                      Logo da Marca
+                    </button>
+                  </div>
                 </div>
 
-                <div className="md:col-span-1 lg:col-span-1">
-                  <label className="text-xs font-bold text-slate-300 mb-2 uppercase tracking-wider flex items-center gap-2">
-                    <span 
-                      className="w-5 h-5 rounded-full flex items-center justify-center text-white shadow-sm ring-1 ring-white/10 shrink-0"
-                      style={{ background: 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)' }}
-                    >
-                      <InstagramIcon className="w-3 h-3" />
-                    </span>
-                    Instagram (@)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="@usuario"
-                    value={form.organizadorInstagram || ''}
-                    onChange={e => setForm(prev => ({ ...prev, organizadorInstagram: e.target.value }))}
-                    className="w-full bg-slate-950/50 border border-slate-700/50 rounded-xl px-4 py-3.5 text-sm text-white focus:border-pink-500 focus:bg-slate-900/80 transition-colors focus:outline-none shadow-inner"
-                  />
-                </div>
-                
-                <div className="md:col-span-1 lg:col-span-1">
-                  <label className="text-xs font-bold text-slate-300 mb-2 uppercase tracking-wider flex items-center gap-2">
-                    <span className="w-5 h-5 rounded-full bg-black ring-1 ring-white/20 flex items-center justify-center text-white shadow-sm shrink-0">
-                      <TikTokIcon className="w-3 h-3" />
-                    </span>
-                    TikTok (@)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="@usuario"
-                    value={form.organizadorTiktok || ''}
-                    onChange={e => setForm(prev => ({ ...prev, organizadorTiktok: e.target.value }))}
-                    className="w-full bg-slate-950/50 border border-slate-700/50 rounded-xl px-4 py-3.5 text-sm text-white focus:border-slate-300 focus:bg-slate-900/80 transition-colors focus:outline-none shadow-inner"
-                  />
+                {/* Redes Sociais Específicas do Suporte da Campanha */}
+                <div className="pt-4 border-t border-slate-800/80 grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="text-xs font-bold text-slate-300 mb-2 uppercase tracking-wider flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-[#25D366] flex items-center justify-center text-white shadow-sm ring-1 ring-white/10 shrink-0">
+                        <WhatsAppIcon className="w-3 h-3" />
+                      </span>
+                      Suporte WhatsApp
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="(99) 99999-9999"
+                      value={form.organizadorWhatsapp || ''}
+                      onChange={e => setForm(prev => ({ ...prev, organizadorWhatsapp: e.target.value }))}
+                      className="w-full bg-slate-950/50 border border-slate-700/50 rounded-xl px-4 py-3 text-sm text-white focus:border-emerald-500 focus:bg-slate-900/80 transition-colors focus:outline-none shadow-inner"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-300 mb-2 uppercase tracking-wider flex items-center gap-2">
+                      <span 
+                        className="w-5 h-5 rounded-full flex items-center justify-center text-white shadow-sm ring-1 ring-white/10 shrink-0"
+                        style={{ background: 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)' }}
+                      >
+                        <InstagramIcon className="w-3 h-3" />
+                      </span>
+                      Instagram (@)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="@usuario"
+                      value={form.organizadorInstagram || ''}
+                      onChange={e => setForm(prev => ({ ...prev, organizadorInstagram: e.target.value }))}
+                      className="w-full bg-slate-950/50 border border-slate-700/50 rounded-xl px-4 py-3 text-sm text-white focus:border-pink-500 focus:bg-slate-900/80 transition-colors focus:outline-none shadow-inner"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="text-xs font-bold text-slate-300 mb-2 uppercase tracking-wider flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-black ring-1 ring-white/20 flex items-center justify-center text-white shadow-sm shrink-0">
+                        <TikTokIcon className="w-3 h-3" />
+                      </span>
+                      TikTok (@)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="@usuario"
+                      value={form.organizadorTiktok || ''}
+                      onChange={e => setForm(prev => ({ ...prev, organizadorTiktok: e.target.value }))}
+                      className="w-full bg-slate-950/50 border border-slate-700/50 rounded-xl px-4 py-3 text-sm text-white focus:border-slate-300 focus:bg-slate-900/80 transition-colors focus:outline-none shadow-inner"
+                    />
+                  </div>
                 </div>
               </div>
+            </div>
 
               {/* OPÇÃO DO BOTÃO DE COMPARTILHAR FLUTUANTE */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-slate-950/60 border border-slate-800/80 rounded-2xl">
@@ -1633,7 +1469,6 @@ export const CampanhasFormView: React.FC<Props> = ({
               <p className="text-[11px] text-slate-500 italic">
                 * As redes sociais acima são opcionais. Se preenchidas, os botões flutuantes e links de contato aparecerão na página da rifa; se deixadas em branco, não serão exibidas.
               </p>
-            </div>
 
             <hr className="border-slate-800/60" />
 
@@ -3275,67 +3110,232 @@ export const CampanhasFormView: React.FC<Props> = ({
 
       {/* MODAL DE SELEÇÃO DE QUANTIDADE DE COTAS */}
       {mostrarModalCotas && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-5 animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 max-w-xl w-full shadow-2xl space-y-4 animate-in fade-in zoom-in-95 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3 shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center">
                   <Zap className="w-5 h-5 text-amber-400" />
                 </div>
                 <div>
-                  <h3 className="text-base font-black text-white">Selecionar Quantidade de Cotas</h3>
-                  <p className="text-xs text-slate-400">Escolha a quantidade de números para a sua rifa</p>
+                  <h3 className="text-base font-black text-white">Quantidade de Cotas do Sorteio</h3>
+                  <p className="text-xs text-slate-400">Escolha um valor pré-definido ou digite uma quantidade personalizada</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setMostrarModalCotas(false)}
-                className="w-8 h-8 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-full font-bold text-xs transition flex items-center justify-center"
+                className="w-8 h-8 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-full font-bold text-xs transition flex items-center justify-center cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-[60vh] overflow-y-auto pr-1">
-              {[
-                { label: '100 Cotas', val: 100, desc: '00 a 99 (2 dígitos)' },
-                { label: '200 Cotas', val: 200, desc: '000 a 199 (3 dígitos)' },
-                { label: '300 Cotas', val: 300, desc: '000 a 299 (3 dígitos)' },
-                { label: '500 Cotas', val: 500, desc: '000 a 499 (3 dígitos)' },
-                { label: '1.000 Cotas', val: 1000, desc: '0000 a 0999 (4 dígitos)' },
-                { label: '2.500 Cotas', val: 2500, desc: '0000 a 2499 (4 dígitos)' },
-                { label: '5.000 Cotas', val: 5000, desc: '0000 a 4999 (4 dígitos)' },
-                { label: '10.000 Cotas', val: 10000, desc: '00000 a 09999 (5 dígitos)' },
-                { label: '50.000 Cotas', val: 50000, desc: '00000 a 49999 (5 dígitos)' },
-                { label: '100.000 Cotas', val: 100000, desc: '000000 a 099999 (6 dígitos)' },
-                { label: '500.000 Cotas', val: 500000, desc: '000000 a 499999 (6 dígitos)' },
-                { label: '1 MILHÃO', val: 1000000, desc: '0000000 a 0999999 (7 d)' },
-                { label: '10 MILHÕES', val: 10000000, desc: '00000000 a 09999999 (8 d)' },
-              ].map(opt => (
-                <button
-                  key={opt.val}
-                  type="button"
-                  onClick={() => {
-                    setForm(prev => ({ ...prev, totalCotas: opt.val }));
-                    setMostrarModalCotas(false);
-                  }}
-                  className={`p-3 rounded-2xl text-left border transition ${
-                    form.totalCotas === opt.val
-                      ? 'bg-emerald-500/20 border-emerald-500 text-white shadow-lg shadow-emerald-500/10'
-                      : 'bg-slate-950 hover:bg-slate-800 border-slate-800 text-slate-300'
-                  }`}
-                >
-                  <p className="text-xs font-black text-white">{opt.label}</p>
-                  <p className="text-[10px] text-slate-400 mt-0.5">{opt.desc}</p>
-                </button>
-              ))}
+            {/* Abas do Modal */}
+            <div className="flex bg-slate-950 p-1 rounded-2xl border border-slate-800 shrink-0">
+              <button
+                type="button"
+                onClick={() => setAbaModalCotas('predefinidas')}
+                className={`flex-1 py-2 text-xs font-bold rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                  abaModalCotas === 'predefinidas'
+                    ? 'bg-emerald-500 text-slate-950 shadow-md font-black'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Zap className="w-3.5 h-3.5" />
+                Opções Pré-definidas
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAbaModalCotas('personalizada');
+                  if (!cotasCustomInput && form.totalCotas) {
+                    setCotasCustomInput(String(form.totalCotas));
+                  }
+                }}
+                className={`flex-1 py-2 text-xs font-bold rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                  abaModalCotas === 'personalizada'
+                    ? 'bg-emerald-500 text-slate-950 shadow-md font-black'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Sliders className="w-3.5 h-3.5" />
+                Quantidade Personalizada
+              </button>
             </div>
 
-            <div className="pt-2 border-t border-slate-800 flex justify-end">
+            {/* Conteúdo Aba Pré-definidas */}
+            {abaModalCotas === 'predefinidas' && (
+              <div className="space-y-3 overflow-y-auto pr-1 flex-1">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {[
+                    { label: '100 Cotas', val: 100, desc: '00 a 99 (2 dígitos)' },
+                    { label: '200 Cotas', val: 200, desc: '000 a 199 (3 dígitos)' },
+                    { label: '300 Cotas', val: 300, desc: '000 a 299 (3 dígitos)' },
+                    { label: '500 Cotas', val: 500, desc: '000 a 499 (3 dígitos)' },
+                    { label: '1.000 Cotas', val: 1000, desc: '0000 a 0999 (4 dígitos)' },
+                    { label: '2.500 Cotas', val: 2500, desc: '0000 a 2499 (4 dígitos)' },
+                    { label: '5.000 Cotas', val: 5000, desc: '0000 a 4999 (4 dígitos)' },
+                    { label: '10.000 Cotas', val: 10000, desc: '00000 a 09999 (5 dígitos)' },
+                    { label: '20.000 Cotas', val: 20000, desc: '00000 a 19999 (5 dígitos)' },
+                    { label: '30.000 Cotas', val: 30000, desc: '00000 a 29999 (5 dígitos)' },
+                    { label: '40.000 Cotas', val: 40000, desc: '00000 a 39999 (5 dígitos)' },
+                    { label: '50.000 Cotas', val: 50000, desc: '00000 a 49999 (5 dígitos)' },
+                    { label: '100.000 Cotas', val: 100000, desc: '000000 a 099999 (6 dígitos)' },
+                    { label: '200.000 Cotas', val: 200000, desc: '000000 a 199999 (6 dígitos)' },
+                    { label: '500.000 Cotas', val: 500000, desc: '000000 a 499999 (6 dígitos)' },
+                    { label: '1 MILHÃO', val: 1000000, desc: '0000000 a 0999999 (7 d)' },
+                    { label: '5 MILHÕES', val: 5000000, desc: '0000000 a 4999999 (7 d)' },
+                    { label: '10 MILHÕES', val: 10000000, desc: '00000000 a 09999999 (8 d)' },
+                  ].map(opt => {
+                    const isSelected = form.totalCotas === opt.val;
+                    return (
+                      <button
+                        key={opt.val}
+                        type="button"
+                        onClick={() => {
+                          setForm(prev => ({ ...prev, totalCotas: opt.val }));
+                          setMostrarModalCotas(false);
+                        }}
+                        className={`p-3 rounded-2xl text-left border transition cursor-pointer flex flex-col justify-between ${
+                          isSelected
+                            ? 'bg-emerald-500/20 border-emerald-500 text-white shadow-lg shadow-emerald-500/10'
+                            : 'bg-slate-950 hover:bg-slate-800 border-slate-800 text-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-black text-white">{opt.label}</p>
+                          {isSelected && <span className="w-2 h-2 rounded-full bg-emerald-400"></span>}
+                        </div>
+                        <p className="text-[10px] text-slate-400 mt-1 font-mono">{opt.desc}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAbaModalCotas('personalizada');
+                      if (!cotasCustomInput && form.totalCotas) {
+                        setCotasCustomInput(String(form.totalCotas));
+                      }
+                    }}
+                    className="w-full py-2.5 px-4 bg-slate-950 hover:bg-slate-800 border border-slate-700/60 rounded-xl text-xs font-bold text-emerald-400 flex items-center justify-center gap-2 transition cursor-pointer"
+                  >
+                    <Sliders className="w-4 h-4" />
+                    <span>Precisa de outra quantidade? Clique para Personalizar</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Conteúdo Aba Personalizada */}
+            {abaModalCotas === 'personalizada' && (
+              <div className="space-y-4 overflow-y-auto pr-1 flex-1">
+                <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-3">
+                  <label className="text-xs font-black text-white uppercase tracking-wider block">
+                    Digite o Total de Cotas Desejado
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min={10}
+                      max={100000000}
+                      placeholder="Ex: 15000, 25000, 75000..."
+                      value={cotasCustomInput}
+                      onChange={e => setCotasCustomInput(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3.5 text-lg font-mono font-black text-emerald-400 focus:outline-none focus:border-emerald-500 shadow-inner"
+                    />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-500 uppercase">
+                      Cotas
+                    </span>
+                  </div>
+
+                  {/* Atalhos Rápidos para Somar */}
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    <span className="text-[10px] text-slate-400 self-center mr-1">Atalhos rápidos:</span>
+                    {[
+                      { label: '+100', val: 100 },
+                      { label: '+500', val: 500 },
+                      { label: '+1.000', val: 1000 },
+                      { label: '+5.000', val: 5000 },
+                      { label: '+10.000', val: 10000 },
+                      { label: '+50.000', val: 50000 },
+                    ].map(at => (
+                      <button
+                        key={at.label}
+                        type="button"
+                        onClick={() => {
+                          const atual = Number(cotasCustomInput) || 0;
+                          setCotasCustomInput(String(atual + at.val));
+                        }}
+                        className="px-2 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-lg text-[10px] font-mono font-bold text-slate-300 hover:text-white transition cursor-pointer"
+                      >
+                        {at.label}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setCotasCustomInput('')}
+                      className="px-2 py-1 bg-slate-900 hover:bg-red-500/20 border border-slate-700 hover:border-red-500/40 rounded-lg text-[10px] font-bold text-slate-400 hover:text-red-400 transition cursor-pointer"
+                    >
+                      Limpar
+                    </button>
+                  </div>
+                </div>
+
+                {/* Preview da Numeração */}
+                {(() => {
+                  const qtd = Number(cotasCustomInput);
+                  if (!qtd || qtd <= 0) return null;
+                  const max = qtd - 1;
+                  let dig = String(max).length;
+                  if (dig < 2) dig = 2;
+                  const ini = '0'.padStart(dig, '0');
+                  const fim = String(max).padStart(dig, '0');
+                  return (
+                    <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl space-y-2">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-slate-300 font-bold">Faixa de Numeração:</span>
+                        <span className="font-mono font-black text-emerald-400 text-sm">{ini} até {fim}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs text-slate-400">
+                        <span>Total de números gerados:</span>
+                        <span className="font-mono font-bold text-white">{qtd.toLocaleString('pt-BR')} números</span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs text-slate-400">
+                        <span>Dígitos por cota:</span>
+                        <span className="font-mono font-bold text-white">{dig} dígitos</span>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                <button
+                  type="button"
+                  disabled={!Number(cotasCustomInput) || Number(cotasCustomInput) <= 0}
+                  onClick={() => {
+                    const val = Number(cotasCustomInput);
+                    if (val && val > 0) {
+                      setForm(prev => ({ ...prev, totalCotas: val }));
+                      setMostrarModalCotas(false);
+                    }
+                  }}
+                  className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 font-black text-sm rounded-xl transition cursor-pointer shadow-lg active:scale-95 flex items-center justify-center gap-2"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Aplicar Quantidade Personalizada</span>
+                </button>
+              </div>
+            )}
+
+            <div className="pt-2 border-t border-slate-800 flex justify-end shrink-0">
               <button
                 type="button"
                 onClick={() => setMostrarModalCotas(false)}
-                className="py-2.5 px-5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl transition"
+                className="py-2 px-5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl transition cursor-pointer"
               >
                 Fechar
               </button>

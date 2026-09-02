@@ -234,6 +234,28 @@ export const ICON_SETS = {
     { id: 'Info', nome: 'Informação Promo', icon: Info },
     { id: 'Target', nome: 'Alvo Promocional', icon: Target },
   ] as OpcaoIcone[],
+  seloBanner: [
+    { id: 'none', nome: 'Nenhum (Sem Ícone)', icon: Slash },
+    { id: 'Flame', nome: 'Fogo / Fogueira', icon: Flame },
+    { id: 'Sparkles', nome: 'Brilho Mágico', icon: Sparkles },
+    { id: 'Star', nome: 'Estrela', icon: Star },
+    { id: 'Zap', nome: 'Raio Turbo', icon: Zap },
+    { id: 'Trophy', nome: 'Troféu Ouro', icon: Trophy },
+    { id: 'Crown', nome: 'Coroa Imperial', icon: Crown },
+    { id: 'Tag', nome: 'Etiqueta / Tag', icon: Tag },
+    { id: 'Gift', nome: 'Presente', icon: Gift },
+    { id: 'Gem', nome: 'Diamante', icon: Gem },
+    { id: 'Rocket', nome: 'Foguete', icon: Rocket },
+    { id: 'ShieldCheck', nome: 'Escudo Seguro', icon: ShieldCheck },
+    { id: 'Award', nome: 'Medalha Honra', icon: Award },
+    { id: 'Ticket', nome: 'Cota Premiada', icon: Ticket },
+    { id: 'DollarSign', nome: 'Cifrão Dinheiro', icon: DollarSign },
+    { id: 'Coins', nome: 'Moedas Ouro', icon: Coins },
+    { id: 'Heart', nome: 'Coração', icon: Heart },
+    { id: 'Target', nome: 'Alvo Certeiro', icon: Target },
+    { id: 'CheckCircle2', nome: 'Verificado', icon: CheckCircle2 },
+    { id: 'PartyPopper', nome: 'Festa / Confetes', icon: PartyPopper },
+  ] as OpcaoIcone[],
 };
 
 // Retorna o componente de ícone correspondente

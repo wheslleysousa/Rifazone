@@ -857,31 +857,42 @@ export interface ConfirmacaoCompraConfig {
   mensagemAgradecimento?: string;
   exibirConfetes?: boolean;
   animacaoSucesso?: 'explosao_confetes' | 'nenhuma';
+  
+  bannerSucessoUrl?: string;
+  instrucoesPosCompra?: string;
+  
+  // Indicador de Sucesso
+  iconeSucessoExibir?: boolean;
+  iconeSucessoTipo?: 'check' | 'trofeu' | 'estrela' | 'festa' | 'coracao' | 'fogo' | 'emoji' | 'imagem';
+  iconeSucessoEmoji?: string;
+  iconeSucessoImagem?: string;
+  iconeSucessoCorFundo?: string;
+  iconeSucessoCorIcone?: string;
+  iconeSucessoTamanho?: number;
+  iconeSucessoAnimacao?: 'pulse' | 'bounce' | 'spin_once' | 'none';
+
+  // Formato dos Bilhetes
   exibirNumeros?: boolean;
+  formatoBilhetes?: 'grid' | 'pills' | 'card_destaque' | 'lista';
+  bilhetesCorFundo?: string;
+  bilhetesCorTexto?: string;
+  bilhetesCorBorda?: string;
+  bilhetesRaioBorda?: number;
+  bilhetesTamanhoFonte?: number;
+
+  // Botões e Ações
   exibirBotaoCopiar?: boolean;
+  botaoCopiarTexto?: string;
   exibirBotaoWhatsapp?: boolean;
+  botaoWhatsappTexto?: string;
+  botaoWhatsappCor?: string;
   exibirBotaoMeusNumeros?: boolean;
+  botaoMeusNumerosTexto?: string;
+
+  // Grupo VIP
   botaoGrupoVipAtivo?: boolean;
   botaoGrupoVipTexto?: string;
   botaoGrupoVipLink?: string;
-  bannerSucessoUrl?: string;
-  instrucoesPosCompra?: string;
-  exibirIconeSucesso?: boolean;
-  iconeSucessoTipo?: 'check' | 'trofeu' | 'estrela' | 'coracao' | 'festa' | 'ticket' | 'medalha' | 'fogo' | 'custom_emoji';
-  iconeSucessoEmoji?: string;
-  iconeSucessoCor?: string;
-  iconeSucessoFundo?: string;
-  iconeSucessoTamanho?: number;
-  formatoBilhetes?: 'grid_moderno' | 'cartao_ticket' | 'pilula_compacta' | 'bloco_mono';
-  bilhetesFundo?: string;
-  bilhetesTextoCor?: string;
-  bilhetesBordaCor?: string;
-  bilhetesRaioBorda?: number;
-  bilhetesTamanhoFonte?: number;
-  botaoWhatsappTexto?: string;
-  botaoWhatsappCor?: string;
-  botaoCopiarTexto?: string;
-  botaoMeusNumerosTexto?: string;
 }
 
 export interface CampoCheckoutConfig {

@@ -39,15 +39,15 @@ export const PosVendaTab: React.FC<PosVendaTabProps> = ({
 
   return (
     <div className="space-y-5 animate-in fade-in duration-200">
-      {/* 1. Indicador / Bolinha de Sucesso (Totalmente Editável) */}
+      {/* 1. Indicador / Ícone / Banner de Sucesso (Totalmente Editável) */}
       <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4">
         <div className="flex items-center justify-between pb-3 border-b border-slate-800">
           <div>
             <h2 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" /> 1. Indicador / Ícone de Sucesso
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" /> 1. Indicador / Destaque de Sucesso
             </h2>
             <p className="text-[11px] text-slate-400 mt-0.5">
-              Personalize a bolinha redonda de sucesso, troque por outro ícone, emoji ou imagem própria
+              Personalize o ícone, emoji ou imagem que aparece no centro da tela de sucesso
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -80,7 +80,7 @@ export const PosVendaTab: React.FC<PosVendaTabProps> = ({
           <div className="space-y-4 animate-in fade-in">
             {/* Escolha do tipo de ícone */}
             <div>
-              <label className="text-xs font-bold text-slate-300 block mb-2">O que vai aparecer na bolinha / indicador:</label>
+              <label className="text-xs font-bold text-slate-300 block mb-2">O que vai aparecer no destaque:</label>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {[
                   { id: 'check', label: 'Check Verde', icon: <CheckCircle2 className="w-4 h-4 text-emerald-400" /> },
@@ -90,7 +90,7 @@ export const PosVendaTab: React.FC<PosVendaTabProps> = ({
                   { id: 'coracao', label: 'Coração', icon: <Heart className="w-4 h-4 text-rose-400" /> },
                   { id: 'fogo', label: 'Fogo / Destaque', icon: <Flame className="w-4 h-4 text-orange-400" /> },
                   { id: 'emoji', label: 'Emoji Customizado', icon: <span className="text-base">✨</span> },
-                  { id: 'imagem', label: 'Imagem / Logo', icon: <Image className="w-4 h-4 text-blue-400" /> },
+                  { id: 'imagem', label: 'Imagem / Banner', icon: <Image className="w-4 h-4 text-blue-400" /> },
                 ].map(item => {
                   const isSel = (conf.iconeSucessoTipo || 'check') === item.id;
                   return (
@@ -144,7 +144,7 @@ export const PosVendaTab: React.FC<PosVendaTabProps> = ({
                 <label className="text-xs font-bold text-slate-300 block">Upload da Imagem ou Logo:</label>
                 <div className="flex items-center gap-3">
                   {conf.iconeSucessoImagem ? (
-                    <div className="relative w-14 h-14 rounded-full border border-slate-700 overflow-hidden bg-slate-900 shrink-0">
+                    <div className="relative w-full h-32 rounded-xl border border-slate-700 overflow-hidden bg-slate-900 shrink-0">
                       <img
                         src={conf.iconeSucessoImagem}
                         alt="Ícone Sucesso"
@@ -153,102 +153,106 @@ export const PosVendaTab: React.FC<PosVendaTabProps> = ({
                       />
                     </div>
                   ) : (
-                    <div className="w-14 h-14 rounded-full border border-dashed border-slate-700 flex items-center justify-center bg-slate-900 shrink-0">
-                      <Image className="w-6 h-6 text-slate-600" />
+                    <div className="w-full h-32 rounded-xl border border-dashed border-slate-700 flex items-center justify-center bg-slate-900 shrink-0">
+                      <Image className="w-8 h-8 text-slate-600" />
                     </div>
                   )}
-                  <div className="flex-1 space-y-1.5">
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={handleImageUpload}
-                      className="hidden"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 cursor-pointer shadow transition"
-                    >
-                      <Upload className="w-3.5 h-3.5" /> Escolher Imagem do Computador
-                    </button>
-                    <p className="text-[10px] text-slate-500">Recomendado formato quadrado (PNG, JPG, SVG)</p>
-                  </div>
                 </div>
+                <div className="flex items-center gap-3">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex-1 px-3 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 cursor-pointer shadow transition"
+                  >
+                    <Upload className="w-4 h-4" /> Escolher Imagem do Computador
+                  </button>
+                </div>
+                <p className="text-[10px] text-slate-500 text-center">Se a imagem for retangular, ela aparecerá como um banner na tela de sucesso.</p>
               </div>
             )}
 
-            {/* Cores e Dimensões da Bolinha de Sucesso */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-1.5">
-                <label className="text-[10px] font-bold text-slate-300 block">Cor de Fundo da Bolinha</label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    value={conf.iconeSucessoCorFundo || '#10b981'}
-                    onChange={e => updConfirmacao({ iconeSucessoCorFundo: e.target.value })}
-                    className="w-8 h-8 rounded-lg border-0 cursor-pointer bg-transparent p-0 shrink-0"
-                  />
-                  <input
-                    type="text"
-                    value={conf.iconeSucessoCorFundo || '#10b981'}
-                    onChange={e => updConfirmacao({ iconeSucessoCorFundo: e.target.value })}
-                    className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white uppercase focus:outline-none"
-                  />
-                </div>
-              </div>
+            {/* Cores e Dimensões do Indicador de Sucesso */}
+            {conf.iconeSucessoTipo !== 'imagem' && (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-300 block">Cor de Fundo do Indicador</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={conf.iconeSucessoCorFundo || '#10b981'}
+                        onChange={e => updConfirmacao({ iconeSucessoCorFundo: e.target.value })}
+                        className="w-8 h-8 rounded-lg border-0 cursor-pointer bg-transparent p-0 shrink-0"
+                      />
+                      <input
+                        type="text"
+                        value={conf.iconeSucessoCorFundo || '#10b981'}
+                        onChange={e => updConfirmacao({ iconeSucessoCorFundo: e.target.value })}
+                        className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white uppercase focus:outline-none"
+                      />
+                    </div>
+                  </div>
 
-              <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-1.5">
-                <label className="text-[10px] font-bold text-slate-300 block">Cor do Sinalzinho / Ícone</label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    value={conf.iconeSucessoCorIcone || '#ffffff'}
-                    onChange={e => updConfirmacao({ iconeSucessoCorIcone: e.target.value })}
-                    className="w-8 h-8 rounded-lg border-0 cursor-pointer bg-transparent p-0 shrink-0"
-                  />
-                  <input
-                    type="text"
-                    value={conf.iconeSucessoCorIcone || '#ffffff'}
-                    onChange={e => updConfirmacao({ iconeSucessoCorIcone: e.target.value })}
-                    className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white uppercase focus:outline-none"
-                  />
+                  <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-300 block">Cor do Ícone / Emoji</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={conf.iconeSucessoCorIcone || '#ffffff'}
+                        onChange={e => updConfirmacao({ iconeSucessoCorIcone: e.target.value })}
+                        className="w-8 h-8 rounded-lg border-0 cursor-pointer bg-transparent p-0 shrink-0"
+                      />
+                      <input
+                        type="text"
+                        value={conf.iconeSucessoCorIcone || '#ffffff'}
+                        onChange={e => updConfirmacao({ iconeSucessoCorIcone: e.target.value })}
+                        className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white uppercase focus:outline-none"
+                      />
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl">
-                <div className="flex justify-between text-[11px] font-bold text-slate-300 mb-1">
-                  <span>Tamanho da Bolinha</span>
-                  <span className="font-mono text-emerald-400">{conf.iconeSucessoTamanho ?? 64}px</span>
-                </div>
-                <input
-                  type="range"
-                  min={0}
-                  max={20}
-                  value={conf.iconeSucessoTamanho ?? 64}
-                  onChange={e => updConfirmacao({ iconeSucessoTamanho: Number(e.target.value) })}
-                  className="w-full accent-emerald-500 cursor-pointer"
-                />
-              </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl">
+                    <div className="flex justify-between text-[11px] font-bold text-slate-300 mb-1">
+                      <span>Tamanho do Indicador</span>
+                      <span className="font-mono text-emerald-400">{conf.iconeSucessoTamanho ?? 64}px</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={32}
+                      max={128}
+                      value={conf.iconeSucessoTamanho ?? 64}
+                      onChange={e => updConfirmacao({ iconeSucessoTamanho: Number(e.target.value) })}
+                      className="w-full accent-emerald-500 cursor-pointer"
+                    />
+                  </div>
 
-              <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl">
-                <div className="flex justify-between text-[11px] font-bold text-slate-300 mb-1">
-                  <span>Animação do Ícone</span>
+                  <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl">
+                    <div className="flex justify-between text-[11px] font-bold text-slate-300 mb-1">
+                      <span>Animação do Ícone</span>
+                    </div>
+                    <select
+                      value={conf.iconeSucessoAnimacao || 'pulse'}
+                      onChange={e => updConfirmacao({ iconeSucessoAnimacao: e.target.value as any })}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none"
+                    >
+                      <option value="pulse">Pulso Suave</option>
+                      <option value="bounce">Salto / Bounce</option>
+                      <option value="spin_once">Giro Inicial</option>
+                      <option value="none">Estático (Sem animação)</option>
+                    </select>
+                  </div>
                 </div>
-                <select
-                  value={conf.iconeSucessoAnimacao || 'pulse'}
-                  onChange={e => updConfirmacao({ iconeSucessoAnimacao: e.target.value as any })}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none"
-                >
-                  <option value="pulse">Pulso Suave</option>
-                  <option value="bounce">Salto / Bounce</option>
-                  <option value="spin_once">Giro Inicial</option>
-                  <option value="none">Estático (Sem animação)</option>
-                </select>
-              </div>
-            </div>
+              </>
+            )}
           </div>
         )}
       </div>

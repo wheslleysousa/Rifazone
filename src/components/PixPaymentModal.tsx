@@ -225,10 +225,14 @@ export const PixPaymentModal: React.FC<Props> = ({
             <div className="space-y-4 px-2">
               {confirmacaoConfig?.iconeSucessoExibir !== false && (
                 <div 
-                  className="w-16 h-16 rounded-full flex items-center justify-center mx-auto shadow-lg animate-bounce"
+                  className={`mx-auto shadow-xl animate-bounce flex items-center justify-center overflow-hidden transition-all duration-500 ${
+                    confirmacaoConfig?.iconeSucessoTipo === 'imagem' 
+                      ? 'w-full max-w-[320px] aspect-video rounded-2xl border-2' 
+                      : 'w-16 h-16 rounded-full border-2'
+                  }`}
                   style={{ 
                     backgroundColor: `${confirmacaoConfig?.iconeSucessoCorFundo || 'rgba(16, 185, 129, 0.2)'}`,
-                    border: `2px solid ${confirmacaoConfig?.iconeSucessoCorFundo || '#10b981'}`,
+                    borderColor: `${confirmacaoConfig?.iconeSucessoCorFundo || '#10b981'}`,
                     color: confirmacaoConfig?.iconeSucessoCorIcone || '#10b981'
                   }}
                 >
@@ -243,7 +247,7 @@ export const PixPaymentModal: React.FC<Props> = ({
                     if (tipo === 'fogo') return <Flame size={size} />;
                     if (tipo === 'emoji') return <span className="text-2xl">{confirmacaoConfig?.iconeSucessoEmoji || '🎉'}</span>;
                     if (tipo === 'imagem' && confirmacaoConfig?.iconeSucessoImagem) {
-                      return <img src={confirmacaoConfig.iconeSucessoImagem} alt="Ícone" className="w-full h-full object-cover rounded-full" />;
+                      return <img src={confirmacaoConfig.iconeSucessoImagem} alt="Ícone" className="w-full h-full object-cover" />;
                     }
                     return <CheckCircle2 size={size} />;
                   })()}

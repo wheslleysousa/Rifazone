@@ -67,13 +67,17 @@ export const CartaoSuccessModal: React.FC<Props> = ({
           )}
 
           <div className="space-y-3 px-2">
-            {confirmacaoConfig?.exibirIconeSucesso !== false && (
+            {confirmacaoConfig?.iconeSucessoExibir !== false && (
               <div 
-                className="w-16 h-16 rounded-full flex items-center justify-center mx-auto shadow-lg animate-bounce"
+                className={`mx-auto shadow-xl animate-bounce flex items-center justify-center overflow-hidden transition-all duration-500 ${
+                  confirmacaoConfig?.iconeSucessoTipo === 'imagem' 
+                    ? 'w-full max-w-[320px] aspect-video rounded-2xl border-2' 
+                    : 'w-16 h-16 rounded-full border-2'
+                }`}
                 style={{ 
-                  backgroundColor: `${confirmacaoConfig?.iconeSucessoFundo || 'rgba(16, 185, 129, 0.2)'}`,
-                  border: `2px solid ${confirmacaoConfig?.iconeSucessoFundo || '#10b981'}`,
-                  color: confirmacaoConfig?.iconeSucessoCor || '#10b981'
+                  backgroundColor: `${confirmacaoConfig?.iconeSucessoCorFundo || 'rgba(16, 185, 129, 0.2)'}`,
+                  borderColor: `${confirmacaoConfig?.iconeSucessoCorFundo || '#10b981'}`,
+                  color: confirmacaoConfig?.iconeSucessoCorIcone || '#10b981'
                 }}
               >
                 {(() => {
@@ -87,7 +91,7 @@ export const CartaoSuccessModal: React.FC<Props> = ({
                   if (tipo === 'fogo') return <Flame size={size} />;
                   if (tipo === 'emoji') return <span className="text-2xl">{confirmacaoConfig?.iconeSucessoEmoji || '🎉'}</span>;
                   if (tipo === 'imagem' && confirmacaoConfig?.iconeSucessoImagem) {
-                    return <img src={confirmacaoConfig.iconeSucessoImagem} alt="Ícone" className="w-full h-full object-cover rounded-full" />;
+                    return <img src={confirmacaoConfig.iconeSucessoImagem} alt="Ícone" className="w-full h-full object-cover" />;
                   }
                   return <CheckCircle2 size={size} />;
                 })()}

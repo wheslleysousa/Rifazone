@@ -187,6 +187,7 @@ export interface Storage {
   salvarCheckout(ownerId: string, checkoutData: { id?: string; nome: string; checkout: CheckoutConfig }): Promise<CheckoutSalvo>;
   listarCheckouts(ownerId: string): Promise<CheckoutSalvo[]>;
   excluirCheckout(ownerId: string, id: string): Promise<boolean>;
+  getCheckout(ownerId: string, id: string): Promise<CheckoutSalvo | null>;
 
   // Fila de Mensagens (Automação / Outbox)
   enfileirarMensagem(msg: Omit<MensagemFila, 'id' | 'criadoEm' | 'status'>): Promise<MensagemFila>;

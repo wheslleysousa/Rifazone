@@ -884,6 +884,33 @@ export interface ConfirmacaoCompraConfig {
   botaoMeusNumerosTexto?: string;
 }
 
+export interface CampoCheckoutConfig {
+  ativo: boolean;
+  obrigatorio: boolean;
+}
+
+export interface PixConfig {
+  descontoPct?: number;
+  descontoFixo?: number;
+  permitirComprovante?: boolean;
+  cascata?: string[];
+  // Personalização da Área / Tela do Pix
+  titulo?: string;
+  subtitulo?: string;
+  exibirQrCode?: boolean;
+  tamanhoQrCode?: number;
+  textoBotaoCopiar?: string;
+  textoBotaoCopiado?: string;
+  instrucoes?: string[];
+  avisoExpiracao?: string;
+  exibirResumo?: boolean;
+  exibirTimer?: boolean;
+  badgeTexto?: string;
+  suporteWhatsappAtivo?: boolean;
+  suporteWhatsappNumero?: string;
+  suporteWhatsappTexto?: string;
+}
+
 export interface CheckoutConfig {
   layout?: 'padrao' | 'limpo' | 'passos' | 'rapido';
   metodoPrimario?: 'pix' | 'cartao' | 'boleto';
@@ -892,25 +919,33 @@ export interface CheckoutConfig {
     cartao: boolean;
     boleto: boolean;
   };
-  pixConfig?: {
-    descontoPct?: number;
-    descontoFixo?: number;
-    permitirComprovante?: boolean;
-    cascata?: string[];
-  };
+  pixConfig?: PixConfig;
   cartaoConfig?: {
     exibirValorParcelado?: boolean;
+    bandeirasAceitas?: string[];
+    exigirNomeTitular?: boolean;
+    exigirCpfTitular?: boolean;
+    instrucaoSeguranca?: string;
   };
   // Exibir (ou ocultar) o campo de cupom de desconto no checkout
   exibirCupom?: boolean;
   cupomAtivo?: boolean;
   cupons?: CupomDesconto[];
   coletaDados?: {
+    nome?: CampoCheckoutConfig;
+    telefone?: CampoCheckoutConfig;
+    confirmarTelefone?: CampoCheckoutConfig;
+    email?: CampoCheckoutConfig;
+    cpf?: CampoCheckoutConfig;
+    dataNascimento?: CampoCheckoutConfig;
+    nomeSocial?: CampoCheckoutConfig;
+    endereco?: CampoCheckoutConfig;
+    redesSociais?: CampoCheckoutConfig;
+    // Compatibilidade legada
     exigirEmail?: boolean;
     confirmarEmail?: boolean;
     exigirCpf?: boolean;
     exigirTelefone?: boolean;
-    confirmarTelefone?: boolean;
     telefoneUnico?: boolean;
     coletarEndereco?: {
       ativo?: boolean;
@@ -990,6 +1025,10 @@ export interface CheckoutConfig {
   botaoRaioBorda?: number;
   botaoAltura?: number;
   botaoTamanhoFonte?: number;
+  botaoPesoFonte?: 'normal' | 'bold' | 'black';
+  botaoFormato?: 'square' | 'rounded' | 'pilled' | 'super';
+  inputArredondamento?: number;
+  cardArredondamento?: number;
   mensagemEscassez?: string;
   selosExtras?: string[];
   ordemElementos?: string[];
@@ -997,6 +1036,7 @@ export interface CheckoutConfig {
 
 export const DEFAULT_CHECKOUT_CONFIG: CheckoutConfig = {
   layout: 'padrao',
+  ordemElementos: ['banner', 'temporizador', 'mensagemUrgencia', 'dadosComprador', 'divisorEtapas', 'metodosPagamento', 'cupomDesconto', 'resumoPedido', 'selosSeguranca'],
   metodoPrimario: 'pix',
   metodos: {
     pix: true,
@@ -1005,19 +1045,47 @@ export const DEFAULT_CHECKOUT_CONFIG: CheckoutConfig = {
   },
   pixConfig: {
     permitirComprovante: false,
-    cascata: ['padrao']
+    cascata: ['padrao'],
+    titulo: 'Pague com Pix para Garantir suas Cotas',
+    subtitulo: 'Abra o app do seu banco e escaneie o QR Code ou utilize o Pix Copia e Cola.',
+    exibirQrCode: true,
+    tamanhoQrCode: 200,
+    textoBotaoCopiar: 'Copiar Código Pix',
+    textoBotaoCopiado: 'Código Pix Copiado com Sucesso!',
+    avisoExpiracao: 'Suas cotas ficam reservadas temporariamente. Finalize o pagamento para garantir a sua participação.',
+    exibirResumo: true,
+    exibirTimer: true,
+    badgeTexto: 'Aprovação Instantânea',
+    instrucoes: [
+      'Copie o código Pix abaixo ou aponte a câmera para o QR Code.',
+      'Abra o aplicativo do seu banco e acesse a opção "Pix Copia e Cola".',
+      'Confirme o valor e finalize. Seus números serão vinculados e liberados imediatamente!'
+    ]
   },
   cartaoConfig: {
-    exibirValorParcelado: true
+    exibirValorParcelado: true,
+    bandeirasAceitas: ['visa', 'mastercard', 'elo', 'hipercard', 'amex'],
+    exigirNomeTitular: true,
+    exigirCpfTitular: true,
+    instrucaoSeguranca: 'Pagamento 100% protegido por criptografia de ponta a ponta. Nenhum dado do cartão é salvo pelo sistema.'
   },
   exibirCupom: true,
   coletaDados: {
+    nome: { ativo: true, obrigatorio: true },
+    telefone: { ativo: true, obrigatorio: true },
+    confirmarTelefone: { ativo: false, obrigatorio: false },
+    email: { ativo: false, obrigatorio: false },
+    cpf: { ativo: false, obrigatorio: false },
+    dataNascimento: { ativo: false, obrigatorio: false },
+    nomeSocial: { ativo: false, obrigatorio: false },
+    endereco: { ativo: false, obrigatorio: false },
+    redesSociais: { ativo: false, obrigatorio: false },
     exigirEmail: false,
     confirmarEmail: false,
     exigirCpf: false,
     exigirTelefone: true,
-    confirmarTelefone: false,
-    telefoneUnico: true
+    telefoneUnico: true,
+    coletarEndereco: { ativo: false, obrigatorio: false }
   },
   parcelasMax: 12,
   taxaParcelamento: 'comprador',
@@ -1032,6 +1100,49 @@ export const DEFAULT_CHECKOUT_CONFIG: CheckoutConfig = {
   temporizadorAtivo: false,
   temporizadorMinutos: 15,
 };
+
+export function obterConfigCamposCheckout(checkoutConfig?: Partial<CheckoutConfig>, campanha?: any) {
+  const cd = checkoutConfig?.coletaDados || {};
+
+  const nomeAtivo = cd.nome?.ativo !== undefined ? cd.nome.ativo : true;
+  const nomeObrigatorio = cd.nome?.obrigatorio !== undefined ? cd.nome.obrigatorio : true;
+
+  const telefoneAtivo = cd.telefone?.ativo !== undefined ? cd.telefone.ativo : (cd.exigirTelefone !== undefined ? cd.exigirTelefone : true);
+  const telefoneObrigatorio = cd.telefone?.obrigatorio !== undefined ? cd.telefone.obrigatorio : true;
+
+  const confirmarTelefoneAtivo = cd.confirmarTelefone?.ativo !== undefined ? cd.confirmarTelefone.ativo : false;
+  const confirmarTelefoneObrigatorio = cd.confirmarTelefone?.obrigatorio !== undefined ? cd.confirmarTelefone.obrigatorio : false;
+
+  const emailAtivo = cd.email?.ativo !== undefined ? cd.email.ativo : (cd.exigirEmail === true || campanha?.exigirEmail === true);
+  const emailObrigatorio = cd.email?.obrigatorio !== undefined ? cd.email.obrigatorio : (cd.exigirEmail === true || campanha?.exigirEmail === true);
+
+  const cpfAtivo = cd.cpf?.ativo !== undefined ? cd.cpf.ativo : (cd.exigirCpf === true || campanha?.exigirCpf === true);
+  const cpfObrigatorio = cd.cpf?.obrigatorio !== undefined ? cd.cpf.obrigatorio : (cd.exigirCpf === true || campanha?.exigirCpf === true);
+
+  const dataNascimentoAtivo = cd.dataNascimento?.ativo !== undefined ? cd.dataNascimento.ativo : false;
+  const dataNascimentoObrigatorio = cd.dataNascimento?.obrigatorio !== undefined ? cd.dataNascimento.obrigatorio : false;
+
+  const nomeSocialAtivo = cd.nomeSocial?.ativo !== undefined ? cd.nomeSocial.ativo : false;
+  const nomeSocialObrigatorio = cd.nomeSocial?.obrigatorio !== undefined ? cd.nomeSocial.obrigatorio : false;
+
+  const enderecoAtivo = cd.endereco?.ativo !== undefined ? cd.endereco.ativo : (cd.coletarEndereco?.ativo === true || campanha?.coletarEndereco?.ativo === true);
+  const enderecoObrigatorio = cd.endereco?.obrigatorio !== undefined ? cd.endereco.obrigatorio : (cd.coletarEndereco?.obrigatorio === true || campanha?.coletarEndereco?.obrigatorio === true);
+
+  const redesSociaisAtivo = cd.redesSociais?.ativo !== undefined ? cd.redesSociais.ativo : (campanha?.coletarRedesSociais?.ativo === true);
+  const redesSociaisObrigatorio = cd.redesSociais?.obrigatorio !== undefined ? cd.redesSociais.obrigatorio : (campanha?.coletarRedesSociais?.obrigatorio === true);
+
+  return {
+    nome: { ativo: nomeAtivo, obrigatorio: nomeObrigatorio },
+    telefone: { ativo: telefoneAtivo, obrigatorio: telefoneObrigatorio },
+    confirmarTelefone: { ativo: confirmarTelefoneAtivo, obrigatorio: confirmarTelefoneObrigatorio },
+    email: { ativo: emailAtivo, obrigatorio: emailObrigatorio },
+    cpf: { ativo: cpfAtivo, obrigatorio: cpfObrigatorio },
+    dataNascimento: { ativo: dataNascimentoAtivo, obrigatorio: dataNascimentoObrigatorio },
+    nomeSocial: { ativo: nomeSocialAtivo, obrigatorio: nomeSocialObrigatorio },
+    endereco: { ativo: enderecoAtivo, obrigatorio: enderecoObrigatorio },
+    redesSociais: { ativo: redesSociaisAtivo, obrigatorio: redesSociaisObrigatorio },
+  };
+}
 
 export interface CupomDesconto {
   id?: string;

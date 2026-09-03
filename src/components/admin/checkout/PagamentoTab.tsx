@@ -1,5 +1,5 @@
 import React from 'react';
-import { CreditCard, QrCode, FileText, X, AlertTriangle, Sparkles, Sliders, Check } from 'lucide-react';
+import { CreditCard, QrCode, FileText, X, AlertTriangle, Sparkles, Sliders, Check, ShieldCheck } from 'lucide-react';
 import { CheckoutConfigExtended } from './types_private';
 
 interface PagamentoTabProps {
@@ -7,6 +7,7 @@ interface PagamentoTabProps {
   upd: (patch: Partial<CheckoutConfigExtended>) => void;
   updMetodos: (patch: Partial<NonNullable<CheckoutConfigExtended['metodos']>>) => void;
   updMsgs: (patch: Partial<NonNullable<CheckoutConfigExtended['mensagens']>>) => void;
+  updGateway?: (gatewayId: string, patch: any) => void;
   selectedPaymentCard: 'pix' | 'cartao' | 'boleto';
   handleSelectPaymentCard: (method: 'pix' | 'cartao' | 'boleto') => void;
 }
@@ -19,7 +20,9 @@ export const PagamentoTab: React.FC<PagamentoTabProps> = ({
   selectedPaymentCard,
   handleSelectPaymentCard,
 }) => {
-  const isCurrentlyActive = checkoutConfig.metodos[selectedPaymentCard] !== false;
+  const isCurrentlyActive = selectedPaymentCard === 'pix'
+    ? checkoutConfig.metodos.pix !== false
+    : Boolean(checkoutConfig.metodos[selectedPaymentCard]);
 
   return (
     <div className="space-y-5 animate-in fade-in duration-200">
@@ -163,34 +166,121 @@ export const PagamentoTab: React.FC<PagamentoTabProps> = ({
               )}
 
               {selectedPaymentCard === 'cartao' && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-4">
+                  {/* Bandeiras Aceitas */}
                   <div>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">Parcelas Máximas</label>
-                    <select
-                      value={checkoutConfig.parcelasMax ?? 12}
-                      onChange={e => upd({ parcelasMax: Number(e.target.value) })}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white focus:border-indigo-500 focus:outline-none"
-                    >
-                      {[1,2,3,4,5,6,7,8,9,10,11,12].map(n => (
-                        <option key={n} value={n}>{n === 1 ? '1x à vista' : `Até ${n}x`}</option>
-                      ))}
-                    </select>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-2">
+                      Bandeiras de Cartão Habilitadas
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                      {[
+                        { id: 'visa', label: 'Visa', cor: 'bg-blue-600/20 border-blue-500 text-blue-300' },
+                        { id: 'mastercard', label: 'Mastercard', cor: 'bg-amber-600/20 border-amber-500 text-amber-300' },
+                        { id: 'elo', label: 'Elo', cor: 'bg-yellow-600/20 border-yellow-500 text-yellow-300' },
+                        { id: 'hipercard', label: 'Hipercard', cor: 'bg-red-600/20 border-red-500 text-red-300' },
+                        { id: 'amex', label: 'Amex', cor: 'bg-teal-600/20 border-teal-500 text-teal-300' }
+                      ].map(b => {
+                        const bandeiras = checkoutConfig.cartaoConfig?.bandeirasAceitas || ['visa', 'mastercard', 'elo', 'hipercard', 'amex'];
+                        const isAtiva = bandeiras.includes(b.id);
+                        return (
+                          <button
+                            key={b.id}
+                            type="button"
+                            onClick={() => {
+                              const novas = isAtiva ? bandeiras.filter(x => x !== b.id) : [...bandeiras, b.id];
+                              upd({
+                                cartaoConfig: {
+                                  ...(checkoutConfig.cartaoConfig || {}),
+                                  bandeirasAceitas: novas
+                                }
+                              });
+                            }}
+                            className={`p-2.5 rounded-xl border text-xs font-bold transition flex items-center justify-between gap-1.5 cursor-pointer ${
+                              isAtiva ? `${b.cor} shadow-sm` : 'bg-slate-900 border-slate-800 text-slate-500 opacity-60 hover:opacity-100'
+                            }`}
+                          >
+                            <span>{b.label}</span>
+                            {isAtiva ? <Check className="w-3.5 h-3.5 shrink-0" /> : <X className="w-3 h-3 shrink-0" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-1.5 flex items-center gap-1.5">
+                      <Sparkles className="w-3 h-3 text-amber-400 shrink-0" />
+                      O cliente digita o número e o checkout detecta automaticamente a bandeira (Elo, Mastercard, Visa, etc.) em tempo real.
+                    </p>
                   </div>
 
-                  <div>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">Juros por Conta do</label>
-                    <select
-                      value={checkoutConfig.taxaParcelamento || 'comprador'}
-                      onChange={e => upd({ taxaParcelamento: e.target.value as any })}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white focus:border-indigo-500 focus:outline-none"
-                    >
-                      <option value="comprador">Comprador (Taxa de juros do gateway)</option>
-                      <option value="organizador">Organizador (Sem juros para o cliente)</option>
-                    </select>
+                  {/* Parcelamento & Juros */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                    <div>
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">Parcelas Máximas</label>
+                      <select
+                        value={checkoutConfig.parcelasMax ?? 12}
+                        onChange={e => upd({ parcelasMax: Number(e.target.value) })}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white focus:border-indigo-500 focus:outline-none"
+                      >
+                        {[1,2,3,4,5,6,7,8,9,10,11,12].map(n => (
+                          <option key={n} value={n}>{n === 1 ? '1x à vista' : `Até ${n}x`}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">Juros por Conta do</label>
+                      <select
+                        value={checkoutConfig.taxaParcelamento || 'comprador'}
+                        onChange={e => upd({ taxaParcelamento: e.target.value as any })}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white focus:border-indigo-500 focus:outline-none"
+                      >
+                        <option value="comprador">Comprador (Taxa de juros do gateway)</option>
+                        <option value="organizador">Organizador (Sem juros para o cliente)</option>
+                      </select>
+                    </div>
                   </div>
 
-                  <div className="sm:col-span-2">
-                    <label className="flex items-center gap-2.5 p-2 bg-slate-900/50 border border-slate-800 rounded-lg cursor-pointer">
+                  {/* Campos do Formulário do Cartão */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    <label className="flex items-center gap-2.5 p-3 bg-slate-900/60 border border-slate-800 rounded-xl cursor-pointer hover:border-slate-700 transition">
+                      <input
+                        type="checkbox"
+                        checked={checkoutConfig.cartaoConfig?.exigirNomeTitular !== false}
+                        onChange={e => upd({
+                          cartaoConfig: {
+                            ...(checkoutConfig.cartaoConfig || {}),
+                            exigirNomeTitular: e.target.checked
+                          }
+                        })}
+                        className="w-4 h-4 rounded text-blue-500 bg-slate-950 border-slate-700 cursor-pointer"
+                      />
+                      <div>
+                        <span className="text-xs text-slate-200 font-bold block">Exigir Nome no Cartão</span>
+                        <span className="text-[10px] text-slate-500 block">Exatamente como gravado no plástico</span>
+                      </div>
+                    </label>
+
+                    <label className="flex items-center gap-2.5 p-3 bg-slate-900/60 border border-slate-800 rounded-xl cursor-pointer hover:border-slate-700 transition">
+                      <input
+                        type="checkbox"
+                        checked={checkoutConfig.cartaoConfig?.exigirCpfTitular !== false}
+                        onChange={e => upd({
+                          cartaoConfig: {
+                            ...(checkoutConfig.cartaoConfig || {}),
+                            exigirCpfTitular: e.target.checked
+                          }
+                        })}
+                        className="w-4 h-4 rounded text-blue-500 bg-slate-950 border-slate-700 cursor-pointer"
+                      />
+                      <div>
+                        <span className="text-xs text-slate-200 font-bold block">Exigir CPF do Titular</span>
+                        <span className="text-[10px] text-slate-500 block">Necessário para antifraude e aprovação</span>
+                      </div>
+                    </label>
+                  </div>
+
+                  {/* Exibir parcelamento no botão */}
+                  <div>
+                    <label className="flex items-center gap-2.5 p-3 bg-slate-900/60 border border-slate-800 rounded-xl cursor-pointer hover:border-slate-700 transition">
                       <input
                         type="checkbox"
                         checked={checkoutConfig.cartaoConfig?.exibirValorParcelado !== false}
@@ -204,9 +294,32 @@ export const PagamentoTab: React.FC<PagamentoTabProps> = ({
                       />
                       <div>
                         <span className="text-xs text-slate-200 font-bold block">Exibir Valor das Parcelas no Botão</span>
-                        <span className="text-[10px] text-slate-500 block">Mostra ex: "ou 12x de R$ 1,50" abaixo do preço final</span>
+                        <span className="text-[10px] text-slate-500 block">Mostra ex: "ou até 12x de R$ 1,50" abaixo do botão de pagamento</span>
                       </div>
                     </label>
+                  </div>
+
+                  {/* Texto de Instrução do Cartão */}
+                  <div>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">Texto de Instrução do Cartão</label>
+                    <input
+                      type="text"
+                      value={checkoutConfig.mensagens?.cartao || ''}
+                      onChange={e => updMsgs({ cartao: e.target.value })}
+                      placeholder="Pague em até 12x no cartão de crédito com aprovação imediata."
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-indigo-500 focus:outline-none"
+                    />
+                  </div>
+
+                  {/* Card Informativo de Segurança & PCI Compliance */}
+                  <div className="p-3.5 bg-gradient-to-r from-blue-950/40 to-slate-950 border border-blue-500/30 rounded-xl space-y-1.5">
+                    <div className="flex items-center gap-2 text-blue-400 font-bold text-xs">
+                      <ShieldCheck className="w-4 h-4 text-blue-400 shrink-0" />
+                      <span>Segurança de Cartão & Privacidade PCI Compliance</span>
+                    </div>
+                    <p className="text-[11px] text-slate-300 leading-relaxed">
+                      Os dados confidenciais do cartão (número completo e código CVV) são <strong className="text-white">tokenizados diretamente pelo navegador do comprador</strong> e processados pelo gateway. <strong className="text-emerald-400">Nenhum dado sensível de cartão é armazenado no seu sistema</strong>, garantindo total conformidade legal (PCI-DSS) e impedindo que você ou seus operadores visualizem números de cartão.
+                    </p>
                   </div>
                 </div>
               )}

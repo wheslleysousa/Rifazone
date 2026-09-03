@@ -11,6 +11,7 @@ export const ELEMENTOS_CHECKOUT_PADRAO = [
   'dadosComprador',
   'cupomDesconto',
   'selosSeguranca',
+  'divisorEtapas',
 ];
 
 export const ELEMENTOS_INFO: Record<string, { label: string; desc: string; icon: string; fixo?: boolean }> = {
@@ -22,6 +23,7 @@ export const ELEMENTOS_INFO: Record<string, { label: string; desc: string; icon:
   dadosComprador: { label: 'Formulário do Comprador', desc: 'Campos de Nome, Telefone/WhatsApp, CPF e E-mail', icon: '👤' },
   cupomDesconto: { label: 'Campo de Cupom de Desconto', desc: 'Caixa de texto para inserção e validação de cupom promocional', icon: '🎟️' },
   selosSeguranca: { label: 'Selos de Segurança & Garantia', desc: 'Badges de SSL, Compra Segura e Entrega Garantida', icon: '🛡️' },
+  divisorEtapas: { label: 'Divisor de Etapas (Passo 1 -> Passo 2)', desc: 'Tudo acima ficará no Passo 1 (Coleta de Dados). Tudo abaixo ficará no Passo 2 (Pagamento).', icon: '✂️' },
 };
 
 interface OrdemElementosTabProps {

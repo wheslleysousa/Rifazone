@@ -451,6 +451,80 @@ export const PosVendaTab: React.FC<PosVendaTabProps> = ({
           />
         </div>
 
+        {/* Banner de Sucesso (Topo) */}
+        <div className="pt-4 border-t border-slate-800 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-xs font-bold text-slate-200 flex items-center gap-1.5 uppercase tracking-wider">
+                <Image className="w-4 h-4 text-emerald-400" /> 4. Banner de Sucesso (Topo)
+              </h3>
+              <p className="text-[10px] text-slate-500 mt-0.5">Uma imagem larga que aparece no topo da tela de confirmação</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => updConfirmacao({ bannerSucessoUrl: conf.bannerSucessoUrl ? '' : 'https://images.unsplash.com/photo-1513151233558-d860c5398176?q=80&w=1000&auto=format&fit=crop' })}
+              className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition ${
+                conf.bannerSucessoUrl ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-400 border border-slate-700'
+              }`}
+            >
+              {conf.bannerSucessoUrl ? 'Ativado' : 'Ativar Banner'}
+            </button>
+          </div>
+
+          {conf.bannerSucessoUrl && (
+            <div className="space-y-3 animate-in slide-in-from-top-2">
+              <div className="relative w-full h-32 rounded-xl overflow-hidden border border-slate-800 bg-slate-950 group">
+                <img
+                  src={conf.bannerSucessoUrl}
+                  alt="Banner Sucesso"
+                  className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition"
+                />
+                <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
+                   <button
+                    type="button"
+                    onClick={() => {
+                      const input = document.createElement('input');
+                      input.type = 'file';
+                      input.accept = 'image/*';
+                      input.onchange = (e: any) => {
+                        const file = e.target.files[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                          if (typeof reader.result === 'string') {
+                            updConfirmacao({ bannerSucessoUrl: reader.result });
+                          }
+                        };
+                        reader.readAsDataURL(file);
+                      };
+                      input.click();
+                    }}
+                    className="bg-white text-slate-950 px-3 py-1.5 rounded-lg text-xs font-black shadow-xl hover:scale-105 transition"
+                   >
+                     Alterar Banner
+                   </button>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={conf.bannerSucessoUrl}
+                  onChange={e => updConfirmacao({ bannerSucessoUrl: e.target.value })}
+                  placeholder="URL da Imagem do Banner..."
+                  className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-[10px] text-slate-400 focus:border-emerald-500 focus:outline-none font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={() => updConfirmacao({ bannerSucessoUrl: '' })}
+                  className="px-3 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/30 rounded-lg text-[10px] font-bold"
+                >
+                  Remover
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Efeito de Confetes */}
         <div className="p-3 bg-slate-950/60 border border-slate-800 rounded-xl space-y-3">
           <div className="flex items-center justify-between">

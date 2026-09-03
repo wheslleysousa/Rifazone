@@ -423,6 +423,19 @@ app.get('/api/campanhas/:codigo', async (req, res) => {
     // Não expor dados do organizador (uid/email) na resposta pública
     const { ownerId, ownerEmail, ...campanhaPublica } = campanha;
 
+    // Obter checkout mais recente se houver checkoutId
+    let checkoutConfig = campanhaPublica.checkout || DEFAULT_CHECKOUT_CONFIG;
+    if (campanhaPublica.checkoutId && ownerId) {
+      try {
+        const latestCheckout = await db.getCheckout(ownerId, campanhaPublica.checkoutId);
+        if (latestCheckout && latestCheckout.checkout) {
+          checkoutConfig = latestCheckout.checkout;
+        }
+      } catch (err) {
+        console.warn('Erro ao carregar checkout atualizado:', err);
+      }
+    }
+
     // Marca pública do organizador (cores, logo, redes, pixel) — sem segredos
     const configDono = ownerId ? await db.getConfig(ownerId) : null;
     const marca = configParaMarcaPublica(configDono);
@@ -431,7 +444,7 @@ app.get('/api/campanhas/:codigo', async (req, res) => {
       campanha: formatarCampanhaParaEnvio({
         ...campanhaPublica,
         tema: campanhaPublica.tema || TEMA_PADRAO,
-        checkout: campanhaPublica.checkout || DEFAULT_CHECKOUT_CONFIG
+        checkout: checkoutConfig
       }),
       marca,
       estatisticas: {

@@ -1,92 +1,256 @@
 import React from 'react';
-import { ShieldCheck, Tag, Trash2, Plus } from 'lucide-react';
+import { 
+  User, Phone, Mail, ShieldCheck, Calendar, HeartHandshake, 
+  MapPin, AtSign, CheckCheck, Tag, Trash2, Plus, Sliders, Check, HelpCircle
+} from 'lucide-react';
 import { CheckoutConfigExtended } from './types_private';
-import { CupomDesconto } from '../../../types';
+import { CupomDesconto, obterConfigCamposCheckout } from '../../../types';
 
 interface CamposTabProps {
   checkoutConfig: CheckoutConfigExtended;
   upd: (patch: Partial<CheckoutConfigExtended>) => void;
 }
 
+interface CampoItemDef {
+  id: 'nome' | 'telefone' | 'confirmarTelefone' | 'email' | 'cpf' | 'dataNascimento' | 'nomeSocial' | 'endereco' | 'redesSociais';
+  label: string;
+  descricao: string;
+  placeholderExemplo: string;
+  icon: React.ElementType;
+  obrigatorioRecomendado?: boolean;
+}
+
+const LISTA_CAMPOS: CampoItemDef[] = [
+  {
+    id: 'nome',
+    label: 'Nome do Cliente / Nome Completo',
+    descricao: 'Nome para emissão das cotas e identificação oficial no sorteio.',
+    placeholderExemplo: 'Ex: Maria Silva Santos',
+    icon: User,
+    obrigatorioRecomendado: true
+  },
+  {
+    id: 'telefone',
+    label: 'Número de Telefone / WhatsApp com DDD',
+    descricao: 'Contato principal para envio do bilhete por mensagem e verificação.',
+    placeholderExemplo: 'Ex: (11) 98765-4321',
+    icon: Phone,
+    obrigatorioRecomendado: true
+  },
+  {
+    id: 'confirmarTelefone',
+    label: 'Confirmar Número de Telefone / WhatsApp',
+    descricao: 'Exige confirmação dupla do número para evitar digitação incorreta.',
+    placeholderExemplo: 'Confirmação do WhatsApp',
+    icon: CheckCheck
+  },
+  {
+    id: 'email',
+    label: 'E-mail do Cliente',
+    descricao: 'Envio de comprovante de compra e atualizações por correio eletrônico.',
+    placeholderExemplo: 'Ex: cliente@email.com',
+    icon: Mail
+  },
+  {
+    id: 'cpf',
+    label: 'CPF do Cliente',
+    descricao: 'Documento individual do comprador para validação fiscal e auditoria.',
+    placeholderExemplo: 'Ex: 123.456.789-00',
+    icon: ShieldCheck
+  },
+  {
+    id: 'dataNascimento',
+    label: 'Data de Nascimento',
+    descricao: 'Para conferência de maioridade legal (18+) ou aniversários.',
+    placeholderExemplo: 'DD/MM/AAAA',
+    icon: Calendar
+  },
+  {
+    id: 'nomeSocial',
+    label: 'Nome Social',
+    descricao: 'Nome pelo qual pessoas trans e travestis preferem ser chamadas.',
+    placeholderExemplo: 'Ex: Nome Social do participante',
+    icon: HeartHandshake
+  },
+  {
+    id: 'endereco',
+    label: 'Endereço Completo de Entrega',
+    descricao: 'Coleta CEP, Logradouro, Número, Bairro, Cidade e UF para prêmios físicos.',
+    placeholderExemplo: 'CEP, Rua, Número, Cidade, UF',
+    icon: MapPin
+  },
+  {
+    id: 'redesSociais',
+    label: 'Redes Sociais (@Instagram e @TikTok)',
+    descricao: 'Identificador do perfil do comprador nas redes sociais.',
+    placeholderExemplo: '@seu_instagram',
+    icon: AtSign
+  }
+];
+
 export const CamposTab: React.FC<CamposTabProps> = ({
   checkoutConfig,
   upd,
 }) => {
+  const configsAtuais = obterConfigCamposCheckout(checkoutConfig);
+
+  const atualizarCampo = (
+    campoId: CampoItemDef['id'],
+    ativo: boolean,
+    obrigatorio: boolean
+  ) => {
+    const novosCampos = {
+      ...(checkoutConfig.coletaDados || {}),
+      [campoId]: {
+        ativo,
+        obrigatorio: ativo ? obrigatorio : false
+      }
+    };
+
+    // Sincroniza também flags legadas para compatibilidade máxima
+    const patch: Partial<CheckoutConfigExtended> = {
+      coletaDados: novosCampos
+    };
+
+    if (campoId === 'cpf') {
+      patch.exigirCpf = ativo && obrigatorio;
+    } else if (campoId === 'email') {
+      patch.exigirEmail = ativo && obrigatorio;
+    } else if (campoId === 'endereco') {
+      patch.coletaDados = {
+        ...novosCampos,
+        coletarEndereco: {
+          ativo,
+          obrigatorio: ativo ? obrigatorio : false
+        }
+      };
+    } else if (campoId === 'confirmarTelefone') {
+      patch.coletaDados = {
+        ...novosCampos,
+        confirmarTelefone: {
+          ativo,
+          obrigatorio: ativo ? obrigatorio : false
+        }
+      };
+    }
+
+    upd(patch);
+  };
+
   return (
     <div className="space-y-5 animate-in fade-in duration-200">
-      {/* 4. Campos Obrigatórios */}
+      
+      {/* 4. Campos do Checkout */}
       <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4">
-        <h2 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
-          <ShieldCheck className="w-4 h-4 text-emerald-400" /> 4. Campos Obrigatórios no Checkout
-        </h2>
-        <div className="space-y-3">
-          <label className="flex items-center gap-3 p-3 bg-slate-950/60 border border-slate-800 rounded-xl cursor-pointer hover:bg-slate-950 transition-colors">
-            <input
-              type="checkbox"
-              checked={checkoutConfig.exigirCpf || false}
-              onChange={e => upd({ exigirCpf: e.target.checked })}
-              className="w-4 h-4 rounded text-emerald-500 bg-slate-900 border-slate-700 cursor-pointer"
-            />
-            <span className="text-xs text-slate-200 font-medium">Exigir CPF do comprador para participar</span>
-          </label>
-          <label className="flex items-center gap-3 p-3 bg-slate-950/60 border border-slate-800 rounded-xl cursor-pointer hover:bg-slate-950 transition-colors">
-            <input
-              type="checkbox"
-              checked={checkoutConfig.exigirEmail || false}
-              onChange={e => upd({ exigirEmail: e.target.checked })}
-              className="w-4 h-4 rounded text-emerald-500 bg-slate-900 border-slate-700 cursor-pointer"
-            />
-            <span className="text-xs text-slate-200 font-medium">Exigir E-mail do comprador para confirmação</span>
-          </label>
-
-          <div className="p-3 bg-slate-950/60 border border-slate-800 rounded-xl space-y-2">
-            <label className="flex items-center gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={checkoutConfig.coletaDados?.coletarEndereco?.ativo || false}
-                onChange={e => upd({
-                  coletaDados: {
-                    ...(checkoutConfig.coletaDados || {}),
-                    coletarEndereco: {
-                      ...(checkoutConfig.coletaDados?.coletarEndereco || {}),
-                      ativo: e.target.checked
-                    }
-                  }
-                })}
-                className="w-4 h-4 rounded text-emerald-500 bg-slate-900 border-slate-700 cursor-pointer"
-              />
-              <div>
-                <span className="text-xs text-slate-200 font-medium block">Coletar Endereço Completo do Comprador</span>
-                <span className="text-[11px] text-slate-400 block">Exibe campos de CEP, Logradouro, Número, Bairro, Cidade e UF no checkout</span>
-              </div>
-            </label>
-            {checkoutConfig.coletaDados?.coletarEndereco?.ativo && (
-              <label className="flex items-center gap-3 pl-7 pt-1.5 cursor-pointer border-t border-slate-800/60 mt-2">
-                <input
-                  type="checkbox"
-                  checked={checkoutConfig.coletaDados?.coletarEndereco?.obrigatorio || false}
-                  onChange={e => upd({
-                    coletaDados: {
-                      ...(checkoutConfig.coletaDados || {}),
-                      coletarEndereco: {
-                        ...(checkoutConfig.coletaDados?.coletarEndereco || {}),
-                        obrigatorio: e.target.checked
-                      }
-                    }
-                  })}
-                  className="w-4 h-4 rounded text-amber-500 bg-slate-900 border-slate-700 cursor-pointer"
-                />
-                <span className="text-xs text-amber-400 font-medium">Tornar preenchimento do endereço OBRIGATÓRIO</span>
-              </label>
-            )}
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
+              <Sliders className="w-4 h-4 text-emerald-400" /> 4. Campos do Checkout
+            </h2>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Defina com precisão quais informações serão pedidas no checkout e quais são obrigatórias.
+            </p>
           </div>
+        </div>
+
+        {/* Lista de Campos com Sim/Não Dinâmicos */}
+        <div className="space-y-3">
+          {LISTA_CAMPOS.map(campo => {
+            const Icon = campo.icon;
+            const estado = configsAtuais[campo.id] || { ativo: false, obrigatorio: false };
+            const estaAtivo = estado.ativo;
+            const estaObrigatorio = estado.obrigatorio;
+
+            return (
+              <div 
+                key={campo.id} 
+                className={`p-3.5 rounded-xl border transition-all ${
+                  estaAtivo 
+                    ? 'bg-slate-950/80 border-slate-700/80 shadow-sm' 
+                    : 'bg-slate-950/40 border-slate-800/60 opacity-75'
+                }`}
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  
+                  {/* Informações do Campo */}
+                  <div className="flex items-start gap-3 flex-1 min-w-0">
+                    <div className={`p-2 rounded-lg mt-0.5 shrink-0 ${
+                      estaAtivo ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-slate-800 text-slate-400'
+                    }`}>
+                      <Icon className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-bold text-white">
+                          {campo.label}
+                        </span>
+                        {estaAtivo && (
+                          <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border ${
+                            estaObrigatorio
+                              ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                              : 'bg-blue-500/15 text-blue-300 border-blue-500/30'
+                          }`}>
+                            {estaObrigatorio ? 'Obrigatório' : 'Opcional'}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+                        {campo.descricao}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Controles: Pedir no Checkout? + É Obrigatório? */}
+                  <div className="flex items-center gap-4 self-end sm:self-center shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-800/80 w-full sm:w-auto justify-between sm:justify-end">
+                    
+                    {/* Toggle: Pedir no Checkout (Sim/Não) */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-slate-300 font-medium">
+                        Pedir no checkout:
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => atualizarCampo(campo.id, !estaAtivo, estaObrigatorio)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                          estaAtivo
+                            ? 'bg-emerald-500 text-slate-950 shadow-sm shadow-emerald-500/20'
+                            : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                        }`}
+                      >
+                        {estaAtivo ? 'SIM' : 'NÃO'}
+                      </button>
+                    </div>
+
+                    {/* Checkbox/Botão: É Obrigatório? */}
+                    {estaAtivo && (
+                      <div className="flex items-center gap-1.5 pl-2 border-l border-slate-800">
+                        <span className="text-[11px] text-slate-400">Obrigatório:</span>
+                        <button
+                          type="button"
+                          onClick={() => atualizarCampo(campo.id, true, !estaObrigatorio)}
+                          className={`px-2 py-1 rounded-lg text-[11px] font-bold transition ${
+                            estaObrigatorio
+                              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                              : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                          }`}
+                        >
+                          {estaObrigatorio ? 'SIM' : 'NÃO'}
+                        </button>
+                      </div>
+                    )}
+
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
       {/* 7. Cupom de Desconto */}
       <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4">
         <h2 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
-          <Tag className="w-4 h-4 text-emerald-400" /> 7. Cupom de Desconto
+          <Tag className="w-4 h-4 text-emerald-400" /> Cupom de Desconto
         </h2>
         <label className="flex items-center justify-between p-3 bg-slate-950/60 border border-slate-800 rounded-xl cursor-pointer hover:bg-slate-950 transition-colors">
           <div>
@@ -223,6 +387,7 @@ export const CamposTab: React.FC<CamposTabProps> = ({
           </div>
         )}
       </div>
+
     </div>
   );
 };

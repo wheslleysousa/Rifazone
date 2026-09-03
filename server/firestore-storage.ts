@@ -599,6 +599,13 @@ export class FirestoreStorage implements Storage {
     return true;
   }
 
+  public async getCheckout(ownerId: string, id: string): Promise<CheckoutSalvo | null> {
+    const docRef = this.checkoutsCol(ownerId).doc(id);
+    const doc = await docRef.get();
+    if (!doc.exists) return null;
+    return doc.data() as CheckoutSalvo;
+  }
+
   // --- Fila de Mensagens (Automação / Outbox) ---
   public async enfileirarMensagem(msg: Omit<MensagemFila, 'id' | 'criadoEm' | 'status'>): Promise<MensagemFila> {
     const snap = await this.filaCol().where('chaveIdempotencia', '==', msg.chaveIdempotencia).limit(1).get();

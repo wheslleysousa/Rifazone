@@ -732,6 +732,13 @@ export class FileStorage implements Storage {
     return true;
   }
 
+  public async getCheckout(ownerId: string, id: string): Promise<CheckoutSalvo | null> {
+    const chk = this.checkouts.get(id);
+    if (!chk) return null;
+    if (chk.ownerId && chk.ownerId !== ownerId) return null;
+    return chk;
+  }
+
   // --- Fila de Mensagens (Automação / Outbox) ---
   public async enfileirarMensagem(msg: Omit<MensagemFila, 'id' | 'criadoEm' | 'status'>): Promise<MensagemFila> {
     const existingMsg = Array.from(this.fila.values()).find(

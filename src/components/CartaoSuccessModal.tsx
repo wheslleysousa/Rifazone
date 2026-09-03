@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { CheckCircle2, Ticket, Sparkles, CreditCard, ArrowRight, Users, ExternalLink } from 'lucide-react';
+import { CheckCircle2, Ticket, Sparkles, CreditCard, ArrowRight, Users, ExternalLink, Trophy, Star, PartyPopper, Heart, Flame, Image as ImageIcon } from 'lucide-react';
 import { dispararExplosaoConfetes } from '../utils/confettiUtils';
 import { formatarMoeda } from '../lib/money';
 import { ConfirmacaoCompraConfig } from '../types';
@@ -54,36 +54,65 @@ export const CartaoSuccessModal: React.FC<Props> = ({
         </button>
 
         {/* Header de Sucesso */}
-        <div className="text-center space-y-2 pt-2">
+        <div className="text-center animate-in zoom-in-95 duration-200">
           {confirmacaoConfig?.bannerSucessoUrl && (
-            <img
-              src={confirmacaoConfig.bannerSucessoUrl}
-              alt="Sucesso"
-              className="w-full h-24 object-cover rounded-xl border border-emerald-500/30 mb-2 shadow-md"
-              onError={e => (e.currentTarget.style.display = 'none')}
-            />
+            <div className="-mt-6 -mx-6 mb-6 overflow-hidden rounded-t-3xl border-b border-emerald-500/20">
+              <img
+                src={confirmacaoConfig.bannerSucessoUrl}
+                alt="Sucesso"
+                className="w-full h-44 object-cover shadow-md"
+                onError={e => (e.currentTarget.parentElement!.style.display = 'none')}
+              />
+            </div>
           )}
 
-          <div className="w-16 h-16 bg-emerald-500/20 border-2 border-emerald-500 text-emerald-400 rounded-full flex items-center justify-center mx-auto shadow-lg shadow-emerald-500/20 animate-bounce">
-            <CheckCircle2 className="w-10 h-10" />
+          <div className="space-y-3 px-2">
+            {confirmacaoConfig?.exibirIconeSucesso !== false && (
+              <div 
+                className="w-16 h-16 rounded-full flex items-center justify-center mx-auto shadow-lg animate-bounce"
+                style={{ 
+                  backgroundColor: `${confirmacaoConfig?.iconeSucessoFundo || 'rgba(16, 185, 129, 0.2)'}`,
+                  border: `2px solid ${confirmacaoConfig?.iconeSucessoFundo || '#10b981'}`,
+                  color: confirmacaoConfig?.iconeSucessoCor || '#10b981'
+                }}
+              >
+                {(() => {
+                  const tipo = confirmacaoConfig?.iconeSucessoTipo || 'check';
+                  const size = 32;
+                  if (tipo === 'check') return <CheckCircle2 size={size} />;
+                  if (tipo === 'trofeu') return <Trophy size={size} />;
+                  if (tipo === 'estrela') return <Star size={size} />;
+                  if (tipo === 'festa') return <PartyPopper size={size} />;
+                  if (tipo === 'coracao') return <Heart size={size} />;
+                  if (tipo === 'fogo') return <Flame size={size} />;
+                  if (tipo === 'emoji') return <span className="text-2xl">{confirmacaoConfig?.iconeSucessoEmoji || '🎉'}</span>;
+                  if (tipo === 'imagem' && confirmacaoConfig?.iconeSucessoImagem) {
+                    return <img src={confirmacaoConfig.iconeSucessoImagem} alt="Ícone" className="w-full h-full object-cover rounded-full" />;
+                  }
+                  return <CheckCircle2 size={size} />;
+                })()}
+              </div>
+            )}
           </div>
 
-          <div className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-full text-xs font-bold">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>{valorTotal === 0 ? 'Inscrição Grátis Confirmada! 🎉' : 'Pagamento Aprovado no Cartão!'}</span>
-          </div>
+          <div className="space-y-3 px-2">
+            <div className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-full text-xs font-bold">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>{valorTotal === 0 ? 'Inscrição Grátis Confirmada! 🎉' : 'Pagamento Aprovado no Cartão!'}</span>
+            </div>
 
-          <h3 className="text-xl font-black text-white">
-            {confirmacaoConfig?.titulo || tituloCampanha || 'Parabéns, Você está Participando!'}
-          </h3>
-          <p className="text-xs text-slate-300">
-            {confirmacaoConfig?.subtitulo || (compradorNome ? `${compradorNome}, seus números foram gerados e já estão concorrendo.` : 'Seus números foram gerados e já estão concorrendo.')}
-          </p>
-          {confirmacaoConfig?.mensagemAgradecimento && (
-            <p className="text-xs text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 p-2 rounded-xl">
-              {confirmacaoConfig.mensagemAgradecimento}
+            <h3 className="text-xl font-black text-white">
+              {confirmacaoConfig?.titulo || tituloCampanha || 'Parabéns, Você está Participando!'}
+            </h3>
+            <p className="text-xs text-slate-300">
+              {confirmacaoConfig?.subtitulo || (compradorNome ? `${compradorNome}, seus números foram gerados e já estão concorrendo.` : 'Seus números foram gerados e já estão concorrendo.')}
             </p>
-          )}
+            {confirmacaoConfig?.mensagemAgradecimento && (
+              <p className="text-xs text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 p-2 rounded-xl">
+                {confirmacaoConfig.mensagemAgradecimento}
+              </p>
+            )}
+          </div>
         </div>
 
         {/* Detalhes da Compra */}

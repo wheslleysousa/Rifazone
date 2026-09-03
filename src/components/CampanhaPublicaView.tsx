@@ -1,14 +1,16 @@
 import { toast } from '../lib/toast';
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Campanha, CampanhaPublicaResponse, Promocao, OfertaRelampago, TemaCampanha, TEMA_PADRAO, DEFAULT_CHECKOUT_CONFIG, RankingItem } from '../types';
+import QRCode from 'qrcode';
+import { dispararExplosaoConfetes } from '../utils/confettiUtils';
+import { Campanha, CampanhaPublicaResponse, Promocao, OfertaRelampago, TemaCampanha, TEMA_PADRAO, DEFAULT_CHECKOUT_CONFIG, RankingItem, obterConfigCamposCheckout } from '../types';
 import { 
   Trophy, Flame, Sparkles, ShieldCheck, Ticket, Users, Tag,
   ChevronDown, ChevronUp, Plus, Minus, Gift, Info, HelpCircle,
   Smartphone, Share2, Instagram, AlertTriangle, AlertCircle, Copy, CheckCircle2,
   User, CreditCard, QrCode, FileText, Lock, Shield, X, Music2, MessageCircle,
   ChevronLeft, ChevronRight, Star, TrendingUp, Zap, Camera, Video, Layout, Eye, Calendar,
-  MapPin, Building, Home, Hash, Loader2, Crown, ArrowLeft
+  MapPin, Building, Home, Hash, Loader2, Crown, ArrowLeft, ArrowRight
 } from 'lucide-react';
 import { validarCPF, formatarCPF } from '../utils/cpfValidation';
 import { UpsellModal } from './UpsellModal';
@@ -56,6 +58,8 @@ export const CampanhaPublicaView: React.FC<Props> = ({
   const [data, setData] = useState<CampanhaPublicaResponse | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
+
+  const originalCampanha = (modoPreview && previewCampanha ? previewCampanha : data?.campanha) as Campanha;
 
   // Seleção de cotas
   const [quantidade, setQuantidade] = useState<number>(10);
@@ -124,12 +128,140 @@ export const CampanhaPublicaView: React.FC<Props> = ({
   const [cartaoNumero, setCartaoNumero] = useState('');
   const [checkoutTimer, setCheckoutTimer] = useState<number | null>(null);
 
+  // Estados e efeitos do fluxo dinâmico multi-step do checkout
+  const [checkoutPasso, setCheckoutPasso] = useState<'dados' | 'cartao' | 'final'>('dados');
+  const [etapaAtual, setEtapaAtual] = useState<number>(1);
+  const [pedidoGerado, setPedidoGerado] = useState<any | null>(null);
+  const [finalStatus, setFinalStatus] = useState<'pendente' | 'pago' | 'expirado'>('pendente');
+  const [finalNumerosLiberados, setFinalNumerosLiberados] = useState<string[]>([]);
+  const [finalTempoRestante, setFinalTempoRestante] = useState<number>(600);
+  const [copiadoCode, setCopiadoCode] = useState(false);
+  const [copiadoNumeros, setCopiadoNumeros] = useState(false);
+  const [simulandoFinal, setSimulandoFinal] = useState(false);
+  const [generatedFinalQr, setGeneratedFinalQr] = useState<string>('');
+
+  // Gerar QR Code localmente se copiacola mudar
+  useEffect(() => {
+    if (pedidoGerado?.pixCopiaCola) {
+      QRCode.toDataURL(pedidoGerado.pixCopiaCola, {
+        width: 300,
+        margin: 2,
+        color: {
+          dark: '#0f172a',
+          light: '#ffffff'
+        }
+      })
+        .then(url => setGeneratedFinalQr(url))
+        .catch(err => console.error('Erro ao gerar QRCode no checkout:', err));
+    } else {
+      setGeneratedFinalQr('');
+    }
+  }, [pedidoGerado?.pixCopiaCola]);
+
+  // Contagem regressiva do pagamento final (Pix/Boleto)
+  useEffect(() => {
+    if (checkoutPasso !== 'final' || !pedidoGerado || finalStatus === 'pago' || finalStatus === 'expirado') return;
+
+    let target = new Date(pedidoGerado.expiraEm).getTime();
+    if (isNaN(target) || target <= 0) {
+      target = Date.now() + (originalCampanha?.tempoReservaMin || 10) * 60 * 1000;
+    }
+
+    const updateCountdown = () => {
+      const now = Date.now();
+      const diff = Math.max(0, Math.floor((target - now) / 1000));
+      setFinalTempoRestante(diff);
+      if (diff === 0) {
+        setFinalStatus('expirado');
+      }
+    };
+
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    return () => clearInterval(interval);
+  }, [checkoutPasso, pedidoGerado, finalStatus, originalCampanha?.tempoReservaMin]);
+
+  // Polling para confirmação automática de Pix
+  useEffect(() => {
+    if (checkoutPasso !== 'final' || !pedidoGerado || pedidoGerado.metodo !== 'pix' || finalStatus === 'pago' || finalStatus === 'expirado') return;
+
+    let cancelado = false;
+    const interval = setInterval(async () => {
+      if (cancelado) return;
+      try {
+        const res = await fetch(`/api/pedidos/${pedidoGerado.pedidoId}/status?t=${Date.now()}`);
+        if (res.ok) {
+          const resData = await res.json();
+          if (resData.status === 'pago' && !cancelado) {
+            cancelado = true;
+            clearInterval(interval);
+            setFinalStatus('pago');
+            const nums = resData.numeros || [];
+            setFinalNumerosLiberados(nums);
+            
+            // Disparar confetes do sucesso
+            if (originalCampanha?.checkout?.confirmacao?.animacaoSucesso !== 'nenhuma' && originalCampanha?.checkout?.confirmacao?.exibirConfetes !== false) {
+              try {
+                dispararExplosaoConfetes();
+              } catch (e) {}
+            }
+
+            // Tracking Facebook Pixel Purchase
+            const pixelId = originalCampanha?.metaPixelId || data?.marca?.metaPixelId;
+            if (pixelId && originalCampanha) {
+              trackPurchase(pixelId, {
+                contentIds: [originalCampanha.id],
+                value: pedidoGerado.valorTotal,
+                numItems: pedidoGerado.quantidade
+              }, pedidoGerado.pedidoId);
+            }
+            carregarCampanha(true);
+          } else if (resData.status === 'expirado') {
+            setFinalStatus('expirado');
+          }
+        }
+      } catch (e) {}
+    }, 2000);
+
+    return () => {
+      cancelado = true;
+      clearInterval(interval);
+    };
+  }, [checkoutPasso, pedidoGerado, finalStatus, originalCampanha, data?.marca]);
+
+  const handleSimularPagamentoFinal = async () => {
+    if (!pedidoGerado) return;
+    setSimulandoFinal(true);
+    try {
+      const res = await fetch(`/api/pedidos/${pedidoGerado.pedidoId}/simular-pago`, {
+        method: 'POST'
+      });
+      if (res.ok) {
+        const resData = await res.json();
+        setFinalStatus('pago');
+        setFinalNumerosLiberados(resData.numeros || []);
+        if (originalCampanha?.checkout?.confirmacao?.animacaoSucesso !== 'nenhuma' && originalCampanha?.checkout?.confirmacao?.exibirConfetes !== false) {
+          try {
+            dispararExplosaoConfetes();
+          } catch (e) {}
+        }
+        carregarCampanha(true);
+      }
+    } catch (e) {
+      console.error('Erro ao simular pagamento:', e);
+    } finally {
+      setSimulandoFinal(false);
+    }
+  };
+
   // Timer logic
   useEffect(() => {
     let interval: NodeJS.Timeout;
-    if (checkoutAberto && data?.campanha?.checkout?.timerUrgencia?.ativo) {
+    const temTimerUrgencia = data?.campanha?.checkout?.timerUrgencia?.ativo || originalCampanha?.tempoReservaMin;
+    if (checkoutAberto && temTimerUrgencia) {
       if (checkoutTimer === null) {
-        setCheckoutTimer((data.campanha.checkout.timerUrgencia.minutos || 10) * 60);
+        const min = originalCampanha?.tempoReservaMin || data?.campanha?.checkout?.timerUrgencia?.minutos || 10;
+        setCheckoutTimer(min * 60);
       }
       interval = setInterval(() => {
         setCheckoutTimer(prev => {
@@ -144,7 +276,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
       setCheckoutTimer(null);
     }
     return () => clearInterval(interval);
-  }, [checkoutAberto, data?.campanha?.checkout?.timerUrgencia]);
+  }, [checkoutAberto, data?.campanha?.checkout?.timerUrgencia, originalCampanha?.tempoReservaMin]);
 
   const formatTimer = (seconds: number) => {
     const m = Math.floor(seconds / 60);
@@ -552,7 +684,6 @@ export const CampanhaPublicaView: React.FC<Props> = ({
 
   const ranking = data?.ranking || [];
   const marca = data?.marca;
-  const originalCampanha = (modoPreview && previewCampanha ? previewCampanha : data?.campanha) as Campanha;
 
   if ((erro || !data) && !modoPreview) {
     return (
@@ -578,10 +709,10 @@ export const CampanhaPublicaView: React.FC<Props> = ({
 
   const campanha = {
     ...originalCampanha,
-    organizadorFoto: originalCampanha.organizadorFoto || (modoPreview ? previewCampanha?.organizadorFoto : marca?.fotoPerfilUrl) || '',
-    organizadorCapa: originalCampanha.organizadorCapa || (modoPreview ? previewCampanha?.organizadorCapa : marca?.capaUrl) || '',
-    organizadorNome: originalCampanha.organizadorNome || (modoPreview ? previewCampanha?.organizadorNome : marca?.nomeMarca) || '',
-    cabecalhoLogoUrl: originalCampanha.cabecalhoLogoUrl || (modoPreview ? previewCampanha?.cabecalhoLogoUrl : marca?.logoUrl) || '',
+    organizadorFoto: (modoPreview ? previewCampanha?.organizadorFoto : (marca?.fotoPerfilUrl || originalCampanha.organizadorFoto)) || '',
+    organizadorCapa: (modoPreview ? previewCampanha?.organizadorCapa : (marca?.capaUrl || originalCampanha.organizadorCapa)) || '',
+    organizadorNome: (modoPreview ? previewCampanha?.organizadorNome : (marca?.nomeMarca || originalCampanha.organizadorNome)) || '',
+    cabecalhoLogoUrl: (modoPreview ? previewCampanha?.cabecalhoLogoUrl : (marca?.logoUrl || originalCampanha.cabecalhoLogoUrl)) || '',
   } as Campanha;
 
   const estatisticas = data?.estatisticas || {
@@ -819,20 +950,42 @@ export const CampanhaPublicaView: React.FC<Props> = ({
 
     const cleanWhatsapp = whatsapp.replace(/\D/g, '');
     const cleanConfirmar = confirmarWhatsapp.replace(/\D/g, '');
+    const camposCfg = obterConfigCamposCheckout(campanha.checkout);
 
-    if (!nome.trim() || nome.trim().split(' ').length < 2) {
-      setFormErro('Por favor, informe seu nome e sobrenome completos.');
-      return;
+    // 1. Validação Nome
+    if (camposCfg.nome.ativo !== false && camposCfg.nome.obrigatorio !== false) {
+      if (!nome.trim() || nome.trim().split(' ').length < 2) {
+        setFormErro('Por favor, informe seu nome e sobrenome completos.');
+        return;
+      }
     }
 
-    if (cleanWhatsapp.length < 10) {
-      setFormErro('Informe um WhatsApp válido com DDD.');
-      return;
+    // 2. Validação Nome Social
+    if (camposCfg.nomeSocial?.ativo && camposCfg.nomeSocial?.obrigatorio) {
+      if (!nomeSocial.trim()) {
+        setFormErro('Por favor, informe o nome social.');
+        return;
+      }
     }
 
-    if (cleanWhatsapp !== cleanConfirmar) {
-      setFormErro('Os números de WhatsApp informados não coincidem. Verifique a confirmação.');
-      return;
+    // 3. Validação WhatsApp
+    if (camposCfg.telefone.ativo !== false) {
+      if (camposCfg.telefone.obrigatorio !== false || cleanWhatsapp.length > 0) {
+        if (cleanWhatsapp.length < 10) {
+          setFormErro('Informe um WhatsApp válido com DDD.');
+          return;
+        }
+      }
+    }
+
+    // 4. Validação Confirmar WhatsApp (apenas se ativo)
+    if (camposCfg.confirmarTelefone?.ativo) {
+      if (camposCfg.confirmarTelefone.obrigatorio || cleanConfirmar.length > 0) {
+        if (cleanWhatsapp !== cleanConfirmar) {
+          setFormErro('Os números de WhatsApp informados não coincidem. Verifique a confirmação.');
+          return;
+        }
+      }
     }
 
     if (!maiorIdade) {
@@ -840,36 +993,43 @@ export const CampanhaPublicaView: React.FC<Props> = ({
       return;
     }
 
-    if (dataNascimento) {
-      const idad = calcularIdade(dataNascimento);
-      if (idad !== null && idad < 18) {
-        setFormErro(`Pela sua data de nascimento, você tem ${idad} anos. É necessário ter 18 anos ou mais para participar.`);
+    // 5. Validação Data de Nascimento (apenas se ativo)
+    if (camposCfg.dataNascimento?.ativo) {
+      if (camposCfg.dataNascimento.obrigatorio && !dataNascimento) {
+        setFormErro('Por favor, informe sua data de nascimento.');
         return;
+      }
+      if (dataNascimento) {
+        const idad = calcularIdade(dataNascimento);
+        if (idad !== null && idad < 18) {
+          setFormErro(`Pela sua data de nascimento, você tem ${idad} anos. É necessário ter 18 anos ou mais para participar.`);
+          return;
+        }
       }
     }
 
-    // Validação de CPF com dígitos verificadores
+    // 6. Validação de CPF com dígitos verificadores
     const cleanCpf = cpf.replace(/\D/g, '');
-    const cpfExigido = (campanha.checkout?.coletaDados?.exigirCpf || campanha.exigirCpf) || campanha.modalidade === 'gratis' || metodoPagamento === 'boleto';
-    if (cpfExigido || cleanCpf.length > 0) {
+    const cpfExigido = !!(camposCfg.cpf?.ativo && camposCfg.cpf?.obrigatorio) || (campanha.checkout?.coletaDados?.exigirCpf || campanha.exigirCpf) || campanha.modalidade === 'gratis' || metodoPagamento === 'boleto';
+    if (cpfExigido || (camposCfg.cpf?.ativo && cleanCpf.length > 0)) {
       if (cleanCpf.length !== 11 || !validarCPF(cleanCpf)) {
         setFormErro('Informe um CPF válido com 11 dígitos e dígitos verificadores corretos.');
         return;
       }
     }
 
-    // Validação de E-mail
-    const emailExigido = (campanha.checkout?.coletaDados?.exigirEmail || campanha.exigirEmail) || campanha.modalidade === 'gratis' || metodoPagamento === 'cartao';
-    if (emailExigido || email.trim().length > 0) {
+    // 7. Validação de E-mail
+    const emailExigido = !!(camposCfg.email?.ativo && camposCfg.email?.obrigatorio) || (campanha.checkout?.coletaDados?.exigirEmail || campanha.exigirEmail) || campanha.modalidade === 'gratis' || metodoPagamento === 'cartao';
+    if (emailExigido || (camposCfg.email?.ativo && email.trim().length > 0)) {
       if (!email || !email.includes('@') || !email.includes('.')) {
         setFormErro('Informe um endereço de e-mail válido para confirmação do pagamento.');
         return;
       }
     }
 
-    // Validação de Endereço se ativado
-    const coletarEnderecoAtivo = !!(campanha.coletarEndereco?.ativo || campanha.checkout?.coletaDados?.coletarEndereco?.ativo);
-    const coletarEnderecoObrigatorio = !!(campanha.coletarEndereco?.obrigatorio || campanha.checkout?.coletaDados?.coletarEndereco?.obrigatorio);
+    // 8. Validação de Endereço se ativado
+    const coletarEnderecoAtivo = !!(camposCfg.endereco?.ativo || campanha.coletarEndereco?.ativo || campanha.checkout?.coletaDados?.coletarEndereco?.ativo);
+    const coletarEnderecoObrigatorio = !!(camposCfg.endereco?.obrigatorio || campanha.coletarEndereco?.obrigatorio || campanha.checkout?.coletaDados?.coletarEndereco?.obrigatorio);
 
     if (coletarEnderecoAtivo && coletarEnderecoObrigatorio) {
       const cleanCep = cep.replace(/\D/g, '');
@@ -891,6 +1051,16 @@ export const CampanhaPublicaView: React.FC<Props> = ({
       }
       if (!cidade.trim() || !uf.trim()) {
         setFormErro('Informe a cidade e UF.');
+        return;
+      }
+    }
+
+    // 9. Validação de Redes Sociais se ativado
+    const coletarRedesAtivo = !!(camposCfg.redesSociais?.ativo || campanha.coletarRedesSociais?.ativo);
+    const coletarRedesObrigatorio = !!(camposCfg.redesSociais?.obrigatorio || campanha.coletarRedesSociais?.obrigatorio);
+    if (coletarRedesAtivo && coletarRedesObrigatorio) {
+      if (!instagramInput.trim() && !tiktokInput.trim()) {
+        setFormErro('Informe pelo menos uma rede social (@Instagram ou @TikTok).');
         return;
       }
     }
@@ -1004,7 +1174,6 @@ export const CampanhaPublicaView: React.FC<Props> = ({
 
       // Sorteio Gratuito
       if (pedidoJson.metodoPagamento === 'gratis' || campanha.modalidade === 'gratis') {
-        setCheckoutAberto(false);
         const pixelId = campanha?.metaPixelId || data?.marca?.metaPixelId;
         if (pixelId && campanha) {
           trackPurchase(pixelId, {
@@ -1013,13 +1182,22 @@ export const CampanhaPublicaView: React.FC<Props> = ({
             numItems: 1
           }, pedidoJson.pedidoId);
         }
-        setCartaoSuccessModalData({
+        setPedidoGerado({
+          metodo: 'gratis',
           pedidoId: pedidoJson.pedidoId,
           valorTotal: 0,
           quantidade: 1,
           numeros: pedidoJson.numeros || [],
           compradorNome: nome.trim()
         });
+        setFinalStatus('pago');
+        setFinalNumerosLiberados(pedidoJson.numeros || []);
+        setCheckoutPasso('final');
+        if (campanha?.checkout?.confirmacao?.animacaoSucesso !== 'nenhuma' && campanha?.checkout?.confirmacao?.exibirConfetes !== false) {
+          try {
+            dispararExplosaoConfetes();
+          } catch (e) {}
+        }
         carregarCampanha(true);
         return;
       }
@@ -1066,8 +1244,6 @@ export const CampanhaPublicaView: React.FC<Props> = ({
           return;
         }
 
-        setCheckoutAberto(false);
-
         // Sucesso no Cartão
         const pixelId = campanha?.metaPixelId || data?.marca?.metaPixelId;
         if (pixelId && campanha) {
@@ -1078,19 +1254,28 @@ export const CampanhaPublicaView: React.FC<Props> = ({
           }, pedidoJson.pedidoId);
         }
 
-        setCartaoSuccessModalData({
+        setPedidoGerado({
+          metodo: 'cartao',
           pedidoId: pedidoJson.pedidoId,
           valorTotal: pedidoJson.valorTotal,
           quantidade: pedidoJson.quantidade,
           numeros: cartaoData.numeros || [],
+          compradorNome: nome.trim(),
           cartaoInfo: {
             ultimosDigitos: tokenRes.ultimosDigitos,
             bandeira: tokenRes.bandeira,
             parcelas: cartaoParcelas,
             status: cartaoData.status
-          },
-          compradorNome: nome.trim()
+          }
         });
+        setFinalStatus('pago');
+        setFinalNumerosLiberados(cartaoData.numeros || []);
+        setCheckoutPasso('final');
+        if (campanha?.checkout?.confirmacao?.animacaoSucesso !== 'nenhuma' && campanha?.checkout?.confirmacao?.exibirConfetes !== false) {
+          try {
+            dispararExplosaoConfetes();
+          } catch (e) {}
+        }
 
         carregarCampanha(true);
         return;
@@ -1098,8 +1283,8 @@ export const CampanhaPublicaView: React.FC<Props> = ({
 
       // B) BOLETO BANCÁRIO
       if (metodoPagamento === 'boleto') {
-        setCheckoutAberto(false);
-        setBoletoModalData({
+        setPedidoGerado({
+          metodo: 'boleto',
           pedidoId: pedidoJson.pedidoId,
           boletoUrl: pedidoJson.boletoUrl,
           boletoBarcode: pedidoJson.boletoBarcode,
@@ -1110,12 +1295,14 @@ export const CampanhaPublicaView: React.FC<Props> = ({
           compradorNome: nome.trim(),
           compradorWhatsapp: cleanWhatsapp
         });
+        setFinalStatus('pendente');
+        setCheckoutPasso('final');
         return;
       }
 
       // C) PIX (Padrão)
-      setCheckoutAberto(false);
-      setPixModalData({
+      setPedidoGerado({
+        metodo: 'pix',
         pedidoId: pedidoJson.pedidoId,
         pixCopiaCola: pedidoJson.pixCopiaCola,
         pixQrCodeBase64: pedidoJson.pixQrCodeBase64,
@@ -1126,6 +1313,9 @@ export const CampanhaPublicaView: React.FC<Props> = ({
         compradorNome: nome.trim(),
         compradorWhatsapp: cleanWhatsapp
       });
+      setFinalStatus('pendente');
+      // Mantemos no passo atual para exibir o Pix inline conforme solicitado
+      // setCheckoutPasso('final'); 
 
     } catch (err: any) {
       setFormErro(err.message || 'Erro de conexão com o servidor. Tente novamente.');
@@ -1385,7 +1575,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                       <span>Sorteio oficial: {campanha.localSorteio || 'Loteria Federal'}</span>
                     </div>
                   )}
-                  
+
                   {exibirTitulo && Boolean(textoTitulo?.trim()) && (
                     <h1 
                       className={`font-black leading-tight drop-shadow-md pointer-events-auto ${tamanhoBannerTitulo ? '' : getTitleSizeClass(tema.tipografia.tamanhoTitulo)}`}
@@ -2170,12 +2360,12 @@ export const CampanhaPublicaView: React.FC<Props> = ({
               <h3 className="font-black uppercase tracking-wider text-slate-300" style={{ fontFamily: tema.tipografia.fonteCotasTitulo || 'Inter', fontSize: '0.85rem', color: tema.cores.titulos || '#ffffff' }}>
                 {tema.botao.tituloCotas || campanha.tituloSelecaoCotas}
               </h3>
-            )}
+ 
             {tema.botao.subtituloCotas && (
               <p className="text-[10px] opacity-70 mt-0.5" style={{ fontFamily: tema.tipografia.fonteCotasSubtitulo || 'Inter', color: tema.cores.descricoes || '#94a3b8' }}>
                 {tema.botao.subtituloCotas}
               </p>
-            )}
+ 
           </div>
         )}
         */}
@@ -2232,6 +2422,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                       {tituloP}
                     </h3>
                   )}
+
                   {temSubtitulo && (
                     <p 
                       className={`opacity-70 ${alignSubClass}`}
@@ -2475,6 +2666,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                       {tituloC}
                     </h3>
                   )}
+
                   {temSubtitulo && (
                     <p 
                       className={`opacity-70 ${alignSubClass}`}
@@ -3115,42 +3307,43 @@ export const CampanhaPublicaView: React.FC<Props> = ({
             <button
               type="button"
               onClick={() => setOrganizadorModalAberto(true)}
-              className={`flex items-center gap-2.5 text-left hover:opacity-90 transition cursor-pointer group ${campanha.exibirCabecalhoTipo === 'logo' && campanha.cabecalhoLogoLarguraTotal ? 'w-full justify-center' : 'min-w-0'}`}
+              className="flex items-center gap-2.5 text-left hover:opacity-90 transition cursor-pointer group min-w-0"
             >
-              {(!campanha.cabecalhoLogoLarguraTotal || campanha.exibirCabecalhoTipo !== 'logo') && (
-                campanha.organizadorFoto ? (
-                  <img
-                    src={campanha.organizadorFoto}
-                    alt={campanha.organizadorNome || 'Organizador'}
-                    className="w-9 h-9 rounded-full object-cover border border-[var(--brand)]/50 shadow-md group-hover:scale-105 transition-transform shrink-0"
-                  />
-                ) : (
-                  <div
-                    className="w-9 h-9 rounded-full flex items-center justify-center font-black text-base shadow-md group-hover:scale-105 transition-transform shrink-0"
-                    style={{ backgroundColor: 'var(--brand)', color: 'var(--btn-txt)' }}
-                  >
-                    {(campanha.organizadorNome || 'Rifa')[0].toUpperCase()}
-                  </div>
-                )
+              {/* Foto de Perfil sempre visível */}
+              {campanha.organizadorFoto ? (
+                <img
+                  src={campanha.organizadorFoto}
+                  alt={campanha.organizadorNome || 'Organizador'}
+                  className="w-9 h-9 rounded-full object-cover border border-[var(--brand)]/50 shadow-md group-hover:scale-105 transition-transform shrink-0"
+                />
+              ) : (
+                <div
+                  className="w-9 h-9 rounded-full flex items-center justify-center font-black text-base shadow-md group-hover:scale-105 transition-transform shrink-0"
+                  style={{ backgroundColor: 'var(--brand)', color: 'var(--btn-txt)' }}
+                >
+                  {(campanha.organizadorNome || 'Rifa')[0].toUpperCase()}
+                </div>
               )}
 
-              {/* Conteúdo ao lado da foto: Nome ou Logo */}
-              {campanha.exibirCabecalhoTipo === 'logo' && (campanha.cabecalhoLogoUrl || marca?.logoUrl) ? (
-                <img 
-                  src={campanha.cabecalhoLogoUrl || marca?.logoUrl || ''} 
-                  alt="Logo" 
-                  className={`object-contain transition cursor-pointer ${campanha.cabecalhoLogoLarguraTotal ? 'w-full max-w-full mx-auto' : 'max-w-[200px] sm:max-w-[280px]'}`} 
-                  style={{ 
-                    maxHeight: `${campanha.cabecalhoLogoTamanho || 48}px`, 
-                    width: 'auto',
-                    height: 'auto',
-                    objectFit: 'contain'
-                  }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setOrganizadorModalAberto(true);
-                  }} 
-                />
+              {/* Logo ao lado da foto de perfil (se houver), ou nome */}
+              {campanha.cabecalhoLogoUrl || marca?.logoUrl ? (
+                <div className="flex items-center">
+                  <img 
+                    src={campanha.cabecalhoLogoUrl || marca?.logoUrl || ''} 
+                    alt="Logo do Organizador" 
+                    className="object-contain transition max-w-[120px] sm:max-w-[220px]" 
+                    style={{ 
+                      maxHeight: '40px', 
+                      width: 'auto',
+                      height: 'auto',
+                      objectFit: 'contain'
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setOrganizadorModalAberto(true);
+                    }} 
+                  />
+                </div>
               ) : (
                 <div>
                   <span className="font-extrabold text-white text-sm tracking-tight block truncate max-w-[160px] sm:max-w-[200px]">
@@ -3247,6 +3440,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                       {(campanha.organizadorNome || 'O')[0]}
                     </div>
                   )}
+
                   <div>
                     <h4 className="text-sm font-bold text-white leading-tight group-hover:text-emerald-400 transition-colors">
                       {campanha.organizadorNome || 'Organizador Oficial'}
@@ -3493,6 +3687,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                   {tema.botao.tituloCompra}
                 </div>
               )}
+
               {tema.botao.subtituloCompra && (
                 <div className="text-[10px] opacity-70 mt-0.5" style={{ fontFamily: tema.tipografia.fonteBotaoCompraSubtitulo || 'Inter', color: tema.cores.descricoes || '#94a3b8' }}>
                   {tema.botao.subtituloCompra}
@@ -3596,51 +3791,6 @@ export const CampanhaPublicaView: React.FC<Props> = ({
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md overflow-y-auto">
           <div className="relative w-full max-w-lg bg-slate-900 border border-slate-700/80 rounded-3xl p-5 sm:p-6 shadow-2xl text-white my-6 max-h-[92vh] overflow-y-auto">
             
-            {/* Banner do Checkout (Imagem ou Vídeo) */}
-            {campanha.checkout?.bannerTipo === 'video' && campanha.checkout?.bannerVideoUrl ? (
-              <div className="mb-4 -mx-5 sm:-mx-6 -mt-5 sm:-mt-6 rounded-t-3xl overflow-hidden border-b border-slate-800 relative bg-slate-950 flex items-center justify-center">
-                {campanha.checkout.bannerVideoUrl.includes('youtube.com') || campanha.checkout.bannerVideoUrl.includes('youtu.be') ? (
-                  <div className="aspect-video w-full max-h-52">
-                    <iframe
-                      src={campanha.checkout.bannerVideoUrl.replace('watch?v=', 'embed/').replace('youtu.be/', 'youtube.com/embed/')}
-                      title="Vídeo do Checkout"
-                      className="w-full h-full"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowFullScreen
-                    />
-                  </div>
-                ) : (
-                  <video
-                    src={campanha.checkout.bannerVideoUrl}
-                    controls
-                    autoPlay
-                    loop
-                    muted
-                    playsInline
-                    className="w-full max-h-52 object-contain bg-slate-950"
-                  />
-                )}
-              </div>
-            ) : campanha.checkout?.bannerUrl ? (
-              <div className="mb-4 -mx-5 sm:-mx-6 -mt-5 sm:-mt-6 rounded-t-3xl overflow-hidden border-b border-slate-800 relative bg-slate-950 flex items-center justify-center p-1">
-                {/* Imagem de fundo borrada para dar efeito preenchido sem cortar a principal */}
-                <img 
-                  src={campanha.checkout.bannerUrl} 
-                  alt="" 
-                  className="absolute inset-0 w-full h-full object-cover blur-xl opacity-20"
-                />
-                <img 
-                  src={campanha.checkout.bannerUrl} 
-                  alt="Banner do Checkout" 
-                  className={`relative z-10 w-full ${
-                    campanha.checkout.bannerEnquadramento === 'cover'
-                      ? 'max-h-48 object-cover'
-                      : 'max-h-56 object-contain'
-                  } rounded-t-2xl`}
-                />
-              </div>
-            ) : null}
-
             {/* Header do Checkout */}
             <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
               <div>
@@ -3655,6 +3805,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                 </h3>
               </div>
               <button
+                type="button"
                 onClick={() => setCheckoutAberto(false)}
                 className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition"
               >
@@ -3662,676 +3813,1003 @@ export const CampanhaPublicaView: React.FC<Props> = ({
               </button>
             </div>
 
-            {/* Timer de Urgência Checkout */}
-            {campanha.checkout?.timerUrgencia?.ativo && checkoutTimer !== null && checkoutTimer > 0 && (
-              <div className="mb-4 p-3 bg-red-500/15 border border-red-500/30 rounded-xl flex items-center justify-between text-red-400">
-                <div className="flex items-center gap-2">
-                  <Flame className="w-5 h-5 animate-pulse" />
-                  <span className="text-sm font-bold">Oferta expira em:</span>
-                </div>
-                <span className="text-xl font-mono font-black tracking-widest">{formatTimer(checkoutTimer)}</span>
-              </div>
-            )}
-            
-            {/* Mensagem de Urgência / Banner Topo */}
-            {campanha.checkout?.mensagens?.urgencia && (
-              <div className="mb-4 p-2.5 bg-amber-500/15 border border-amber-500/30 rounded-xl text-xs font-semibold text-amber-300 flex items-center gap-2 animate-pulse">
-                <Flame className="w-4 h-4 text-amber-400 flex-shrink-0" />
-                <span>{campanha.checkout.mensagens.urgencia}</span>
-              </div>
-            )}
-
-            {/* SELETOR DE MÉTODOS DE PAGAMENTO OU BANNER GRATUITO */}
-            {campanha.modalidade === 'gratis' ? (
-              <div className="mb-4 p-3.5 bg-purple-500/10 border border-purple-500/30 rounded-2xl text-center">
-                <span className="text-xs font-black text-purple-300 flex items-center justify-center gap-1.5">
-                  <Gift className="w-4 h-4 text-purple-400" />
-                  Sorteio 100% Gratuito — 1 Cota por CPF
-                </span>
-                <p className="text-[11px] text-slate-300 mt-1">
-                  Preencha seus dados abaixo para validar sua inscrição e receber seu bilhete da sorte sem pagar nada!
-                </p>
-              </div>
-            ) : (() => {
-              const chk = campanha.checkout || DEFAULT_CHECKOUT_CONFIG;
-              const metodosAtivos = [
-                ...(chk.metodos?.pix !== false ? ['pix'] : []),
-                ...(chk.metodos?.cartao ? ['cartao'] : []),
-                ...(chk.metodos?.boleto ? ['boleto'] : [])
-              ];
-
-              if (metodosAtivos.length <= 1) return null;
-
-              return (
-                <div className="mb-4 space-y-1.5">
-                  <label className="text-[11px] font-bold text-slate-300 block uppercase tracking-wider">
-                    Forma de Pagamento:
-                  </label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {chk.metodos?.pix !== false && (
-                      <button
-                        type="button"
-                        onClick={() => setMetodoPagamento('pix')}
-                        className={`p-2.5 rounded-xl border text-xs font-bold flex flex-col items-center justify-center gap-1.5 transition ${
-                          metodoPagamento === 'pix'
-                            ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400 shadow-md'
-                            : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-slate-200'
-                        }`}
-                      >
-                        <QrCode className="w-4 h-4" />
-                        <span>Pix</span>
-                      </button>
-                    )}
-
-                    {chk.metodos?.cartao && (
-                      <button
-                        type="button"
-                        onClick={() => setMetodoPagamento('cartao')}
-                        className={`p-2.5 rounded-xl border text-xs font-bold flex flex-col items-center justify-center gap-1.5 transition ${
-                          metodoPagamento === 'cartao'
-                            ? 'bg-blue-500/20 border-blue-500 text-blue-400 shadow-md'
-                            : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-slate-200'
-                        }`}
-                      >
-                        <CreditCard className="w-4 h-4" />
-                        <span>Cartão</span>
-                      </button>
-                    )}
-
-                    {chk.metodos?.boleto && (
-                      <button
-                        type="button"
-                        onClick={() => setMetodoPagamento('boleto')}
-                        className={`p-2.5 rounded-xl border text-xs font-bold flex flex-col items-center justify-center gap-1.5 transition ${
-                          metodoPagamento === 'boleto'
-                            ? 'bg-amber-500/20 border-amber-500 text-amber-400 shadow-md'
-                            : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-slate-200'
-                        }`}
-                      >
-                        <FileText className="w-4 h-4" />
-                        <span>Boleto</span>
-                      </button>
-                    )}
-                  </div>
-                </div>
-              );
-            })()}
-
-            <form onSubmit={handleEnviarPedido} className="space-y-3.5">
-              
-              {/* DADOS PESSOAIS DO COMPRADOR */}
-              <div className="space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-semibold text-slate-300 block mb-1">
-                      Nome completo *
-                    </label>
-                    <input
-                      id="input-nome-comprador"
-                      type="text"
-                      placeholder="Ex: João da Silva"
-                      value={nome}
-                      onChange={e => setNome(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-[var(--brand)] focus:outline-none"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-xs font-semibold text-slate-300 block mb-1">
-                      Nome social <span className="text-slate-500 font-normal">(opcional)</span>
-                    </label>
-                    <input
-                      id="input-nome-social-comprador"
-                      type="text"
-                      placeholder="Como prefere ser chamado"
-                      value={nomeSocial}
-                      onChange={e => setNomeSocial(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-[var(--brand)] focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-semibold text-slate-300 block mb-1">
-                      WhatsApp com DDD *
-                    </label>
-                    <input
-                      id="input-whatsapp-comprador"
-                      type="tel"
-                      placeholder="(11) 99999-9999"
-                      value={whatsapp}
-                      onChange={e => setWhatsapp(formatWhatsapp(e.target.value))}
-                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-mono text-white focus:border-[var(--brand)] focus:outline-none"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-xs font-semibold text-slate-300 block">
-                        Confirmar WhatsApp *
-                      </label>
-                      {confirmarWhatsapp && whatsapp && (
-                        <span className={`text-[10px] font-bold ${
-                          whatsapp.replace(/\D/g, '') === confirmarWhatsapp.replace(/\D/g, '')
-                            ? 'text-emerald-400'
-                            : 'text-rose-400'
-                        }`}>
-                          {whatsapp.replace(/\D/g, '') === confirmarWhatsapp.replace(/\D/g, '') ? '✓ Coincidem' : '✗ Diferentes'}
-                        </span>
-                      )}
-                    </div>
-                    <input
-                      id="input-confirmar-whatsapp-comprador"
-                      type="tel"
-                      placeholder="Repita seu WhatsApp"
-                      value={confirmarWhatsapp}
-                      onChange={e => setConfirmarWhatsapp(formatWhatsapp(e.target.value))}
-                      className={`w-full bg-slate-950 border rounded-xl px-3.5 py-2.5 text-sm font-mono text-white focus:outline-none ${
-                        confirmarWhatsapp && whatsapp.replace(/\D/g, '') !== confirmarWhatsapp.replace(/\D/g, '')
-                          ? 'border-rose-500/80 focus:border-rose-500'
-                          : 'border-slate-700 focus:border-[var(--brand)]'
-                      }`}
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-xs font-semibold text-slate-300 block">
-                        CPF * {campanha.modalidade === 'gratis' ? <span className="text-purple-400 font-normal text-[10px]">(1/CPF)</span> : metodoPagamento === 'boleto' && <span className="text-amber-400 font-normal text-[10px]">(boleto)</span>}
-                      </label>
-                      {cpf && cpf.replace(/\D/g, '').length === 11 && (
-                        <span className={`text-[10px] font-bold ${
-                          validarCPF(cpf) ? 'text-emerald-400' : 'text-rose-400'
-                        }`}>
-                          {validarCPF(cpf) ? '✓ Válido' : '✗ Inválido'}
-                        </span>
-                      )}
-                    </div>
-                    <input
-                      id="input-cpf-comprador"
-                      type="text"
-                      placeholder="000.000.000-00"
-                      value={cpf}
-                      onChange={e => setCpf(formatarCPF(e.target.value))}
-                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-mono text-white focus:border-[var(--brand)] focus:outline-none"
-                      required={!!((campanha.checkout?.coletaDados?.exigirCpf || campanha.exigirCpf) || campanha.modalidade === 'gratis' || metodoPagamento === 'boleto')}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-xs font-semibold text-slate-300 block mb-1">
-                      E-mail {((campanha.checkout?.coletaDados?.exigirEmail || campanha.exigirEmail) || campanha.modalidade === 'gratis' || metodoPagamento === 'cartao') ? '*' : <span className="text-slate-500 font-normal">(opcional)</span>}
-                    </label>
-                    <input
-                      id="input-email-comprador"
-                      type="email"
-                      placeholder="seuemail@exemplo.com"
-                      value={email}
-                      onChange={e => setEmail(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-[var(--brand)] focus:outline-none"
-                      required={!!((campanha.checkout?.coletaDados?.exigirEmail || campanha.exigirEmail) || campanha.modalidade === 'gratis' || metodoPagamento === 'cartao')}
-                    />
-                  </div>
-                </div>
-
-                {/* REDES SOCIAIS DO COMPRADOR (@usuário) */}
-                {campanha.coletarRedesSociais?.ativo && (
-                  <div className="space-y-3 p-3 bg-slate-950/60 border border-slate-800 rounded-xl">
-                    <p className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
-                      <Share2 className="w-3.5 h-3.5" style={{ color: 'var(--brand)' }} />
-                      Suas redes sociais {campanha.coletarRedesSociais?.obrigatorio ? '*' : <span className="text-slate-500 font-normal">(opcional)</span>}
-                    </p>
-                    {campanha.coletarRedesSociais?.instagram !== false && (
-                      <div className="flex items-center gap-2 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 focus-within:border-[var(--brand)]">
-                        <Instagram className="w-4 h-4 text-pink-500 shrink-0" />
-                        <span className="text-slate-500 text-sm">@</span>
-                        <input
-                          type="text"
-                          placeholder="seu_usuario"
-                          value={instagramInput}
-                          onChange={e => setInstagramInput(e.target.value.replace(/^@+/, '').trim())}
-                          className="flex-1 bg-transparent text-sm text-white focus:outline-none"
-                          required={!!campanha.coletarRedesSociais?.obrigatorio}
-                        />
-                      </div>
-                    )}
-                    {campanha.coletarRedesSociais?.tiktok !== false && (
-                      <div className="flex items-center gap-2 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 focus-within:border-[var(--brand)]">
-                        <Music2 className="w-4 h-4 text-slate-200 shrink-0" />
-                        <span className="text-slate-500 text-sm">@</span>
-                        <input
-                          type="text"
-                          placeholder="seu_usuario"
-                          value={tiktokInput}
-                          onChange={e => setTiktokInput(e.target.value.replace(/^@+/, '').trim())}
-                          className="flex-1 bg-transparent text-sm text-white focus:outline-none"
-                          required={!!campanha.coletarRedesSociais?.obrigatorio}
-                        />
-                      </div>
-                    )}
-                    {campanha.coletarRedesSociais?.whatsapp && (
-                      <div className="flex items-center gap-2 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-[11px] text-slate-400">
-                        <MessageCircle className="w-4 h-4 text-emerald-500 shrink-0" />
-                        <span>Seu WhatsApp já foi informado acima ✓</span>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Data de Nascimento para Cálculo Automático de Idade */}
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-xs font-semibold text-slate-300 block">
-                      Data de Nascimento *
-                    </label>
-                    {dataNascimento && dataNascimento.length === 10 && (
-                      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
-                        (calcularIdade(dataNascimento) || 0) >= 18
-                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                          : 'bg-red-500/20 text-red-400 border border-red-500/30'
-                      }`}>
-                        {calcularIdade(dataNascimento) !== null
-                          ? `Idade: ${calcularIdade(dataNascimento)} anos`
-                          : 'Data inválida'}
-                      </span>
-                    )}
-                  </div>
-                  <input
-                    id="input-nascimento-comprador"
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="DD/MM/AAAA (ex: 01/06/2004)"
-                    maxLength={10}
-                    value={dataNascimento}
-                    onChange={e => setDataNascimento(formatDataNascimento(e.target.value))}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-mono text-white focus:border-[var(--brand)] focus:outline-none"
-                    required
+            {checkoutPasso === 'final' && pedidoGerado ? (
+              <div className="space-y-5 py-2 animate-in fade-in duration-300">
+                {pedidoGerado.metodo === 'pix' && (
+                  <PixPaymentModal
+                    inline={true}
+                    pedidoId={pedidoGerado.pedidoId}
+                    pixCopiaCola={pedidoGerado.pixCopiaCola || ''}
+                    pixQrCodeBase64={pedidoGerado.pixQrCodeBase64 || ''}
+                    valorTotal={pedidoGerado.valorTotal}
+                    quantidade={pedidoGerado.quantidade}
+                    expiraEm={pedidoGerado.expiraEm || new Date().toISOString()}
+                    isMock={pedidoGerado.isMock}
+                    compradorNome={pedidoGerado.compradorNome || nome}
+                    compradorWhatsapp={pedidoGerado.compradorWhatsapp || whatsapp.replace(/\D/g, '')}
+                    tituloCampanha={campanha.titulo}
+                    confirmacaoConfig={campanha?.checkout?.confirmacao}
+                    pixConfig={campanha?.checkout?.pixConfig}
+                    onSuccess={() => {
+                      const pixelId = campanha?.metaPixelId || data?.marca?.metaPixelId;
+                      if (pixelId && campanha) {
+                        trackPurchase(pixelId, {
+                          contentIds: [campanha.id],
+                          value: pedidoGerado.valorTotal,
+                          numItems: pedidoGerado.quantidade
+                        }, pedidoGerado.pedidoId);
+                      }
+                      carregarCampanha(true);
+                    }}
+                    onClose={() => {
+                      setCheckoutPasso('dados');
+                      setPedidoGerado(null);
+                      carregarCampanha(true);
+                    }}
+                    onVerMeusNumeros={() => {
+                      setCheckoutAberto(false);
+                      setMeusNumerosAberto(true);
+                      carregarCampanha(true);
+                    }}
+                    onGerarNovoPix={() => {
+                      setCheckoutPasso('dados');
+                      setPedidoGerado(null);
+                      carregarCampanha(true);
+                      setTimeout(() => {
+                        const el = document.getElementById('input-nome-comprador');
+                        if (el) el.scrollIntoView({ behavior: 'smooth' });
+                      }, 100);
+                    }}
                   />
-                </div>
-
-                {/* ENDEREÇO DO COMPRADOR (ViaCEP Auto-fill) */}
-                {(campanha.coletarEndereco?.ativo || campanha.checkout?.coletaDados?.coletarEndereco?.ativo) && (
-                  <div className="p-3.5 bg-slate-950/70 border border-slate-800 rounded-2xl space-y-3 mt-2">
-                    <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
-                      <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                        <MapPin className="w-3.5 h-3.5 text-amber-400" />
-                        Endereço Residencial {(campanha.coletarEndereco?.obrigatorio || campanha.checkout?.coletaDados?.coletarEndereco?.obrigatorio) ? '*' : <span className="text-slate-500 font-normal text-[11px]">(opcional)</span>}
-                      </span>
-                      {carregandoCep && (
-                        <span className="text-[11px] text-amber-400 flex items-center gap-1 animate-pulse">
-                          <Loader2 className="w-3 h-3 animate-spin" /> Buscando CEP...
-                        </span>
-                      )}
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-semibold text-slate-300 block mb-1">
-                        CEP <span className="text-slate-400 font-normal text-[11px]">(preenche rua, bairro e cidade)</span>
-                      </label>
-                      <input
-                        id="input-cep-comprador"
-                        type="text"
-                        inputMode="numeric"
-                        placeholder="00000-000"
-                        maxLength={9}
-                        value={cep}
-                        onChange={e => handleCepChange(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-mono text-white focus:border-amber-400 focus:outline-none"
-                        required={!!(campanha.coletarEndereco?.obrigatorio || campanha.checkout?.coletaDados?.coletarEndereco?.obrigatorio)}
-                      />
-                      {cepErro && <p className="text-[11px] text-rose-400 mt-1">{cepErro}</p>}
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div className="sm:col-span-2">
-                        <label className="text-xs font-semibold text-slate-300 block mb-1">Logradouro / Rua</label>
-                        <input
-                          type="text"
-                          placeholder="Rua, Avenida, Alameda..."
-                          value={logradouro}
-                          onChange={e => setLogradouro(e.target.value)}
-                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-amber-400 focus:outline-none"
-                          required={!!(campanha.coletarEndereco?.obrigatorio || campanha.checkout?.coletaDados?.coletarEndereco?.obrigatorio)}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs font-semibold text-slate-300 block mb-1">Número</label>
-                        <input
-                          type="text"
-                          placeholder="123"
-                          value={numero}
-                          onChange={e => setNumero(e.target.value)}
-                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-mono text-white focus:border-amber-400 focus:outline-none"
-                          required={!!(campanha.coletarEndereco?.obrigatorio || campanha.checkout?.coletaDados?.coletarEndereco?.obrigatorio)}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div>
-                        <label className="text-xs font-semibold text-slate-300 block mb-1">Bairro</label>
-                        <input
-                          type="text"
-                          placeholder="Bairro"
-                          value={bairro}
-                          onChange={e => setBairro(e.target.value)}
-                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-amber-400 focus:outline-none"
-                          required={!!(campanha.coletarEndereco?.obrigatorio || campanha.checkout?.coletaDados?.coletarEndereco?.obrigatorio)}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs font-semibold text-slate-300 block mb-1">Cidade</label>
-                        <input
-                          type="text"
-                          placeholder="Cidade"
-                          value={cidade}
-                          onChange={e => setCidade(e.target.value)}
-                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-amber-400 focus:outline-none"
-                          required={!!(campanha.coletarEndereco?.obrigatorio || campanha.checkout?.coletaDados?.coletarEndereco?.obrigatorio)}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs font-semibold text-slate-300 block mb-1">UF</label>
-                        <input
-                          type="text"
-                          maxLength={2}
-                          placeholder="SP"
-                          value={uf}
-                          onChange={e => setUf(e.target.value.toUpperCase())}
-                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-mono text-white uppercase focus:border-amber-400 focus:outline-none text-center"
-                          required={!!(campanha.coletarEndereco?.obrigatorio || campanha.checkout?.coletaDados?.coletarEndereco?.obrigatorio)}
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-semibold text-slate-300 block mb-1">Complemento <span className="text-slate-500 font-normal">(opcional)</span></label>
-                      <input
-                        type="text"
-                        placeholder="Apto 42, Bloco B, etc."
-                        value={complemento}
-                        onChange={e => setComplemento(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-amber-400 focus:outline-none"
-                      />
-                    </div>
-                  </div>
                 )}
-              </div>
-
-              {/* CAMPOS ESPECÍFICOS DE CARTÃO DE CRÉDITO */}
-              {metodoPagamento === 'cartao' && (
-                <div className="p-4 bg-slate-950 border border-blue-500/30 rounded-2xl space-y-3 animate-in fade-in-50">
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                    <span className="text-xs font-bold text-blue-400 flex items-center gap-1.5">
-                      <CreditCard className="w-3.5 h-3.5" />
-                      Dados do Cartão de Crédito
-                    </span>
-                    {cartaoNumero && (
-                      <span className="text-[10px] font-bold px-2 py-0.5 bg-blue-500/20 text-blue-300 rounded-full border border-blue-500/30">
-                        {detectarBandeiraCartao(cartaoNumero).nome}
-                      </span>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="text-[11px] font-semibold text-slate-300 block mb-1">
-                      Número do Cartão *
-                    </label>
-                    <input
-                      id="input-cartao-numero"
-                      type="text"
-                      placeholder="0000 0000 0000 0000"
-                      maxLength={19}
-                      value={cartaoNumero}
-                      onChange={e => setCartaoNumero(formatarNumeroCartao(e.target.value))}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-mono text-white focus:border-blue-500 focus:outline-none"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[11px] font-semibold text-slate-300 block mb-1">
-                      Nome impresso no Cartão *
-                    </label>
-                    <input
-                      id="input-cartao-nome"
-                      type="text"
-                      placeholder="Como está gravado no cartão"
-                      value={cartaoNome}
-                      onChange={e => setCartaoNome(e.target.value.toUpperCase())}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white uppercase focus:border-blue-500 focus:outline-none"
-                      required
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2.5">
-                    <div>
-                      <label className="text-[11px] font-semibold text-slate-300 block mb-1">
-                        Validade (MM/AA) *
-                      </label>
-                      <input
-                        id="input-cartao-validade"
-                        type="text"
-                        placeholder="MM/AA"
-                        maxLength={5}
-                        value={cartaoValidade}
-                        onChange={e => setCartaoValidade(formatarValidade(e.target.value))}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-mono text-white text-center focus:border-blue-500 focus:outline-none"
-                        required
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-[11px] font-semibold text-slate-300 block mb-1">
-                        CVV / Código *
-                      </label>
-                      <input
-                        id="input-cartao-cvv"
-                        type="password"
-                        placeholder="123"
-                        maxLength={4}
-                        value={cartaoCvv}
-                        onChange={e => setCartaoCvv(e.target.value.replace(/\D/g, ''))}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-mono text-white text-center focus:border-blue-500 focus:outline-none"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  {/* CPF do Titular se diferente */}
-                  {!cpf && (
-                    <div>
-                      <label className="text-[11px] font-semibold text-slate-300 block mb-1">
-                        CPF do Titular do Cartão *
-                      </label>
-                      <input
-                        id="input-cartao-cpf-titular"
-                        type="text"
-                        placeholder="000.000.000-00"
-                        value={cartaoCpf}
-                        onChange={e => setCartaoCpf(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-mono text-white focus:border-blue-500 focus:outline-none"
-                        required
-                      />
-                    </div>
-                  )}
-
-                  {/* Seleção de Parcelamento */}
-                  <div>
-                    <label className="text-[11px] font-semibold text-slate-300 block mb-1">
-                      Opções de Parcelamento
-                    </label>
-                    <select
-                      id="select-cartao-parcelas"
-                      value={cartaoParcelas}
-                      onChange={e => setCartaoParcelas(Number(e.target.value))}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:border-blue-500 focus:outline-none"
-                    >
-                      {(() => {
-                        const maxP = Math.min(campanha.checkout?.parcelasMax || 12, 12);
-                        const totalAtual = valorTotalAtual + (ofertaSelecionada ? ofertaSelecionada.preco : 0);
-                        const opts = [];
-                        for (let i = 1; i <= maxP; i++) {
-                          const valorParcela = totalAtual / i;
-                          // Só exibe parcelas cujo valor seja no mínimo R$ 5,00 (ou 1x)
-                          if (i === 1 || valorParcela >= 5.0) {
-                            opts.push(
-                              <option key={i} value={i}>
-                                {i === 1
-                                  ? `1x de ${formatarMoeda(totalAtual)} (À vista)`
-                                  : `${i}x de ${formatarMoeda(valorParcela)} sem juros`}
-                              </option>
-                            );
-                          }
-                        }
-                        return opts;
-                      })()}
-                    </select>
-                  </div>
-                </div>
-              )}
-
-              {/* Confirmação Idade Mínima (+18 anos) */}
-              <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl">
-                <label className="flex items-start gap-2.5 cursor-pointer">
-                  <input
-                    id="checkout-check-maior-idade"
-                    type="checkbox"
-                    checked={maiorIdade}
-                    onChange={e => setMaiorIdade(e.target.checked)}
-                    className="w-4 h-4 mt-0.5 rounded text-emerald-500 bg-slate-900 border-slate-700 focus:ring-[var(--brand)]"
+                
+                {pedidoGerado.metodo === 'boleto' && (
+                  <BoletoPaymentModal
+                    inline={true}
+                    pedidoId={pedidoGerado.pedidoId}
+                    boletoUrl={pedidoGerado.boletoUrl || ''}
+                    boletoBarcode={pedidoGerado.boletoBarcode || ''}
+                    linhaDigitavel={pedidoGerado.linhaDigitavel || ''}
+                    valorTotal={pedidoGerado.valorTotal}
+                    quantidade={pedidoGerado.quantidade}
+                    expiraEm={pedidoGerado.expiraEm || new Date().toISOString()}
+                    compradorNome={pedidoGerado.compradorNome || nome}
+                    compradorWhatsapp={pedidoGerado.compradorWhatsapp || whatsapp}
+                    onClose={() => {
+                      setCheckoutPasso('dados');
+                      setPedidoGerado(null);
+                      carregarCampanha(true);
+                    }}
                   />
-                  <span className="text-xs text-slate-200 font-medium leading-tight">
-                    <strong className="block" style={{ color: 'var(--brand)' }}>Idade mínima 18 anos:</strong>
-                    Declaro que tenho 18 anos ou mais e estou de acordo com o regulamento do sorteio.
-                  </span>
-                </label>
-              </div>
-
-              {/* CAMPO DE CUPOM DE DESCONTO — só aparece se o organizador ativar */}
-              {campanha.modalidade !== 'gratis' && (campanha.cupomAtivo === true || campanha.checkout?.cupomAtivo === true || campanha.checkout?.exibirCupom === true) && (
-                <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
-                  <label className="text-[11px] font-bold text-slate-300 flex items-center justify-between">
-                    <span>Tem um cupom de desconto?</span>
-                    {cupomAplicado && (
-                      <span className="text-emerald-400 text-[10px] uppercase font-mono font-bold">
-                        {cupomAplicado.tipo === 'fixo'
-                          ? `${formatarMoeda(cupomAplicado.valorFixo || 0)} OFF APLICADO`
-                          : `${cupomAplicado.descontoPct}% OFF APLICADO`}
-                      </span>
-                    )}
-                  </label>
-
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      placeholder="Digite o código (ex: VOLTA10)"
-                      value={cupomInput}
-                      onChange={e => {
-                        setCupomInput(e.target.value.toUpperCase());
-                        setCupomErro('');
-                      }}
-                      className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white uppercase font-mono font-bold focus:border-[var(--brand)] focus:outline-none"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleValidarCupom()}
-                      disabled={validandoCupom || !cupomInput.trim()}
-                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-lg border border-slate-700 transition disabled:opacity-50"
-                    >
-                      {validandoCupom ? 'Aplicando...' : cupomAplicado ? 'Atualizar' : 'Aplicar'}
-                    </button>
-                  </div>
-
-                  {cupomAplicado && (
-                    <p className="text-[11px] text-emerald-400 font-bold flex items-center gap-1">
-                      ✓ Cupom {cupomAplicado.codigo} ativado ({cupomAplicado.tipo === 'fixo'
-                        ? `${formatarMoeda(cupomAplicado.valorFixo || 0)} de desconto`
-                        : `${cupomAplicado.descontoPct}% de desconto`})!
-                    </p>
-                  )}
-
-                  {cupomErro && (
-                    <p className="text-[11px] text-rose-400 font-medium">
-                      ⚠️ {cupomErro}
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {/* Resumo Financeiro */}
-              <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-3 text-xs space-y-1">
-                <div className="flex justify-between text-slate-300">
-                  <span>Cotas:</span>
-                  <span className="font-bold text-white">
-                    {campanha.modalidade === 'gratis' ? '1 cota' : `${quantidade + (ofertaSelecionada ? ofertaSelecionada.cotasExtras : 0)} cotas`}
-                  </span>
-                </div>
-                {metodoPagamento === 'pix' && campanha.checkout?.pixConfig?.descontoPct && (
-                  <div className="flex justify-between text-emerald-400 text-[11px] mb-1">
-                    <span>Desconto Pix ({campanha.checkout.pixConfig.descontoPct}%)</span>
-                    <span className="font-bold">- {formatarMoeda(valorSemCupom * (campanha.checkout.pixConfig.descontoPct / 100))}</span>
-                  </div>
                 )}
-                <div className="flex justify-between text-slate-300 border-t border-slate-700/50 pt-1">
-                  <span>Total:</span>
-                  <span className="font-extrabold text-sm" style={{ color: 'var(--brand)' }}>
-                    {campanha.modalidade === 'gratis' ? 'R$ 0,00 (Grátis)' : formatarMoeda(valorTotalAtual + (ofertaSelecionada ? ofertaSelecionada.preco : 0))}
-                  </span>
-                </div>
+                
+                {pedidoGerado.metodo === 'cartao' && (
+                  <CartaoSuccessModal
+                    inline={true}
+                    pedidoId={pedidoGerado.pedidoId}
+                    valorTotal={pedidoGerado.valorTotal}
+                    quantidade={pedidoGerado.quantidade}
+                    numeros={pedidoGerado.numeros || []}
+                    cartaoInfo={pedidoGerado.cartaoInfo || { ultimosDigitos: '', bandeira: '', parcelas: 1 }}
+                    compradorNome={pedidoGerado.compradorNome || nome}
+                    confirmacaoConfig={campanha?.checkout?.confirmacao}
+                    onClose={() => {
+                      setCheckoutPasso('dados');
+                      setPedidoGerado(null);
+                      carregarCampanha(true);
+                    }}
+                  />
+                )}
               </div>
+            ) : (
+              <form onSubmit={handleEnviarPedido} className="space-y-4">
+              {(() => {
+                const elementos = campanha.checkout?.ordemElementos && campanha.checkout.ordemElementos.length > 0
+                  ? campanha.checkout.ordemElementos
+                  : ['banner', 'temporizador', 'mensagemUrgencia', 'dadosComprador', 'divisorEtapas', 'metodosPagamento', 'cupomDesconto', 'resumoPedido', 'selosSeguranca'];
+                
+                const hasDivisor = elementos.includes('divisorEtapas');
+                const divisorIndex = elementos.indexOf('divisorEtapas');
+                
+                let visibleElements = elementos;
+                if (hasDivisor) {
+                  visibleElements = etapaAtual === 1 ? elementos.slice(0, divisorIndex) : elementos.slice(divisorIndex + 1);
+                }
 
-              {/* Selos de Segurança e Criptografia */}
-              {(campanha.checkout?.selosSeguranca !== false) && (
-                <div className="flex items-center justify-center gap-4 py-1 text-[10px] text-slate-400 border-t border-slate-800/80 pt-2">
-                  <span className="flex items-center gap-1">
-                    <Lock className="w-3 h-3 text-emerald-400" />
-                    Criptografia SSL 256-bit
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <ShieldCheck className="w-3 h-3 text-blue-400" />
-                    Validação Anti-Fraude CPF
-                  </span>
-                </div>
-              )}
+                return (
+                  <>
+                    {/* Botão de Voltar se estiver na Etapa 2 */}
+                    {hasDivisor && etapaAtual === 2 && (
+                      <button 
+                        type="button" 
+                        onClick={() => setEtapaAtual(1)}
+                        className="mb-4 flex items-center gap-1 text-xs font-bold text-slate-400 hover:text-white transition"
+                      >
+                        <ArrowLeft className="w-3.5 h-3.5" /> Voltar para Coleta de Dados
+                      </button>
+                    )}
+
+                    {visibleElements.map((chave) => {
+                      if (chave === 'divisorEtapas') return null;
+                switch (chave) {
+                  case 'banner':
+                    return (
+                      <React.Fragment key="banner">
+                        {/* Banner do Checkout (Imagem ou Vídeo) */}
+                        {campanha.checkout?.bannerTipo === 'video' && campanha.checkout?.bannerVideoUrl ? (
+                          <div className="mb-4 rounded-2xl overflow-hidden border border-slate-800 relative bg-slate-950 flex items-center justify-center">
+                            {campanha.checkout.bannerVideoUrl.includes('youtube.com') || campanha.checkout.bannerVideoUrl.includes('youtu.be') ? (
+                              <div className="aspect-video w-full max-h-52">
+                                <iframe
+                                  src={campanha.checkout.bannerVideoUrl.replace('watch?v=', 'embed/').replace('youtu.be/', 'youtube.com/embed/')}
+                                  title="Vídeo do Checkout"
+                                  className="w-full h-full"
+                                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                  allowFullScreen
+                                />
+                              </div>
+                            ) : (
+                              <video
+                                src={campanha.checkout.bannerVideoUrl}
+                                controls
+                                autoPlay
+                                loop
+                                muted
+                                playsInline
+                                className="w-full max-h-52 object-contain bg-slate-950"
+                              />
+                            )}
+                          </div>
+                        ) : campanha.checkout?.bannerUrl ? (
+                          <div className="mb-4 rounded-2xl overflow-hidden border border-slate-800 relative bg-slate-950 flex items-center justify-center p-1 min-h-[140px]">
+                            {/* Imagem de fundo borrada para dar efeito preenchido sem cortar a principal */}
+                            <img 
+                              src={campanha.checkout.bannerUrl} 
+                              alt="" 
+                              className="absolute inset-0 w-full h-full object-cover blur-xl opacity-20"
+                              referrerPolicy="no-referrer"
+                            />
+                            <img 
+                              src={campanha.checkout.bannerUrl} 
+                              alt="Banner do Checkout" 
+                              referrerPolicy="no-referrer"
+                              className={`relative z-10 w-full ${
+                                campanha.checkout.bannerEnquadramento === 'cover'
+                                  ? 'max-h-48 object-cover'
+                                  : 'max-h-56 object-contain'
+                              } rounded-xl`}
+                            />
+                          </div>
+                        ) : null}
+                      </React.Fragment>
+                    );
+                  case 'temporizador':
+                    return (
+                      <React.Fragment key="temporizador">
+                        {/* Timer de Urgência Checkout */}
+                        {campanha.checkout?.timerUrgencia?.ativo && checkoutTimer !== null && checkoutTimer > 0 && (
+                          <div className="mb-4 p-3 bg-red-500/15 border border-red-500/30 rounded-xl flex items-center justify-between text-red-400">
+                            <div className="flex items-center gap-2">
+                              <Flame className="w-5 h-5 animate-pulse" />
+                              <span className="text-sm font-bold">Oferta expira em:</span>
+                            </div>
+                            <span className="text-xl font-mono font-black tracking-widest">{formatTimer(checkoutTimer)}</span>
+                          </div>
+                        )}
+                      </React.Fragment>
+                    );
+                  case 'mensagemUrgencia':
+                    return (
+                      <React.Fragment key="mensagemUrgencia">
+                        {/* Banner / Mensagem de Urgência */}
+                        {campanha.checkout?.mensagens?.urgencia && (
+                          <div className="mb-4 p-2.5 bg-amber-500/15 border border-amber-500/30 rounded-xl text-xs font-semibold text-amber-300 flex items-center gap-2 animate-pulse">
+                            <Flame className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                            <span>{campanha.checkout.mensagens.urgencia}</span>
+                          </div>
+                        )}
+                      </React.Fragment>
+                    );
+                  case 'metodosPagamento':
+                    return (
+                      <React.Fragment key="metodosPagamento">
+                        {/* SELETOR DE MÉTODOS DE PAGAMENTO OU BANNER GRATUITO */}
+                        {campanha.modalidade === 'gratis' ? (
+                          <div className="mb-4 p-3.5 bg-purple-500/10 border border-purple-500/30 rounded-2xl text-center">
+                            <span className="text-xs font-black text-purple-300 flex items-center justify-center gap-1.5">
+                              <Gift className="w-4 h-4 text-purple-400" />
+                              Sorteio 100% Gratuito — 1 Cota por CPF
+                            </span>
+                            <p className="text-[11px] text-slate-300 mt-1">
+                              Preencha seus dados abaixo para validar sua inscrição e receber seu bilhete da sorte sem pagar nada!
+                            </p>
+                          </div>
+                        ) : (() => {
+                          const chk = campanha.checkout || DEFAULT_CHECKOUT_CONFIG;
+                          const metodosAtivos = [
+                            ...(chk.metodos?.pix !== false ? ['pix'] : []),
+                            ...(chk.metodos?.cartao ? ['cartao'] : []),
+                            ...(chk.metodos?.boleto ? ['boleto'] : [])
+                          ];
+
+                          if (metodosAtivos.length <= 1) return null;
+
+                          return (
+                            <div className="mb-4 space-y-1.5">
+                              <label className="text-[11px] font-bold text-slate-300 block uppercase tracking-wider">
+                                Forma de Pagamento:
+                              </label>
+                              <div className="grid grid-cols-3 gap-2">
+                                {chk.metodos?.pix !== false && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setMetodoPagamento('pix')}
+                                    className={`p-2.5 rounded-xl border text-xs font-bold flex flex-col items-center justify-center gap-1.5 transition ${
+                                      metodoPagamento === 'pix'
+                                        ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400 shadow-md'
+                                        : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-slate-200'
+                                    }`}
+                                  >
+                                    <QrCode className="w-4 h-4" />
+                                    <span>Pix</span>
+                                  </button>
+                                )}
+
+                                {chk.metodos?.cartao && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setMetodoPagamento('cartao')}
+                                    className={`p-2.5 rounded-xl border text-xs font-bold flex flex-col items-center justify-center gap-1.5 transition ${
+                                      metodoPagamento === 'cartao'
+                                        ? 'bg-blue-500/20 border-blue-500 text-blue-400 shadow-md'
+                                        : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-slate-200'
+                                    }`}
+                                  >
+                                    <CreditCard className="w-4 h-4" />
+                                    <span>Cartão</span>
+                                  </button>
+                                )}
+
+                                {chk.metodos?.boleto && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setMetodoPagamento('boleto')}
+                                    className={`p-2.5 rounded-xl border text-xs font-bold flex flex-col items-center justify-center gap-1.5 transition ${
+                                      metodoPagamento === 'boleto'
+                                        ? 'bg-amber-500/20 border-amber-500 text-amber-400 shadow-md'
+                                        : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-slate-200'
+                                    }`}
+                                  >
+                                    <FileText className="w-4 h-4" />
+                                    <span>Boleto</span>
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()}
+
+                        {/* CAMPOS ESPECÍFICOS DE CARTÃO DE CRÉDITO */}
+                        {metodoPagamento === 'cartao' && campanha.modalidade !== 'gratis' && (
+                          <div className="space-y-3.5 mb-4 animate-in fade-in-50">
+                            <div>
+                              <div className="flex items-center justify-between mb-1">
+                                <label className="text-[11px] font-semibold text-slate-300">
+                                  Número do Cartão *
+                                </label>
+                                {(() => {
+                                  const numLimpo = cartaoNumero.replace(/\D/g, '');
+                                  if (numLimpo.length >= 1) {
+                                    const b = detectarBandeiraCartao(numLimpo);
+                                    if (b && b.id !== 'credit_card') {
+                                      return (
+                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30 uppercase flex items-center gap-1">
+                                          <CreditCard className="w-3 h-3" /> {b.nome}
+                                        </span>
+                                      );
+                                    }
+                                  }
+                                  return (
+                                    <span className="text-[10px] text-slate-500">
+                                      Visa, Mastercard, Elo, Hipercard, Amex
+                                    </span>
+                                  );
+                                })()}
+                              </div>
+                              <input
+                                type="text"
+                                placeholder="0000 0000 0000 0000"
+                                maxLength={19}
+                                value={cartaoNumero}
+                                onChange={e => setCartaoNumero(formatarNumeroCartao(e.target.value))}
+                                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-mono text-white focus:border-blue-500 focus:outline-none"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="text-[11px] font-semibold text-slate-300 block mb-1">
+                                Nome impresso no Cartão *
+                              </label>
+                              <input
+                                type="text"
+                                placeholder="Como está gravado no cartão"
+                                value={cartaoNome}
+                                onChange={e => setCartaoNome(e.target.value.toUpperCase())}
+                                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white uppercase focus:border-blue-500 focus:outline-none"
+                              />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2.5">
+                              <div>
+                                <label className="text-[11px] font-semibold text-slate-300 block mb-1">
+                                  Validade (MM/AA) *
+                                </label>
+                                <input
+                                  type="text"
+                                  placeholder="MM/AA"
+                                  maxLength={5}
+                                  value={cartaoValidade}
+                                  onChange={e => setCartaoValidade(e.target.value)}
+                                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-mono text-white text-center focus:border-blue-500 focus:outline-none"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="text-[11px] font-semibold text-slate-300 block mb-1">
+                                  CVV / Código *
+                                </label>
+                                <input
+                                  type="password"
+                                  placeholder="123"
+                                  maxLength={4}
+                                  value={cartaoCvv}
+                                  onChange={e => setCartaoCvv(e.target.value.replace(/\D/g, ''))}
+                                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-mono text-white text-center focus:border-blue-500 focus:outline-none"
+                                />
+                              </div>
+                            </div>
+
+                            {/* CPF do Titular do Cartão */}
+                            <div>
+                              <label className="text-[11px] font-semibold text-slate-300 block mb-1">
+                                CPF do Titular do Cartão *
+                              </label>
+                              <input
+                                type="text"
+                                placeholder="000.000.000-00"
+                                value={cartaoCpf || cpf}
+                                onChange={e => setCartaoCpf(formatarCPF(e.target.value))}
+                                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-mono text-white focus:border-blue-500 focus:outline-none"
+                              />
+                            </div>
+
+                            {/* Seleção de Parcelamento */}
+                            <div>
+                              <label className="text-[11px] font-semibold text-slate-300 block mb-1">
+                                Opções de Parcelamento
+                              </label>
+                              <select
+                                value={cartaoParcelas}
+                                onChange={e => setCartaoParcelas(Number(e.target.value))}
+                                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:border-blue-500 focus:outline-none"
+                              >
+                                {(() => {
+                                  const maxP = Math.min(campanha.checkout?.parcelasMax || 12, 12);
+                                  const totalAtual = valorTotalAtual + (ofertaSelecionada ? ofertaSelecionada.preco : 0);
+                                  const opts = [];
+                                  for (let i = 1; i <= maxP; i++) {
+                                    const valorParcela = totalAtual / i;
+                                    if (i === 1 || valorParcela >= 5.0) {
+                                      opts.push(
+                                        <option key={i} value={i}>
+                                          {i === 1
+                                            ? `1x de ${formatarMoeda(totalAtual)} (À vista)`
+                                            : `${i}x de ${formatarMoeda(valorParcela)} sem juros`}
+                                        </option>
+                                      );
+                                    }
+                                  }
+                                  return opts;
+                                })()}
+                              </select>
+                            </div>
+
+                            <div className="p-2.5 bg-slate-950/80 border border-slate-800 rounded-xl text-[10px] text-slate-400 flex items-start gap-2">
+                              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                              <span>
+                                {campanha.checkout?.cartaoConfig?.instrucaoSeguranca ||
+                                  'Seus dados de cartão são criptografados e tokenizados diretamente pelo navegador. O organizador nunca visualiza ou armazena o número completo nem o código CVV.'}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </React.Fragment>
+                    );
+                  case 'dadosComprador': {
+                    const camposCfg = obterConfigCamposCheckout(campanha.checkout);
+                    const isCpfObrigatorio = !!(camposCfg.cpf?.ativo && camposCfg.cpf?.obrigatorio) || (campanha.checkout?.coletaDados?.exigirCpf || campanha.exigirCpf) || campanha.modalidade === 'gratis' || metodoPagamento === 'boleto';
+                    const isCpfVisivel = !!(camposCfg.cpf?.ativo) || (campanha.checkout?.coletaDados?.exigirCpf || campanha.exigirCpf) || campanha.modalidade === 'gratis' || metodoPagamento === 'boleto';
+                    
+                    const isEmailObrigatorio = !!(camposCfg.email?.ativo && camposCfg.email?.obrigatorio) || (campanha.checkout?.coletaDados?.exigirEmail || campanha.exigirEmail) || campanha.modalidade === 'gratis' || metodoPagamento === 'cartao';
+                    const isEmailVisivel = !!(camposCfg.email?.ativo) || (campanha.checkout?.coletaDados?.exigirEmail || campanha.exigirEmail) || campanha.modalidade === 'gratis' || metodoPagamento === 'cartao';
+
+                    const isEnderecoAtivo = !!(camposCfg.endereco?.ativo || campanha.coletarEndereco?.ativo || campanha.checkout?.coletaDados?.coletarEndereco?.ativo);
+                    const isEnderecoObrigatorio = !!(camposCfg.endereco?.obrigatorio || campanha.coletarEndereco?.obrigatorio || campanha.checkout?.coletaDados?.coletarEndereco?.obrigatorio);
+
+                    const isRedesAtivo = !!(camposCfg.redesSociais?.ativo || campanha.coletarRedesSociais?.ativo);
+                    const isRedesObrigatorio = !!(camposCfg.redesSociais?.obrigatorio || campanha.coletarRedesSociais?.obrigatorio);
+
+                    return (
+                      <React.Fragment key="dadosComprador">
+                        {/* DADOS PESSOAIS DO COMPRADOR */}
+                        <div className="space-y-3 mb-4">
+                          {/* NOME COMPLETO & NOME SOCIAL */}
+                          {(camposCfg.nome.ativo !== false || camposCfg.nomeSocial?.ativo) && (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              {camposCfg.nome.ativo !== false && (
+                                <div className={!camposCfg.nomeSocial?.ativo ? 'sm:col-span-2' : ''}>
+                                  <label className="text-xs font-semibold text-slate-300 block mb-1">
+                                    Nome completo {camposCfg.nome.obrigatorio ? '*' : <span className="text-slate-500 font-normal">(opcional)</span>}
+                                  </label>
+                                  <input
+                                    id="input-nome-comprador"
+                                    type="text"
+                                    placeholder="Ex: João da Silva"
+                                    value={nome}
+                                    onChange={e => setNome(e.target.value)}
+                                    className="w-full bg-slate-950 border border-slate-700 px-3.5 py-2.5 text-sm text-white focus:border-[var(--brand)] focus:outline-none"
+                                    style={{ borderRadius: `${campanha?.checkout?.inputArredondamento ?? 12}px` }}
+                                    required={!!camposCfg.nome.obrigatorio}
+                                  />
+                                </div>
+                              )}
+
+                              {camposCfg.nomeSocial?.ativo && (
+                                <div className={camposCfg.nome.ativo === false ? 'sm:col-span-2' : ''}>
+                                  <label className="text-xs font-semibold text-slate-300 block mb-1">
+                                    Nome social {camposCfg.nomeSocial.obrigatorio ? '*' : <span className="text-slate-500 font-normal">(opcional)</span>}
+                                  </label>
+                                  <input
+                                    id="input-nome-social-comprador"
+                                    type="text"
+                                    placeholder="Como prefere ser chamado"
+                                    value={nomeSocial}
+                                    onChange={e => setNomeSocial(e.target.value)}
+                                    className="w-full bg-slate-950 border border-slate-700 px-3.5 py-2.5 text-sm text-white focus:border-[var(--brand)] focus:outline-none"
+                                    style={{ borderRadius: `${campanha?.checkout?.inputArredondamento ?? 12}px` }}
+                                    required={!!camposCfg.nomeSocial.obrigatorio}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* WHATSAPP & CONFIRMAR WHATSAPP */}
+                          {(camposCfg.telefone.ativo !== false || camposCfg.confirmarTelefone?.ativo) && (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              {camposCfg.telefone.ativo !== false && (
+                                <div className={!camposCfg.confirmarTelefone?.ativo ? 'sm:col-span-2' : ''}>
+                                  <label className="text-xs font-semibold text-slate-300 block mb-1">
+                                    WhatsApp com DDD {camposCfg.telefone.obrigatorio ? '*' : <span className="text-slate-500 font-normal">(opcional)</span>}
+                                  </label>
+                                  <input
+                                    id="input-whatsapp-comprador"
+                                    type="text"
+                                    placeholder="(11) 99999-9999"
+                                    value={whatsapp}
+                                    onChange={e => setWhatsapp(formatWhatsapp(e.target.value))}
+                                    className="w-full bg-slate-950 border border-slate-700 px-3.5 py-2.5 text-sm font-mono text-white focus:border-[var(--brand)] focus:outline-none"
+                                    style={{ borderRadius: `${campanha?.checkout?.inputArredondamento ?? 12}px` }}
+                                    required={!!camposCfg.telefone.obrigatorio}
+                                  />
+                                </div>
+                              )}
+
+                              {camposCfg.confirmarTelefone?.ativo && (
+                                <div className={camposCfg.telefone.ativo === false ? 'sm:col-span-2' : ''}>
+                                  <div className="flex items-center justify-between mb-1">
+                                    <label className="text-xs font-semibold text-slate-300 block">
+                                      Confirmar WhatsApp {camposCfg.confirmarTelefone.obrigatorio ? '*' : <span className="text-slate-500 font-normal">(opcional)</span>}
+                                    </label>
+                                    {confirmarWhatsapp && whatsapp && (
+                                      <span className={`text-[10px] font-bold ${
+                                        whatsapp.replace(/\D/g, '') === confirmarWhatsapp.replace(/\D/g, '')
+                                          ? 'text-emerald-400'
+                                          : 'text-rose-400'
+                                      }`}>
+                                        {whatsapp.replace(/\D/g, '') === confirmarWhatsapp.replace(/\D/g, '') ? '✓ Coincidem' : '✗ Diferentes'}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <input
+                                    id="input-confirmar-whatsapp-comprador"
+                                    type="text"
+                                    placeholder="Repita seu WhatsApp"
+                                    value={confirmarWhatsapp}
+                                    onChange={e => setConfirmarWhatsapp(formatWhatsapp(e.target.value))}
+                                    className="w-full bg-slate-950 border px-3.5 py-2.5 text-sm font-mono text-white focus:outline-none"
+                                    style={{ 
+                                      borderRadius: `${campanha?.checkout?.inputArredondamento ?? 12}px`,
+                                      borderColor: confirmarWhatsapp && whatsapp.replace(/\D/g, '') !== confirmarWhatsapp.replace(/\D/g, '') ? '#f43f5e' : '#334155'
+                                    }}
+                                    required={!!camposCfg.confirmarTelefone.obrigatorio}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* CPF & EMAIL */}
+                          {(isCpfVisivel || isEmailVisivel) && (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              {isCpfVisivel && (
+                                <div className={!isEmailVisivel ? 'sm:col-span-2' : ''}>
+                                  <div className="flex items-center justify-between mb-1">
+                                    <label className="text-xs font-semibold text-slate-300 block">
+                                      CPF {isCpfObrigatorio ? '*' : <span className="text-slate-500 font-normal">(opcional)</span>} {campanha.modalidade === 'gratis' ? <span className="text-purple-400 font-normal text-[10px]">(1/CPF)</span> : metodoPagamento === 'boleto' && <span className="text-amber-400 font-normal text-[10px]">(boleto)</span>}
+                                    </label>
+                                    {cpf && cpf.replace(/\D/g, '').length === 11 && (
+                                      <span className={`text-[10px] font-bold ${
+                                        validarCPF(cpf) ? 'text-emerald-400' : 'text-rose-400'
+                                      }`}>
+                                        {validarCPF(cpf) ? '✓ Válido' : '✗ Inválido'}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <input
+                                    id="input-cpf-comprador"
+                                    type="text"
+                                    placeholder="000.000.000-00"
+                                    value={cpf}
+                                    onChange={e => setCpf(formatarCPF(e.target.value))}
+                                    className="w-full bg-slate-950 border border-slate-700 px-3.5 py-2.5 text-sm font-mono text-white focus:border-[var(--brand)] focus:outline-none"
+                                    style={{ borderRadius: `${campanha?.checkout?.inputArredondamento ?? 12}px` }}
+                                    required={isCpfObrigatorio}
+                                  />
+                                </div>
+                              )}
+
+                              {isEmailVisivel && (
+                                <div className={!isCpfVisivel ? 'sm:col-span-2' : ''}>
+                                  <label className="text-xs font-semibold text-slate-300 block mb-1">
+                                    E-mail {isEmailObrigatorio ? '*' : <span className="text-slate-500 font-normal">(opcional)</span>}
+                                  </label>
+                                  <input
+                                    id="input-email-comprador"
+                                    type="email"
+                                    placeholder="seuemail@exemplo.com"
+                                    value={email}
+                                    onChange={e => setEmail(e.target.value)}
+                                    className="w-full bg-slate-950 border border-slate-700 px-3.5 py-2.5 text-sm text-white focus:border-[var(--brand)] focus:outline-none"
+                                    style={{ borderRadius: `${campanha?.checkout?.inputArredondamento ?? 12}px` }}
+                                    required={isEmailObrigatorio}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* REDES SOCIAIS */}
+                          {isRedesAtivo && (
+                            <div className="space-y-3 p-3 bg-slate-950/60 border border-slate-800" style={{ borderRadius: `${campanha?.checkout?.cardArredondamento ?? 16}px` }}>
+                              <p className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
+                                <Share2 className="w-3.5 h-3.5" style={{ color: 'var(--brand)' }} />
+                                Suas redes sociais {isRedesObrigatorio ? '*' : <span className="text-slate-500 font-normal">(opcional)</span>}
+                              </p>
+                              {campanha.coletarRedesSociais?.instagram !== false && (
+                                <div className="flex items-center gap-2 bg-slate-900 border border-slate-700 px-3 py-2 focus-within:border-[var(--brand)]" style={{ borderRadius: `${campanha?.checkout?.inputArredondamento ?? 12}px` }}>
+                                  <Instagram className="w-4 h-4 text-pink-500 shrink-0" />
+                                  <span className="text-slate-500 text-sm">@</span>
+                                  <input
+                                    type="text"
+                                    placeholder="seu_usuario"
+                                    value={instagramInput}
+                                    onChange={e => setInstagramInput(e.target.value.replace(/^@+/, '').trim())}
+                                    className="flex-1 bg-transparent text-sm text-white focus:outline-none"
+                                    required={isRedesObrigatorio}
+                                  />
+                                </div>
+                              )}
+
+                              {campanha.coletarRedesSociais?.tiktok !== false && (
+                                <div className="flex items-center gap-2 bg-slate-900 border border-slate-700 px-3 py-2 focus-within:border-[var(--brand)]" style={{ borderRadius: `${campanha?.checkout?.inputArredondamento ?? 12}px` }}>
+                                  <Music2 className="w-4 h-4 text-slate-200 shrink-0" />
+                                  <span className="text-slate-500 text-sm">@</span>
+                                  <input
+                                    type="text"
+                                    placeholder="seu_usuario"
+                                    value={tiktokInput}
+                                    onChange={e => setTiktokInput(e.target.value.replace(/^@+/, '').trim())}
+                                    className="flex-1 bg-transparent text-sm text-white focus:outline-none"
+                                    required={isRedesObrigatorio}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* DATA DE NASCIMENTO (apenas se ativo) */}
+                          {camposCfg.dataNascimento?.ativo && (
+                            <div>
+                              <div className="flex items-center justify-between mb-1">
+                                <label className="text-xs font-semibold text-slate-300 block">
+                                  Data de Nascimento {camposCfg.dataNascimento.obrigatorio ? '*' : <span className="text-slate-500 font-normal">(opcional)</span>}
+                                </label>
+                                {dataNascimento && dataNascimento.length === 10 && (
+                                  <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                                    (calcularIdade(dataNascimento) || 0) >= 18
+                                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                      : 'bg-red-500/20 text-red-400 border border-red-500/30'
+                                  }`}>
+                                    {calcularIdade(dataNascimento) !== null
+                                      ? `Idade: ${calcularIdade(dataNascimento)} anos`
+                                      : 'Data inválida'}
+                                  </span>
+                                )}
+                              </div>
+                              <input
+                                id="input-nascimento-comprador"
+                                type="text"
+                                inputMode="numeric"
+                                placeholder="DD/MM/AAAA (ex: 01/06/2004)"
+                                maxLength={10}
+                                value={dataNascimento}
+                                onChange={e => setDataNascimento(formatDataNascimento(e.target.value))}
+                                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-mono text-white focus:border-[var(--brand)] focus:outline-none"
+                                required={!!camposCfg.dataNascimento.obrigatorio}
+                              />
+                            </div>
+                          )}
+
+                          {/* ENDEREÇO DO COMPRADOR */}
+                          {isEnderecoAtivo && (
+                            <div className="p-3.5 bg-slate-950/70 border border-slate-800 space-y-3 mt-2" style={{ borderRadius: `${campanha?.checkout?.cardArredondamento ?? 16}px` }}>
+                              <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                                <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                                  <MapPin className="w-3.5 h-3.5 text-amber-400" />
+                                  Endereço Residencial {isEnderecoObrigatorio ? '*' : <span className="text-slate-500 font-normal text-[11px]">(opcional)</span>}
+                                </span>
+                                {carregandoCep && (
+                                  <span className="text-[11px] text-amber-400 flex items-center gap-1 animate-pulse">
+                                    <Loader2 className="w-3 h-3 animate-spin" /> Buscando CEP...
+                                  </span>
+                                )}
+                              </div>
+
+                              <div>
+                                <label className="text-xs font-semibold text-slate-300 block mb-1">CEP</label>
+                                <input
+                                  id="input-cep-comprador"
+                                  type="text"
+                                  inputMode="numeric"
+                                  placeholder="00000-000"
+                                  maxLength={9}
+                                  value={cep}
+                                  onChange={e => handleCepChange(e.target.value)}
+                                  className="w-full bg-slate-900 border border-slate-700 px-3.5 py-2.5 text-sm font-mono text-white focus:border-amber-400 focus:outline-none"
+                                  style={{ borderRadius: `${campanha?.checkout?.inputArredondamento ?? 12}px` }}
+                                  required={isEnderecoObrigatorio}
+                                />
+                                {cepErro && <p className="text-[11px] text-rose-400 mt-1">{cepErro}</p>}
+                              </div>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <div className="sm:col-span-2">
+                                  <label className="text-xs font-semibold text-slate-300 block mb-1">Logradouro / Rua</label>
+                                  <input
+                                    type="text"
+                                    placeholder="Rua, Avenida, Alameda..."
+                                    value={logradouro}
+                                    onChange={e => setLogradouro(e.target.value)}
+                                    className="w-full bg-slate-900 border border-slate-700 px-3.5 py-2.5 text-sm text-white focus:border-amber-400 focus:outline-none"
+                                    style={{ borderRadius: `${campanha?.checkout?.inputArredondamento ?? 12}px` }}
+                                    required={isEnderecoObrigatorio}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-xs font-semibold text-slate-300 block mb-1">Número</label>
+                                  <input
+                                    type="text"
+                                    placeholder="123"
+                                    value={numero}
+                                    onChange={e => setNumero(e.target.value)}
+                                    className="w-full bg-slate-900 border border-slate-700 px-3.5 py-2.5 text-sm font-mono text-white focus:border-amber-400 focus:outline-none"
+                                    style={{ borderRadius: `${campanha?.checkout?.inputArredondamento ?? 12}px` }}
+                                    required={isEnderecoObrigatorio}
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <div>
+                                  <label className="text-xs font-semibold text-slate-300 block mb-1">Bairro</label>
+                                  <input
+                                    type="text"
+                                    placeholder="Bairro"
+                                    value={bairro}
+                                    onChange={e => setBairro(e.target.value)}
+                                    className="w-full bg-slate-900 border border-slate-700 px-3.5 py-2.5 text-sm text-white focus:border-amber-400 focus:outline-none"
+                                    style={{ borderRadius: `${campanha?.checkout?.inputArredondamento ?? 12}px` }}
+                                    required={isEnderecoObrigatorio}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-xs font-semibold text-slate-300 block mb-1">Cidade</label>
+                                  <input
+                                    type="text"
+                                    placeholder="Cidade"
+                                    value={cidade}
+                                    onChange={e => setCidade(e.target.value)}
+                                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-amber-400 focus:outline-none"
+                                    required={isEnderecoObrigatorio}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-xs font-semibold text-slate-300 block mb-1">UF</label>
+                                  <input
+                                    type="text"
+                                    maxLength={2}
+                                    placeholder="SP"
+                                    value={uf}
+                                    onChange={e => setUf(e.target.value.toUpperCase())}
+                                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-mono text-white uppercase focus:border-amber-400 focus:outline-none text-center"
+                                    required={isEnderecoObrigatorio}
+                                  />
+                                </div>
+                              </div>
+
+                              <div>
+                                <label className="text-xs font-semibold text-slate-300 block mb-1">Complemento <span className="text-slate-500 font-normal">(opcional)</span></label>
+                                <input
+                                  type="text"
+                                  placeholder="Apto 42, Bloco B, etc."
+                                  value={complemento}
+                                  onChange={e => setComplemento(e.target.value)}
+                                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-amber-400 focus:outline-none"
+                                />
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Confirmação Idade Mínima (+18 anos) */}
+                          <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl mt-3">
+                            <label className="flex items-start gap-2.5 cursor-pointer">
+                              <input
+                                id="checkout-check-maior-idade"
+                                type="checkbox"
+                                checked={maiorIdade}
+                                onChange={e => setMaiorIdade(e.target.checked)}
+                                className="w-4 h-4 mt-0.5 rounded text-emerald-500 bg-slate-900 border-slate-700 focus:ring-[var(--brand)]"
+                              />
+                              <span className="text-xs text-slate-200 font-medium leading-tight">
+                                <strong className="block" style={{ color: 'var(--brand)' }}>Idade mínima 18 anos:</strong>
+                                Declaro que tenho 18 anos ou mais e estou de acordo com o regulamento do sorteio.
+                              </span>
+                            </label>
+                          </div>
+                        </div>
+                      </React.Fragment>
+                    );
+                  }
+                  case 'cupomDesconto':
+                    return (
+                      <React.Fragment key="cupomDesconto">
+                        {/* CAMPO DE CUPOM DE DESCONSO */}
+                        {campanha.modalidade !== 'gratis' && (campanha.cupomAtivo === true || campanha.checkout?.cupomAtivo === true || campanha.checkout?.exibirCupom === true) && (
+                          <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2 mb-4">
+                            <label className="text-[11px] font-bold text-slate-300 flex items-center justify-between">
+                              <span>Tem um cupom de desconto?</span>
+                              {cupomAplicado && (
+                                <span className="text-emerald-400 text-[10px] uppercase font-mono font-bold">
+                                  {cupomAplicado.tipo === 'fixo'
+                                    ? `${formatarMoeda(cupomAplicado.valorFixo || 0)} OFF APLICADO`
+                                    : `${cupomAplicado.descontoPct}% OFF APLICADO`}
+                                </span>
+                              )}
+                            </label>
+
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="text"
+                                placeholder="Digite o código (ex: VOLTA10)"
+                                value={cupomInput}
+                                onChange={e => {
+                                  setCupomInput(e.target.value.toUpperCase());
+                                  setCupomErro('');
+                                }}
+                                className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white uppercase font-mono font-bold focus:border-[var(--brand)] focus:outline-none"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleValidarCupom()}
+                                disabled={validandoCupom || !cupomInput.trim()}
+                                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-lg border border-slate-700 transition disabled:opacity-50"
+                              >
+                                {validandoCupom ? 'Aplicando...' : cupomAplicado ? 'Atualizar' : 'Aplicar'}
+                              </button>
+                            </div>
+
+                            {cupomAplicado && (
+                              <p className="text-[11px] text-emerald-400 font-bold flex items-center gap-1">
+                                ✓ Cupom {cupomAplicado.codigo} ativado ({cupomAplicado.tipo === 'fixo'
+                                  ? `${formatarMoeda(cupomAplicado.valorFixo || 0)} de desconto`
+                                  : `${cupomAplicado.descontoPct}% de desconto`})!
+                              </p>
+                            )}
+
+                            {cupomErro && (
+                              <p className="text-[11px] text-rose-400 font-medium">
+                                ⚠️ {cupomErro}
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </React.Fragment>
+                    );
+                  case 'resumoPedido':
+                    return (
+                      <React.Fragment key="resumoPedido">
+                        {/* Resumo Financeiro */}
+                        <div className="bg-slate-800/60 border border-slate-700/60 p-3 text-xs space-y-1 mb-4" style={{ borderRadius: `${campanha?.checkout?.cardArredondamento ?? 16}px` }}>
+                          <div className="flex justify-between text-slate-300">
+                            <span>Cotas:</span>
+                            <span className="font-bold text-white">
+                              {campanha.modalidade === 'gratis' ? '1 cota' : `${quantidade + (ofertaSelecionada ? ofertaSelecionada.cotasExtras : 0)} cotas`}
+                            </span>
+                          </div>
+                          {metodoPagamento === 'pix' && campanha.checkout?.pixConfig?.descontoPct && (
+                            <div className="flex justify-between text-emerald-400 text-[11px] mb-1">
+                              <span>Desconto Pix ({campanha.checkout.pixConfig.descontoPct}%)</span>
+                              <span className="font-bold">- {formatarMoeda(valorSemCupom * (campanha.checkout.pixConfig.descontoPct / 100))}</span>
+                            </div>
+                          )}
+                          <div className="flex justify-between text-slate-300 border-t border-slate-700/50 pt-1">
+                            <span>Total:</span>
+                            <span className="font-extrabold text-sm" style={{ color: 'var(--brand)' }}>
+                              {campanha.modalidade === 'gratis' ? 'R$ 0,00 (Grátis)' : formatarMoeda(valorTotalAtual + (ofertaSelecionada ? ofertaSelecionada.preco : 0))}
+                            </span>
+                          </div>
+                        </div>
+                      </React.Fragment>
+                    );
+                  case 'selosSeguranca':
+                    return (
+                      <React.Fragment key="selosSeguranca">
+                        {/* Selos de Segurança e Criptografia */}
+                        {(campanha.checkout?.selosSeguranca !== false) && (
+                          <div className="flex items-center justify-center gap-4 py-1 text-[10px] text-slate-400 border-t border-slate-800/80 pt-2 mb-2">
+                            <span className="flex items-center gap-1">
+                              <Lock className="w-3 h-3 text-emerald-400" />
+                              Criptografia SSL 256-bit
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <ShieldCheck className="w-3 h-3 text-blue-400" />
+                              Validação Anti-Fraude CPF
+                            </span>
+                          </div>
+                        )}
+                      </React.Fragment>
+                    );
+                  default:
+                    return null;
+                }
+              })}
 
               {formErro && (
-                <p className="text-xs text-red-400 font-medium bg-red-950/40 border border-red-800/40 p-2.5 rounded-xl">{formErro}</p>
+                <p className="text-xs text-red-400 font-medium bg-red-950/40 border border-red-800/40 p-2.5" style={{ borderRadius: `${campanha?.checkout?.cardArredondamento ?? 12}px` }}>{formErro}</p>
               )}
 
-              <button
-                id="btn-confirmar-gerar-pix"
-                type="submit"
-                disabled={enviandoPedido || !maiorIdade}
-                title={!maiorIdade ? 'Marque a confirmação de idade e regulamento para continuar' : undefined}
-                style={{ backgroundColor: 'var(--btn)', color: 'var(--btn-txt)', borderRadius: `${tema.botao.raioBorda}px` }}
-                className={`w-full py-3.5 font-black rounded-xl text-sm shadow-lg flex items-center justify-center gap-2 transition active:scale-[0.98] ${getBtnRoundingClass(tema.botao.formato)} ${(!maiorIdade || enviandoPedido) ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90'}`}
-              >
-                {enviandoPedido ? (
-                  <span className="flex items-center gap-2">
-                    <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
-                    {campanha.modalidade === 'gratis' ? 'Validando Inscrição Gratuita...' : metodoPagamento === 'cartao' ? 'Processando Cartão com Segurança...' : metodoPagamento === 'boleto' ? 'Gerando Boleto Bancário...' : 'Gerando Pix Oficial...'}
-                  </span>
+              {(!hasDivisor || etapaAtual === 2) && (
+                (pedidoGerado?.metodo === 'pix' && finalStatus !== 'expirado') ? (
+                  <div className="mt-4 animate-in fade-in slide-in-from-top-4 duration-500">
+                    <PixPaymentModal
+                      inline
+                      pedidoId={pedidoGerado.pedidoId}
+                      pixCopiaCola={pedidoGerado.pixCopiaCola || ''}
+                      pixQrCodeBase64={pedidoGerado.pixQrCodeBase64 || ''}
+                      valorTotal={pedidoGerado.valorTotal}
+                      quantidade={pedidoGerado.quantidade}
+                      expiraEm={pedidoGerado.expiraEm}
+                      isMock={pedidoGerado.isMock}
+                      compradorNome={pedidoGerado.compradorNome || nome}
+                      compradorWhatsapp={pedidoGerado.compradorWhatsapp || whatsapp.replace(/\D/g, '')}
+                      tituloCampanha={campanha.titulo}
+                      confirmacaoConfig={campanha?.checkout?.confirmacao}
+                      pixConfig={campanha?.checkout?.pixConfig}
+                      onSuccess={(nums) => {
+                        setFinalStatus('pago');
+                        setFinalNumerosLiberados(nums);
+                        const pixelId = campanha?.metaPixelId || data?.marca?.metaPixelId;
+                        if (pixelId && campanha && pedidoGerado) {
+                          trackPurchase(pixelId, {
+                            contentIds: [campanha.id],
+                            value: pedidoGerado.valorTotal,
+                            numItems: pedidoGerado.quantidade
+                          }, pedidoGerado.pedidoId);
+                        }
+                        carregarCampanha(true);
+                      }}
+                      onClose={() => setPedidoGerado(null)}
+                      onEditarDados={() => setPedidoGerado(null)}
+                      onVerMeusNumeros={() => setCheckoutPasso('numeros')}
+                    />
+                  </div>
                 ) : (
-                  campanha.modalidade === 'gratis'
-                    ? '🎁 CONCLUIR MINHA INSCRIÇÃO GRÁTIS'
-                    : metodoPagamento === 'cartao'
-                    ? 'PAGAR COM CARTÃO AGORA'
-                    : metodoPagamento === 'boleto'
-                    ? 'GERAR BOLETO BANCÁRIO'
-                    : 'GERAR PIX AGORA'
-                )}
-              </button>
+                  <button
+                    id="btn-confirmar-gerar-pix"
+                    type="submit"
+                    disabled={enviandoPedido || !maiorIdade}
+                    title={!maiorIdade ? 'Marque a confirmação de idade e regulamento para continuar' : undefined}
+                    style={{ 
+                      backgroundColor: 'var(--btn)', 
+                      color: 'var(--btn-txt)', 
+                      borderRadius: `${campanha?.checkout?.botaoRaioBorda ?? tema.botao.raioBorda}px`,
+                      fontSize: `${campanha?.checkout?.botaoTamanhoFonte ?? 14}px`
+                    }}
+                    className={`w-full py-3.5 shadow-lg flex items-center justify-center gap-2 transition active:scale-[0.98] ${
+                      (campanha?.checkout?.botaoPesoFonte === 'black' || !campanha?.checkout?.botaoPesoFonte) ? 'font-black' : campanha?.checkout?.botaoPesoFonte === 'bold' ? 'font-bold' : 'font-normal'
+                    } ${(!maiorIdade || enviandoPedido) ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90'}`}
+                  >
+                    {enviandoPedido ? (
+                      <span className="flex items-center gap-2">
+                        <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                        {campanha.modalidade === 'gratis' ? 'Validando Inscrição Gratuita...' : metodoPagamento === 'cartao' ? 'Processando Cartão com Segurança...' : metodoPagamento === 'boleto' ? 'Gerando Boleto Bancário...' : 'Gerando Pix Oficial...'}
+                      </span>
+                    ) : (
+                      campanha.modalidade === 'gratis'
+                        ? '🎁 CONCLUIR MINHA INSCRIÇÃO GRÁTIS'
+                        : metodoPagamento === 'cartao'
+                        ? 'PAGAR COM CARTÃO AGORA'
+                        : metodoPagamento === 'boleto'
+                        ? 'GERAR BOLETO BANCÁRIO'
+                        : 'FINALIZAR PAGAMENTO'
+                    )}
+                  </button>
+                )
+              )}
+
+                    {/* Action Button for Form */}
+                    {hasDivisor && etapaAtual === 1 && !pedidoGerado && (
+                      <div className="pt-2">
+                        <button
+                          type={metodoPagamento === 'pix' ? 'submit' : 'button'}
+                          onClick={metodoPagamento === 'pix' ? undefined : () => {
+                            // Validation before going to step 2
+                            if (!nome.trim() || !whatsapp.trim()) {
+                              setFormErro('Preencha seu Nome e WhatsApp para continuar.');
+                              return;
+                            }
+                            setFormErro('');
+                            setEtapaAtual(2);
+                            setTimeout(() => {
+                              const el = document.getElementById('btn-abrir-menu-lateral');
+                              if (el) el.scrollIntoView({ behavior: 'smooth' });
+                            }, 100);
+                          }}
+                          className={`w-full flex items-center justify-center gap-2 py-4 text-white uppercase tracking-wider transition-all shadow-lg hover:shadow-xl active:scale-[0.98] cursor-pointer ${
+                            (campanha?.checkout?.botaoPesoFonte === 'black' || !campanha?.checkout?.botaoPesoFonte) ? 'font-black' : campanha?.checkout?.botaoPesoFonte === 'bold' ? 'font-bold' : 'font-normal'
+                          }`}
+                          style={{
+                            background: 'linear-gradient(to right, var(--btn-grad-start, var(--brand)), var(--btn-grad-end, var(--brand)))',
+                            color: 'var(--btn-txt)',
+                            borderRadius: `${campanha?.checkout?.botaoRaioBorda ?? 12}px`,
+                            fontSize: `${campanha?.checkout?.botaoTamanhoFonte ?? 14}px`
+                          }}
+                        >
+                          {metodoPagamento === 'pix' ? 'FINALIZAR PAGAMENTO' : 'Continuar para Pagamento'}
+                          {metodoPagamento !== 'pix' && <ArrowRight className="w-5 h-5" />}
+                        </button>
+                      </div>
+                    )}
+                    
+                  </>
+                );
+              })()}
             </form>
-          </div>
+          )}
         </div>
-      )}
+      </div>
+    )}
 
       {/* Modal Pix Gerado */}
       {pixModalData && (
@@ -4347,6 +4825,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
           compradorWhatsapp={pixModalData.compradorWhatsapp || whatsapp.replace(/\D/g, '')}
           tituloCampanha={campanha.titulo}
           confirmacaoConfig={campanha?.checkout?.confirmacao}
+          pixConfig={campanha?.checkout?.pixConfig}
           onSuccess={() => {
             const pixelId = campanha?.metaPixelId || data?.marca?.metaPixelId;
             if (pixelId && campanha && pixModalData) {
@@ -4570,14 +5049,15 @@ export const CampanhaPublicaView: React.FC<Props> = ({
 
           <main className="flex-1 pb-16">
             {/* Foto de Fundo / Capa de Banner */}
-            <div className="relative w-full bg-slate-900 overflow-hidden">
+            <div className="relative w-full bg-slate-950 overflow-hidden">
               {campanha.organizadorCapa ? (
-                <img
-                  src={campanha.organizadorCapa}
-                  alt="Capa do Perfil"
-                  className="w-full h-auto block object-cover"
-                  style={{ minHeight: '140px', maxHeight: '520px' }}
-                />
+                <div className="w-full bg-slate-950">
+                  <img
+                    src={campanha.organizadorCapa}
+                    alt="Capa do Perfil"
+                    className="w-full h-auto object-contain block"
+                  />
+                </div>
               ) : (
                 <div className="w-full h-48 sm:h-64 lg:h-80 bg-gradient-to-r from-slate-900 via-emerald-950/40 to-slate-900 flex items-center justify-center relative">
                   <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(16,185,129,0.15)_0,transparent_70%)]" />
@@ -4907,6 +5387,7 @@ export const CampanhaPublicaView: React.FC<Props> = ({
                     Rifa
                   </div>
                 )}
+
                 <div className="flex-1 min-w-0">
                   <h3 className="font-extrabold text-white text-sm line-clamp-2">{campanhaResultadoModal.titulo}</h3>
                   <div className="text-[11px] text-slate-400 flex items-center gap-1 mt-1">

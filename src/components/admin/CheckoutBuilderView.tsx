@@ -1,15 +1,17 @@
 import { confirmar } from '../../lib/confirm';
 import { toast } from '../../lib/toast';
 import React, { useState, useEffect, useRef } from 'react';
-import { CheckoutConfig, CheckoutSalvo, DEFAULT_CHECKOUT_CONFIG, ConfirmacaoCompraConfig, CupomDesconto } from '../../types';
+import { CheckoutConfig, CheckoutSalvo, DEFAULT_CHECKOUT_CONFIG, ConfirmacaoCompraConfig, CupomDesconto, obterConfigCamposCheckout } from '../../types';
 import { dispararExplosaoConfetes } from '../../utils/confettiUtils';
 import { VisualTab } from './checkout/VisualTab';
 import { PagamentoTab } from './checkout/PagamentoTab';
+import { PixTab } from './checkout/PixTab';
 import { GatilhosTab } from './checkout/GatilhosTab';
 import { CamposTab } from './checkout/CamposTab';
 import { PosVendaTab } from './checkout/PosVendaTab';
-import { OrdemElementosTab } from './checkout/OrdemElementosTab';
+import { OrdemElementosTab, ELEMENTOS_CHECKOUT_PADRAO } from './checkout/OrdemElementosTab';
 import { CheckoutConfigExtended } from './checkout/types_private';
+import { formatarNumeroCartao, detectarBandeiraCartao } from '../../lib/mercadopago-client';
 import {
   CreditCard, QrCode, FileText, ShieldCheck, CheckCircle2,
   Trash2, Edit3, Plus, Save, RefreshCw, Smartphone,
@@ -97,7 +99,7 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
   const [nomeCheckout, setNomeCheckout] = useState('Novo Checkout');
   const [checkoutConfig, setCheckoutConfig] = useState<CheckoutConfigExtended>(defaultExtended);
   const [previewTab, setPreviewTab] = useState<'pix' | 'cartao' | 'boleto'>('pix');
-  const [previewScreen, setPreviewScreen] = useState<'checkout' | 'sucesso'>('checkout');
+  const [previewScreen, setPreviewScreen] = useState<'checkout' | 'pix' | 'sucesso'>('checkout');
   const [previewDevice, setPreviewDevice] = useState<'mobile' | 'desktop'>('mobile');
   const [modalAnimacaoAberto, setModalAnimacaoAberto] = useState(false);
   const [copiadoPix, setCopiadoPix] = useState(false);
@@ -106,7 +108,7 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
   const [cartaoValidade, setCartaoValidade] = useState('11/29');
   const [cartaoCVV, setCartaoCVV] = useState('823');
   const [parcelaSelecionada, setParcelaSelecionada] = useState(1);
-  const [activeFormTab, setActiveFormTab] = useState<'visual' | 'pagamento' | 'gatilhos' | 'campos' | 'posvenda'>('visual');
+  const [activeFormTab, setActiveFormTab] = useState<'visual' | 'pagamento' | 'pix' | 'gatilhos' | 'campos' | 'posvenda' | 'ordem'>('visual');
   const [selectedPaymentCard, setSelectedPaymentCard] = useState<'pix' | 'cartao' | 'boleto'>('pix');
 
   const handleSelectPaymentCard = (method: 'pix' | 'cartao' | 'boleto') => {
@@ -393,10 +395,11 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
               {[
                 { id: 'visual', label: '1. Visual', icon: Palette },
                 { id: 'pagamento', label: '2. Pagamento', icon: CreditCard },
-                { id: 'gatilhos', label: '3. Gatilhos & Urgência', icon: Clock },
-                { id: 'campos', label: '4. Campos & Cupons', icon: Tag },
-                { id: 'posvenda', label: '5. Pós-Venda', icon: PartyPopper },
-                { id: 'ordem', label: '6. Ordem', icon: Layers },
+                { id: 'pix', label: '3. Tela do Pix', icon: QrCode },
+                { id: 'gatilhos', label: '4. Gatilhos & Urgência', icon: Clock },
+                { id: 'campos', label: '5. Campos & Cupons', icon: Tag },
+                { id: 'posvenda', label: '6. Pós-Venda', icon: PartyPopper },
+                { id: 'ordem', label: '7. Ordem', icon: Layers },
               ].map(tab => {
                 const Icon = tab.icon;
                 const isSel = activeFormTab === tab.id;
@@ -432,9 +435,19 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
               <PagamentoTab
                 checkoutConfig={checkoutConfig as CheckoutConfigExtended}
                 upd={upd}
+                updMetodos={updMetodos}
+                updMsgs={updMsgs}
                 updGateway={updGateway}
                 selectedPaymentCard={selectedPaymentCard}
                 handleSelectPaymentCard={handleSelectPaymentCard}
+              />
+            )}
+
+            {activeFormTab === 'pix' && (
+              <PixTab
+                checkoutConfig={checkoutConfig as CheckoutConfigExtended}
+                upd={upd}
+                setPreviewScreen={setPreviewScreen}
               />
             )}
 
@@ -488,19 +501,25 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
           <div className="xl:col-span-5 space-y-4">
             <div className="sticky top-6 space-y-4">
               <div className="flex flex-col gap-2 bg-slate-900 border border-slate-800 p-3 rounded-2xl">
-                {/* Switcher entre Checkout e Tela de Sucesso */}
-                <div className="grid grid-cols-2 gap-1.5 bg-slate-950 p-1 rounded-xl">
+                {/* Switcher entre Checkout, Área do Pix e Tela de Sucesso */}
+                <div className="grid grid-cols-3 gap-1 bg-slate-950 p-1 rounded-xl">
                   <button
                     onClick={() => setPreviewScreen('checkout')}
-                    className={`py-1.5 px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${previewScreen === 'checkout' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
+                    className={`py-1.5 px-1.5 rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer ${previewScreen === 'checkout' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
                   >
-                    <CreditCard className="w-3.5 h-3.5" /> Checkout
+                    <CreditCard className="w-3.5 h-3.5" /> 1. Checkout
+                  </button>
+                  <button
+                    onClick={() => setPreviewScreen('pix')}
+                    className={`py-1.5 px-1.5 rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer ${previewScreen === 'pix' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
+                  >
+                    <QrCode className="w-3.5 h-3.5" /> 2. Área do Pix
                   </button>
                   <button
                     onClick={() => setPreviewScreen('sucesso')}
-                    className={`py-1.5 px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${previewScreen === 'sucesso' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
+                    className={`py-1.5 px-1.5 rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer ${previewScreen === 'sucesso' ? 'bg-purple-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
                   >
-                    <PartyPopper className="w-3.5 h-3.5" /> 🎉 Compra Concluída
+                    <PartyPopper className="w-3.5 h-3.5" /> 3. Sucesso
                   </button>
                 </div>
 
@@ -561,361 +580,460 @@ export const CheckoutBuilderView: React.FC<Props> = ({ authFetch }) => {
                     </div>
 
                     <div className="p-4 space-y-3 max-h-[560px] overflow-y-auto">
-                      {/* Banner de Topo (Imagem ou Vídeo) */}
-                      {checkoutConfig.bannerTipo === 'video' && checkoutConfig.bannerVideoUrl ? (
-                        <div className="rounded-xl overflow-hidden border border-slate-800 shadow bg-slate-950">
-                          {checkoutConfig.bannerVideoUrl.includes('youtube.com') || checkoutConfig.bannerVideoUrl.includes('youtu.be') ? (
-                            <div className="aspect-video w-full max-h-48">
-                              <iframe
-                                src={checkoutConfig.bannerVideoUrl.replace('watch?v=', 'embed/').replace('youtu.be/', 'youtube.com/embed/')}
-                                title="Vídeo do Checkout"
-                                className="w-full h-full"
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                allowFullScreen
-                              />
-                            </div>
-                          ) : (
-                            <video
-                              src={checkoutConfig.bannerVideoUrl}
-                              controls
-                              autoPlay
-                              loop
-                              muted
-                              playsInline
-                              className="w-full max-h-44 object-contain bg-slate-950"
-                            />
-                          )}
-                        </div>
-                      ) : checkoutConfig.bannerUrl ? (
-                        <div className="rounded-xl overflow-hidden border border-slate-800 shadow bg-slate-950 flex items-center justify-center">
-                          <img
-                            src={checkoutConfig.bannerUrl}
-                            alt="Banner"
-                            className={`w-full ${
-                              checkoutConfig.bannerEnquadramento === 'cover'
-                                ? 'h-28 object-cover'
-                                : 'max-h-44 object-contain'
-                            } rounded-xl`}
-                            onError={e => (e.currentTarget.style.display = 'none')}
-                          />
-                        </div>
-                      ) : null}
+                      {(Array.isArray(checkoutConfig.ordemElementos) && checkoutConfig.ordemElementos.length > 0 ? checkoutConfig.ordemElementos : ELEMENTOS_CHECKOUT_PADRAO).map(chave => {
+                        switch(chave) {
+                          case 'banner':
+                            return (
+                              <React.Fragment key="banner">
+                                {checkoutConfig.bannerTipo === 'video' && checkoutConfig.bannerVideoUrl ? (
+                                  <div className="rounded-xl overflow-hidden border border-slate-800 shadow bg-slate-950">
+                                    {checkoutConfig.bannerVideoUrl.includes('youtube.com') || checkoutConfig.bannerVideoUrl.includes('youtu.be') ? (
+                                      <div className="aspect-video w-full max-h-48">
+                                        <iframe
+                                          src={checkoutConfig.bannerVideoUrl.replace('watch?v=', 'embed/').replace('youtu.be/', 'youtube.com/embed/')}
+                                          title="Vídeo do Checkout"
+                                          className="w-full h-full"
+                                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                          allowFullScreen
+                                        />
+                                      </div>
+                                    ) : (
+                                      <video
+                                        src={checkoutConfig.bannerVideoUrl}
+                                        controls autoPlay loop muted playsInline
+                                        className="w-full max-h-44 object-contain bg-slate-950"
+                                      />
+                                    )}
+                                  </div>
+                                ) : checkoutConfig.bannerUrl ? (
+                                  <div className="rounded-xl overflow-hidden border border-slate-800 shadow bg-slate-950 flex items-center justify-center">
+                                    <img
+                                      src={checkoutConfig.bannerUrl}
+                                      alt="Banner"
+                                      className={`w-full ${checkoutConfig.bannerEnquadramento === 'cover' ? 'h-28 object-cover' : 'max-h-44 object-contain'} rounded-xl`}
+                                      onError={e => (e.currentTarget.style.display = 'none')}
+                                    />
+                                  </div>
+                                ) : null}
+                              </React.Fragment>
+                            );
+                          case 'selosSeguranca':
+                            return (
+                              <React.Fragment key="selosSeguranca">
+                                {checkoutConfig.selosSeguranca && (checkoutConfig.selosExtras || []).length > 0 && (
+                                  <div className="flex flex-wrap gap-1.5 justify-center py-1">
+                                    {SELOS_DISPONIVEIS.filter(s => (checkoutConfig.selosExtras || []).includes(s.id)).map(s => (
+                                      <span key={s.id} className="text-[9px] text-slate-400 flex items-center gap-1 bg-slate-900/80 border border-slate-800 px-2 py-0.5 rounded-lg shadow-sm">
+                                        {s.icon} {s.label}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </React.Fragment>
+                            );
+                          case 'mensagemUrgencia':
+                            return (
+                              <React.Fragment key="mensagemUrgencia">
+                                {checkoutConfig.mensagens?.urgencia && (
+                                  <div className="p-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 animate-pulse" style={{ backgroundColor: `${primary}15`, border: `1px solid ${primary}40`, color: primary }}>
+                                    <Zap className="w-3.5 h-3.5 shrink-0" />{checkoutConfig.mensagens.urgencia}
+                                  </div>
+                                )}
+                                {checkoutConfig.mensagemEscassez && (
+                                  <div className="p-2 bg-red-500/10 border border-red-500/20 rounded-xl text-[11px] font-bold text-red-400 text-center mt-2">
+                                    {checkoutConfig.mensagemEscassez}
+                                  </div>
+                                )}
+                              </React.Fragment>
+                            );
+                          case 'temporizador':
+                            return (
+                              <React.Fragment key="temporizador">
+                                {checkoutConfig.temporizadorAtivo && (
+                                  <div
+                                    className={`p-2.5 rounded-xl flex items-center justify-between ${
+                                      (checkoutConfig.temporizadorEstilo || 'fogo') === 'fogo'
+                                        ? 'bg-gradient-to-r from-amber-500/20 via-orange-500/20 to-red-500/20 border border-orange-500/40 text-amber-300'
+                                        : checkoutConfig.temporizadorEstilo === 'alerta'
+                                          ? 'bg-red-500/15 border border-red-500/40 text-red-400 animate-pulse'
+                                          : checkoutConfig.temporizadorEstilo === 'minimalista'
+                                            ? 'bg-slate-900 border border-slate-700 text-slate-300'
+                                            : 'bg-slate-950 border border-amber-500/30 text-amber-400 font-mono'
+                                    }`}
+                                  >
+                                    <span className="text-[11px] font-bold flex items-center gap-1">
+                                      {(checkoutConfig.temporizadorEstilo || 'fogo') === 'fogo' && <Flame className="w-3.5 h-3.5 text-orange-400 animate-bounce" />}
+                                      {checkoutConfig.temporizadorTexto || '⏱️ Sua reserva expira em'}
+                                    </span>
+                                    <span className="text-sm font-black font-mono">
+                                      {String(checkoutConfig.temporizadorMinutos || 10).padStart(2,'0')}:00
+                                    </span>
+                                  </div>
+                                )}
+                              </React.Fragment>
+                            );
+                          case 'metodosPagamento':
+                            return (
+                              <React.Fragment key="metodosPagamento">
+                                <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-950 border border-slate-800 rounded-xl mb-3">
+                                  {checkoutConfig.metodos.pix !== false && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setPreviewTab('pix')}
+                                      className={`py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer ${previewTab === 'pix' ? 'bg-emerald-500 text-slate-950 shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                                    >
+                                      <QrCode className="w-3.5 h-3.5" /> Pix
+                                    </button>
+                                  )}
+                                  {checkoutConfig.metodos.cartao && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setPreviewTab('cartao')}
+                                      className={`py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer ${previewTab === 'cartao' ? 'bg-blue-500 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                                    >
+                                      <CreditCard className="w-3.5 h-3.5" /> Cartão
+                                    </button>
+                                  )}
+                                  {checkoutConfig.metodos.boleto && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setPreviewTab('boleto')}
+                                      className={`py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer ${previewTab === 'boleto' ? 'bg-amber-500 text-slate-950 shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                                    >
+                                      <FileText className="w-3.5 h-3.5" /> Boleto
+                                    </button>
+                                  )}
+                                </div>
+                                {previewTab === 'pix' && checkoutConfig.metodos.pix !== false && (
+                                  <div className="bg-slate-900 border border-slate-700/50 rounded-xl p-4 text-center space-y-3 relative overflow-hidden mb-3">
+                                    <div className="absolute top-0 right-0 p-2 opacity-5"><QrCode className="w-24 h-24" /></div>
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-xs font-black text-emerald-400 flex items-center gap-1.5"><QrCode className="w-4 h-4" /> Pagamento Instantâneo</span>
+                                      <span className="text-white font-black font-mono">R$ 25,00</span>
+                                    </div>
+                                    <div className="w-32 h-32 mx-auto bg-white p-2 rounded-xl flex items-center justify-center shadow-lg relative z-10">
+                                      <svg viewBox="0 0 100 100" className="w-full h-full"><rect width="100" height="100" fill="#fff" /><rect x="10" y="10" width="30" height="30" fill="none" stroke="#000" strokeWidth="8" /><rect x="20" y="20" width="10" height="10" fill="#000" /><rect x="60" y="10" width="30" height="30" fill="none" stroke="#000" strokeWidth="8" /><rect x="70" y="20" width="10" height="10" fill="#000" /><rect x="10" y="60" width="30" height="30" fill="none" stroke="#000" strokeWidth="8" /><rect x="20" y="70" width="10" height="10" fill="#000" /><rect x="44" y="44" width="12" height="12" fill="#fff" /><rect x="48" y="48" width="4" height="4" fill="#000" /><rect x="68" y="38" width="10" height="6" fill="#000" /><rect x="82" y="44" width="8" height="10" fill="#000" /><rect x="38" y="70" width="10" height="8" fill="#000" /><rect x="54" y="76" width="16" height="8" fill="#000" /><rect x="76" y="70" width="14" height="14" fill="#000" /></svg>
+                                    </div>
+                                    <p className="text-[11px] text-slate-300">{checkoutConfig.mensagens?.pix || 'Escaneie o QR Code acima no app do seu banco ou use a chave Copia e Cola.'}</p>
+                                    <button type="button" onClick={copiarChavePix} className={`w-full py-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-2 transition cursor-pointer ${copiadoPix ? 'bg-emerald-500 text-slate-950 shadow-md' : 'bg-slate-800 hover:bg-slate-700 text-white border border-slate-700'}`}>
+                                      {copiadoPix ? <CheckCheck className="w-4 h-4" /> : <Copy className="w-4 h-4 text-emerald-400" />}
+                                      {copiadoPix ? 'Código Pix Copiado com Sucesso!' : 'Copiar Código Pix Copia e Cola'}
+                                    </button>
+                                  </div>
+                                )}
+                                {previewTab === 'cartao' && checkoutConfig.metodos.cartao && (
+                                  (() => {
+                                    const bandeiraDetectada = cartaoNumero.replace(/\D/g, '').length >= 1 ? detectarBandeiraCartao(cartaoNumero) : null;
+                                    const bandeirasAceitas = checkoutConfig.cartaoConfig?.bandeirasAceitas || ['visa', 'mastercard', 'elo', 'hipercard', 'amex'];
+                                    return (
+                                      <div className="space-y-2.5 mb-3 bg-slate-950/70 p-3 rounded-xl border border-slate-800 text-left">
+                                        <div className="flex items-center justify-between">
+                                          <span className="text-[10px] font-bold text-slate-400">Cartão de Crédito</span>
+                                          {bandeiraDetectada ? (
+                                            <span className="text-[10px] font-black px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30 uppercase flex items-center gap-1">
+                                              <CreditCard className="w-3 h-3" /> {bandeiraDetectada.nome}
+                                            </span>
+                                          ) : (
+                                            <div className="flex items-center gap-1">
+                                              {bandeirasAceitas.slice(0, 4).map(b => (
+                                                <span key={b} className="text-[9px] uppercase font-bold text-slate-500 bg-slate-900 px-1 py-0.5 rounded border border-slate-800">
+                                                  {b}
+                                                </span>
+                                              ))}
+                                            </div>
+                                          )}
+                                        </div>
 
-                      {/* Selos no topo se configurado */}
-                      {checkoutConfig.selosSeguranca && checkoutConfig.posicaoSelos === 'abaixo_banner' && (checkoutConfig.selosExtras || []).length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 justify-center py-1">
-                          {SELOS_DISPONIVEIS.filter(s => (checkoutConfig.selosExtras || []).includes(s.id)).map(s => (
-                            <span key={s.id} className="text-[9px] text-slate-400 flex items-center gap-1 bg-slate-900/80 border border-slate-800 px-2 py-0.5 rounded-lg shadow-sm">
-                              {s.icon} {s.label}
-                            </span>
-                          ))}
-                        </div>
-                      )}
+                                        <div>
+                                          <label className="text-[10px] font-semibold text-slate-400 block mb-1">Número do Cartão</label>
+                                          <input
+                                            type="text"
+                                            value={cartaoNumero}
+                                            onChange={e => setCartaoNumero(formatarNumeroCartao(e.target.value))}
+                                            placeholder="0000 0000 0000 0000"
+                                            maxLength={19}
+                                            className="w-full h-9 bg-slate-900/80 border border-slate-700/60 rounded-xl px-3 text-xs font-mono text-white focus:outline-none"
+                                          />
+                                        </div>
 
-                      {/* Mensagem de Urgência */}
-                      {checkoutConfig.mensagens?.urgencia && (
-                        <div className="p-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 animate-pulse" style={{ backgroundColor: `${primary}15`, border: `1px solid ${primary}40`, color: primary }}>
-                          <Zap className="w-3.5 h-3.5 shrink-0" />{checkoutConfig.mensagens.urgencia}
-                        </div>
-                      )}
+                                        <div>
+                                          <label className="text-[10px] font-semibold text-slate-400 block mb-1">Nome no Cartão</label>
+                                          <input
+                                            type="text"
+                                            value={cartaoNome}
+                                            onChange={e => setCartaoNome(e.target.value)}
+                                            placeholder="Nome impresso no cartão"
+                                            className="w-full h-9 bg-slate-900/80 border border-slate-700/60 rounded-xl px-3 text-xs text-white focus:outline-none uppercase"
+                                          />
+                                        </div>
 
-                      {/* Temporizador com Estilos Visuais */}
-                      {checkoutConfig.temporizadorAtivo && (
-                        <div
-                          className={`p-2.5 rounded-xl flex items-center justify-between ${
-                            (checkoutConfig.temporizadorEstilo || 'fogo') === 'fogo'
-                              ? 'bg-gradient-to-r from-amber-500/20 via-orange-500/20 to-red-500/20 border border-orange-500/40 text-amber-300'
-                              : checkoutConfig.temporizadorEstilo === 'alerta'
-                                ? 'bg-red-500/15 border border-red-500/40 text-red-400 animate-pulse'
-                                : checkoutConfig.temporizadorEstilo === 'minimalista'
-                                  ? 'bg-slate-900 border border-slate-700 text-slate-300'
-                                  : 'bg-slate-950 border border-amber-500/30 text-amber-400 font-mono'
-                          }`}
-                        >
-                          <span className="text-[11px] font-bold flex items-center gap-1">
-                            {(checkoutConfig.temporizadorEstilo || 'fogo') === 'fogo' && <Flame className="w-3.5 h-3.5 text-orange-400 animate-bounce" />}
-                            {checkoutConfig.temporizadorTexto || '⏱️ Sua reserva expira em'}
-                          </span>
-                          <span className="text-sm font-black font-mono">
-                            {String(checkoutConfig.temporizadorMinutos || 10).padStart(2,'0')}:00
-                          </span>
-                        </div>
-                      )}
+                                        <div className="grid grid-cols-2 gap-2">
+                                          <div>
+                                            <label className="text-[10px] font-semibold text-slate-400 block mb-1">Validade (MM/AA)</label>
+                                            <input
+                                              type="text"
+                                              value={cartaoValidade}
+                                              onChange={e => setCartaoValidade(e.target.value)}
+                                              placeholder="MM/AA"
+                                              maxLength={5}
+                                              className="w-full h-9 bg-slate-900/80 border border-slate-700/60 rounded-xl px-3 text-xs font-mono text-white text-center focus:outline-none"
+                                            />
+                                          </div>
+                                          <div>
+                                            <label className="text-[10px] font-semibold text-slate-400 block mb-1">CVV</label>
+                                            <input
+                                              type="password"
+                                              value={cartaoCVV}
+                                              onChange={e => setCartaoCVV(e.target.value)}
+                                              placeholder="123"
+                                              maxLength={4}
+                                              className="w-full h-9 bg-slate-900/80 border border-slate-700/60 rounded-xl px-3 text-xs font-mono text-white text-center focus:outline-none"
+                                            />
+                                          </div>
+                                        </div>
 
-                      {/* Mensagem de Escassez */}
-                      {checkoutConfig.mensagemEscassez && (
-                        <div className="p-2 bg-red-500/10 border border-red-500/20 rounded-xl text-[11px] font-bold text-red-400 text-center">
-                          {checkoutConfig.mensagemEscassez}
-                        </div>
-                      )}
+                                        <div>
+                                          <label className="text-[10px] font-semibold text-slate-400 block mb-1">Parcelamento</label>
+                                          <select
+                                            value={parcelaSelecionada}
+                                            onChange={e => setParcelaSelecionada(Number(e.target.value))}
+                                            className="w-full h-9 bg-slate-900/80 border border-slate-700/60 rounded-xl px-3 text-xs text-white focus:outline-none"
+                                          >
+                                            {Array.from({ length: Math.min(checkoutConfig.parcelasMax || 12, 12) }).map((_, i) => (
+                                              <option key={i + 1} value={i + 1}>
+                                                {i === 0 ? '1x de R$ 25,00 (À vista)' : `${i + 1}x de R$ ${(25 / (i + 1)).toFixed(2).replace('.', ',')} sem juros`}
+                                              </option>
+                                            ))}
+                                          </select>
+                                        </div>
 
-                      {/* Seletor Interativo das Abas de Pagamento no Preview */}
-                      <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-950 border border-slate-800 rounded-xl">
-                        {checkoutConfig.metodos.pix !== false && (
-                          <button
-                            type="button"
-                            onClick={() => setPreviewTab('pix')}
-                            className={`py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer ${
-                              previewTab === 'pix' ? 'bg-emerald-500 text-slate-950 shadow-sm' : 'text-slate-400 hover:text-white'
-                            }`}
-                          >
-                            <QrCode className="w-3.5 h-3.5" /> Pix
-                          </button>
-                        )}
-                        {checkoutConfig.metodos.cartao && (
-                          <button
-                            type="button"
-                            onClick={() => setPreviewTab('cartao')}
-                            className={`py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer ${
-                              previewTab === 'cartao' ? 'bg-blue-500 text-white shadow-sm' : 'text-slate-400 hover:text-white'
-                            }`}
-                          >
-                            <CreditCard className="w-3.5 h-3.5" /> Cartão
-                          </button>
-                        )}
-                        {checkoutConfig.metodos.boleto && (
-                          <button
-                            type="button"
-                            onClick={() => setPreviewTab('boleto')}
-                            className={`py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer ${
-                              previewTab === 'boleto' ? 'bg-amber-500 text-slate-950 shadow-sm' : 'text-slate-400 hover:text-white'
-                            }`}
-                          >
-                            <FileText className="w-3.5 h-3.5" /> Boleto
-                          </button>
-                        )}
-                      </div>
+                                        <p className="text-[9px] text-slate-400 flex items-center gap-1 pt-1">
+                                          <ShieldCheck className="w-3 h-3 text-emerald-400 shrink-0" />
+                                          {checkoutConfig.cartaoConfig?.instrucaoSeguranca || 'Dados criptografados. O organizador nunca visualiza o número do cartão.'}
+                                        </p>
+                                      </div>
+                                    );
+                                  })()
+                                )}
+                                {previewTab === 'boleto' && checkoutConfig.metodos.boleto && (
+                                  <div className="p-3.5 bg-slate-950/90 border border-amber-500/30 rounded-xl space-y-3 text-center mb-3">
+                                    <div className="flex items-center justify-between text-xs">
+                                      <span className="font-bold text-amber-400 flex items-center gap-1"><FileText className="w-4 h-4" /> Boleto Bancário</span>
+                                      <span className="text-white font-black font-mono">R$ 25,00</span>
+                                    </div>
+                                    <div className="bg-white p-2.5 rounded-lg space-y-1">
+                                      <div className="flex items-center justify-between h-8 gap-0.5 px-2">
+                                        {Array.from({ length: 42 }).map((_, i) => (<div key={i} className="h-full bg-black" style={{ width: i % 3 === 0 ? '3px' : i % 5 === 0 ? '4px' : '1.5px' }} />))}
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                              </React.Fragment>
+                            );
+                          case 'dadosComprador': {
+                            const camposCfg = obterConfigCamposCheckout(checkoutConfig);
+                            const camposVisiveis = [
+                              { id: 'nome', label: 'Nome Completo', ativo: camposCfg.nome.ativo !== false, obrigatorio: camposCfg.nome.obrigatorio },
+                              { id: 'nomeSocial', label: 'Nome Social', ativo: !!camposCfg.nomeSocial?.ativo, obrigatorio: !!camposCfg.nomeSocial?.obrigatorio },
+                              { id: 'telefone', label: 'WhatsApp com DDD', ativo: camposCfg.telefone.ativo !== false, obrigatorio: camposCfg.telefone.obrigatorio },
+                              { id: 'confirmarTelefone', label: 'Confirmar WhatsApp', ativo: !!camposCfg.confirmarTelefone?.ativo, obrigatorio: !!camposCfg.confirmarTelefone?.obrigatorio },
+                              { id: 'cpf', label: 'CPF do Comprador', ativo: !!camposCfg.cpf?.ativo, obrigatorio: !!camposCfg.cpf?.obrigatorio },
+                              { id: 'email', label: 'E-mail', ativo: !!camposCfg.email?.ativo, obrigatorio: !!camposCfg.email?.obrigatorio },
+                              { id: 'dataNascimento', label: 'Data de Nascimento', ativo: !!camposCfg.dataNascimento?.ativo, obrigatorio: !!camposCfg.dataNascimento?.obrigatorio },
+                              { id: 'endereco', label: 'Endereço Completo (CEP, Rua, Nº)', ativo: !!camposCfg.endereco?.ativo, obrigatorio: !!camposCfg.endereco?.obrigatorio },
+                              { id: 'redesSociais', label: 'Redes Sociais (@Instagram / @TikTok)', ativo: !!camposCfg.redesSociais?.ativo, obrigatorio: !!camposCfg.redesSociais?.obrigatorio },
+                            ].filter(c => c.ativo);
 
-                      {/* Prévia específica por método */}
-                      {previewTab === 'pix' && (
-                        <div className="p-3.5 bg-slate-950/90 border border-emerald-500/30 rounded-xl space-y-3 text-center">
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="font-bold text-emerald-400 flex items-center gap-1">
-                              <QrCode className="w-4 h-4" /> Pagamento Instantâneo via Pix
-                            </span>
-                            <span className="text-white font-black font-mono">R$ 25,00</span>
-                          </div>
-
-                          {/* QR Code Simulado de Alta Fidelidade */}
-                          <div className="w-36 h-36 bg-white p-2 rounded-xl mx-auto flex items-center justify-center shadow-lg border border-slate-300">
-                            <svg viewBox="0 0 100 100" className="w-full h-full text-slate-950">
-                              <rect x="0" y="0" width="100" height="100" fill="#ffffff" />
-                              {/* Quadrados de canto (Finders) */}
-                              <rect x="5" y="5" width="26" height="26" fill="#000000" rx="3" />
-                              <rect x="9" y="9" width="18" height="18" fill="#ffffff" rx="2" />
-                              <rect x="13" y="13" width="10" height="10" fill="#000000" rx="1" />
-                              <rect x="69" y="5" width="26" height="26" fill="#000000" rx="3" />
-                              <rect x="73" y="9" width="18" height="18" fill="#ffffff" rx="2" />
-                              <rect x="77" y="13" width="10" height="10" fill="#000000" rx="1" />
-                              <rect x="5" y="69" width="26" height="26" fill="#000000" rx="3" />
-                              <rect x="9" y="73" width="18" height="18" fill="#ffffff" rx="2" />
-                              <rect x="13" y="77" width="10" height="10" fill="#000000" rx="1" />
-                              {/* Padrões internos do QR Code */}
-                              <rect x="36" y="8" width="6" height="6" fill="#000" />
-                              <rect x="48" y="14" width="8" height="8" fill="#000" />
-                              <rect x="36" y="24" width="12" height="6" fill="#000" />
-                              <rect x="10" y="38" width="8" height="8" fill="#000" />
-                              <rect x="24" y="44" width="8" height="6" fill="#000" />
-                              <rect x="38" y="38" width="24" height="24" fill="#000" />
-                              <rect x="44" y="44" width="12" height="12" fill="#fff" />
-                              <rect x="48" y="48" width="4" height="4" fill="#000" />
-                              <rect x="68" y="38" width="10" height="6" fill="#000" />
-                              <rect x="82" y="44" width="8" height="10" fill="#000" />
-                              <rect x="38" y="70" width="10" height="8" fill="#000" />
-                              <rect x="54" y="76" width="16" height="8" fill="#000" />
-                              <rect x="76" y="70" width="14" height="14" fill="#000" />
-                            </svg>
-                          </div>
-
-                          <p className="text-[11px] text-slate-300">
-                            {checkoutConfig.mensagens?.pix || 'Escaneie o QR Code acima no app do seu banco ou use a chave Copia e Cola.'}
-                          </p>
-
-                          <button
-                            type="button"
-                            onClick={copiarChavePix}
-                            className={`w-full py-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-2 transition cursor-pointer ${
-                              copiadoPix
-                                ? 'bg-emerald-500 text-slate-950 shadow-md'
-                                : 'bg-slate-800 hover:bg-slate-700 text-white border border-slate-700'
-                            }`}
-                          >
-                            {copiadoPix ? <CheckCheck className="w-4 h-4" /> : <Copy className="w-4 h-4 text-emerald-400" />}
-                            {copiadoPix ? 'Código Pix Copiado com Sucesso!' : 'Copiar Código Pix Copia e Cola'}
-                          </button>
-                        </div>
-                      )}
-
-                      {previewTab === 'cartao' && (
-                        <div className="space-y-3">
-                          {/* Cartão de Crédito Digital Holográfico Interativo */}
-                          <div className="relative rounded-2xl p-4 bg-gradient-to-tr from-slate-900 via-indigo-950 to-slate-900 border border-indigo-500/40 text-white shadow-xl space-y-3 overflow-hidden">
-                            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
-                            <div className="flex items-center justify-between">
-                              <div className="w-9 h-7 rounded bg-amber-400/80 border border-amber-300 shadow-sm" />
-                              <span className="font-mono text-xs font-black tracking-widest text-indigo-300">CREDIT CARD</span>
-                            </div>
-                            <p className="font-mono text-sm tracking-widest font-black text-center py-1 text-slate-200">
-                              {cartaoNumero}
-                            </p>
-                            <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono uppercase">
-                              <div>
-                                <span className="block text-[8px] text-slate-500">TITULAR</span>
-                                <span className="font-bold text-slate-200">{cartaoNome}</span>
-                              </div>
-                              <div>
-                                <span className="block text-[8px] text-slate-500">VALIDADE</span>
-                                <span className="font-bold text-slate-200">{cartaoValidade}</span>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Campos do Cartão */}
-                          <div className="space-y-2">
-                            <input
-                              type="text"
-                              value={cartaoNumero}
-                              onChange={e => setCartaoNumero(e.target.value)}
-                              placeholder="Número do Cartão"
-                              className="w-full h-9 bg-slate-900/80 border border-slate-700/60 rounded-xl px-3 text-xs text-white focus:outline-none"
-                            />
-                            <div className="grid grid-cols-2 gap-2">
-                              <input
-                                type="text"
-                                value={cartaoValidade}
-                                onChange={e => setCartaoValidade(e.target.value)}
-                                placeholder="MM/AA"
-                                className="h-9 bg-slate-900/80 border border-slate-700/60 rounded-xl px-3 text-xs text-white focus:outline-none"
-                              />
-                              <input
-                                type="text"
-                                value={cartaoCVV}
-                                onChange={e => setCartaoCVV(e.target.value)}
-                                placeholder="CVV"
-                                className="h-9 bg-slate-900/80 border border-slate-700/60 rounded-xl px-3 text-xs text-white focus:outline-none"
-                              />
-                            </div>
-                            <input
-                              type="text"
-                              value={cartaoNome}
-                              onChange={e => setCartaoNome(e.target.value)}
-                              placeholder="Nome impresso no cartão"
-                              className="w-full h-9 bg-slate-900/80 border border-slate-700/60 rounded-xl px-3 text-xs text-white focus:outline-none uppercase"
-                            />
-                            {/* Parcelamento */}
-                            <div className="space-y-1">
-                              <label className="text-[10px] text-slate-400 block">Opção de Parcelamento:</label>
-                              <select
-                                value={parcelaSelecionada}
-                                onChange={e => setParcelaSelecionada(Number(e.target.value))}
-                                className="w-full h-9 bg-slate-900 border border-slate-700 rounded-xl px-3 text-xs text-white focus:outline-none"
-                              >
-                                {Array.from({ length: checkoutConfig.parcelasMax || 12 }, (_, i) => i + 1).map(p => (
-                                  <option key={p} value={p}>
-                                    {p}x de R$ {(25 / p).toFixed(2).replace('.', ',')} {checkoutConfig.taxaParcelamento === 'organizador' ? '(Sem Juros)' : ''}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {previewTab === 'boleto' && (
-                        <div className="p-3.5 bg-slate-950/90 border border-amber-500/30 rounded-xl space-y-3 text-center">
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="font-bold text-amber-400 flex items-center gap-1">
-                              <FileText className="w-4 h-4" /> Boleto Bancário
-                            </span>
-                            <span className="text-white font-black font-mono">R$ 25,00</span>
-                          </div>
-                          
-                          {/* Código de barras simulado */}
-                          <div className="bg-white p-2.5 rounded-lg space-y-1">
-                            <div className="flex items-center justify-between h-8 gap-0.5 px-2">
-                              {Array.from({ length: 42 }).map((_, i) => (
-                                <div
-                                  key={i}
-                                  className="h-full bg-black"
-                                  style={{ width: i % 3 === 0 ? '3px' : i % 5 === 0 ? '4px' : '1.5px' }}
-                                />
-                              ))}
-                            </div>
-                            <span className="text-[9px] font-mono text-slate-700 block tracking-widest">
-                              34191.79001 01043.510047 91020.150008 5 91280000002500
-                            </span>
-                          </div>
-
-                          <p className="text-[11px] text-slate-400">
-                            Vencimento em 3 dias úteis. A confirmação do pagamento é realizada em até 24h a 48h.
-                          </p>
-
-                          <button
-                            type="button"
-                            className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold border border-slate-700 flex items-center justify-center gap-1.5 transition"
-                          >
-                            <Copy className="w-3.5 h-3.5 text-amber-400" /> Copiar Linha Digitável
-                          </button>
-                        </div>
-                      )}
-
-                      {/* Campos do Comprador */}
-                      <div className="space-y-2">
-                        {['Nome completo', 'WhatsApp', 'Data de Nascimento'].map(f => (
-                          <div key={f} className="h-9 bg-slate-900/80 border border-slate-700/50 rounded-xl px-3 flex items-center text-xs text-slate-500">{f}</div>
-                        ))}
-                        {checkoutConfig.exigirCpf && <div className="h-9 bg-slate-900/80 border border-slate-700/50 rounded-xl px-3 flex items-center text-xs text-slate-500">CPF (Obrigatório)</div>}
-                        {checkoutConfig.exigirEmail && <div className="h-9 bg-slate-900/80 border border-slate-700/50 rounded-xl px-3 flex items-center text-xs text-slate-500">E-mail (Obrigatório)</div>}
-                      </div>
-
-                      {/* Cupom */}
-                      {(checkoutConfig.cupomAtivo || checkoutConfig.exibirCupom) && (
-                        <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
-                          <div className="flex items-center justify-between text-[11px] text-slate-300 font-bold">
-                            <span className="flex items-center gap-1.5"><Tag className="w-3.5 h-3.5 text-emerald-400" /> Tem um cupom?</span>
-                            {(checkoutConfig.cupons || []).length > 0 && (
-                              <span className="text-[10px] text-emerald-400 font-mono font-bold">
-                                {(checkoutConfig.cupons || []).filter(c => c.ativo !== false && c.codigo).length} cupom(ns) ativo(s)
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="text"
-                              disabled
-                              placeholder="Digite seu cupom"
-                              className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-400 uppercase font-mono"
-                            />
-                            <button
-                              type="button"
-                              disabled
-                              className="px-3 py-1.5 bg-slate-800 text-slate-300 text-xs font-bold rounded-lg border border-slate-700"
-                            >
-                              Aplicar
-                            </button>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Botão de Compra Principal */}
-                      <button className="w-full py-3.5 rounded-xl text-sm font-black text-slate-950 shadow-lg transition" style={{ backgroundColor: primary, boxShadow: `0 8px 20px ${primary}40` }}>
+                            return (
+                              <React.Fragment key="dadosComprador">
+                                <div className="space-y-2 mb-3">
+                                  {camposVisiveis.length === 0 ? (
+                                    <div className="p-3 bg-slate-900/60 border border-dashed border-slate-700/60 rounded-xl text-center text-xs text-slate-500">
+                                      Nenhum campo selecionado na aba "Campos & Cupons".
+                                    </div>
+                                  ) : (
+                                    camposVisiveis.map(f => (
+                                      <div key={f.id} className="h-9 bg-slate-900/80 border border-slate-700/50 rounded-xl px-3 flex items-center justify-between text-xs text-slate-400">
+                                        <span>{f.label}</span>
+                                        {f.obrigatorio && <span className="text-[10px] text-amber-400 font-bold">* obrigatório</span>}
+                                      </div>
+                                    ))
+                                  )}
+                                </div>
+                              </React.Fragment>
+                            );
+                          }
+                          case 'cupomDesconto':
+                            return (
+                              <React.Fragment key="cupomDesconto">
+                                {(checkoutConfig.cupomAtivo || checkoutConfig.exibirCupom) && (
+                                  <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2 mb-3">
+                                    <div className="flex items-center justify-between text-[11px] text-slate-300 font-bold">
+                                      <span className="flex items-center gap-1.5"><Tag className="w-3.5 h-3.5 text-emerald-400" /> Tem um cupom?</span>
+                                    </div>
+                                  </div>
+                                )}
+                              </React.Fragment>
+                            );
+                          case 'resumoPedido':
+                            return (
+                              <React.Fragment key="resumoPedido">
+                                <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-3 text-xs space-y-1 mb-3">
+                                  <div className="flex justify-between text-slate-300"><span>Cotas selecionadas:</span><span className="font-bold text-white">5 cotas</span></div>
+                                  <div className="flex justify-between text-slate-300 border-t border-slate-700/50 pt-1"><span>Total a Pagar:</span><span className="font-extrabold text-sm" style={{ color: primary }}>R$ 25,00</span></div>
+                                </div>
+                              </React.Fragment>
+                            );
+                          default: return null;
+                        }
+                      })}
+                      
+                      <button className="w-full py-3.5 rounded-xl text-sm font-black text-slate-950 shadow-lg transition mt-4" style={{ backgroundColor: primary, boxShadow: `0 8px 20px ${primary}40` }}>
                         {checkoutConfig.textoBotao || 'Garantir Minha Cota Agora'} →
                       </button>
-
-                      {/* Selos de Segurança abaixo do botão */}
-                      {checkoutConfig.selosSeguranca && (checkoutConfig.posicaoSelos || 'abaixo_botao') === 'abaixo_botao' && (checkoutConfig.selosExtras || []).length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 justify-center pt-1">
-                          {SELOS_DISPONIVEIS.filter(s => (checkoutConfig.selosExtras || []).includes(s.id)).map(s => (
-                            <span key={s.id} className="text-[9px] text-slate-500 flex items-center gap-1 bg-slate-900/60 border border-slate-800 px-2 py-1 rounded-lg">
-                              {s.icon} {s.label}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-
-                      {checkoutConfig.textoRodape && <p className="text-[10px] text-slate-600 text-center leading-snug">🔒 {checkoutConfig.textoRodape}</p>}
+                      {checkoutConfig.textoRodape && <p className="text-[10px] text-slate-600 text-center leading-snug mt-2">🔒 {checkoutConfig.textoRodape}</p>}
                     </div>
                   </>
+                ) : previewScreen === 'pix' ? (
+                  /* Preview da Tela Customizada do Pix */
+                  <div className="p-4 space-y-4 max-h-[600px] overflow-y-auto">
+                    {/* Header Customizável */}
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                      <div>
+                        <span className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider block">
+                          {checkoutConfig.pixConfig?.badgeTexto || 'Pagamento Instantâneo'}
+                        </span>
+                        <h3 className="text-base font-black text-white">
+                          {checkoutConfig.pixConfig?.titulo || 'Pague com Pix'}
+                        </h3>
+                        {checkoutConfig.pixConfig?.subtitulo && (
+                          <p className="text-[11px] text-slate-400 mt-0.5">
+                            {checkoutConfig.pixConfig.subtitulo}
+                          </p>
+                        )}
+                      </div>
+                      {checkoutConfig.pixConfig?.exibirTimer !== false && (
+                        <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] font-mono font-bold">
+                          <Clock className="w-3 h-3 animate-pulse" />
+                          <span>09:59</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Resumo do Pedido Customizável */}
+                    {checkoutConfig.pixConfig?.exibirResumo !== false && (
+                      <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-3 flex items-center justify-between">
+                        <div>
+                          <span className="text-[10px] text-slate-400 block">Quantidade</span>
+                          <span className="text-xs font-bold text-white">5 cotas selecionadas</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[10px] text-slate-400 block">Total a pagar</span>
+                          <span className="text-base font-black text-emerald-400">R$ 25,00</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* QR Code Container Customizável */}
+                    {checkoutConfig.pixConfig?.exibirQrCode !== false && (
+                      <div className="flex flex-col items-center justify-center p-4 bg-white rounded-2xl shadow-inner">
+                        {(() => {
+                          const sz = checkoutConfig.pixConfig?.tamanhoQrCode === 'sm' ? 'w-32 h-32' : checkoutConfig.pixConfig?.tamanhoQrCode === 'lg' ? 'w-48 h-48' : 'w-40 h-40';
+                          return (
+                            <div className={`${sz} flex items-center justify-center bg-slate-50 border border-slate-200 rounded-xl`}>
+                              <QrCode className="w-24 h-24 text-slate-800" />
+                            </div>
+                          );
+                        })()}
+                        <span className="text-slate-700 font-bold text-[10px] mt-2 text-center">
+                          Abra o app do seu banco e escaneie o código
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Pix Copia e Cola */}
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-semibold text-slate-300 block">
+                        Chave Pix Copia e Cola:
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          readOnly
+                          value="00020126580014br.gov.bcb.pix0136campanha-rifa-12345"
+                          className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2 pl-2.5 pr-24 text-[10px] font-mono text-slate-300 select-all"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCopiadoPix(true);
+                            setTimeout(() => setCopiadoPix(false), 2000);
+                          }}
+                          className="absolute right-1 top-1 bottom-1 px-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-bold flex items-center gap-1 transition cursor-pointer"
+                        >
+                          {copiadoPix ? (
+                            <>
+                              <Check className="w-3 h-3" />
+                              {checkoutConfig.pixConfig?.textoBotaoCopiado || 'Copiado!'}
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3 h-3" />
+                              {checkoutConfig.pixConfig?.textoBotaoCopiar || 'Copiar Pix'}
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Aviso de Expiração */}
+                    {checkoutConfig.pixConfig?.avisoExpiracao && (
+                      <div className="p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-[10px] text-amber-300 flex items-center gap-2">
+                        <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                        <span>{checkoutConfig.pixConfig.avisoExpiracao}</span>
+                      </div>
+                    )}
+
+                    {/* Instruções */}
+                    {Array.isArray(checkoutConfig.pixConfig?.instrucoes) && checkoutConfig.pixConfig.instrucoes.length > 0 && (
+                      <div className="p-2.5 bg-slate-950/70 border border-slate-800 rounded-xl text-left space-y-1">
+                        <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 block mb-1">
+                          Como pagar:
+                        </span>
+                        {checkoutConfig.pixConfig.instrucoes.map((inst, idx) => (
+                          <div key={idx} className="flex items-start gap-1.5 text-[11px] text-slate-300">
+                            <span className="w-3.5 h-3.5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[9px] font-bold shrink-0 mt-0.5">
+                              {idx + 1}
+                            </span>
+                            <span>{inst}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Suporte WhatsApp */}
+                    {checkoutConfig.pixConfig?.suporteWhatsappAtivo && checkoutConfig.pixConfig.suporteWhatsappNumero && (
+                      <div className="w-full py-2 px-3 bg-emerald-600/20 text-emerald-300 border border-emerald-500/40 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer">
+                        <MessageCircle className="w-3.5 h-3.5" />
+                        <span>Dúvidas sobre o Pix? Fale Conosco no WhatsApp</span>
+                      </div>
+                    )}
+
+                    {/* Botão de Simulação do Preview */}
+                    <div className="p-2.5 bg-indigo-500/10 border border-indigo-500/30 rounded-xl text-center">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPreviewScreen('sucesso');
+                          dispararExplosaoConfetes();
+                        }}
+                        className="w-full py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg text-xs transition cursor-pointer flex items-center justify-center gap-1.5"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        Simular Aprovação e Ver Sucesso →
+                      </button>
+                    </div>
+                  </div>
                 ) : (
                   /* Preview da Tela de Compra Concluída (Sucesso) */
                   <>

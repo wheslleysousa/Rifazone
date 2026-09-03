@@ -797,6 +797,12 @@ export class SupabaseStorage implements Storage {
     return !error;
   }
 
+  async getCheckout(ownerId: string, id: string): Promise<CheckoutSalvo | null> {
+    const { data, error } = await this.client.from('checkouts').select('dados').eq('id', id).eq('owner_id', ownerId).maybeSingle();
+    if (error || !data) return null;
+    return data.dados as CheckoutSalvo;
+  }
+
   // --- Fila de Mensagens (Automação / Outbox) ---
   async enfileirarMensagem(msg: Omit<MensagemFila, 'id' | 'criadoEm' | 'status'>): Promise<MensagemFila> {
     // 1. Checa idempotência

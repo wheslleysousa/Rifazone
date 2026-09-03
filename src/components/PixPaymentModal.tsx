@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { QrCode, Copy, Check, Clock, AlertCircle, Sparkles, CheckCircle2, ArrowRight, Share2, Ticket, MessageCircle, Users, ExternalLink } from 'lucide-react';
+import { QrCode, Copy, Check, Clock, AlertCircle, Sparkles, CheckCircle2, ArrowRight, Share2, Ticket, MessageCircle, Users, ExternalLink, Trophy, Star, PartyPopper, Heart, Flame, Image as ImageIcon } from 'lucide-react';
 import { dispararExplosaoConfetes, limparConfetes } from '../utils/confettiUtils';
 import QRCode from 'qrcode';
 import { formatarMoeda } from '../lib/money';
-import { ConfirmacaoCompraConfig } from '../types';
+import { ConfirmacaoCompraConfig, PixConfig } from '../types';
 
 interface Props {
   pedidoId: string;
@@ -17,10 +17,13 @@ interface Props {
   compradorWhatsapp?: string;
   tituloCampanha?: string;
   confirmacaoConfig?: ConfirmacaoCompraConfig;
+  pixConfig?: PixConfig;
   onSuccess: (numeros: string[]) => void;
   onClose: () => void;
+  inline?: boolean;
   onVerMeusNumeros?: () => void;
   onGerarNovoPix?: () => void;
+  onEditarDados?: () => void;
 }
 
 export const PixPaymentModal: React.FC<Props> = ({
@@ -35,10 +38,13 @@ export const PixPaymentModal: React.FC<Props> = ({
   compradorWhatsapp,
   tituloCampanha,
   confirmacaoConfig,
+  pixConfig,
   onSuccess,
   onClose,
+  inline = false,
   onVerMeusNumeros,
-  onGerarNovoPix
+  onGerarNovoPix,
+  onEditarDados
 }) => {
   const valorExibicao = valorTotal || 0;
   const [copiado, setCopiado] = useState(false);
@@ -197,50 +203,76 @@ export const PixPaymentModal: React.FC<Props> = ({
     return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   };
 
-  return (
-    <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md overflow-y-auto overscroll-contain">
-      <div className="flex min-h-full items-center justify-center p-4">
-      <div className="relative w-full max-w-md bg-slate-900 border border-slate-700/80 rounded-2xl p-6 shadow-2xl text-white my-4">
+   
+    const content = (
+      <div className={`relative w-full ${inline ? 'bg-slate-950/40 border border-slate-800 rounded-2xl p-5' : 'max-w-md bg-slate-900 border border-slate-700/80 rounded-2xl p-6 shadow-2xl my-4'} text-white`}>
 
         {/* Status: PAGO COM SUCESSO */}
         {status === 'pago' ? (
-          <div className="text-center py-2 animate-in zoom-in-95 duration-200 space-y-3">
+          <div className="text-center animate-in zoom-in-95 duration-200 pb-2">
             {/* Banner comemorativo se configurado */}
             {confirmacaoConfig?.bannerSucessoUrl && (
-              <img
-                src={confirmacaoConfig.bannerSucessoUrl}
-                alt="Sucesso"
-                className="w-full h-28 object-cover rounded-xl border border-emerald-500/30 mb-2 shadow-md"
-                onError={e => (e.currentTarget.style.display = 'none')}
-              />
+              <div className="-mt-5 -mx-5 mb-5 overflow-hidden rounded-t-2xl border-b border-emerald-500/20">
+                <img
+                  src={confirmacaoConfig.bannerSucessoUrl}
+                  alt="Sucesso"
+                  className="w-full h-40 object-cover shadow-md"
+                  onError={e => (e.currentTarget.parentElement!.style.display = 'none')}
+                />
+              </div>
             )}
 
-            <div className="w-16 h-16 bg-emerald-500/20 border-2 border-emerald-500 rounded-full flex items-center justify-center mx-auto text-emerald-400 shadow-lg shadow-emerald-500/20 animate-bounce">
-              <CheckCircle2 className="w-10 h-10" />
-            </div>
-
-            <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/30 inline-block">
-              Conta de Comprador Criada & Vinculada
-            </span>
-
-            <h3 className="text-2xl font-black text-white">
-              {confirmacaoConfig?.titulo || 'Pagamento Confirmado! 🎉'}
-            </h3>
-
-            <p className="text-slate-300 text-xs">
-              {confirmacaoConfig?.subtitulo || (
-                <>
-                  Seu Pix foi processado com sucesso. Seus números já estão salvos e vinculados ao seu WhatsApp{' '}
-                  <strong>{compradorWhatsapp ? `(${compradorWhatsapp.slice(0, 2)}) *****-${compradorWhatsapp.slice(-4)}` : ''}</strong>!
-                </>
+            <div className="space-y-4 px-2">
+              {confirmacaoConfig?.iconeSucessoExibir !== false && (
+                <div 
+                  className="w-16 h-16 rounded-full flex items-center justify-center mx-auto shadow-lg animate-bounce"
+                  style={{ 
+                    backgroundColor: `${confirmacaoConfig?.iconeSucessoCorFundo || 'rgba(16, 185, 129, 0.2)'}`,
+                    border: `2px solid ${confirmacaoConfig?.iconeSucessoCorFundo || '#10b981'}`,
+                    color: confirmacaoConfig?.iconeSucessoCorIcone || '#10b981'
+                  }}
+                >
+                  {(() => {
+                    const tipo = confirmacaoConfig?.iconeSucessoTipo || 'check';
+                    const size = 32;
+                    if (tipo === 'check') return <CheckCircle2 size={size} />;
+                    if (tipo === 'trofeu') return <Trophy size={size} />;
+                    if (tipo === 'estrela') return <Star size={size} />;
+                    if (tipo === 'festa') return <PartyPopper size={size} />;
+                    if (tipo === 'coracao') return <Heart size={size} />;
+                    if (tipo === 'fogo') return <Flame size={size} />;
+                    if (tipo === 'emoji') return <span className="text-2xl">{confirmacaoConfig?.iconeSucessoEmoji || '🎉'}</span>;
+                    if (tipo === 'imagem' && confirmacaoConfig?.iconeSucessoImagem) {
+                      return <img src={confirmacaoConfig.iconeSucessoImagem} alt="Ícone" className="w-full h-full object-cover rounded-full" />;
+                    }
+                    return <CheckCircle2 size={size} />;
+                  })()}
+                </div>
               )}
-            </p>
 
-            {confirmacaoConfig?.mensagemAgradecimento && (
-              <p className="text-xs text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 p-2 rounded-xl">
-                {confirmacaoConfig.mensagemAgradecimento}
+              <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/30 inline-block">
+                Conta de Comprador Criada & Vinculada
+              </span>
+
+              <h3 className="text-2xl font-black text-white">
+                {confirmacaoConfig?.titulo || 'Pagamento Confirmado! 🎉'}
+              </h3>
+
+              <p className="text-slate-300 text-xs">
+                {confirmacaoConfig?.subtitulo || (
+                  <>
+                    Seu Pix foi processado com sucesso. Seus números já estão salvos e vinculados ao seu WhatsApp{' '}
+                    <strong>{compradorWhatsapp ? `(${compradorWhatsapp.slice(0, 2)}) *****-${compradorWhatsapp.slice(-4)}` : ''}</strong>!
+                  </>
+                )}
               </p>
-            )}
+
+              {confirmacaoConfig?.mensagemAgradecimento && (
+                <p className="text-xs text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 p-2 rounded-xl">
+                  {confirmacaoConfig.mensagemAgradecimento}
+                </p>
+              )}
+            </div>
 
             {/* Números da Sorte */}
             {confirmacaoConfig?.exibirNumeros !== false && (
@@ -380,65 +412,79 @@ export const PixPaymentModal: React.FC<Props> = ({
         ) : (
           /* Status: PENDENTE - QR CODE E COPIA E COLA */
           <div>
-            {/* Header */}
+            {/* Header Customizável */}
             <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-5">
               <div>
                 <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wider block">
-                  Pagamento Instantâneo
+                  {pixConfig?.badgeTexto || 'Pagamento Instantâneo'}
                 </span>
                 <h3 className="text-xl font-black text-white">
-                  Pague com Pix
+                  {pixConfig?.titulo || 'Pague com Pix'}
                 </h3>
+                {pixConfig?.subtitulo && (
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {pixConfig.subtitulo}
+                  </p>
+                )}
               </div>
-              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-mono font-bold">
-                <Clock className="w-3.5 h-3.5 animate-pulse" />
-                <span>{formatMinSec(tempoRestante)}</span>
-              </div>
-            </div>
-
-            {/* Resumo do Pedido */}
-            <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-3.5 mb-5 flex items-center justify-between">
-              <div>
-                <span className="text-xs text-slate-400 block">Quantidade de cotas</span>
-                <span className="text-sm font-bold text-white">{quantidade} cotas selecionadas</span>
-              </div>
-              <div className="text-right">
-                <span className="text-xs text-slate-400 block">Total a pagar</span>
-                <span className="text-lg font-black text-emerald-400">
-                  {formatarMoeda(valorExibicao)}
-                </span>
-              </div>
-            </div>
-
-            {/* QR Code Container */}
-            <div className="flex flex-col items-center justify-center p-4 bg-white rounded-2xl mb-4 shadow-inner">
-              {generatedQrDataUrl ? (
-                <img
-                  src={generatedQrDataUrl}
-                  alt="QR Code Pix"
-                  className="w-48 h-48 object-contain rounded-lg"
-                />
-              ) : pixQrCodeBase64 ? (
-                <img
-                  src={
-                    pixQrCodeBase64.startsWith('data:') 
-                      ? pixQrCodeBase64 
-                      : `data:image/png;base64,${pixQrCodeBase64}`
-                  }
-                  alt="QR Code Pix"
-                  className="w-48 h-48 object-contain rounded-lg"
-                />
-              ) : (
-                <div className="w-48 h-48 flex items-center justify-center bg-slate-100 rounded-lg text-slate-400">
-                  <QrCode className="w-20 h-20 animate-pulse" />
+              {pixConfig?.exibirTimer !== false && (
+                <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-mono font-bold">
+                  <Clock className="w-3.5 h-3.5 animate-pulse" />
+                  <span>{formatMinSec(tempoRestante)}</span>
                 </div>
               )}
-              <span className="text-slate-800 font-bold text-xs mt-2 flex items-center gap-1">
-                Abra o app do seu banco e escaneie o código
-              </span>
             </div>
 
-            {/* Pix Copia e Cola */}
+            {/* Resumo do Pedido Customizável */}
+            {pixConfig?.exibirResumo !== false && (
+              <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-3.5 mb-5 flex items-center justify-between">
+                <div>
+                  <span className="text-xs text-slate-400 block">Quantidade de cotas</span>
+                  <span className="text-sm font-bold text-white">{quantidade} cotas selecionadas</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-xs text-slate-400 block">Total a pagar</span>
+                  <span className="text-lg font-black text-emerald-400">
+                    {formatarMoeda(valorExibicao)}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* QR Code Container Customizável */}
+            {pixConfig?.exibirQrCode !== false && (
+              <div className="flex flex-col items-center justify-center p-4 bg-white rounded-2xl mb-4 shadow-inner">
+                {(() => {
+                  const qrDimClass = pixConfig?.tamanhoQrCode === 'sm' ? 'w-36 h-36' : pixConfig?.tamanhoQrCode === 'lg' ? 'w-60 h-60' : 'w-48 h-48';
+                  return generatedQrDataUrl ? (
+                    <img
+                      src={generatedQrDataUrl}
+                      alt="QR Code Pix"
+                      className={`${qrDimClass} object-contain rounded-lg`}
+                    />
+                  ) : pixQrCodeBase64 ? (
+                    <img
+                      src={
+                        pixQrCodeBase64.startsWith('data:') 
+                          ? pixQrCodeBase64 
+                          : `data:image/png;base64,${pixQrCodeBase64}`
+                      }
+                      alt="QR Code Pix"
+                      className={`${qrDimClass} object-contain rounded-lg`}
+                    />
+                  ) : (
+                    <div className={`${qrDimClass} flex items-center justify-center bg-slate-100 rounded-lg text-slate-400`}>
+                      <QrCode className="w-20 h-20 animate-pulse" />
+                    </div>
+                  );
+                })()}
+                <span className="text-slate-800 font-bold text-xs mt-2 flex items-center gap-1">
+                  Abra o app do seu banco e escaneie o código
+                </span>
+              </div>
+            )}
+
+            {/* Pix Copia e Cola Customizável */}
             <div className="space-y-2 mb-5">
               <label className="text-xs font-semibold text-slate-300 block">
                 Ou copie a chave Pix (Copia e Cola):
@@ -462,17 +508,57 @@ export const PixPaymentModal: React.FC<Props> = ({
                   {copiado ? (
                     <>
                       <Check className="w-3.5 h-3.5" />
-                      Copiado!
+                      {pixConfig?.textoBotaoCopiado || 'Copiado!'}
                     </>
                   ) : (
                     <>
                       <Copy className="w-3.5 h-3.5" />
-                      Copiar Pix
+                      {pixConfig?.textoBotaoCopiar || 'Copiar Pix'}
                     </>
                   )}
                 </button>
               </div>
             </div>
+
+            {/* Aviso de Expiração / Urgência */}
+            {pixConfig?.avisoExpiracao && (
+              <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-[11px] text-amber-300 mb-4 flex items-center gap-2">
+                <Clock className="w-4 h-4 text-amber-400 shrink-0" />
+                <span>{pixConfig.avisoExpiracao}</span>
+              </div>
+            )}
+
+            {/* Instruções Passo a Passo */}
+            {Array.isArray(pixConfig?.instrucoes) && pixConfig.instrucoes.length > 0 && (
+              <div className="p-3 bg-slate-950/70 border border-slate-800 rounded-xl mb-4 text-left space-y-1.5">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">
+                  Como pagar:
+                </span>
+                {pixConfig.instrucoes.map((inst, idx) => (
+                  <div key={idx} className="flex items-start gap-2 text-xs text-slate-300">
+                    <span className="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
+                      {idx + 1}
+                    </span>
+                    <span>{inst}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Botão de Suporte via WhatsApp */}
+            {pixConfig?.suporteWhatsappAtivo && pixConfig.suporteWhatsappNumero && (
+              <a
+                href={`https://wa.me/55${pixConfig.suporteWhatsappNumero.replace(/\D/g, '')}?text=${encodeURIComponent(
+                  pixConfig.suporteWhatsappTexto || 'Olá, preciso de suporte com meu pagamento Pix da campanha.'
+                )}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full mb-4 py-2.5 px-3 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition"
+              >
+                <MessageCircle className="w-4 h-4" />
+                <span>Dúvidas sobre o Pix? Fale Conosco no WhatsApp</span>
+              </a>
+            )}
 
             {/* Botão de simulação exibido apenas em transações mock/ambiente de desenvolvimento */}
             {isMock && (
@@ -493,21 +579,44 @@ export const PixPaymentModal: React.FC<Props> = ({
             )}
 
             {/* Aviso de Aguardando */}
-            <div className="flex items-center gap-2 p-3 bg-slate-800/80 border border-slate-700/80 rounded-xl text-slate-300 text-xs mb-5">
+            <div className="flex items-center gap-2 p-3 bg-slate-800/80 border border-slate-700/80 rounded-xl text-slate-300 text-xs mb-3">
               <div className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
               <span>Aguardando confirmação do banco... Seus números serão liberados automaticamente nesta tela!</span>
             </div>
 
-            <button
-              onClick={onClose}
-              className="w-full mt-3 py-2 text-slate-400 hover:text-white text-xs font-medium text-center transition"
-            >
-              Cancelar e fechar
-            </button>
+            <div className="flex items-center gap-2">
+              {!inline && onEditarDados && (
+                <button
+                  type="button"
+                  onClick={onEditarDados}
+                  className="flex-1 py-2 text-slate-400 hover:text-slate-200 text-xs font-semibold text-center border border-slate-800 rounded-xl hover:bg-slate-800/50 transition"
+                >
+                  Editar dados da compra
+                </button>
+              )}
+              {!inline && (
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="py-2 px-3 text-slate-500 hover:text-slate-300 text-xs font-medium text-center transition"
+                >
+                  {inline ? 'Ocultar Pix' : 'Cancelar e fechar'}
+                </button>
+              )}
+            </div>
           </div>
         )}
 
       </div>
+  );
+
+  if (inline) return content;
+
+   
+    return (
+    <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md overflow-y-auto overscroll-contain">
+      <div className="flex min-h-full items-center justify-center p-4">
+        {content}
       </div>
     </div>
   );

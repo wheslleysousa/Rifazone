@@ -214,7 +214,7 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha, onNavigateComoFu
   useEffect(() => {
     if (user) {
       setPerfilNome(user.displayName || '');
-      setPerfilFoto(user.photoURL || '');
+      setPerfilFoto(configPagamento?.marca?.fotoPerfilUrl || user.photoURL || '');
       setPerfilEmail(user.email || '');
       if (configPagamento?.marca?.logoUrl) {
         setPerfilLogo(configPagamento.marca.logoUrl);
@@ -735,7 +735,7 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha, onNavigateComoFu
       <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
         <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl text-white">
           <div className="flex items-center gap-3 mb-6">
-            <img src={configPagamento?.marca?.logoUrl || "/logorifazone.png.jpeg"} alt="RifaZone" className="w-12 h-12 rounded-2xl shadow-xl shadow-emerald-500/10 object-cover" />
+            <img src="/logorifazone.png.jpeg" alt="RifaZone" className="w-12 h-12 rounded-2xl shadow-xl shadow-emerald-500/10 object-cover" />
             <div>
               <h1 className="text-xl font-black">RifaZone</h1>
               <p className="text-xs text-slate-400">
@@ -968,7 +968,7 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha, onNavigateComoFu
             className={`flex items-center gap-2.5 overflow-hidden ${sidebarModo === 'compacto' ? 'cursor-pointer hover:opacity-80 transition' : ''}`}
             title={sidebarModo === 'compacto' ? 'Clique para expandir o menu' : undefined}
           >
-            <img src={configPagamento?.marca?.logoUrl || "/logorifazone.png.jpeg"} alt="RifaZone" className="w-8 h-8 rounded-lg object-cover shrink-0 shadow-sm" />
+            <img src="/logorifazone.png.jpeg" alt="RifaZone" className="w-8 h-8 rounded-lg object-cover shrink-0 shadow-sm" />
             {sidebarModo !== 'compacto' && (
               <div className="truncate">
                 <h2 className="text-base font-black text-white leading-none truncate">RifaZone</h2>
@@ -1116,7 +1116,7 @@ export const AdminPanel: React.FC<Props> = ({ onSelectCampanha, onNavigateComoFu
               <Menu className="w-6 h-6" />
             </button>
             <div className="flex items-center gap-2">
-              <img src={configPagamento?.marca?.logoUrl || "/logorifazone.png.jpeg"} alt="RifaZone" className="w-7 h-7 rounded-lg object-cover" />
+              <img src="/logorifazone.png.jpeg" alt="RifaZone" className="w-7 h-7 rounded-lg object-cover" />
               <span className="font-black text-white text-sm">RifaZone</span>
             </div>
           </div>

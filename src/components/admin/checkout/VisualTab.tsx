@@ -409,6 +409,125 @@ export const VisualTab: React.FC<VisualTabProps> = ({
           )}
         </div>
 
+        {/* Configurações Avançadas do Botão Principal */}
+        <div className="space-y-4 pt-3 border-t border-slate-800">
+          <h3 className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+            <Maximize2 className="w-3.5 h-3.5 text-indigo-400" /> Customização do Botão de Ação
+          </h3>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="p-3.5 bg-slate-950 border border-slate-800 rounded-xl space-y-3">
+              <label className="text-[11px] font-bold text-slate-400 block uppercase tracking-wider">
+                Formato do Botão
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { id: 'square', label: 'Quadrado', icon: '⬛' },
+                  { id: 'rounded', label: 'Arredondado', icon: '▢' },
+                  { id: 'pilled', label: 'Pílula', icon: '💊' },
+                  { id: 'super', label: 'Super Arredondado', icon: '⭕' },
+                ].map(f => (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => upd({ botaoFormato: f.id as any, botaoRaioBorda: f.id === 'square' ? 0 : f.id === 'rounded' ? 8 : f.id === 'pilled' ? 50 : 20 })}
+                    className={`py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border transition ${
+                      (checkoutConfig.botaoFormato || 'rounded') === f.id
+                        ? 'bg-indigo-600 border-indigo-400 text-white shadow-md'
+                        : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <span>{f.icon}</span>
+                    <span>{f.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="p-3.5 bg-slate-950 border border-slate-800 rounded-xl space-y-3">
+              <label className="text-[11px] font-bold text-slate-400 block uppercase tracking-wider">
+                Peso da Fonte & Tamanho
+              </label>
+              <div className="space-y-4">
+                <div className="flex gap-1.5">
+                  {[
+                    { id: 'normal', label: 'Normal' },
+                    { id: 'bold', label: 'Negrito' },
+                    { id: 'black', label: 'Extra Black' },
+                  ].map(p => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => upd({ botaoPesoFonte: p.id as any })}
+                      className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold border transition ${
+                        (checkoutConfig.botaoPesoFonte || 'black') === p.id
+                          ? 'bg-indigo-600 border-indigo-400 text-white'
+                          : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-[10px] text-slate-500 font-bold">TAMANHO DO TEXTO</span>
+                    <span className="text-[10px] text-indigo-400 font-black font-mono">{checkoutConfig.botaoTamanhoFonte || 14}px</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="10"
+                    max="22"
+                    step="1"
+                    value={checkoutConfig.botaoTamanhoFonte || 14}
+                    onChange={e => upd({ botaoTamanhoFonte: parseInt(e.target.value) })}
+                    className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="p-3.5 bg-slate-950 border border-slate-800 rounded-xl space-y-3">
+              <div className="flex justify-between">
+                <label className="text-[11px] font-bold text-slate-400 block uppercase tracking-wider">
+                  Arredondamento dos Campos
+                </label>
+                <span className="text-[10px] text-indigo-400 font-black font-mono">{checkoutConfig.inputArredondamento ?? 12}px</span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="30"
+                step="1"
+                value={checkoutConfig.inputArredondamento ?? 12}
+                onChange={e => upd({ inputArredondamento: parseInt(e.target.value) })}
+                className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+              />
+            </div>
+
+            <div className="p-3.5 bg-slate-950 border border-slate-800 rounded-xl space-y-3">
+              <div className="flex justify-between">
+                <label className="text-[11px] font-bold text-slate-400 block uppercase tracking-wider">
+                  Arredondamento dos Cards
+                </label>
+                <span className="text-[10px] text-indigo-400 font-black font-mono">{checkoutConfig.cardArredondamento ?? 16}px</span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="40"
+                step="1"
+                value={checkoutConfig.cardArredondamento ?? 16}
+                onChange={e => upd({ cardArredondamento: parseInt(e.target.value) })}
+                className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+              />
+            </div>
+          </div>
+        </div>
+
         {/* Seletor Visual de Tipografia com Prévias */}
         <div className="space-y-3 pt-2 border-t border-slate-800">
           <div className="flex items-center justify-between">
